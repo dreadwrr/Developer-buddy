@@ -1,0 +1,96 @@
+#!/bin/bash
+atmp="$1"
+SORTCOMPLETE="$2"
+ofile="$3"
+checkSUM="$4"
+rout="$atmp/haloop1_$$_tmp.log"
+tfile="$atmp/haloop2_$$_tmp.log"
+mapfile -t ref_lines < "$ofile" # Load the reference file into memory (for faster grep)
+while IFS= read -r p || [ -n "$p" ]; do
+	found_line=""
+    cFILE=$(echo "$p" | awk -F'"' '{print $2}')
+	y=$cFILE
+	cFILE="${cFILE//$'\\n'/\n}"
+	cline=$(echo "$p" | awk -F'"' '{print $3}' | xargs)  # Actual
+    in=$(echo "$cline" | cut -d " " -f1)
+    if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then
+        for line in "${ref_lines[@]}"; do if [[ "$line" == *"\"$y\""* ]]; then found_line="$line" ; fi ; done
+        if [ -n "$found_line" ]; then
+			if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then
+			    cat=$(echo "$cline" | cut -d " " -f2-3)
+   				cs=$(echo "$cline" | cut -d " " -f4)
+				dt=$(echo "$p" | cut -d " " -f1-2)
+				#
+				omt=$(echo "$found_line" | cut -d " " -f1-2)
+				oline=$(echo "$found_line" | awk -F'"' '{print $3}' | xargs)
+				oin=$(echo "$oline" | cut -d " " -f1) # Original inode
+				oat=$(echo "$oline" | cut -d " " -f2-3)
+				org=$(echo "$oline" | cut -d " " -f4) # Original checksum
+				#if [ "$cleaned" == "/home/guest/Downloads/Untitled Document" ]; then echo "$org oat" >> /home/guest/alta; fi
+				t=$(date -d "$oat" +%s 2>/dev/null)   # two key verification to be sure we are at the checksum
+				k=$(date -d "$cat" +%s 2>/dev/null)
+				if [ -n "$oin" ] && [ "$oin" -ge 0 ] 2>/dev/null; then # Format original good.. so far
+					if [ "$dt" == "$omt" ]; then # Not a candidate we want but if checkSUM is on you believe you do
+					    if [ "$checkSUM" == "true" ]; then # Bonus output is checksum on	
+							if [ -n "$t" ] && [ -n "$k" ]; then # Format is perfect
+								if [ -n "$org" ] && [ -n "$cs" ] && [ -f "$cFILE" ]; then	# format is looking good.
+									if [ "$org" != "$cs" ]; then # Modified time didnt change suspicious
+										a_checksum=$(md5sum "$cFILE" | awk '{print $1}')
+										a_mod=$(stat --format=%Y "$cFILE")
+										afrm=$(date -d "@$a_mod" +"%Y-%m-%d %H:%M:%S")
+										os=$(echo "$oline" | cut -d " " -f5-)
+										if [ -n "$os" ] && [ -n "$afrm" ]; then
+											fs=$(stat --format=%s "$cFILE")
+											if [ "$a_checksum" != "$cs" ]; then
+												if [ -n "$fs" ] && [ "$fs" == "$os" ] && [ "$cdiag" == "true" ]; then 
+													echo "file ${y} checksum changed but size stayed the same." >> /tmp/scr
+												elif [ "$afrm" == "$dt" ]; then 
+													#printf "%-10s %-25s %-60s\n" "Csumc" "$dt" "$cFILE" | tee -a "$rout" >> "$tfile"| tee -a /tmp/cerr; csm="true"
+													echo "Csumc $dt $y"| tee -a $rout >> "$tfile"| tee -a /tmp/cerr; csm="true"															
+												fi
+											else
+												if [ "$afrm" != "$dt" ]; then echo "Checksum indicates a change in ${y} modified time. File likely changed." >> /tmp/scr; fi		
+											fi
+										fi		
+									fi
+								fi # pitfall you want to run a checksum check but dont go down this branch  <-----
+							fi
+						fi
+					else # Regular but What changed?
+						if (( oin != in )); then # Inode changed normal
+						    if [ "$checkSUM" == "true" ]; then # More accurate
+								if [ -n "$org" ] && [ -n "$cs" ]; then	# Ensure we actually have both checksums
+								    if [ "$org" == "$cs" ]; then # same checksum file copied over
+								        #printf "%-10s %-25s %-60s\n" "Overwrt" "$dt" "$cFILE" | tee -a "$rout" >> "$tfile"
+										echo "Overwrt $dt $y" | tee -a $rout >> "$tfile"
+								    else # New file
+								        #printf "%-10s %-25s %-60s\n" "Replaced" "$dt" "$cFILE" | tee -a "$rout" >> "$tfile"
+										echo "Replaced $dt $y" | tee -a $rout >> "$tfile"
+								    fi
+								fi
+						    else # We have just given more info than the diff file with Inode change
+						        #printf "%-10s %-25s %-60s\n" "Replaced" "$dt" "$cFILE" | tee -a "$rout" >> "$tfile"
+								echo "Replaced $dt $y" | tee -a $rout >> "$tfile"
+						    fi
+						else # Same Inode
+						    if [ "$checkSUM" == "true" ]; then
+								if [ -n "$org" ] && [ -n "$cs" ]; then	# Ensure we actually have both checksums
+								    if [ "$org" != "$cs" ]; then
+								        #printf "%-10s %-25s %-60s\n" "Modified" "$dt" "$cFILE" | tee -a "$rout"  >> "$tfile" # File has new content
+										echo "Modified $dt $y" | tee -a $rout  >> $tfile # File has new content
+								    else
+								        #printf "%-10s %-25s %-60s\n" "Touched" "$dt" "$cFILE" | tee -a "$rout" >> "$tfile" # Something minor
+										echo "Touched $dt $y" | tee -a $rout >> $tfile # Something minor
+								    fi
+								fi
+						    else # Regular mode
+								#printf "%-10s %-25s %-60s\n" "Modified" "$dt" "$cFILE" | tee -a $rout >> $tfile # We have different time and indication of change. 
+						        echo "Modified $dt $y" | tee -a $rout >> $tfile # We have different time and indication of change. 
+						    fi
+						fi
+					fi
+				fi
+			fi
+		fi
+	fi
+done < "$SORTCOMPLETE"

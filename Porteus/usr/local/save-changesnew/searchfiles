@@ -1,0 +1,78 @@
+#!/bin/bash
+# Developer buddy 3.0
+# ctime and atime search  Used by xargs
+x="$1"
+tout="$2/searchfiles1_$$_tmp.log"
+COMPLETE="$2/searchfiles2_$$_tmp.log"
+checkSUM="$4"
+y="${x//$'\n'/\\n}"
+if [ -e "$x" ] && [ -f "$x" ]; then
+	stat_output=$(stat -c "%Y %X %Z %i" "$x")
+	read mtime atime itime i <<< "$stat_output"
+	ct=$(date -d "@$itime" +"%Y-%m-%d %H:%M:%S")
+	at=$(date -d "@$atime" +"%Y-%m-%d %H:%M:%S")
+	if [ -n "$ct" ]; then
+	if (( itime > mtime )); then
+		if [ "$checkSUM" == "true" ]; then
+			csum=$(md5sum "$x" | awk '{print $1}')
+			fs=$(stat --format=%s "$x") 
+			adtcmd="$csum $fs"
+		else
+			adtcmd=""
+		fi
+		if [ -n "$ct" ] && [ -n "$at" ]; then
+			output="$ct \"$y\" $i $at $adtcmd"
+			printf '%s\n' "$output" >> "$tout"
+		fi
+	fi
+fi
+else
+	printf 'NOTA-FI-LE 77:77:77 "%s"\n' "$y" >> "$tout"
+	printf 'Nosuchfile,,"%s"\n' "$y" >> "$COMPLETE"
+fi
+#Parallel
+#!/bin/bash
+# Developer buddy 3.0
+# ctime and atime search  Used by xargs with multiple files support
+#
+#atmp="$1"
+#shift
+#atmp_dir="$atmp"  # just for clarity
+#
+#checkSUM="$3"
+#shift 2  # Shift past atmp and checkSUM, leaving files as remaining args
+#
+#tout="$atmp_dir/searchfiles1_$$_tmp.log"
+#COMPLETE="$atmp_dir/searchfiles2_$$_tmp.log"
+#
+#files=("$@")
+#
+#for x in "${files[@]}"; do
+#    x="${x//$'\n'/\\n}"
+#    if [ -e "$x" ] && [ -f "$x" ]; then
+#        stat_output=$(stat -c "%Y %X %Z %i" "$x")
+#        read mtime atime itime i <<< "$stat_output"
+#
+#        ct=$(date -d "@$itime" +"%Y-%m-%d %H:%M:%S")
+#        at=$(date -d "@$atime" +"%Y-%m-%d %H:%M:%S")
+#
+#        if [ -n "$ct" ]; then
+#            if [ "$checkSUM" == "true" ]; then
+#                csum=$(md5sum "$x" | awk '{print $1}')
+#                adtcmd=$csum
+#            else
+#                adtcmd=""
+#            fi
+#
+#            if (( itime > mtime )); then
+#                if [ -n "$ct" ] && [ -n "$at" ]; then
+#                    output="$ct \"$x\" $i $at $adtcmd"
+#                    echo "$output" >> "$tout"
+#                fi
+#            fi
+#        fi
+#    else
+#        echo "NOTA-FI-LE 77:77:77 \"$x\"" >> "$tout"
+#        echo "Nosuchfile,,\"$x\"" >> "$COMPLETE"
+#    fi
+#done

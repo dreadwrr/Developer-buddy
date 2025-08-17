@@ -1,0 +1,31 @@
+#!/bin/bash
+# Developer buddy 3.0
+# main search loop used by xargs, now supports multiple files per run
+atmp="$1"
+checkSUM="$2"
+shift 2  # shift past the first two parameters
+SORTCOMPLETE="$atmp/mainloop1_$$_tmp.log"
+COMPLETE="$atmp/mainloop2_$$_tmp.log"
+files=("$@")  # remaining arguments are files
+for x in "${files[@]}"; do
+    y="${x//$'\n'/\\n}"
+    if [ -e "$x" ] && [ -f "$x" ]; then
+        read f atime i <<<$(stat -c "%Y %X %i" "$x")
+        mt=$(date -d "@$f" +"%Y-%m-%d %H:%M:%S")
+        ats=$(date -d "@$atime" +"%Y-%m-%d %H:%M:%S")
+        if [ -n "$mt" ]; then
+			if [ "$checkSUM" == "true" ]; then
+				csum=$(md5sum "$x" | awk '{print $1}')
+				fs=$(stat --format=%s "$x") 
+				adtcmd="$csum $fs"
+            else
+                adtcmd=""
+            fi
+            output="$mt \"$y\" $i $ats $adtcmd"
+			printf '%s\n' "$output" >> "$SORTCOMPLETE"
+        fi
+    else
+		printf 'NOTA-FI-LE 77:77:77 "%s"\n' "$y" >> "$SORTCOMPLETE"
+		printf 'Nosuchfile,,"%s"\n' "$y" >> "$COMPLETE"
+    fi
+done
