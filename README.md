@@ -41,7 +41,7 @@ or what changed on your system. So if you compiled something you call this scrip
   If not using for developing call it a file change snapshot
 
 We use the find command to list all files 5 minutes or newer. Filter it and then get to copying the files in a temporary staging directory.
-Then take those files and make an .xzm. It will be placed in   /tmp  along with a transfer log to staging directory and file manifest of the xzm 
+Then take those files and make an .xzm. It will be placed in   /tmp  along with a transfer log to staging directory and file manifest of the xzm  <BR><BR><BR><BR>
 
 
 
@@ -74,7 +74,7 @@ Then take those files and make an .xzm. It will be placed in   /tmp  along with 
    Changes exit is not part of nemesis and rightfully so. It is a great variation of porteus that is minimal and fast. So we dont want to change anything to implement changes exit unless the author
    wants it. instead of doing any changes to nemesis which is beyond my capability I decided to use scripts I made with porteus and just provide a clean way of backing up your changes. So
    if youre in graphics mode your changes will persist if you run this script. It makes saving a one click step on the desktop. And if youre on any other mode it simply makes a backup of your changes very
-   efficiently as it has minimals writes because you may already have a backup in place.
+   efficiently as it has minimals writes because you may already have a backup in place. <BR><BR><BR><BR>
 
 
    Save Changes New            Porteus                              (The .xzm creating is not in this version as porteus has changes=EXIT:/ and I am sticking to the design philosophy is do one thing and do it well   )
