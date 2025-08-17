@@ -1,0 +1,341 @@
+#!/bin/bash
+#   Developer buddy 3.0 core                                               08/08/2025
+#   Added hanly func to implement analysis from statpst and tmp seperatly 
+#   decrypt function check if its already been decrypted and returns 0
+#   saving in tmp, filter hits, and encrypt decrypt postop     
+postop() {
+if [ "$POSTOP" == "true" ]; then 
+	while IFS= read -r x; do x="${x//$'\\n'/\n}" ; printf '%s\0' "$x"; done < $1 >> $xdata # convert \\n back to \n and \0 for file search
+    if [ -f $USRDIR/doctrine.tsv ]; then 
+        sed -i 's/^export POSTOP="true"/export POSTOP="false"/' $2 # Avoid calling again unless file removed
+    else
+        echo -e "Datetime\tFile\tSize(kb)\tType\tModified\tAccessed\tOwner" > $atmp/doctrine
+        while IFS= read -r -d '' x; do        
+            f=$(cut -d' ' -f3- <<< "$x")
+            dt=$(cut -d' ' -f1-2 <<< "$x")
+            if [ -e "$f" ] && [ -f "$f" ]; then  
+                onr=$( stat -c "%U" "$f")    
+                mtyp=$( file --brief --mime-type "$f") 
+                if [ "$mtyp" == "application/octet-stream" ]; then mtyp="Unknown"; fi
+                if [ -L "$f" ]; then mtyp="Symlink"; fi
+                sz=$( stat -c %s "$f")
+                md=$( stat -c '%Y' "$f") ; x=$(date -d "@$md" +'%Y-%m-%d %H:%M:%S') # modification date
+                ae=$( stat -c '%X' "$f") ; y=$(date -d "@$ae" +'%Y-%m-%d %H:%M:%S') # access date
+                echo -e "$dt\t$f\t$(( sz / 1024 ))\t$mtyp\t$x\t$y\t$onr" >> $atmp/doctrine
+            fi
+        done < $xdata
+        unset IFS
+
+        head -1 $atmp/doctrine > $USRDIR/doctrine.tsv
+        tail -n +2 $atmp/doctrine | sort -t$'\t' -k7,7 -k3,3n >> $USRDIR/doctrine.tsv
+        green "File doctrine.tsv created in $USRDIR"
+        #column -t -s $'\t' $USRDIR/doctrine.tsv      this command prints a nice tab seperated log
+    fi
+fi
+}
+# tmp storage saving remove last one if full    
+stmp() {                         
+sf=$MODULENAME"_"$FLBRAND
+if (( tmpSRHS > 0 )); then #store it in tmp
+    test -d /tmp/rc || mkdir /tmp/rc 
+	r=$(find /tmp/rc -maxdepth 1 -type f -name '*rntfiles_MDY*' 2>/dev/null | wc -l)
+    if [ "$r" -eq "$tmpSRHS" ]; then #Clear last file
+        test -f /tmp/rc/full || { touch /tmp/rc/full ; cyan "searches builtup in /tmp/rc"; }
+        for file in "/tmp/rc"$MODULENAME"_MDY"*
+        do
+            rm -f $file
+            break
+        done
+    fi
+	awk 'NF' $1 > $TMPCOMPLETE; mv $TMPCOMPLETE $1 
+    cp $1 "/tmp/rc"$sf
+fi
+}
+# write stats if filters grep from logfile then pull filter line from filter and send to csv
+# $1 logfile $2 csv file
+filterhits() {
+local lt=$atmp/patterns.txt
+local fl=/usr/local/save-changesnew/filter
+
+test -f $2 || echo "Entry,Hits" >> $2
+sed -n '/^[[:space:]]*#/!s|sed -i '\''/\(.*\)/d'\''.*|\1|p' "$fl" > $lt
+while IFS= read -r pattern; do
+    k=$( echo "$pattern" | sed -e 's/\\//g' -e "s|'\"\${2}\"'|$USR|g") #convert for grep
+    x=$( grep -Fc -- "$k" $1) # search matches from logs
+    if grep -Fq "sed -i '/$pattern/d" $2; then      # in stats file?
+        if (( x > 0 )); then
+            y=$( grep -F "sed -i '/$pattern/d" $2 | cut -d',' -f2) # count     
+            b=$(( y + x ))
+            #line=$( grep -Fn "sed -i '/$pattern/d" $2)
+            #lno=$( echo "$line" | cut -d: -f1) 
+            lno=$(grep -Fn "sed -i '/$pattern/d" "$2" | cut -d: -f1) # get the line# from grep for sed
+            sed -i "${lno}s/,[0-9]\+\$/,$b/" $2
+        fi
+    else #write it to the file
+        line=$(grep -F "sed -i '/$pattern/d" "$fl" | grep -v '^[[:space:]]*#')
+        if [ "$line" != "" ]; then
+            echo "\"$line\",$x" >> $2
+        fi
+    fi			
+done < $lt
+unset IFS
+rm $lt
+}
+#create/open and save encrypted log/stats gpg $1 logfile $2 output
+storeenc() {
+local c
+    if [ "$STATPST" == "true" ]; then # Requires encryption
+        if ! gpg --list-keys | grep -q $email; then
+            #gpg --full-generate-key
+            echo pwd $PWD
+            read -sp "Enter passphrase for new GPG key: " p
+            echo
+            #read -sp "Confirm passphrase: " passphrase_confirm
+            #echo
+            #if [ "$passphrase" != "$passphrase_confirm" ]; then
+            #    echo "Passphrases do not match. Aborting."
+            #    exit 1
+            #fi
+cat > /tmp/keyparams.conf <<EOF
+%echo Generating a GPG key
+Key-Type: RSA
+Key-Length: 4096
+Subkey-Type: RSA
+Subkey-Length: 4096
+Name-Real: John Doe
+Name-Email: $email
+Expire-Date: 0
+Passphrase: $p
+%commit
+%echo done
+EOF
+        gpg --batch --pinentry-mode loopback  --passphrase "$p" --generate-key /tmp/keyparams.conf
+        shred -u /tmp/keyparams.conf
+        echo "GPG key generated for ${email}."
+        fi
+        if grep -m 1 -q '^Modified,' $1; then msg=" stats"; else msg=" log"; fi
+        if [ -s "$2" ]; then
+			if [ "$3" != "dcr" ]; then
+				if ! decrypt $xdata $2; then
+		            echo "Failed to decrypt  $2$msg"
+		            echo "decrypt $2$msg failed"
+		            return 1
+		        fi
+				source=$xdata
+			else
+				source=$xdata2
+			fi
+            if [ "$msg" == " stats" ]; then  
+
+                while IFS="" read -r p || [ -n "$p" ]; do
+                    ft=$(echo "$p" | cut -d',' -f1)          # | tr -d '"')   optional ""                   Modified, Delete  field
+                    dt=$(echo "$p" | cut -d',' -f2 | tr -d '"')   	 #  , "date time" 
+                    filepath=$(echo "$p" | cut -d',' -f3 | tr -d '"')    #   , "path file name with spaces " 
+                    if [ "$ft" == "Modified" ]; then # We want modified files and dont want duplicates as    it would mess up statistics entry="${ft},\"${dt}\",\"${filepath}\""     #      we are only adding modified data as we cant do Delete because its overhead ie searching again? no
+                        entry="Modified,\"${dt}\",\"${filepath}\""
+                        if ! grep -Fqx "$entry" $source; then
+                            echo "$entry" >> $source
+                        fi
+                    elif [ "$ft" == "Deleted" ]; then # We want modified files and dont want duplicates 
+                        entry="Deleted,\"${dt}\",\"${filepath}\""
+                        if ! grep -Fqx "$entry" $source; then
+                            echo "$entry" >> $source
+                        fi
+				   	elif [ "$ft" == "Replaced" ]; then # We want modified files and dont want duplicates 
+                        entry="Replaced,\"${dt}\",\"${filepath}\""
+                        if ! grep -Fqx "$entry" $source; then
+                            echo "$entry" >> $source
+                        fi
+				   	elif [ "$ft" == "Overwrt" ]; then # We want modified files and dont want duplicates 
+                        entry="Overwrt,\"${dt}\",\"${filepath}\""
+                        if ! grep -Fqx "$entry" $source; then
+                            echo "$entry" >> $source
+                        fi
+                    fi
+                done < $1
+                unset IFS
+
+				# Nosuchfile,,"path file name"      from the file search         We dont care about date.
+                if [ -s $COMPLETE ]; then cat $COMPLETE >> $source; fi  #$COMPLETE used to be $tout # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
+            else # its a log
+                c=$( grep -c '^$' $source) # line count blank line sep
+                if  (( c == logCT )); then 
+                    sed -i '1,/^$/d' $source  # Remove the top one
+                fi
+                cat $1 >> $source #sed '/NOTA-FI-LE 77:77:77/d' $1     # We either delete these here or in query if wanted but stats are useful
+                echo >> $source # end of log
+            fi
+            cmmd=(gpg --yes -e -r $email -o $2 $source) # normal usage
+			if [ "$nc" == "true" ]; then cmmd=(gpg --yes --compress-level 0 -e -r $email -o $2 $source); fi # If over the size limit disable compression for speed
+			if ! "${cmmd[@]}"; then  # Encrypt
+				echo "Encryption failed for file: $source  . $2$msg "
+			return 1
+			fi
+            #shred -u $source
+            rm $source
+            if [ "$msg" == " log" ]; then echo $c; fi
+        else
+            echo >> $1
+            if ! gpg --yes -e -r $email -o $2 "$1"; then #encrypt
+                echo "Encryption failed for file: $1"
+                return 1
+            fi
+            echo "The${msg} was created."
+        fi
+    fi
+}
+decrypt(){	if ! gpg -d -o $1 $2; then return 1; fi; } #decrypt  
+# hybrid analysis used either saving in /tmp or persistent storage
+# Cant do deletion detection here as it introduces overhead the statistics are used 
+# to check if the file was modified, replaced or checksum tampering if Diagnostics enabled
+# Efficient and basic if checksum turned off
+# Actions  Overwite Metadata Replaced Modified Csumchng
+hanly(){
+	local csm=""
+	local cores=""
+	if [ "$mMODE" == "mc" ]; then
+		cores=$(nproc 2>/dev/null || echo 1)
+		max_jobs=$cores
+		if (( max_jobs > 16 )); then max_jobs=16; fi
+		split -l 8 "$SORTCOMPLETE" "$atmp/sortchunk_"
+		ls "$atmp"/sortchunk_* | xargs -P"$max_jobs" -I{} /usr/local/save-changesnew/haloop "$atmp" "{}" "$2" "$checkSUM"
+		#ls "$atmp"/sortchunk_* | xargs -P4 -I{} /usr/local/save-changesnew/haloop "$atmp" "{}" "$2" "$checkSUM"
+		if compgen -G "$atmp"/haloop1_*_tmp.log > /dev/null; then cat "$atmp"/haloop1_*_tmp.log >> "$rout"; fi
+		if compgen -G "$atmp"/haloop2_*_tmp.log > /dev/null; then cat "$atmp"/haloop2_*_tmp.log >> "$tfile"; fi
+	else
+		while IFS="" read -r p || [ -n "$p" ]; do                                  
+			cFILE=$(echo "$p" | awk -F'"' '{print $2}')
+			y=$cFILE
+			cFILE="${cFILE//$'\\n'/\n}"
+			in=$(echo "$cline" | cut -d " " -f1) # Current inode
+			if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then # The format for current is at least correct .. this far
+				if grep -qsF "\"$y\"" $2; then	 # start here	
+					dt=$(echo "$p" | cut -d " " -f1-2)
+					cline=$(echo "$p" | awk -F'"' '{print $3}' | xargs)
+					cat=$(echo "$cline" | cut -d " " -f2-3)
+					cs=$(echo "$cline" | cut -d " " -f4) # Current checksum
+					#
+					sline=$(grep "$y" "$2" | tail -n 1)
+					omt=$(echo "$sline" | cut -d " " -f1-2)
+					oline=$(echo "$sline" | awk -F'"' '{print $3}' | xargs)
+					oin=$(echo "$oline" | cut -d " " -f1) # Original inode
+					oat=$(echo "$oline" | cut -d " " -f2-3)
+					org=$(echo "$oline" | cut -d " " -f4) # Original checksum
+					#if [ "$cleaned" == "/home/guest/Downloads/Untitled Document" ]; then echo "$org oat" >> /home/guest/alta; fi
+					t=$(date -d "$oat" +%s 2>/dev/null)   # two key verification to be sure we are at the checksum
+					k=$(date -d "$cat" +%s 2>/dev/null)
+					if [ -n "$oin" ] && [ "$oin" -ge 0 ] 2>/dev/null; then # Format original good.. so far
+						if [ "$dt" == "$omt" ]; then # Not a candidate we want but if checkSUM is on you believe you do
+						    if [ "$checkSUM" == "true" ]; then # Bonus output is checksum on	
+								if [ -n "$t" ] && [ -n "$k" ]; then # Format is perfect
+									if [ -n "$org" ] && [ -n "$cs" ] && [ -f "$cFILE" ]; then	# format is looking good.
+										if [ "$org" != "$cs" ]; then # Modified time didnt change suspicious
+											a_checksum=$(md5sum "$cFILE" | awk '{print $1}')
+											a_mod=$(stat --format=%Y "$cFILE")
+											afrm=$(date -d "@$a_mod" +"%Y-%m-%d %H:%M:%S")
+											os=$(echo "$oline" | cut -d " " -f5-)
+											if [ -n "$os" ] && [ -n "$afrm" ]; then
+												fs=$(stat --format=%s "$cFILE")
+												if [ "$a_checksum" != "$cs" ]; then
+													if [ -n "$fs" ] && [ "$fs" == "$os" ] && [ "$cdiag" == "true" ]; then 
+														echo "file ${y} checksum changed but size stayed the same." >> /tmp/scr
+													elif [ "$afrm" == "$dt" ]; then 
+														#printf "%-10s %-25s %-60s\n" "Csumc" "$dt" "$cFILE" | tee -a "$rout" >> "$tfile"| tee -a /tmp/cerr; csm="true"	
+														echo "Csumc $dt $y"| tee -a $rout >> "$tfile"| tee -a /tmp/cerr; csm="true"															
+													fi
+												else
+													if [ "$afrm" != "$dt" ]; then echo "Checksum indicates a change in ${y} modified time. File likely changed." >> /tmp/scr; fi		
+												fi
+											fi		
+										fi
+									fi # pitfall you want to run a checksum check but dont go down this branch  <-----
+								fi
+							fi
+						else # Regular but What changed?
+							if (( oin != in )); then # Inode changed normal
+							    if [ "$checkSUM" == "true" ]; then # More accurate
+									if [ -n "$org" ] && [ -n "$cs" ]; then	# Ensure we actually have both checksums
+									    if [ "$org" == "$cs" ]; then # same checksum file copied over
+									        #printf "%-10s %-25s %-60s\n" "Overwrt" "$dt" "$cFILE" | tee -a "$rout" >> "$tfile"
+											echo "Overwrt $dt $y" | tee -a $rout >> "$tfile"
+									    else # New file
+									        #printf "%-10s %-25s %-60s\n" "Replaced" "$dt" "$cFILE" | tee -a "$rout" >> "$tfile"
+											echo "Replaced $dt $y" | tee -a $rout >> "$tfile"
+									    fi
+									fi
+							    else # We have just given more info than the diff file with Inode change
+							        #printf "%-10s %-25s %-60s\n" "Replaced" "$dt" "$cFILE" | tee -a "$rout" >> "$tfile"
+									echo "Replaced $dt $y" | tee -a $rout >> "$tfile"
+							    fi
+							else # Same Inode
+							    if [ "$checkSUM" == "true" ]; then
+									if [ -n "$org" ] && [ -n "$cs" ]; then	# Ensure we actually have both checksums
+									    if [ "$org" != "$cs" ]; then
+									        #printf "%-10s %-25s %-60s\n" "Modified" "$dt" "$cFILE" | tee -a "$rout"  >> "$tfile" # File has new content
+											echo "Modified $dt $y" | tee -a $rout  >> $tfile # File has new content
+									    else
+									        #printf "%-10s %-25s %-60s\n" "Touched" "$dt" "$cFILE" | tee -a "$rout" >> "$tfile" # Something minor
+											echo "Touched $dt $y" | tee -a $rout >> $tfile # Something minor
+									    fi
+									fi
+							    else # Regular mode
+									#printf "%-10s %-25s %-60s\n" "Modified" "$dt" "$cFILE" | tee -a $rout >> $tfile # We have different time and indication of change. 
+							        echo "Modified $dt $y" | tee -a $rout >> $tfile # We have different time and indication of change. 
+							    fi
+							fi
+						fi
+					fi
+				fi
+			fi
+		done < $1
+		unset IFS
+	fi
+	rm $2
+		# A big mistake. We dont have the necessary info to make this determination. Imagine saying metadata change when the file was replaced or modified.
+		# else # Subtle metadata change
+		#if [ -n "$cat" ] && [ -n "$oat" ]; then 
+		#	aoat=$(date -d "$cat" +%s)
+		#	acat=$(date -d "$oat" +%s)
+		#	if [ -n "$aoat" ] && [ -n "$acat" ]; then # We are certain the format is 100%
+		#tag="Metach"
+		#	if [ "$cat" != "$oat" ]; then
+		#	tag="xtimech"
+		#else
+		#	tag="Metach"
+		#fi
+		#[ "$cat" != "$oat" ] && tag="xtimech" || tag="Metach"
+		#printf "%-10s %-19s %s\n" "$tag" "$dt" "$cFILE" | tee -a "$rout" >> "$tfile"
+		#echo "$tag $dt $cFILE" | tee -a $rout >> $tfile
+		#fi
+		#fi
+	# Notes
+	# We have no checksum to compare
+	#else # Its not in the log yet. File creation is already implied but was it Replaced or Modified?
+	# We know there is nosum currently but the file might already be logged ie without checkSUM enabled
+	#grep -qsF "$cFILE" "$2" && if ! grep -qsF "\"$cFILE\" $in" "$2"; then echo "Replacd $dt $cFILE" | tee -a "$tfile" >> "$rout"; else echo "Modified $dt $cFILE" | tee -a "$tfile" >> "$rout"; fi 
+	#else
+	#printf "%-9s %-19s %s\n" "Noinode" "$dt" "$cFILE" | tee -a "$tfile" >> "$rout"
+    if [ -s $rout ]; then
+        if [ -s $tfile ]; then
+            echo >> "$difffile"
+            echo "Hybrid analysis" >> "$difffile"
+            echo >> "$difffile"
+			sort -o $tfile $tfile
+			if [ -s $ABSENT ]; then sort -o $ABSENT $ABSENT; comm -23 $tfile $ABSENT > $TMPCOMPLETE ; else cat $tfile > $TMPCOMPLETE; fi # We dont want anything already in written
+			if [ "$flsrh" == "true" ] || [ "$3" == "filtered" ]; then  # Filter the view for filtered searches. A file search or rn	
+			     if ! { [ "$flsrh" == "true" ] && [ "$3" == "filtered" ]; } ; then	# If flsrh and $3 is filtered its inverse from  rnt  so we dont want to filter this time																																					    	
+				 /usr/local/save-changesnew/filter $TMPCOMPLETE $USR 
+			     fi
+			fi
+			if [ "$flsrh" == "true" ]; then   # We only want files newer than the file in the results
+				cDATE=$( head -n1 $TMPOPT | awk '{print $1 " " $2}')          
+				awk -v tme="$cDATE" '$0 >= tme' "$TMPCOMPLETE" > $TMPOUTPUT
+				cp $TMPOUTPUT $TMPCOMPLETE
+			fi
+			#awk '{ printf "%s%s\n", $1, substr($0, length($1)+2) }' $TMPCOMPLETE >> "$difffile"
+
+			awk '{printf "%-10s %-25s %-60s\n", $1, $2" "$3, $4}' $TMPCOMPLETE >> "$difffile"
+       		if [ "$csm" != "" ]; then echo "csum"; else echo "$cores"; fi
+        fi
+	fi
+}

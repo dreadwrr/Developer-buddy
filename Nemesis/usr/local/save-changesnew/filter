@@ -1,0 +1,147 @@
+#!/bin/bash
+
+# Filter modified date: 07/24/2025       SN:049BN6KZ01
+#
+#	Notes: Nemesis 25.04
+#
+#  Full modularity only one filter needed for version 3       used to be a copy in compilesearch.sh you used to have to update as well
+# $1 first file $2 user $3 second file
+
+## Base var exclusions
+
+# we dont want /var/cache
+sed -i '/\/var\/cache/d' $1 $3
+
+# we dont want  /var/run
+sed -i '/\/var\/run/d' $1 $3
+
+# we dont want  /var/tmp
+sed -i '/\/var\/tmp/d' $1 $3
+# we dont want /var/lib/NetworkManager
+sed -i '/\/var\/lib\/NetworkManager/d' $1 $3
+# we dont want /var/lib/upower
+sed -i '/\/var\/lib\/upower/d' $1 $3
+# we dont want  /var/log
+sed -i '/\/var\/log/d' $1 $3
+## End base var exclusions
+
+
+
+# we dont want /opt/porteus-scripts/
+sed -i '/\/opt\/porteus-scripts/d' $1 $3
+# we dont want /usr/share/mime
+sed -i '/\/usr\/share\/mime/d' $1 $3
+# we dont want Xauthority
+sed -i '/\/home\/'"${2}"'\/\.Xauthority/d' $1 $3
+# we dont want wireplumber
+sed -i '/\/home\/'"${2}"'\/\.local\/state\/wireplumber/d' $1 $3
+
+# we dont want  .bash_history
+sed -i '/\.bash_history/d' $1 $3
+# we dont want to  .cache 
+sed -i '/\.cache/d' $1 $3
+# we dont want .dbus
+sed -i '/\.dbus/d' $1 $3
+# we dont want .gvfs
+sed -i '/\.gvfs/d' $1 $3
+# we dont want .gconf
+sed -i '/\.gconf/d' $1 $3
+# we dont want to .gnupg
+sed -i '/\.gnupg/d' $1 $3
+# we dont want .local/share
+sed -i '/\.local\/share/d' $1 $3
+# we dont want .local/state   wireplumber
+sed -i '/\.local\/state/d' $1 $3
+# we dont want xsession errors
+sed -i '/\.xsession/d' $1 $3
+
+#Inclusions from script
+# $USR passed from recentchanges argument chaning into root  $3
+# we dont want  USER/.config
+sed -i '/\/home\/'"${2}"'\/\.config/d' $1 $3
+sed -i '/\/home\/'"${2}"'\/Downloads\/rntfiles/d' $1 $3
+
+
+# we dont want   root .auth90
+sed -i '/\/root\/\.auth/d' $1 $3
+# we dont want  root/.config
+sed -i '/\/root\/\.config/d' $1 $3
+# we dont want   root .lesshst
+sed -i '/\/root\/\.lesshst/d' $1 $3
+# we dont want   root .xauth
+sed -i '/\/root\/\.xauth/d' $1 $3
+
+
+#Firefox (Only unwanted files from profile)
+sed -i '/release\/cookies\.sqlite-wal/d' $1 $3
+sed -i '/release\/sessionstore-backups/d' $1 $3
+sed -i '/release\/aborted-session-ping/d' $1 $3
+sed -i '/release\/cache/d' $1 $3
+sed -i '/release\/datareporting/d' $1 $3
+sed -i '/release\/AlternateServices\.bin/d' $1 $3
+
+#Chromium
+#sed -i '/ungoogled/d' $1 $3
+
+
+
+#  Now we get into the important directories. Do we exclude at the risk of deleting our program? Tread carefully
+#
+#  Very carefully select only starting /etc/    <------  We can remove this filter if needed
+#
+#
+# we dont want  /etc/  
+#sed -i '/^\/etc/d' $1 $3        <--------- including  /etc/
+
+
+
+
+
+#Filtering complete
+
+
+
+#Filtering examples 
+
+# we dont want to copy .gvfs
+#sed -i '/\.gvfs/d' $1 $3
+# we dont want to copy .gconf
+#sed -i '/\.gconf/d' $1 $3
+# we dont want to copy .dbus
+#sed -i '/\.dbus/d' $1 $3
+# we dont want to copy .gnupg
+#sed -i '/\.gnupg/d' $1 $3
+# we dont want to copy .Xauthority
+#sed -i '/\.Xauthority/d' $1 $3
+# we dont want to copy .config/geany
+#sed -i '/\.config\/geany/d' $1 $3
+# we dont want to copy .config/blueman
+#sed -i '/\.config\/blueman/d' $1 $3
+# we dont want to copy .config/Trolltech.conf
+#sed -i '/\.config\/Trolltech\.conf/d' $1 $3
+# we dont want to copy .config/akonadi
+#sed -i '/\.config\/akonadi/d' $1 $3
+
+
+#Filtering
+
+# shave off the first two characters  this helps copying the files
+#sed -i 's/^..//g' $1 $3
+
+# if the file has just a dot on the first line remove it so it doesnt copy all files
+#sed -i '1 d' $1 $3
+
+# we dont want to copy the .cache 
+#sed -i '/\.cache/d' $1 $3
+
+# we dont want to copy the trash bin this may be different I am using KDE
+#sed -i '/\.local\/share\/Trash/d' $1 $3
+
+# we dont want to copy .local/share
+#sed -i '/\.local\/share/d' $1 $3
+
+# we dont want to copy .kde/share
+#sed -i '/\.kde\/share/d' $1 $3
+
+# we dont want  /etc/profile.d
+#sed -i '/\etc\/profile\.d/d' $1 $3
