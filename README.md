@@ -22,7 +22,7 @@ Rsync backup your changes folder in changes=EXIT:/ on porteus
 
 Contantly up to date as I use this daily when developing.
 
-3 modes. normal, mem and mc. The traditional loop, an array or multiple core. Highly optimized code and written strictly in bash.
+3 modes. normal, mem and mc. The traditional loop, an array or multiple core. Highly optimized code and written strictly in bash. <BR><BR><BR><BR>
 
 
 
