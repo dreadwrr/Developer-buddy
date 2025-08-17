@@ -1,4 +1,11 @@
 # Developer-buddy                                       08/17/2025
+
+![Logo](https://i.imgur.com/QVWc23x.jpeg)
+
+
+
+
+
 Version: devr2                save-changesnew5.0devr2         RecentchangesN5devr2 <br><br>
 
 Find new files, save changes in porteus/nemesis and RSync backup in changes=EXIT:/
