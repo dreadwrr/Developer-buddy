@@ -1,0 +1,1278 @@
+#!/bin/bash
+#                                               Developer Buddy v3.0                Aug 11, 2025
+#   this script works for two modes porteus nemesis graphics and changes.        
+#
+#   graphics mode all changes are in memory so to implement changes saving this script will save changes to an .xzm. it will then modify the porteus.cfg
+#   to load=/porteus/changes.xzm. so when the system boots it loads all your changes. if one already exists it will update it. So graphics changes mode wont
+#	load the graphics saves.
+#
+#   Graphics changes mode all changes are saved to the hdd already. so this part will backup the changes to /changes.bak right beside it.
+#
+#	Once the backup is made it only applies the deletions and additions so writes are minimal. Having a desktop icon makes it more likely you saved in the event 
+#	of a powerloss ect.
+#
+#   Reasoning:
+#   1. if you boot with changes cheatcode it wont load the changes.xzm from graphics mode as its not in the module directory.
+#   2. if you use changes cheatcode nothing is changed its simply a backup of your changes. Thus if you like the system how it is run save-changesnew and create a backup of it.
+#   Then if something goes wrong you can simply delete your changes folder and rename changes.bak to changes
+#
+#   If we can simplify the way of saving which is easy to use it will be more often done and can save you a lot of grief if you lose your data. As well as being minimally invasive it doesnt
+#   change anything on the system and is a worthwhile feature to add to developer buddy. I made developer buddy to also include saving changes on porteus 5.01 and porteus 5.1 so I decided
+#   developer buddy on nemesis should have a save feature as well and complete the module.
+#
+#   Changes exit is not part of nemesis and rightfully so. It is a great variation of porteus that is minimal and fast. So we dont want to change anything to implement changes exit unless the author
+#   wants it. instead of doing any changes to nemesis which is beyond my capability I decided to use scripts I made with porteus and just provide a clean way of backing up your changes. So
+#   if youre in graphics mode your changes will persist if you run this script. It makes saving a one click step on the desktop. And if youre on any other mode it simply makes a backup of your changes very
+#   efficiently as it has minimals writes because you may already have a backup in place.
+#
+# Using some porteus lines from save-changes and linuxrc (from initrd.xz) scripts written by
+# # Author: fanthom <fanthom@porteus.org> 
+. /usr/share/porteus/porteus-functions
+get_colors
+. /usr/local/save-changesnew/save-changesnewfnts
+if [ `whoami` != "root" ]; then
+
+    echo "Please enter your root password below"
+    su - -c "/usr/local/bin/save-changesnew '${BASEDIR}' '${USER}' "  # if your script is else where change this to location
+    exit
+else
+    if [ "$2" == "" ]; then theUSER="guest"; else theUSER=$2; fi
+fi
+thetgt="$1" ; if [ "$thetgt" == "" ]; then thetgt=$BASEDIR; fi     # <----- actual root call  is blank      -->   see line 181          /mnt/sdax
+                                                                           
+if  ! id $2 >/dev/null 2>&1; then echo "user:" ${2} "not found"; exit 0 ; fi # quick user check we test the target directory $1 after VARS
+if ! grep -iq "Artix" /etc/os-release; then echo "Wrong version of developer buddy. Please use porteus version." && exit 0 ; fi
+
+# CHANGABLE 
+                                # the user from root call used for chown modules to specific user 
+
+target=$thetgt                               # change this to specify the location of porteus install this passed from root call where porteus is installed via $BASEDIR
+                                                # examples      "/mnt/sda1"
+                                                #                   "/dev/sda1"
+                                               # avoid trailing /
+
+
+#Folders to include from changes      adjust if wanted            set to include changes-exit default folders
+FOLDERS="bin etc home lib lib64 opt root sbin usr var"      
+#Folders to exclude from changes            
+EXCLUDE="/var/run /var/tmp share/Trash"   #default changes-exit configuration
+                                            # keep original format  /var/run    is the base directory var
+                                            # seperate with space            anything else other than / will be a pattern *****  ie share/Trash
+
+#Folders to exclude from changes                                         already set to exclude changes-exit default folders
+# If you want to exclude directories see Line 153, 191 for Graphics changes mode and 307 for Graphics mode
+
+chxzm="/changes.xzm"            #Module  name  change this if you want to customize the name     
+                                                # retain leading / and ensure it ends in .xzm
+                                               #avoid trailing / and any spaces
+em="/extramod"                      #change this to save a different folder       the extramod dirtory
+                                                # retain leading /
+                                               # avoid trailing /
+
+cmode="gzip"                            # default nothing. uses gzip compression level balanced
+                                           # xz        best compression
+                                           # zstd     faster bootup
+                                            # lzo      faster bootup
+
+logSIZE=35                             # Log size limit default 35 MB
+                                            # Will keep the original contents from when the changes.bak folder was made 
+                                            # if limit is exceeded. Just clears out old changes to make a new log file
+
+logSPRF="delete"                         # When log size limit reached what to do default delete just delete it and create a new one
+                                            #       with new updated master list.
+                                            # delete    delete the log to save space and make a new one with new master listi
+                                            # psv       preserve 25% of the last changes but take into account new changes so
+                                            #           we are not over 25% of the log max size limit thus we grab 10-15% of the
+                                            #           most recent changes append new ones to reach the 25% quota
+                                            #   
+                                            #           end result preserves the original format and any original master list
+                                            #
+                                            # stop      dont log anymore
+
+mdllmt=2                             # Auto Graphics mode module merging default 7
+                                                # when reached will automatically merge if mrgMODULES is set to true below
+                                                # see mrgMODULES boolean 
+linkedLOGPRF="incr"          # default incr  new log of only changes keeps log size down
+                                            # full log from creation all files and then append changes
+                                            # no      dont log the linked module
+                                                          
+# CHANGABLE BOOLEANS
+
+linkedSTATE="true"             #This is precendence for changes:EXIT only on graphics mode. Default false
+                                           # This implies that you want changes made INCLUDING deletes to another
+                                           # modules in /tmp for now. We do this to prove that its working so everything
+                                           # is still done the same just you have a module with deletions included in /tmp
+                                           #
+                                           # linked state needs all changes modules to be created together thus you should
+                                           # start with one that has linkedSTATE made. A byte count of this .xzm is made
+                                           # and logged into a txt file by the modules.
+                                           #
+                                           # This text file will tell it are those candidates for Changes:EXIT/ and where to stop
+                                           # ect.
+keepLINKEDMRGED="false"  # default is false so delete the old ones after merging if they are not in sync with each other
+                                           # it automatically renames the old one to .bak. ****
+
+
+# Non linked state options 
+mrgMODULES="true"           # Automatically merge changes modules if over limit value 
+                                        #change this to automatically merge changes.xzm modules  ( applies to Graphics mode)
+                                        # see $BASEDIR/extramod for mergemodule script to merge changes modules
+
+
+keepMRGED="false"       # default is false so delete the old ones after merging
+# End Non linked state options
+
+d2drive="true"                 # default is false   for systems with low memory save directly to drive 
+                                        # default is save to memory for staging purposes and convenience of modifying
+                                        # ect more versatle and efficient (less writes on hd)
+
+                                        # but systems with low memory may want to use this to avoid any potential
+                                        # exceedence 
+d2dmdl="false"					# default false  use harddrive for temp dir for modules
+
+# Terminal output / feedback
+FEEDBACK="false"                # default false     New version 3 feature
+                                            # show more verbose feedback from rsync ect in terminal while saving
+
+LOGGING="true"                  # default is true change if you dont want logging
+
+
+
+ANALYTICS="true"            # logging must be set to true       default true     or set to false to turn off too much info       
+                                        # if false will just output rsync changes
+                                        # if it exceeded logSIZE then the original contents when the backup was made is preserved
+                                        # and then a new logfile is made then rsync appends any changes during updates until
+                                        # the limit is exceeded again.
+
+                                      # If true Will give total space saved if making a complete new backup
+                                        # more data in the log file and custom info by this script
+
+                                        # extra stuff like if the log file exceeded logSIZE and a new one is made
+                                        # it will list the contents of the ORIGINAL backup, the contents of the current backup
+                                        # and list the file differences as well. Then rsync will continue to input changes.
+                                        # you also get total MB saved if you had manually backed up the changes folder ect
+# End Terminal output
+
+# Backup mode for Graphics modules
+ROLLBCK="false"				# backup module after merged to be able to "rollback" by loading any single module
+ 			 							# A module that has been merged is saved and moved to /archive/
+										# takes up more space
+
+
+ROLLSUMRY="false"            # default false    Include file manifest for archives
+archLMT=2						# how many unique roll backs to keep  both _uid_ and _uid_L seperately
+# End Backup mode
+# END CHANGABLE BOOLEANS
+# END CHANGABLE
+tmp=/mnt/live/tmp/work$$											; 			mtmp=/tmp/mtmp$$                        
+ch=/mnt/live/memory/changes									;			INAME=/mnt/live/memory/images          #system changes   and images    leave set
+SFOLDERS=/tmp/save.sfolders.tmp								;			trsyncexl=/usr/local/save-changesnew/excld.ini
+#  rsync exclude Cache     cache2/*    ect     see for details
+exclfiles=/tmp/exfiles.log											;			EXCL=/tmp/save.excl.tmp	 # for egrep regrex
+# works with squash
+QEXCL=/tmp/squashexfiles.log									;			EXCLUDED=/tmp/save.excluded.tmp                                               
+CHNEXIT_CONF=/etc/changes-exit.conf						;			EXFILES=/tmp/save.squashregex.tmp                   #  only if we have to escape for regex
+UPDATE=/tmp/save.update.tmp									;			oMF=/tmp/flog.log	#original module name list used for merging	
+USR=$theUSER															;			LOGDIR=/home/$USR/Downloads																
+LOGFILE="save.sfiles.tmp"														#; SVFILES=$MNAME/home/$USR/Downloads/save.sfiles.tmp            # wait until changes exit for nemesis #log file
+#Used for changes-exit conf
+IFOLDERS=""																;			rname=""
+adtCMD=""																;			MODULENM="" 
+sentinal=""																;			thetgt=$BASEDIR  ##thetgt="/mnt/sda3"   <----- change if actual root
+mbyte=1048576														;			osize=0   # the original size of changes folder to be captured before moving things to /tmp
+#booleans
+rlt=""
+if [ "$LOGGING" == "false" ] && [ "$ANALYTICS" == "true" ]; then
+    echo analystics requires logging to be true. && exit 0
+fi
+if [ ! -e $target ]; then #If user changed the target and doesnt exist
+    echo "Target does not exist" && exit 0
+fi
+
+# used to create one l module from another simple function that is called in different conditions in the script saves lines
+createlmdl () {
+local instm="$1" # so we can see where its called from
+
+# if fname != "" then its passed from msr file ###
+# for mods in "${target}${em}/"*_uid_L.*.xzm; do         
+    # This ensures are only excuting this block if we know there is 1 and only 1 _uid_L .xzm file 
+    if [ "$instm" != "nolmdl" ]; then
+
+        mkdir $mtmp
+
+        for mods in "$target$em/"*_uid_L*.xzm; do  # we know there in only one extract it so it wont iterate over the literal pattern
+            if [ "$fname" == "" ]; then fname="$mods"; fi
+            xzm2dir $mods $mtmp     # extract it           # $target$em$mods
+            if [ $? -ne 0 ]; then
+                mount -o remount,udba=none /
+                red "Error processing ${instm}"  >&2
+                cyan "Everything preserved. Check script"
+                exit 1
+            fi
+        done
+        # check for an opq files and delete the layer below from the files already merged
+        #find $mtmp -type f -name '.wh..wh..opq' -printf '%P\0' | while IFS= read -r -d '' file; do
+        #p=$( echo "$file" | sed -E 's|(.*\/)\.wh\.\.wh\.\.opq\.|\1|')  # removes .wh..wh..opq from start of file keeps full path 
+        #p=$( echo "$file" | sed -e 's![^/]*$!!') # drops to the root directory of the .wh..wh..opq file   /thisdir/thatdir/myfile.txt   returns  /thisdir/thatdir/ 
+        #[[ ! -z "$(find $tmp -mindepth 1 -print -quit)" ]] && test -e $p && rm -rf $p        # we have to drop one directory and not do this if its the first .xzm
+        #test -e $tmp$p && rm -rf $tmp$p # remove the directory as its in the lower layer
+        #    rm $file # remove the opq         <--------- mtmp is missing ....    it wont allow us to copy it anyway
+        #done
+        #unset IFS
+        # Handle filenames with spaces.
+	    IFS="
+	    "
+        cd $ch || { mount -o remount,udba=none /; exit; }
+        # Remove deleted files and non matching whiteouts
+        for y in $(find $FOLDERS -name ".wh.*"); do  # we are working in $tmp not $mtmp for safer deletion and correct paths using absolute usually
+            # f="$(echo $y | sed 's@\.wh\.@@g')"
+	    f="${y//.wh./}"
+          test -e "$mtmp/$f" && rm -rf "${mtmp:?}/$f";	   # QXCL The file is unique so remove /        Filecould have space  <-----------     fixwh escapes     fixsqh removes  leading /
+          test -e "$INAME/*/$f" || { echo "$y" | fixwh | fixsqh >> $QEXCL; echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }  # we are excluding the .wh.
+                       #         ^   changed back to "$INAME/*/$f"       to prevent binary operator expected on empty sym link
+        done
+                                                       
+	    #  We have  EXCL  regex and        EXFILES   non regex to work with 
+	    #
+	    #  This routine can clean up EXCL to work with rsync tested
+	    #  works. The point of this version is to not have regex for
+	    #  rsync so all changes are for that reason
+	    #
+	    #  sed -i -e 's/\^//' -e 's|\\\.|.|g' -e 's|\]|\]\\|g' $EXCL
+	    #
+
+        #cat $exclfiles > $EXFILES               #Our already made exclusion list. Building in support for changes-exit.cfg
+       # if [ -s $EXCL ]; then  cat $EXCL | fixexcl >> $exclfiles; fi     # Fix egrep to work with rsync
+       	#
+		#                                      Remove leading  ^ fixexcl as EXCL egrep
+		grep -Fvxf $exclfiles $EXCL | fixexcl >> $UPDATE; test -s $UPDATE && cat $UPDATE >> $exclfiles # Only unique to $EXCL are appended these are patterns that are unique
+		#   INCLUSIONS?																					Have $QEXCL  mksquashfs                            $exlcfiles   rsync         <-----------------------------------
+
+	    # The purpose of this routine is so we have a file with all folders to save and can use it verify with rsync log that rsync is working
+	    # or captured all the directories
+	    # 
+	    # $EXCL will show all the .wh. files  and $SFOLDERS has all the folders can use to verify
+	    #
+	    # Create a manifest of what folders we are saving through EXCL regex
+        # Copy new and modified folders -- skip excluded whiteouts and folders and create a folder manifest    
+	    test -s "$EXCL" && { find $FOLDERS -type d | egrep -vf $EXCL || find $FOLDERS -type d; } > $SFOLDERS     
+
+
+        # Remove conflicting whiteouts we have these files in place since the start of the script
+        for y in $(find $mtmp -name ".wh.*"); do
+            f="$(echo "$y" | sed -e "s^$mtmp^^g" -e 's^\.wh\.^^g')"
+            test -e "$f" && rm "$y";
+        done
+
+        # As changes exit isnt implemented fully we want to delete all .wh. files off of mtmp (our final area) to avoid mkquashfs from erroring on the files
+        # while this is already done a user could rename a module to _uid_L and thus have .wh. files and break the script
+        find $mtmp -name ".wh.*" -exec rm -r {} \;
+
+        #Send files to drive and exclude from list of what to exclude  ie folders files etc
+        #     
+        # pattern '\.wh\.*'    excludes any file starting with   .wh.
+        #
+        #Reject old log file in session
+        #test -e home/$USR/Downloads/"$LOGFILE" && rm home/$USR/Downloads/"$LOGFILE"
+
+        #Reject old log file in session
+        test -e $tmp/home/$USR/Downloads/$LOGFILE && rm $tmp/home/$USR/Downloads/$LOGFILE
+
+        # Now we are excluding all .wh. from current session                       #--exclude-from=$EXFILES we built a new one
+        test -s "$exclfiles" && { rsync -av --exclude-from=$exclfiles --exclude '\.wh\.*' $tmp/ $mtmp; } > $UPDATE || rsync -av --exclude '\.wh\.*' $tmp/ $mtmp > $UPDATE
+
+        #Create a log
+	    BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
+	    echo $BRAND >> $UPDATE
+
+        if [ "$linkedLOGPRF" == "full" ]; then 
+            cat $UPDATE >> $LOGDIR/$LOGFILE
+            cp $LOGDIR/$LOGFILE $mtmp/home/$USR/Downloads/$LOGFILE
+        elif [ "$linkedLOGPRF" == "incr" ]; then
+            #Do include a log file to module
+	        cp "$UPDATE" $mtmp/home/$USR/Downloads/$LOGFILE
+        	#Do include a log file in case still in session
+	        cp "$UPDATE" home/$USR/Downloads/$LOGFILE
+        else
+            #Do include a log file in case still in session
+	        cp "$UPDATE" home/$USR/Downloads/$LOGFILE
+        fi
+
+        cd $tmp || exit
+        unset IFS
+    fi
+
+    if [ "$ssbn" == "" ]; then # could either be bad msr or no msr
+        if [ "$validrlt" == "false" ]; then
+             cyan "mfile byte match failed generating new serial no."
+        else
+            cyan "no msr file. creating new one and new serial."
+        fi
+        ssbn=$(rand_alpha)$$$(printf "%02d" $((RANDOM % 100)))
+    fi   # making a new changes module so have to make serial
+
+    # rename or remove before transfering files
+    # handled via msr file 
+    if [ "$rlt" == "true" ]; then
+        if [ "$validrlt" == "false" ]; then # failed on bytecount 
+            c=${fname%.xzm}".bak"   # $(echo "$target$em$fname" | sed 's/\.xzm$/.bak/')"  
+            mv $target$em"/"$fname $target$em"/"$c # backit up                  
+        else # we have a match and user preference 
+            green "Matched.. In link state"
+            if [ "$keepLINKEDMRGED" == "false" ]; then
+                rm $target$em"/"$fname   # files are in sync remove merged L module on user preference
+            else
+                c=${fname%.xzm}".bak" 
+                mv $target$em"/"$fname $target$em"/"$c # backit up    
+            fi
+        fi
+
+    # handled via function call no msr we still processed the one .xzm and a new serial was generated
+    elif [ "$rlt" == "" ] && [ "$instm" != "nolmdl" ]; then
+        c=${fname%.xzm}".bak"
+        mv "$fname" $c #  it is not in sync so we have to back it up regardless of preference
+        #rm -f $fname
+    fi
+
+    SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`
+
+    rname="${MODULENM}${SERIAL}_uid_L${ssbn}.xzm"
+
+    if [ "$instm" != "nolmdl" ]; then # merged                                                                 exlcfiles has the main exclusions            QEXCL has excluded files <-------
+        test -s $QEXCL && { mksquashfs $mtmp "$target$em$rname" -comp $cmode -ef $exclfiles -ef $QEXCL; } || mksquashfs $mtmp "$target$em$rname" -comp $cmode -ef $exclfiles      # changesHH_MM_pull_UNIQUEID.xzm 
+    else # new _uid_L
+
+        #sed -i 's|^\./||' $exclfiles        #       remove leading ./ to work with wildcards
+        #exn=()
+        #for item in $EXCLUDE; do
+          #exn+=("${item#/}")   # Remove leading slash from each item
+        #done
+        #EXCLUDE="${exn[*]}"
+        #echo $EXCLUDE
+        find $tmp -name ".wh.*" -exec rm -r {} \; # changes exit not fully implemented remove all .wh.
+        mksquashfs $tmp "$target$em$rname" -comp $cmode -ef $exclfiles    
+    fi
+    if [ $? -ne 0 ]; then
+        mount -o remount,udba=none /
+        red "Error making the new module in ${instm}: ${rname}" >&2
+        cyan "Everything preserved.  Check the script"
+        exit 1
+    fi
+	if [ "$ROLLBCK" == "true" ]; then
+		if [ -d "${target}${em}/archive/_uid_L" ]; then
+			r=$(find "${target}${em}/archive/_uid_L" -maxdepth 1 -type f -name '*.bak' 2>/dev/null | wc -l)
+			if [ "$r" -ge "$archLMT" ]; then
+				for mods in ${target}${em}/archive/_uid_L/*_uid_L*.bak; do 
+					rm -f $mods
+					test -f $mods.txt && rm $mods.txt
+					break
+				done
+			fi
+		else
+			mkdir -p "${target}${em}/archive/_uid_L" 
+		fi
+		cp "$target$em$rname" "${target}${em}/archive/_uid_L${rname}.bak"
+		if [ "$ROLLSUMRY" == "true" ]; then
+			find "$tmp" -type f -printf '%P\n' >> "${target}${em}/archive/_uid_L${rname}.bak.txt"
+			echo >> "${target}${em}/archive/_uid_L${rname}.bak.txt"
+		    BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
+    		echo $BRAND >> "${target}${em}/archive/_uid_L${rname}.bak.txt"
+		fi
+	fi
+
+    # there could already be an msr files lets just update it!
+    # create a msr file             
+    xsize=$( du -sb "$target$em$rname" | cut -f1) # byte size
+    
+    fname="${mdlnm}${SERIAL}_uid_L${ssbn}.xzm"  # it is either the same serial if in sync or a new one
+    if [ "$rlt" == "true" ]; then # have msr update it
+        sed -i "s/bytes:.*/bytes:${xsize}/" $msr
+        sed -i "s/file name:.*/file name:${fname}/" $msr # same serial
+    else # create a new one    
+        echo "bytes:"$xsize > $msr # used for linking the next L module
+        echo "file name:${fname}" >> $msr # new serial
+        echo >> $msr # space to denote end 
+    fi
+    cd $tmp || exit
+    rm -rf $mtmp
+}
+if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
+	IFOLDERS="$(grep ^/ $CHNEXIT_CONF | sed s/.//)"  # Dynamically build with changes-exit conf
+	dycmb 
+
+
+msr=${target}${em}"/lscheck"     #holds byte count and or filename of changes modules seperated by spaces
+MODULENM="${chxzm%.xzm}" # parse our module name 
+mdlnm="${MODULENM#/}"                               # exact module name strips leading /
+emfld="${em#/}"
+
+#rlt=$(for x in $(</proc/cmdline); do [[ $x == changes=* ]] && echo "${x#changes=}" && break; done)   faster
+#
+rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
+#rlt=$( cat /proc/cmdline | sed -n 's/.*changes=\([^ ]*\).*/\1/p') #parse the commandline
+
+[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt}
+[[ "$rlt" == *"$target"* ]] && { rlt=${rlt%/} && target=""; }
+
+if [ "$rlt" != "" ]; then osize=$( du -sb "${target}${rlt}${MODULENM}/" | cut -f1); fi # original size
+
+#Generate exclude directories Folders to exclude: argument for `egrep'
+exldir $exclfiles
+
+## Save session:
+#cyan "Syncing what's left in buffers"
+sync
+
+# Remount aufs with 'udba=notify' flag:
+mount -o remount,udba=notify /
+
+#Create temp directories
+if [ "$d2drive" == "false" ] || { [ "$d2drive" == "true" ] && [ "$d2dmdl" == "false" ] && [ -z "$rlt" ]; }; then # one case of needing hdd for xzm
+    : > /tmp/incfilter.log
+    mkdir $tmp
+    green "Staging... "
+	#copy the changes to /tmp
+	for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done #FOLDERS could have new folders that havent been tested
+
+else
+    green "Direct to drive saving"
+	#setup directories
+	if [ "$d2dmdl" == "true" ]; then
+		test -d $thetgt/tmp && { mkdir $thetgt/tmp$$; tmp=$thetgt/tmp$$; } || { mkdir $thetgt/tmp; tmp=$thetgt/tmp; }
+		test -d $thetgt/mtmp && mtmp=$thetgt/mtmp$$ || mtmp=$thetgt/mtmp
+	fi
+    : > /tmp/incfilter.log
+    for folder in $FOLDERS; do
+        echo "+ /$folder/" >> /tmp/incfilter.log
+        echo "+ /$folder/***" >> /tmp/incfilter.log
+    done
+    echo "- /*" >> /tmp/incfilter.log
+fi
+#End temp directories
+
+
+# are we in changes mode?
+# not Graphics
+if [ "$rlt" != "" ]; then
+    
+    # Disabled not using .zip
+    # we want a changes folder in the .zip
+    #mkdir "/tmp/changes"
+    #mv $tmp/* "/tmp/changes"
+    #cd /tmp
+    #  if [ -d "${target}${rlt}${MODULENM}.zip" ]; then
+    if [ "$rlt" == "/" ]; then
+        rlt=""
+    fi
+
+    if [ "$d2drive" == "true" ]; then
+        dirSRC="$target$rlt/changes" #using direct to drive our source changes
+    else
+        dirSRC=$tmp # were working in memory
+    fi
+
+    # is there a changes backup already?
+    if [ -d "${target}${rlt}${MODULENM}.bak/" ]; then
+
+        # disabled for now as a changes .xzm cant be updated while mounted
+        # so we create new changes modules
+        #
+        #        
+
+        #chngDIR=$( echo $rlt | sed 
+
+        #Mount the changes with excluded directories and sync it to drive
+        #mkdir /mnt/loop                          
+        #mount -o loop $target$rlt$chxzm /mnt/loop       #mount changes
+
+        #rsync -av --delete $tmp /mnt/loop/       #sync changes to hdd --delete tag removes files that were deleted in session
+
+        #umount /mnt/loop
+        #rm -r /mnt/loop
+
+        green "Updating existing backup..."
+        if [ "$LOGGING" == "true" ]; then
+            if [ -s "${target}${rlt}${MODULENM}.bak.log" ]; then # There is a logfile
+                m=$(head -n 1 "${target}${rlt}${MODULENM}.bak.log" | grep -c "STOP") # we dont want to do anything if STOP flag 
+                if (( m == 0 )); then
+
+                    adtCMD="--log-file=${target}${rlt}${MODULENM}.bak.log" # this comes into play below we log all changes and
+		                                                                                                                # are not rebuilding a log
+                    #was paused at some point?    <----
+                    #checking original format first after the original file list
+                    if grep -B 1 'END ORIGINAL FILES' "${target}${rlt}${MODULENM}.bak.log" | tail -2 | head -1 | grep -q '^PAUSED$'; then
+                        
+                        #Resume from pausing
+                        glog # generate new master list. total byte count erased but original byte count kept if any
+
+                    #Logging as usual
+                    # it could still be original format or not just without PAUSED in that location
+                    #
+                    # but this only comes into play if reached max size limit
+                    else
+
+                         # Are we resuming from a pause?
+                        # is PAUSED on line 1?
+                        l=$(head -n 1 "${target}${rlt}${MODULENM}.bak.log" | grep -c "PAUSED")
+                        size=$( stat -c %s "${target}${rlt}${MODULENM}.bak.log")
+                        # then continue logging
+                        #Check if log filesize is exceeded
+                        # Also if it is exceeded nothing could have changed thus want preserve the original format.
+                        if [ "$size" -gt $((logSIZE * mbyte)) ]; then
+                            if [ "$ANALYTICS" == "true" ]; then
+                                cyan "Log file has hit the limit. Clearing..."
+                            fi
+
+                            # what mode are win        preserve, delete, or stop???
+
+                            if [ "$logSPRF" == "delete" ]; then
+								
+                                # Is it original formatting?
+                                # then make a new one as we are deleting the old log
+                                #
+                                if grep -q "END ORIGINAL FILES" "${target}${rlt}${MODULENM}.bak.log"; then
+                                   
+                                    # checked if one was already made after resuming from pausing and it wasnt
+                                    # Generate a new one
+                                    glog "true"  # generate new master list. total byte count erased but original byte count kept if any
+                                # preserve any custom formatting                        
+                                else
+                                    : > "${target}${rlt}${MODULENM}.bak.log" 
+								fi
+
+                            #Preserve 25% of older logfile
+                            elif [ "$logSPRF" == "psv" ]; then
+
+                                # we want to grab the original contents so the new file has it then we make the new file replacing the old log
+                                ###we want to parse the original stats from the log
+
+                                # it could either have the original stats or not
+                                # so we need to check and then parse. We are clearing old change logs and are now continue as usual as nothing
+                                # has changed.
+
+                                c=$( wc -l < "${target}${rlt}${MODULENM}.bak.log") # total count
+                                q=$(awk "BEGIN {print $c * 0.85}")
+                    
+
+                                # may want to adjust this mode so comments left for convenience
+
+                                # the user wants a different style of log with only the changes
+                                if (( l == 1 )); then
+                                    # start at 85% to end of file most recent changes
+                                    sed -n "${q}, \$p" "${target}${rlt}${MODULENM}.bak.log" > $UPDATE
+
+                                # original formatting                             
+                                else
+
+                                    # on the fly grabbing
+                                    #lc of END ORIGINAL FILES 
+                                    # grab the next 14 lines and append
+                                   # END on the fly grabbing
+
+                                    h=$( grep -m 1 -n "END ORIGINAL FILES" "${target}${rlt}${MODULENM}.bak.log" | awk -F: '{print $1}') # what line is it on
+                                    b=$(( h + 16 ))
+                        
+                                    # we know it resembles original format
+                                    if [ "$h" !=  "" ]; then
+
+                                        # original format
+                                        if [[ $b -le $c ]]; then
+                                          
+                                                #What if we are reaching for something thats not therE?
+                                            if sed -n "$(( h + 16))p" "${target}${rlt}${MODULENM}.bak.log" | grep -q "total size is"; then
+                                                sed "${b}q" "${target}${rlt}${MODULENM}.bak.log" > $UPDATE # grab up to line plus 16
+                                            # format has been changed
+                                            else
+                                                 sed '/END ORIGINAL FILES/q' "${target}${rlt}${MODULENM}.bak.log" > $UPDATE # grab everything up to END ORI..
+                                            fi
+
+                                        # not original format
+                                        else
+                                            # format could be slightly off grab up to END ORIGINAL ...
+                                            sed '/END ORIGINAL FILES/q' "${target}${rlt}${MODULENM}.bak.log" > $UPDATE # grab everything up to END ORI..
+                                        fi
+
+                                        # start at 85% to end of file most recent changes
+                                        sed -n "${q}, \$p" "${target}${rlt}${MODULENM}.bak.log" >> $UPDATE
+
+                                    # Not original formatting
+                                    else
+                                        # we would add our check here to delete paused from line 1 but since we are making a new log its taken care of
+                                        #if (( l >= 1 )); then
+                                            #sed '1s/PAUSED//g' "${target}${rlt}${MODULENM}.bak.log"
+                                            #sed -i '1{/^PAUSED$/d}' "${target}${rlt}${MODULENM}.bak.log" 
+                                            #sed -i '1{/^PAUSE/d}' "${target}${rlt}${MODULENM}.bak.log" # resuming logging so delete paused from line 1
+                                        #fi
+                                        # start at 85% to end of file most recent changes
+                                        sed -n "${q}, \$p" "${target}${rlt}${MODULENM}.bak.log" > $UPDATE
+                                    fi
+                                fi
+                                if [ "$ANALYTICS" == "true" ]; then
+                                    size=$( stat -c %s "${target}${rlt}${MODULENM}.bak.log")
+                                    if (( size > logSIZE * mbyte )); then
+                                        cyan "Log size limit reached on preserve mode. Please adjust max limit or logging preference." 
+                                        cyan "This means the file list is greater than the limit or the limit is too small."
+                                    fi                                    
+                                fi
+                                # copy the preserved content 
+                                cp $UPDATE > "${target}${rlt}${MODULENM}.bak.log"
+                                rm $UPDATE
+                            elif [ "$logSPRF" == "stop" ]; then
+                                adtCMD="" # Dont log any further
+                                if [ "$ANALYTICS" == "true" ]; then
+                                    cyan "Log file hit max limit not logging..."
+                                fi
+                                # we have to stop it from repeatedly bouncing off max size limit
+                                if (( l >= 1 )); then
+                                    sed -i '1s/PAUSED/PAUSEDSTOP/g' "${target}${rlt}${MODULENM}.bak.log"
+                                else
+                                    sed -i '1i STOP' "${target}${rlt}${MODULENM}.bak.log"
+                                fi
+                            fi
+                        fi  
+                        # End log size check
+                    fi
+                    # done adtCMD is not null so continue logging as usual covering two possible formats so if its custom format remove first line with pause
+                    # on original format a new master list is generated and this removes the PAUSE above END ORIGINAL FILES
+                    # custom format removal
+                    # Resume logging on other format as STOP is not there and PAUSE is delete the line
+                    if (( l >= 1 )); then sed -i '0,/PAUSE/ { /PAUSE/ d }' "${target}${rlt}${MODULENM}.bak.log"; fi
+
+
+                fi
+                # its on stopped
+                # adtCMD is null so not logging any further
+            # No log file or the log file is missing
+            else
+                nsize=$osize # new original size (has changed from the original)
+                green "There was no logfile generating..." ; > "${target}${rlt}${MODULENM}.bak.log"
+				dlog  # main log checks d2d ect
+		        echo >> "${target}${rlt}${MODULENM}.bak.log"
+		        echo "original size(source)=Unkown" >> "${target}${rlt}${MODULENM}.bak.log"
+		        echo "new size(source)=$nsize" >> "${target}${rlt}${MODULENM}.bak.log"
+		        echo  "END ORIGINAL FILES $(date +"%m-%d-%y_%R")" >> "${target}${rlt}${MODULENM}.bak.log"
+		        #echo >> "${target}${rlt}${MODULENM}.bak.log"
+		        nLOG="true"
+			fi
+
+            # user may have had this set to true and then turned this setting off thus we have to erase the total byte count if its in the logfile
+            #if [ "$ANALYTICS" == "false" ]; then
+                # remove the byte count
+            #    sed -i '/total count=[0-9]\+/d' "${target}${rlt}${MODULENM}.bak.log" # remove any count because we cant keep track of it further for now
+            #fi
+        
+        else # Not logging  check if we need to update a flag in the log from a changed setting
+
+            # we dont want to delete any logs because thats valuable info
+            if [ -f "${target}${rlt}${MODULENM}.bak.log" ]; then
+                #Append PAUSE to log?
+                # not original format?
+                if ! grep -B 1 'END ORIGINAL FILES' "${target}${rlt}${MODULENM}.bak.log" | tail -2 | head -1 | grep -q '^PAUSED$'; then
+
+                    # has part of original format?
+                    if grep -q "END ORIGINAL FILES" "${target}${rlt}${MODULENM}.bak.log"; then
+                        #insert it
+                        sed -i "/END ORIGINAL FILES/ i\PAUSED" "${target}${rlt}${MODULENM}.bak.log" # Put PAUSED above END OF ORIGINAL FILES
+                
+                        # first check if original count is there. Used if on resume pause generate a new master list ie delete mode to keep track of  bytes sent of all time for analytic purposes
+                        #if ! grep -q "original count=" "${target}${rlt}${MODULENM}.bak.log"; then sed '0,/total count=[0-9]\+/s//original count=&/' "${target}${rlt}${MODULENM}.bak.log"; fi
+
+                        # remove the byte count as we cant keep any track of further updates at this point
+                        #sed -i '/total count=[0-9]\+/d' "${target}${rlt}${MODULENM}.bak.log" # remove any count 
+
+                        
+                    else # has custom user format  
+                       
+                        if ! head -n 1 "${target}${rlt}${MODULENM&> /dev/null}.bak.log" | grep -q 'PAUSED'; then #put PAUSED on line 1 check if STOP is on there???
+                            if head -n 1 "${target}${rlt}${MODULENM}.bak.log" | grep -q 'STOP'; then
+                                sed -i '1{/STOP/ s/^/PAUSED/}' "${target}${rlt}${MODULENM}.bak.log" # Put PAUSED before STOP
+                            else
+                                  sed -i '1i PAUSED' "${target}${rlt}${MODULENM}.bak.log" # Insert PAUSED on line 1
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+        fi
+    
+        # What if the user deleted files on the source rsync will not delete them from the destination
+        # while we could delete all non empty directories on the destination that are empty on the source
+        # ourselves. This is inheritly risky. A number of things could fail. Bad idea. The code to do this is below
+        #    src="/path/to/source"
+        #    dest="/path/to/destination"
+
+            # Safety check
+        #    if [[ -z "$src" || -z "$dest" ]]; then
+        #        echo "Source and destination must be set."
+        #        exit 1
+        #    fi
+       #     find "$src" -type d | while IFS= read -r srcdir; do
+                # Get relative path (handle case if src does not end with /)
+       #         relpath="${srcdir#$src}"
+       #         relpath="${relpath#/}"  # remove leading slash if present
+
+       #        destdir="$dest/$relpath"
+
+       #         if [ -d "$destdir" ]; then
+       #             if [ -z "$(ls -A "$srcdir")" ] && [ -n "$(ls -A "$destdir")" ]; then
+       #                 echo "Deleting: $destdir (empty in source, not empty in dest)"
+       #                 rm -rf "$destdir"
+       #             fi
+       #         fi
+       #     done
+
+        # we need rsync to log everything which appends to the log file
+        if [ "$adtCMD" != "" ]; then
+            # change var/run and var/tmp or add to it to exclude directories
+            if [ "$FEEDBACK" != "true" ]; then
+                rsync -aH --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" $adtCMD  #sync changes to hdd --delete tag removes files that were deleted in session
+            else	
+				rsync -aHv --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
+            fi
+			exc=$?
+            if [ $exc -eq 1 ]; then
+		        # Remount aufs with 'udba=none' flag:
+		        mount -o remount,udba=none /
+		        red "rsync failed — check log at ${target}${rlt}${MODULENM}.bak.log"
+		        if [ "$d2drive" == "false" ]; then
+		        	cyan "Files left in memory. Copy and paste the following to rsync again:"
+		        	echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/ --log-file=${target}${rlt}${MODULENM}.bak.log"
+		        	if [ "$ANALYTICS" == "true" ]; then
+		        		echo "Then check the logfile for any errors.Then take the last two bytes sent and add it to total count=  at the top of the file if you want to keep exact track."
+		        		echo "Or"
+		        		printf 'rsync -aHv "%s" newdirectory/\tto make a new backup\n' "${target}${rlt}${MODULENM}/"   
+		        	fi
+		        else
+		  		    if [ "$ANALYTICS" == "true" ]; then
+		        		echo "Add up the last bytes sent values and add to total count=  at the top of the file before END ORIGINAL FILES.  if you want to keep exact track."
+		        	fi
+		        fi                                                         
+		        #rm -rf $tmp      #delete temporary files
+		        exit 1
+			elif [ $exc -eq 24 ]; then
+				cyan "Some files have vanished. Check for excluding cache files"
+				sed -i '/some files vanished/d' "${target}${rlt}${MODULENM}.bak.log"
+			fi
+
+        # we need rsync to log only essential stats and any errors which appends to the log file
+        else
+            # if we just created a logfile we need this data from --stat
+            if [ "$nLOG" != "" ]; then
+                if [ "$FEEDBACK" != "true" ]; then                           
+					                                                                                                                                                                       # -v  2>&1 | tee "$UPDATE
+                   rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > $UPDATE 2>&1  # capture the log in a sentinal
+
+                else                           
+                    rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" 2>&1 | tee $UPDATE
+                fi
+                #sed -n "${q}, \$p" "${target}${rlt}${MODULENM}.bak.log" >> "${target}${rlt}${MODULENM}.bak.log"
+                #sed '/END ORIGINAL FILES/q' "${target}${rlt}${MODULENM}.bak.log" > $UPDATE # grab everything up to END ORI..
+                
+                # used to use this but we dont want any error messages messing up the formatting of out log                                                                                                                                             
+               #rsync -a --stats --delete --exclude-from=$exclfiles --exclude-from=$trsyncexl $tmp/ "${target}${rlt}${MODULENM}.bak/" >> "${target}${rlt}${MODULENM}.bak.log" 2>&1
+                #echo >> "${target}${rlt}${MODULENM}.bak.log"   
+            else # the user is not logging  
+                if [ "$FEEDBACK" != "true" ]; then
+                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > /dev/null
+                else
+                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/"
+                fi
+            fi
+			exc=$?
+            if [ $exc -eq 1 ]; then
+		        # Remount aufs with 'udba=none' flag:
+		        mount -o remount,udba=none /
+		        red "rsync failed — check log at ${target}${rlt}${MODULENM}.bak.log"
+		        if [ "$nLOG" != "" ]; then
+		        	if [ "$d2drive" == "false" ]; then
+		        		cyan "Files left in memory. Copy and paste the following to rsync again:"
+		            	echo "rsync -aH --stats --delete --filter=merge /tmp/incfilter.log --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/ --log-file=${target}${rlt}${MODULENM}.bak.log"
+		        	fi
+		        	if [ "$ANALYTICS" == "true" ]; then
+		               echo "Then check the logfile for any errors. Add up all the bytes sent values and put total count=  at the top of the file before END ORIGINAL FILES.  if you want to keep exact track."
+		            fi
+		        else # Not logging
+		        	echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/"
+		        fi
+		        
+		        echo
+		        echo "Or failing that"
+		        printf 'rsync -aHv "%s" newdirectory/\tto make a new backup\n' "${target}${rlt}${MODULENM}/"  
+
+		        #rm -rf $tmp       #delete temporary files
+		        exit 1
+            elif [ $exc -eq 24 ]; then
+				cyan "Some files have vanished. Check for excluding cache files"
+				sed -i '/some files vanished/d' "${target}${rlt}${MODULENM}.bak.log"
+			fi
+            if [ -s $UPDATE ]; then
+                c=$( wc -l < "$UPDATE") # total count
+                if (( c > 17)); then sentinal="true"; cp $UPDATE /tmp/parity.txt; fi
+                sed -n '/Number of files/,$p' $UPDATE >> "${target}${rlt}${MODULENM}.bak.log"
+            fi
+        fi
+
+        cyan "Changes backup has been updated."
+
+        if [ "$ANALYTICS" == "true" ]; then ## We could be logging or not so we need to find out which regardless we need to total bytes sent because analytics is true
+        
+
+            # We need to grab the original count if present
+            # then add to it with the most recent sent bytes
+            #
+
+            ## write analystic script here    #
+            # filesize=$(stat -c %s "$filename")
+            #osize=$(du -sb "${target}${rlt}${MODULENM}/" | cut -f1) #original size
+
+            # *** this could be different
+			ossize=$(tac ${target}${rlt}${MODULENM}.bak.log | sed -nE 's/.*original size\(source\)=([0-9.]+).*/\1/p' | head -n 1) # the original bytes of changes folder
+            if [ "$ossize" == "" ]; then
+                oput="Unkown"
+            else   
+                oput="$(( ossize / mbyte )) MB"
+            fi
+
+            csize=$(du -sb "${target}${rlt}${MODULENM}.bak/" | cut -f1) # actual backup size
+            nsize=$osize       
+
+            # the user hasnt changed settings from when backup made   ie analytics were already in place so we can pull data
+            #if [ -z "${nOPT}" ]; then
+
+            c=$( sed -nE 's/.*total count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log) # the current saved bytes for the current backup
+            c="${c:-0}" #if c is not there set it to 0
+
+            # if a new log was generated we need to parse the new byte count
+            if [ "$adtCMD" != "" ]; then
+                z=$( tail -n1 ${target}${rlt}${MODULENM}.bak.log | grep -oP '(?<=sent\s)\d+(?=\s+bytes)' | head -n1) # parse from a current log with file changes
+				if (( z == 0 )); then z=$(tail -n 20 ${target}${rlt}${MODULENM}.bak.log | grep -oP '(?<=sent\s)[\d,]+' | tail -n 1 | sed 's/,//g'); fi  # If on FEEDBACK
+            elif [ "$adtCMD" == "" ] && [ "$nLOG" == "true" ]; then
+                if [ "$ANALYTICS" ==  "true" ]; then                
+                    green "A new log file has been made."
+                fi
+                #we need to parse differently as the end of the file is different
+                ###z=$( grep "Total bytes sent:" "${target}${rlt}${MODULENM}.bak.log" | sed -E 's/[^0-9]*([0-9,]+).*/\1/' | tr -d ',')
+                z=$( tail -n2 ${target}${rlt}${MODULENM}.bak.log | head -n1 | grep -oP '(?<=sent\s)[\d,]+' | tr -d ',' )
+                #z=$( tac ${target}${rlt}${MODULENM}.bak.log | grep -m1 'sent' | grep -oP '(?<=sent )[\d,]+(?= bytes)') # parse from standard new log format
+            fi
+
+            r=$(( c + z ))  # our new count
+
+            # replace the total count with the new one or insert it
+            grep -q "total count=" "${target}${rlt}${MODULENM}.bak.log" && sed -i "s/total count=[0-9]\+/total count=$r/" ${target}${rlt}${MODULENM}.bak.log || sed -i "/END ORIGINAL FILES/ i\total count=$r" "${target}${rlt}${MODULENM}.bak.log"
+           
+
+            # If it was paused and logging as usual and original format
+            c=$( sed -nE 's/.*original count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log) # the original saved bytes over time for statistics
+            c="${c:-0}" #if c is not there set it to 0
+            if (( c != 0 )); then
+                cyan " Since the original backup was first made sent" $(( ( c + z ) / mbyte )) "MB worth of data"    # although not accurate as something could of been done with logging paused this keeps track of all bytes
+                                                                                                                                        # and is a usecase if the user is in preserve mode on max log size this holds true as well as resuming from
+                                                                                                                                        # from logging on original format as we generate a new master list and grab any original bytes. So we use cyan
+                                                                                                                                        # as its just stats.
+            fi
+
+            # if [ -z "${csize+set}" ]; then
+           
+
+            # if the new logfile is greater than the limit give a suggestion
+            if [ "$logSPRF" != "stop" ] && [ "$nLOG" == "true" ]; then
+                size=$( stat -c %s "${target}${rlt}${MODULENM}.bak.log")
+                if (( size > logSIZE * mbyte )); then
+                red "New log file made is greater than the limit. adjust if needed to keep log data on next backup."
+                fi
+            fi
+    
+
+            cyan "You have sent $(( r / mbyte )) MB worth of data to the ${target}${rlt}${MODULENM}.bak/ backup" # green because its accurate
+            green "Sent $(( z / mbyte )) MB to backup. "
+
+            #fi
+            
+            # a setting was changed and a new logfile was made thus we have no total count and would error our analytics math above or it would be 0 and inaccurate
+            #else
+                # append before END ORIGINAL FILES
+                # see Line 214
+                #echo "total count=$csize" >> "${target}${rlt}${MODULENM}.bak.log"          #  <---------        but we dont know this yet
+
+                #sed -i "/END ORIGINAL FILES/ i\total count=$r" "${target}${rlt}${MODULENM}.bak.log"
+                #sed -i "/END ORIGINAL FILES/ {n; r /dev/stdin" -e '}' "${target}${rlt}${MODULENM}.bak.log" <<< "total count=$csize"
+                #echo
+            #fi
+            echo
+            if  [ "$adtCMD" != "" ] && [ "$nLOG" == "true" ]; then
+                cyan "Size of source when backup first made: $oput"
+                green "Current size of source: $(( osize / mbyte ))"
+            fi
+
+            green "Current size of backup: $(( csize / mbyte )) MB"         #actual size of backup
+    
+            if [ "$nLOG" == "true" ]; then            
+                echo
+                cyan "You saved $(( (nsize - csize) / mbyte )) MB by generating this backup."
+            fi
+            end=$(date +%s.%N)
+            el=$(awk "BEGIN {print $end - $start}")
+            printf "Saving took %.3f seconds.\n" "$el"
+            if [ "$sentinal" == "true" ]; then
+                rm $UPDATE
+                echo -e "\nYou are seeing this message as you have most likely deleted an entire directory on the source."
+                echo "rsyan will not remove a non empty directory on the backup that is empty on the source for safety reasons."
+                echo " check parity.txt in /tmp to see what these directories are and delete them in the backup."
+            fi
+            ###Output the data saved creating the new source backup
+        fi
+
+        # Disabled for now
+        #zip -r -FS $target$rlt$MODULENM".zip" "/tmp/changes" -x "/tmp/changes/var/run/*" -x "/tmp/changes/var/tmp/*" > $target$rlt"/changeslog" 2>&1            #log everything
+        #zip -q -r -FS "$target$rlt$MODULENM.zip" "changes" -x "var/run/*" -x "var/tmp/*" > /dev/null 2>> "$target$rlt/changeslog"   #only errors
+
+        #if [ ! -s "$target$rlt/changeslog" ]; then
+        #    echo "no errors in changes.zip" >> "$target$rlt/changeslog"
+        #fi
+
+        # Check exit code
+        #exitcode=$?
+        #if [ $exitcode -ne 0 ]; then
+        #    echo "Error: zip failed with code $exitcode" >&2
+        #    echo "Check the log file for details: $target$rlt/changeslog" >&2
+          
+            #cleanup
+        #    rm -rf /tmp/changes
+        #    rm -rf $tmp       #delete temporary files
+        #    exit $exitcode
+        #fi
+
+        
+    # create new 
+    else
+
+        # Disabled for now as .xzm cant be altered in place 
+        #make the module    add to -e   adjust if wanted excluded directories
+        #mksquashfs $tmp $target$rlt$chxzm -e var/run var/tmp
+        #xzm2dir $target$chxzm $target/tmp        #extract xzm 
+        cyan "Creating new backup this may take a few minutes."
+        if [ $LOGGING == "true" ]; then # generate log file  
+            dlog     # we need to get only the the included folders from the new source drive
+                # the source drive may have more directories that arent in $FOLDERS
+            echo "original size(source)=$osize" >> "${target}${rlt}${MODULENM}.bak.log"            
+            echo "END ORIGINAL FILES" >> "${target}${rlt}${MODULENM}.bak.log"
+
+            # we need rsync to log which appens to the log file
+            #adtCMD="--log-file=${target}${rlt}${MODULENM}.bak.log" 
+            #adtCMD="--stats >> ${target}${rlt}${MODULENM}.bak.log" 2>&1
+        else
+            #add the PAUSED flag
+            #sed -i "/END ORIGINAL FILES/ i\PAUSED" "${target}${rlt}${MODULENM}.bak.log"
+            # remove any old log file 
+            #
+            test -f "${target}${rlt}${MODULENM}.bak.log" && rm "${target}${rlt}${MODULENM}.bak.log"
+
+        fi
+        # change var/run and var/tmp or add to it to exclude directories you dont want
+        if [ "$FEEDBACK" != "true" ]; then   
+            rsync -aH --stats --filter="merge /tmp/incfilter.log" --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" >> "${target}${rlt}${MODULENM}.bak.log" 2>&1
+        else                                           
+			rsync -aHv --stats --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
+        fi
+		exc=$?
+        if [ $exc -eq 1 ]; then
+            # Remount aufs with 'udba=none' flag:
+            mount -o remount,udba=none /
+            red "rsync failed — check log at ${target}${rlt}${MODULENM}.bak.log"
+            cyan "Please check the logfile if its a valid backup or try again."
+            cyan "failing that delete the backup and try again."
+            rm -rf $tmp       #delete temporary files
+            exit 1
+        elif [ $exc -eq 24 ]; then
+			cyan "Some files have vanished. Check for excluding cache files"
+			sed -i '/some files vanished/d' "${target}${rlt}${MODULENM}.bak.log"
+		fi
+        # Disabled for now
+        #zip -r $target$rlt$MODULENM".zip" "/tmp/changes" -x "/tmp/changes/var/run/*" -x "/tmp/changes/var/tmp/*" > $target$rlt"/changeslog" 2>&1                  #log everything
+        #zip -q -r "$target$rlt$MODULENM.zip" "changes" -x "var/run/*" -x "var/tmp/*" > /dev/null 2>> "$target$rlt/changeslog"    #log errors
+
+        #if [ ! -s "$target$rlt/changeslog" ]; then
+        #    echo "no errors in changes.zip" >> "$target$rlt/changeslog"
+        #fi
+
+        # Check exit code
+        #exitcode=$?
+        #if [ $exitcode -ne 0 ]; then
+        #    echo "Error: zip failed with code $exitcode" >&2
+        #    echo "Check the log file for details: $target$rlt/changeslog" >&2
+
+            #cleanup
+        #    rm -rf /tmp/changes
+        #    rm -rf $tmp       #delete temporary files
+        #    exit $exitcode
+        #fi
+
+        cyan "Your changes backup has been created! in ${target}${rlt}/"
+        cyan "${MODULENM}.bak/"        
+        #cyan $MODULENM".zip"
+        #cyan $chxzm
+
+        if [ "$ANALYTICS" == "true" ]; then
+             # filesize=$(stat -c %s "$filename")
+            #This is for terminal output on MB saved during creation of backup
+            csize=$( du -sb "${target}${rlt}${MODULENM}.bak/" | cut -f1) # backup size
+            tsize=$(( osize - csize ))
+            
+            # insert the total bytes sent
+            #z=$( tac ${target}${rlt}${MODULENM}.bak.log | grep -m1 'sent' | grep -oP '(?<=sent )[\d,]+(?= bytes)') # parse from standard new log format
+            z=$( grep "Total bytes sent:" "${target}${rlt}${MODULENM}.bak.log" | sed -E 's/[^0-9]*([0-9,]+).*/\1/' | tr -d ',')
+            sed -i "/END ORIGINAL FILES/ i\total count=$z" "${target}${rlt}${MODULENM}.bak.log" #insert the total byte count
+    
+            green "You have sent $(( z / mbyte )) MB worth of data so far to the ${target}${rlt}${MODULENM}.bak/ backup"
+            cyan "You saved $(( tsize / mbyte )) MB by creating this backup"
+        fi
+
+        echo
+    fi  #rm -rf /tmp/changes        applies to .zip method
+
+# Graphics mode or some other mode create a .xzm module
+# Using Graphics mode
+else
+#if [ "$d2drive" == "false" ] || { [ "$d2drive" == "true" ] && [ "$d2mdl" == "false" ] && [ -z "$rlt" ] } then # one case of needing hdd for xzm    #create a symlink for the mergemodules script
+   	# The files arent on the hdd yet as its d2d first check dmdl if hd needed
+    if [ "$d2drive" == "true" ] && [ "$d2dmdl" == "true" ]; then # We use the drive for temporary staging for the .xzm So we have to copy the files to the harddrive             <-------------  /tmp is on /mnt/sdax
+		# FOLDERS could have new folders that need to be tested
+    	for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done # tmp has changed to local hard disk
+    fi
+
+    # check the boot loader for the extramod directory
+    #
+     #is the directory in the config file matching an already set extramod for this app
+     #if ! grep -qi $target/extramod $target/boot/syslinux/porteus.cfg; then                  
+    
+    SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`								  # serial number in HH_MM
+
+    #
+    ### Bootloader section 
+    test -e "$thetgt/boot/syslinux/porteus.cfg" && rlt=$( sed -n '43p' "$thetgt/boot/syslinux/porteus.cfg" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on line 43?  ## Notes returns the value grep 'extramod=[^ ]*')
+
+    # escape any | or &
+    #                                               $epath
+    epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g') #escape any | or & if the directory has it so it doesnt break sed
+
+    #   Is extramod already in the config file?
+    # it is there so we append to the start of it
+    if [ "$rlt" != "" ]; then
+        if [[ ! "${rlt}" == *$BASEDIR"/"$emfld* ]]; then #if extramod is not anywhere after extramod=      we append it   case insensitive #${rlt,,} switches to all lower case
+
+            #echo zboogie && sleep 300
+            test -d "$target$em" || mkdir -p "$target$em"
+            #sed -i "s|\(extramod=\)|\1${target}/extramod;|" 
+
+            #append to start of boot loader
+            sed -i "s|\(extramod=\)\([^ ]*\)|\1${epath};\2|" "$thetgt"/boot/syslinux/porteus.cfg 
+            loadermsg
+
+            #
+            #
+            # 
+            # the user may have changed the name for the "extramod" folder of the changes modules created by this script
+            # check the other extramod directorires in cmdline for *_uid_*.xzm and if any move them to the new one 
+            ###
+            IFS=';' read -ra parts <<< "${rlt}"
+            unset IFS
+            u=""
+
+            for part in "${parts[@]}"; do
+                erlt=$( sed -n '43p' "$thetgt/boot/syslinux/porteus.cfg" | grep -oP 'extramod=\K[^ ]*') #used to remove entry from bootloader if conditions are met
+                testfile="${part}/.writetest_${$}"
+
+                if touch "$testfile" 2>/dev/null; then
+                    rm -f "$testfile"
+
+                    # are there any _uid_.xzm files to new extramod dir?
+                    for file in "${part}"/*_uid_*.xzm; do
+                        [ -e "$file" ] || continue
+                        mv "$file" "${target}${em}"
+                        u="true"
+                    done
+                else
+                    echo "$part was not writable some previous changes modules with _uid_ could not be moved"
+                fi
+                if [ "$u" == "true" ]; then
+                    test -e $part"/mergemodules" && rm $part"/mergemodules"
+                    test -e $part"/createlmodule" && rm $part"/createmodule"
+                    test -e $part"/renameLbak" && rm $part"/renameLbak"
+                    test -e $part"/renamebak" && rm $part"/renamebak"
+                fi
+
+                if [ "$u" == "true" ] && [ -d "$part" ] && [ -z "$(ls -A "$part")" ]; then
+                    #we have moved the modules and it is now empty
+                    ##
+                    ### remove it from the bootloader
+                    #sed -i '/total count=[0-9]\+/d' "$target"/boot/syslinux/porteus.cfg              
+                    #sed -i "s|\(extramod=\)\([^ ]*\)|\1${target}${em};\2|" "$target"/boot/syslinux/porteus.cfg      
+
+                    # Remove with semicolon 
+                    erlt="${erlt//;$part/}"   # middle or end
+                    erlt="${erlt//$part;/}"   # beginning
+                    erlt="${erlt//$part/}"     # only one item         
+
+                    erlt=$(printf '%s' "$erlt" | sed 's/[&|]/\\&/g')   #escape | and also & which may appear in a directory so doesnt break sed
+                    sed -i "s|\(extramod=\)[^ ]*|\1${erlt}|" "$thetgt"/boot/syslinux/porteus.cfg 
+                    cyan "bootloader updated"
+                fi
+            done
+
+            if [ "$u" != "" ]; then
+                green "all previous changes modules in other extramod directories moved to new extramod dir"
+            fi
+
+            # we have to check how changes modules are handled. We dont know if we are either using this script for the first time
+            # or changing the name for the changes directory. So we have to figure out how to move from here to there
+            #
+            #
+            #
+            #
+        fi
+    
+    #its not after APPEND in graphics boot option so insert it
+    else
+        sed -i '43s/ *extramod= *//g' "$thetgt/boot/syslinux/porteus.cfg"
+        test -e "$thetgt/boot/syslinux/porteus.cfg" && { sed -i "0,/APPEND/ s|\(APPEND\)|\1 extramod=${epath}|" "$thetgt"/boot/syslinux/porteus.cfg; loadermsg; } || echo "Using other bootloader append ${target}${em} to it with extramod=" 
+        
+    fi 
+    ### END Bootloader section
+    #
+
+    # are there changes already?
+    if [ -s "${target}${em}${MODULENM}${SERIAL}_uid_$$.xzm" ]; then
+        
+        # disabled for now as a changes .xzm cant be updated while mounted
+        # so we create new changes modules
+        #
+        #
+
+        #Mount the changes with excluded directories and sync it to drive
+#        mkdir /mnt/loop                          
+#        mount -o loop $target$em$chxzm /mnt/loop       #mount changes
+
+#        rsync -av --delete $tmp /mnt/loop/      #sync changes to hdd --delete tag removes files that were deleted in session
+
+#        umount /mnt/loop
+#        rm -r /mnt/loop
+
+        #cyan "Changes have been saved."
+        echo
+        echo A changes .xzm was detected but nothing was done. 
+        cyan "${MODULENM}${SERIAL}_uid_$$.xzm already exists" && { sleep 5; exit 0; }
+    # create new 
+    else
+
+        test -d "$target$em" || mkdir "$target$em"
+
+        # Check for posix compatibility
+        touch "$target$em/._test1" 2>/dev/null
+        cyan "testing filesystem on ${target} for posix compatibility"
+        ln -s "$target$em"/._test1 "$target$em"/._test2 2>/dev/null && chmod +x "$target$em"/._test1 2>/dev/null && [ -x "$target$em"/._test1 ] && chmod -x "$target$em"/._test1 2>/dev/null && [ ! -x "$target$em"/._test1 ] && rm -f "$target$em"/._test1 "$target$em"/._test2
+		if [ $? -ne 0 ]; then
+            mount -o remount,udba=none /
+            rm -f "$target$em"/._test1 "$target$em"/._test2
+			echo && echo -e "[1;33m""A Windows filesystem (FAT, NTFS) or other non-posix compatible filesystem\nhas been detected on $target.\nYour changes cannot be saved directly to the specified storage media with this\nsetup. Please use the '[1;36mPorteus save file manager[1;33m' to create a .dat container\nand use it for saving your changes after your next reboot.""[0m"
+            exit
+        fi
+        r=$(find "$target$em" -maxdepth 1 -type f -name '*_uid_*.xzm' | wc -l)
+        if [ "$r" -eq 0 ]; then # if this is the first time running and there isnt a symlink to the merge script create it
+            if [ ! -e "$target$em"/mergemodules ]; then ln -s /usr/local/save-changesnew/mergemodules.sh "$target$em"/mergemodules; fi
+			if [ ! -e "$target$em"/createlmodule ]; then ln -s /usr/local/save-changesnew/createlmdl.sh "$target$em"/createlmodule; fi
+            if [ ! -e "$target$em"/renamebak ]; then ln -s /usr/local/save-changesnew/renamebak "$target$em"/renamebak; fi
+            if [ ! -e "$target$em"/renameLbak ]; then ln -s /usr/local/save-changesnew/renameLbak "$target$em"/renameLbak; fi
+        fi       
+        pst=$PWD    # save where we started
+        if [ "$linkedSTATE" == "true" ]; then ### Linked state section    ###
+
+            f=$(find "$target$em" -maxdepth 1 -type f -name '*_uid_L*.xzm' | wc -l)
+            if [ "$f" -gt 1 ]; then
+                echo "Cannot have more than one _uid_L\.\*\.xzm file" && exit 0
+            # Good to go
+            elif [ "$f" -eq 1 ]; then
+                cd $tmp         # safer to cd into the directory
+                : > $EXCL; : > $EXFILES 
+
+                rlt=""
+                # Read file content into a single string, preserving blank lines
+                if [ -e $msr ]; then 
+                     #mapfile -t lmdl< <(awk -v RS= '{gsub(/\n+$/, "", $0); print $0}' "$msr") Read more blocks if wanting to do more than one
+                    #for i in "${!lmdl[@]}"; do
+                    content=$(awk -v RS= '{gsub(/\n+$/, "", $0); print $0}' "$msr")
+                    k=$( echo "$content" | sed -n 's/.*bytes:[[:space:]]*\([0-9]\+\).*/\1/p')              # read the bytessed -n 's/.*bytes:\([^ ]*\).*/\1/p'
+                    if [ "$k" != "" ]; then
+                        p=$( echo "$content" | sed -n 's/^file name:[[:space:]]*\(.*\)/\1/p')   # get file name
+                        if [ "$p" != "" ]; then
+                            if [ -f $target$em"/"$p ]; then
+                       
+                                c=$( du -sb "${target}${em}/${p}" | cut -f1)
+                                #We have a match
+                                if [ "$c" -eq "$k" ]; then    
+                                    ssbn=$( echo $p | sed -n 's/.*_uid_L\(.*\)\.xzm$/\1/p')  # reuse the serial    #ssbn=$( echo $p | sed -n 's/.*_uid_L\([A-Za-z0-9]\{4\}\).*/\1/p') # parse the ssbn
+                                    if [ "$ssbn" == "" ]; then cyan "failed to parse ssbn in msr"; fi
+                                else
+                                    validrlt="false"
+                                fi 
+                                fname=$p
+                                rlt="true"
+                                #continue # we are done exit loop 
+                            fi      
+                        fi
+                    fi                   
+                    if [ "$rlt" == "true" ]; then # a match or partial match
+                        createlmdl "msr"
+                    else # if a match was not found we create a new one meaning bad msr file doesnt check out
+                        cyan "Bad msr file. making new serial no. the previous one will be renamed to .bak"
+                        createlmdl "badmsr"
+                    fi
+                else # msr file missing
+                    createlmdl "nomsr"
+                fi
+                cd $pst       # back to where we were
+             # no msr file we have to make a new one
+            elif [ "$f" -eq 0 ]; then
+                createlmdl "nolmdl"
+            fi
+
+        ### End Linked state section    ###
+        else # Not linked state
+        
+            rname="${MODULENM}${SERIAL}_uid_${$}.xzm"      # Want to exclude the directories
+			mksquashfs $tmp "$target$em$rname" -comp $cmode -ef $exclfiles 
+            #mksquashfs $tmp "$target$em$rname" -comp $cmode -e $EXCLUDE # changesHH_MM_pull_UNIQUEID.xzm          needs -e pattern -e pattern -e
+
+        fi        
+        chown $USR $target$em$rname
+
+        cyan "Your changes have been saved. in ${target}${em}/"
+        cyan $rname
+        test -e $EXCL && rm $EXCL; test -e $EXFILES && rm $EXFILES
+
+        ### Handle auto merging modules default keeps old ones
+        if [ "$mrgMODULES" == "true" ] && [ "$linkedSTATE" == "false" ]; then
+        cd $target$em
+            r=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' | wc -l) #r=$(ls -1 | grep '.*_uid_.*\.xzm' | grep -v '_uid_L' | wc -l)
+            if (( r > mdllmt)); then
+                green "Merging changes modules..."
+                sleep 5
+                
+                if ! /usr/local/save-changesnew/mergemodules.sh $keepMRGED $ROLLBCK $ROLLSUMRY $archLMT; then
+                    red "There was problem auto merging. see /tmp/error.log"
+                    cyan "Everything preserved."
+                fi
+                cyan "Modules merged."
+            fi
+        cd $pst
+        fi
+        ### End Handle auto merging modules
+    fi
+fi
+# Remount aufs with 'udba=none' flag:
+mount -o remount,udba=none /
+#cleanup
+rm $exclfiles
+rm /tmp/incfilter.log
+rm -rf $tmp       #delete temporary files
+sleep 5 && exit
