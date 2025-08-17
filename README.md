@@ -1,5 +1,5 @@
 # Developer-buddy                                       08/17/2025
-Version: devr2                save-changesnew5.0devr2         RecentchangesN5devr2
+Version: devr2                save-changesnew5.0devr2         RecentchangesN5devr2 <br><br>
 
 Find new files, save changes in porteus/nemesis and RSync backup in changes=EXIT:/
 
