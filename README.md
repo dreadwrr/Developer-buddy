@@ -24,6 +24,10 @@ Contantly up to date as I use this daily when developing.
 
 3 modes. normal, mem and mc. The traditional loop, an array or multiple core. Highly optimized code and written strictly in bash.
 
+
+
+
+
   Recentchanges
 
    recentchanges. Developer buddy      make xzm     
@@ -38,6 +42,11 @@ or what changed on your system. So if you compiled something you call this scrip
 
 We use the find command to list all files 5 minutes or newer. Filter it and then get to copying the files in a temporary staging directory.
 Then take those files and make an .xzm. It will be placed in   /tmp  along with a transfer log to staging directory and file manifest of the xzm 
+
+
+
+
+
 
 
   Save Changes New        Nemesis
