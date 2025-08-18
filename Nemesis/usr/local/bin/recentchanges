@@ -223,7 +223,7 @@ else # Search the default time  5 minutes.
 fi
 fc="find /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var -mmin -${qtn} -not -type d -print0 "
 fca="find /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var \( -cmin -${qtn}-o -amin -${qtn} \) -not -type d -print0"
-if [ "$FEEDBACK" != "true" ]; then $fc 2> /dev/null | tee $RECENTNUL > /dev/null 2> /dev/null ; $fca 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null ; else $fc 2>/dev/null ; $fca | tee $toutnul 2> /dev/null ; fi   
+if [ "$FEEDBACK" != "true" ]; then eval "$fc" 2> /dev/null | tee $RECENTNUL > /dev/null 2> /dev/null ; $fca 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null ; else eval "$fc" 2>/dev/null ; $fca | tee $toutnul 2> /dev/null ; fi   
 
 if [ "$checkSUM" == "true" ]; then cyan "Running checksum. Please wait..."; fi
 if [ "$ANALYTICSECT" == "true" ]; then 
@@ -235,9 +235,6 @@ fi #read -r -p "Press Enter to continue..."
 ###New to version 3
 while IFS= read -r -d '' f; do f="${f//$'\n'/\\n}" ; echo "$f" ; done < $RECENTNUL >> $RECENT # Our main list  with \n escaped to \\n  so we can compare here and also further down
 while IFS= read -r -d '' f; do f="${f//$'\n'/\\n}" ; echo "$f"	; done < $toutnul >> $tout 	
-
-
-
 if [ -s $tout ]; then grep -Fxv -f $RECENT $tout > $TMPCOMPLETE; fi
 > $tout
 # Slackpkg and pacman download detection ect
@@ -251,8 +248,8 @@ if [ -s $TMPCOMPLETE ]; then
 		searcharr $xdata # .. array
 	elif [ "$mMODE" == "mc" ]; then
 		xargs -0 -I{} /usr/local/save-changesnew/searchfiles "{}" "$atmp" "$checkSUM" < $xdata
-		if compgen -G "$atmp/searchfiles1_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles1_*_tmp.log > "$tout"; fi
-		if compgen -G "$atmp/searchfiles2_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles2_*_tmp.log > "$COMPLETE"; fi
+		if compgen -G "$atmp/searchfiles1_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles1_*_tmp.log > $tout; fi
+		if compgen -G "$atmp/searchfiles2_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles2_*_tmp.log > $COMPLETE; fi
 	else
 		echo incorrect mMODE && exit
 	fi
@@ -272,8 +269,8 @@ elif [ "$mMODE" == "mem" ]; then
 elif [ "$mMODE" == "mc" ]; then
 	#xargs -0 -I{} -P4 /usr/local/save-changesnew/mainloop "{}" "$atmp" "$checkSUM" < $RECENTNUL
 	xargs -0 -n8 -P4 /usr/local/save-changesnew/mainloop "$atmp" "$checkSUM" < $RECENTNUL
-	if compgen -G "$atmp/mainloop1_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop1_*_tmp.log > "$SORTCOMPLETE"; fi
-	if compgen -G "$atmp/mainloop2_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop2_*_tmp.log >> "$COMPLETE"; fi
+	if compgen -G "$atmp/mainloop1_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop1_*_tmp.log > $SORTCOMPLETE; fi
+	if compgen -G "$atmp/mainloop2_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop2_*_tmp.log >> $COMPLETE; fi
 else
 	echo incorrect mMODE && exit
 fi
@@ -423,7 +420,6 @@ if [ "$SRCDIR" == "SRC" ]; then # SRC tag
         x=0
 		while IFS= read -r -d '' f
         do 
-
 			f="${f//$'\n'/$'\\n'}"
             grep -Fq -- "$f" $RECENTAPP && x=$(( x + 1 )) || { approval="false"; arrreject+=("$f"); } 
         done < <(find "${srcpath}" \( -type f -o -type l \) -print0)
@@ -511,13 +507,13 @@ if [ "$SRCDIR" == "SRC" ]; then # SRC tag
                 else
                     echo
                     echo "Using default filename."
-                    filename=$appname 
+                    filename="$appname"
                 fi
             else
-                filename=$usrslc # User entered name
+                filename="$usrslc" # User entered name
             fi
         else
-            filename=$appname # Default    
+            filename="$appname" # Default    
         fi
 
         if [ "$filename" != "${appname}" ]; then
@@ -631,7 +627,7 @@ if [ -s $SORTCOMPLETE ]; then
 	        echo "          " >> "${difffile}"
 	    
             while IFS="" read -r p || [ -n "$p" ]; do                          
-		       	cFILE=$( echo "$p" | cut -d " " -f3-)  # no quotes in $TMPCOMPLETE        cFILE=$(echo "$p" | awk -F'"' '{print $2}')    # Version 3  grab the filename from quotes   "   spaces in file       "
+		       	cFILE="$( echo "$p" | cut -d " " -f3-)"  # no quotes in $TMPCOMPLETE        cFILE=$(echo "$p" | awk -F'"' '{print $2}')    # Version 3  grab the filename from quotes   "   spaces in file       "
 				#dt=$(echo "$p" | cut -d " " -f1-2)
 				#cFILE="{cFILE//$'\n'/\\n}"
 		        #cFILE=$( echo $p | awk '{print $3}')
@@ -653,11 +649,11 @@ if [ -s $SORTCOMPLETE ]; then
         done
         if [ -s $ofile ]; then 
             sort -u -o $ofile $ofile # Built the previous search history
-			cc=$(hanly $SORTCOMPLETE $ofile)  #hybrid analysis          New to version 3
-			ret=$?	
-			if [ $ret -ne 0 ]; then
-				red "failure in ANALYTICS hanly subprocess"
-			fi
+			cc="$(hanly $SORTCOMPLETE $ofile)"  #hybrid analysis          New to version 3
+			#ret=$?	
+			#if [ $ret -ne 0 ]; then
+			#	red "failure in ANALYTICS hanly subprocess"
+			#fi
         fi        
     fi
     if [ "$STATPST" == "true" ]; then  # STATPST SRG
@@ -671,7 +667,7 @@ if [ -s $SORTCOMPLETE ]; then
 						awk 'NF' $xdata2 > $ofile # Remove spaces and built the previous search history
 					     if [ -s $ofile ]; then 
 					        sort -u -o $ofile $ofile 
-					   	   	cc=$(hanly $SORTCOMPLETE $ofile) #hybrid analysis	 and difffile output
+					   	   	cc="$(hanly $SORTCOMPLETE $ofile)" #hybrid analysis	 and difffile output
 							#ret=$?
 							#if [ $ret -ne 0 ]; then
 							#	echo "failure in STATPST hanyl subprocess"
@@ -685,11 +681,11 @@ if [ -s $SORTCOMPLETE ]; then
 					pstc="true"
 				fi
 			else
-				if [ -s "$pydbpst" ]; then if ! decrypt "$pydb" "$pydbpst"; then dbc="false" ; else dbc="true"; fi ; fi # # decrypt if any db if we cant decrypt it do nothing to preserve integrity of database. ie we dont make a new one. As we cant merge two dbs
+				if [ -s "$pydbpst" ]; then if decrypt "$pydb" "$pydbpst"; then dbc="true"; fi ; fi # # decrypt if any db if we cant decrypt it do nothing to preserve integrity of database. ie we dont make a new one. As we cant merge two dbs
 				[[ ! -s "$pydbpst" ]] && echo Initializing database... && python3 /usr/local/save-changesnew/pstsrg.py --init && dbc="true"  # db empty prepare for next time
 				if [ -s "$pydbpst" ] && [ "$dbc" == "true" ]; then
 					# ha database
-					rt=$(python3 /usr/local/save-changesnew/hanlydb.py $SORTCOMPLETE $COMPLETE $pydb $rout $tfile $checkSUM $cdiag) # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
+					rt="$(python3 /usr/local/save-changesnew/hanlydb.py $SORTCOMPLETE $COMPLETE $pydb $rout $tfile $checkSUM $cdiag)" # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
 					ret=$?
 					if [ $ret -ne 0 ]; then
 						echo "ha failed from hanlydb.py."
@@ -712,11 +708,11 @@ if [ -s $SORTCOMPLETE ]; then
 			sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2",\3/' $rout  #csv format  only quote "date time" ,      so we can capture file,na"m\ne spaces
 			if [ -s $COMPLETE ]; then cat $COMPLETE >> $rout; fi   # Nosuchfile  cant ensure no duplicates but this action is unique
 			if [ "$backend" != "default" ] && [ "$dbc" == "true" ]; then
-				imsg=$(python3 /usr/local/save-changesnew/pstsrg.py $rout "stats") # database mode
+				imsg="$(python3 /usr/local/save-changesnew/pstsrg.py $rout "stats")" # database mode
 				ret=$?
 			elif [ "$backend" == "default" ] && [ "$pstc" == "true" ]; then
 				#save stats encrypt
-		        imsg=$(storeenc $rout $statpst) # statistics persist
+		        imsg="$(storeenc $rout $statpst)" # statistics persist
 		        ret=$?
 			fi  
 	        if [ $ret -ne 0 ]; then # Error handling 
@@ -727,10 +723,10 @@ if [ -s $SORTCOMPLETE ]; then
         fi
 		# Logfile save
 		if [[ "$backend" != "default" && "$dbc" == "true" ]]; then # database mode
-			imsg=$(python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE "log")	
+			imsg="$(python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE "log")"	
 			ret=$?
   		elif [ "$backend" == "default" ] && [ "$pstc" == "true" ]; then
-		    imsg=$(storeenc $SORTCOMPLETE $logpst "dcr") # save and encrypt main log
+		    imsg="$(storeenc $SORTCOMPLETE $logpst "dcr")" # save and encrypt main log
 		    ret=$?
 		fi	
 		if [ $ret -ne 0 ]; then
@@ -753,7 +749,7 @@ if [ -s $SORTCOMPLETE ]; then
 	fi
 	# Loose ends       # Yes if a file changed during search system or cache item      # If modified time is the same and checksum changed flag.
 	[[ "$cc" != "csum" && -s $slog && "$cdiag" != "true" ]] && cat $slog # Very useful for tracking cache items
-	[[ "$cc" != "csum" && -s $slog && "$cdiag" == "true" ]] && { echo "cdiag"; echo ; cat $slog ; } >> "$difffile" # Important info but no need to spam screen
+	[[ "$cc" != "csum" && -s $slog && "$cdiag" == "true" ]] && { echo "cdiag"; echo ; cat $slog ; } >> $difffile # Important info but no need to spam screen
 	test -f $slog && rm $slog
     test -f $rout && rm $rout # incase pst off
 	filterhits $TMPOPT $flth  # record hits  ruman readable unfiltered best chance at matching 
