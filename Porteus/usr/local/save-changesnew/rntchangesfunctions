@@ -9,7 +9,7 @@ if [ "$POSTOP" == "true" ]; then
     else
         echo -e "Datetime\tFile\tSize(kb)\tType\tModified\tAccessed\tOwner" > $atmp/doctrine
         while IFS= read -r -d '' x; do        
-            f=$(cut -d' ' -f3- <<< "$x")
+            f="$(cut -d' ' -f3- <<< "$x")"
             dt=$(cut -d' ' -f1-2 <<< "$x")
             if [ -e "$f" ] && [ -f "$f" ]; then  
                 onr=$( stat -c "%U" "$f")    
@@ -23,7 +23,6 @@ if [ "$POSTOP" == "true" ]; then
             fi
         done < $xdata
         unset IFS
-
         head -1 $atmp/doctrine > $USRDIR/doctrine.tsv
         tail -n +2 $atmp/doctrine | sort -t$'\t' -k7,7 -k3,3n >> $USRDIR/doctrine.tsv
         green "File doctrine.tsv created in $USRDIR"
@@ -154,34 +153,25 @@ EOF
 				source=$xdata2
 			fi
 			if [ "$msg" == " stats" ]; then
-
-                while IFS="" read  p; do
-                    ft=$(echo "$p" | cut -d',' -f1)          # | tr -d '"')   optional ""
-                    dt=$(echo "$p" | cut -d',' -f2 | tr -d '"')
-                    filepath=$(echo "$p" | cut -d',' -f3 | tr -d '"')
-
-                    if [ "$ft" == "Modified" ]; then # We want modified files and dont want duplicates as    it would mess up statistics entry="${ft},\"${dt}\",\"${filepath}\""     #      we are only adding modified data as we cant do Delete because its overhead ie searching again? no
-                        entry="Modified,\"${dt}\",\"${filepath}\""
-                        if ! grep -Fqx "$entry" $source; then
-                            echo "$entry" >> $source
-                        fi
-					# We could store Deleted ??  yes but no duplicates as the search could have been called multiple times.
-                    elif [ "$ft" == "Deleted" ]; then # We want modified files and dont want duplicates 
-                        entry="Deleted,\"${dt}\",\"${filepath}\""
-                        if ! grep -Fqx "$entry" $source; then
-                            echo "$entry" >> $source
-                        fi
-				   	elif [ "$ft" == "Replaced" ]; then # We want modified files and dont want duplicates 
-                        entry="Replaced,\"${dt}\",\"${filepath}\""
-                        if ! grep -Fqx "$entry" $source; then
-                            echo "$entry" >> $source
-                        fi
-				   	elif [ "$ft" == "Overwrt" ]; then # We want modified files and dont want duplicates 
-                        entry="Overwrt,\"${dt}\",\"${filepath}\""
-                        if ! grep -Fqx "$entry" $source; then
-                            echo "$entry" >> $source
-                        fi
-                    fi
+				declare -A ref_map  # Load the database          As we at 300 searches this is far more efficient than grepping the entire file its in assosiative array
+				while IFS="" read -r line || [ -n "$line" ]; do
+					key=$(awk -F'"' '{print $2}' <<< "$line" )
+					[[ -n "$key" ]] && ref_map["$key"]="$line"
+				done < $source
+                while IFS="" read -r p || [ -n "$p" ]; do
+                    ft=$(echo "$p" | cut -d',' -f1)       # Action | tr -d '"')   optional ""                   Modified, Delete  field
+					if [ "$ft" == "Nosuchfile" ]; then # We want to keep track of any occurence of this         filepath=$( echo "$p" | awk -F',' '{ gsub(/^"|"$/, "", $3); print $3 }')
+						filepath=$(echo "$p" | cut -d',' -f3- | sed 's/^ *//;s/ *$//')
+						entry="Nosuchfile,,${filepath}"
+						echo "$entry" >> $source
+					else
+		                dt=$(echo "$p" | cut -d',' -f2 | tr -d '"')   	 #  , "date time" 
+						filepath=${p#*,*,}  # returns after 2nd ,
+						if [[ ! -v ref_map["$filepath"] ]]; then #if [ ! -n "$found_line" ]; then
+			                entry="$ft,\"${dt}\",${filepath}"
+			                echo "$entry" >> $source
+						fi
+					fi
                 done < $1
                 unset IFS
 
@@ -203,7 +193,6 @@ EOF
 		        cmmd=(gpg --yes -e -r $email -o $2 $source) # normal usage
 				if [ "$nc" == "true" ]; then cmmd=(gpg --yes --compress-level 0 -e -r $email -o $2 $source); fi # If over the size limit disable compression for speed
         	fi
-
 			# Encrypt
 			if ! "${cmmd[@]}"; then  
 				echo "Encryption failed for file: $source  . $2$msg "
@@ -264,6 +253,7 @@ fi
 hanly(){
 	local csm=""
 	local cores=""
+	>$tfile
 	if [ "$mMODE" == "mc" ]; then
 		cores=$(nproc 2>/dev/null || echo 1)
 		max_jobs=$cores
@@ -271,128 +261,122 @@ hanly(){
 		split -l 8 "$SORTCOMPLETE" "$atmp/sortchunk_"
 		ls "$atmp"/sortchunk_* | xargs -P"$max_jobs" -I{} /usr/local/save-changesnew/haloop "$atmp" "{}" "$2" "$checkSUM"
 		#ls "$atmp"/sortchunk_* | xargs -P4 -I{} /usr/local/save-changesnew/haloop "$atmp" "{}" "$2" "$checkSUM"
-		if compgen -G "$atmp"/haloop1_*_tmp.log > /dev/null; then cat "$atmp"/haloop1_*_tmp.log >> "$rout"; fi
-		if compgen -G "$atmp"/haloop2_*_tmp.log > /dev/null; then cat "$atmp"/haloop2_*_tmp.log >> "$tfile"; fi
+		if compgen -G $atmp/haloop1_*_tmp.log > /dev/null; then cat "$atmp"/haloop1_*_tmp.log >> $rout; fi
+		if compgen -G $atmp/haloop2_*_tmp.log > /dev/null; then cat "$atmp"/haloop2_*_tmp.log >> $tfile; fi
 	else
-		while IFS="" read -r p || [ -n "$p" ]; do                                  
-			cFILE=$(echo "$p" | awk -F'"' '{print $2}')
-			y=$cFILE
-			cFILE="${cFILE//$'\\n'/\n}"
-			in=$(echo "$cline" | cut -d " " -f1) # Current inode
+		declare -A ref_map  # Load the database
+		while read -r line; do
+			key=$(echo "$line" | awk -F'"' '{print $2}')
+			ref_map["$key"]="$line"
+		done < $2 # Our logpst
+		while IFS="" read -r p || [ -n "$p" ]; do                 
+			#cFILE=$(echo "$p" | awk -F'"' '{print $2}')
+			cFILE=$(echo "$p" | sed -n 's/[^"]*"\(.*\)".*/\1/p')		 #perl -lne 'print $1 if /"(.*)"/'
+			y="$cFILE" # Label human readable
+			current_ln="${p//\"$cFILE\"/}" # Remove the " path file "
+			current_ln="$(echo "$current_ln" | xargs)"            
+			in=$(echo "$current_ln" | cut -d " " -f3) # Current inode
 			if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then # The format for current is at least correct .. this far
-				if grep -qsF "\"$y\"" $2; then	 # start here	
-					dt=$(echo "$p" | cut -d " " -f1-2)
-					cline=$(echo "$p" | awk -F'"' '{print $3}' | xargs)
-					cat=$(echo "$cline" | cut -d " " -f2-3)
-					cs=$(echo "$cline" | cut -d " " -f4) # Current checksum
-					#
-					sline=$(grep "$y" "$2" | tail -n 1)
-					omt=$(echo "$sline" | cut -d " " -f1-2)
-					oline=$(echo "$sline" | awk -F'"' '{print $3}' | xargs)
-					oin=$(echo "$oline" | cut -d " " -f1) # Original inode
-					oat=$(echo "$oline" | cut -d " " -f2-3)
-					org=$(echo "$oline" | cut -d " " -f4) # Original checksum
-					#if [ "$cleaned" == "/home/guest/Downloads/Untitled Document" ]; then echo "$org oat" >> /home/guest/alta; fi
-					t=$(date -d "$oat" +%s 2>/dev/null)   # two key verification to be sure we are at the checksum
-					k=$(date -d "$cat" +%s 2>/dev/null)
-					if [ -n "$oin" ] && [ "$oin" -ge 0 ] 2>/dev/null; then # Format original good.. so far
+				found_line="${ref_map[$y]}"
+				if [ -n "$found_line" ]; then #if grep -qsF "\"$y\"" $2; then	 # start here	
+					sline="$found_line" # Lets make sure we have both sets of data before we fully parse
+					original_ln="${sline//\"$cFILE\"/}" # Remove the " file path "
+					original_ln="$(echo "$original_ln" | xargs)" 
+					cFILE="${cFILE//$'\\n'/\n}" # Convert from human readable
+					oin=$(echo "$original_ln" | cut -d " " -f3) # Original inode
+					if [ -n "$oin" ] && [ "$oin" -ge 0 ] 2>/dev/null; then # Format original good we can parse the rest of the data
+						omt=$(echo "$original_ln" | cut -d " " -f1-2)
+						oat=$(echo "$original_ln" | cut -d " " -f4-5) 
+						org=$(echo "$original_ln" | cut -d " " -f6) #
+						t=$(date -d "$oat" +%s 2>/dev/null)   
+						k=$(date -d "$cat" +%s 2>/dev/null)
+						dt=$(echo "$current_ln" | cut -d " " -f1-2)
+						cat=$(echo "$current_ln" | cut -d " " -f4-5) 
+						cs=$(echo "$current_ln" | cut -d " " -f6)
 						if [ "$dt" == "$omt" ]; then # Not a candidate we want but if checkSUM is on you believe you do
-						    if [ "$checkSUM" == "true" ]; then # Bonus output is checksum on	
-								if [ -n "$t" ] && [ -n "$k" ]; then # Format is perfect
+							if [ "$checkSUM" == "true" ]; then # Bonus output is checksum on	
+								if [ -n "$t" ] && [ -n "$k" ]; then # two key verification to be sure we are at the checksum  format is perfect
 									if [ -n "$org" ] && [ -n "$cs" ] && [ -f "$cFILE" ]; then	# format is looking good.
-										if [ "$org" != "$cs" ]; then # Modified time didnt change suspicious
-											a_checksum=$(md5sum "$cFILE" | awk '{print $1}')
-											a_mod=$(stat --format=%Y "$cFILE")
-											afrm=$(date -d "@$a_mod" +"%Y-%m-%d %H:%M:%S")
-											os=$(echo "$oline" | cut -d " " -f5-)
-											if [ -n "$os" ] && [ -n "$afrm" ]; then
-												fs=$(stat --format=%s "$cFILE")
-												if [ "$a_checksum" != "$cs" ]; then
-													if [ -n "$fs" ] && [ "$fs" == "$os" ] && [ "$cdiag" == "true" ]; then 
-														echo "file ${cFILE} checksum changed but size stayed the same." >> /tmp/scr
-													elif [ "$afrm" == "$dt" ]; then 
-														#printf "%-10s %-25s %-60s\n" "Csumc" "$dt" "$cFILE" | tee -a "$rout" >> "$tfile"| tee -a /tmp/cerr; csm="true"
-														echo "Csumc $dt $y" | tee -a $rout >> "$tfile"| tee -a /tmp/cerr; csm="true"															
-													fi
-												else
-													if [ "$afrm" != "$dt" ]; then echo "Checksum indicates a change in ${y} modified time. File likely changed." >> /tmp/scr; fi		
+										csze=$(echo "$current_ln" | cut -d " " -f7-) # current size
+										os=$(echo "$original_ln" | cut -d " " -f7-)
+										if [ -n "$csze" ]; then # Perfect format now
+											if [ "$org" != "$cs" ]; then # suspicious
+												a_checksum=$(md5sum "$cFILE" | awk '{print $1}') 
+												a_mod=$(stat --format=%Y "$cFILE")
+												afrm=$(date -d "@$a_mod" +"%Y-%m-%d %H:%M:%S")
+												if [ -n "$os" ] && [ -n "$afrm" ]; then # Ensure the file is still there
+													if [ "$afrm" == "$dt" ]; then #flag
+														echo "Csumc $dt $y"| tee -a "$rout" >> "$tfile"| tee -a /tmp/cerr; csm="true"	
+													else
+														if [ "$a_checksum" != "$cs" ] && [ "$cdiag" == "true" ]; then # Changed during search
+															echo "File changed during the search. ${y} at ${afrm}. Size was $os, now $fs. " >> /tmp/scr
+														elif [ "$a_checksum" != "$cs" ]; then
+															echo "File changed during search ${y}. File likely changed. system cache item." >> /tmp/scr
+														fi
+													fi	
 												fi
-											fi		
+											else
+												stealth $cFILE $os $csze $y $cdiag "csum" # file collision or file was edited in such as way that its checksum is exactly the same? swith to sha256
+											fi
 										fi
-									fi # pitfall you want to run a checksum check but dont go down this branch  <-----
+									fi
 								fi
 							fi
 						else # Regular but What changed?
 							if (( oin != in )); then # Inode changed normal
-							    if [ "$checkSUM" == "true" ]; then # More accurate
+								if [ "$checkSUM" == "true" ]; then # More accurate
 									if [ -n "$org" ] && [ -n "$cs" ]; then	# Ensure we actually have both checksums
-									    if [ "$org" == "$cs" ]; then # same checksum file copied over
-									        #printf "%-10s %-25s %-60s\n" "Overwrt" "$dt" "$cFILE" | tee -a "$rout" >> "$tfile"
+										if [ "$org" == "$cs" ]; then # same checksum file copied over
 											echo "Overwrt $dt $y" | tee -a $rout >> "$tfile"
-									    else # New file
-									        #printf "%-10s %-25s %-60s\n" "Replaced" "$dt" "$cFILE" | tee -a "$rout" >> "$tfile"
+										else # New file
+											os=$(echo "$original_ln" | cut -d " " -f7)
+											csze=$(echo "$current_ln" | cut -d " " -f7-)
+											if [ -n "$t" ] && [ -n "$k" ]; then
+												if [ -n "$csze" ]; then stealth $cFILE $os $csze $y $cdiag ;fi
+											fi
 											echo "Replaced $dt $y" | tee -a $rout >> "$tfile"
-									    fi
+										fi
 									fi
-							    else # We have just given more info than the diff file with Inode change
-							        #printf "%-10s %-25s %-60s\n" "Replaced" "$dt" "$cFILE" | tee -a "$rout" >> "$tfile"
+								else # We have just given more info than the diff file with Inode change
 									echo "Replaced $dt $y" | tee -a $rout >> "$tfile"
-							    fi
+								fi
 							else # Same Inode
-							    if [ "$checkSUM" == "true" ]; then
-									if [ -n "$org" ] && [ -n "$cs" ]; then	# Ensure we actually have both checksums
-									    if [ "$org" != "$cs" ]; then
-									        #printf "%-10s %-25s %-60s\n" "Modified" "$dt" "$cFILE" | tee -a "$rout"  >> "$tfile" # File has new content
+								if [ "$checkSUM" == "true" ]; then
+									if [ -n "$org" ] && [ -n "$cs" ]; then	# Ensure we actually have both checksumslogfile=$(mktemp /tmp/haloop1_XXXXXX.log)
+										if [ "$org" != "$cs" ]; then
+											os=$(echo "$original_ln" | cut -d " " -f7-)
+											csze=$(echo "$current_ln" | cut -d " " -f7-)
+											if [ -n "$t" ] && [ -n "$k" ]; then
+												if [ -n "$csze" ]; then stealth $cFILE $os $csze $y $cdiag ;fi
+											fi
 											echo "Modified $dt $y" | tee -a $rout  >> $tfile # File has new content
-									    else
-									        #printf "%-10s %-25s %-60s\n" "Touched" "$dt" "$cFILE" | tee -a "$rout" >> "$tfile" # Something minor
+										else
 											echo "Touched $dt $y" | tee -a $rout >> $tfile # Something minor
-									    fi
+										fi
 									fi
-							    else # Regular mode
-									#printf "%-10s %-25s %-60s\n" "Modified" "$dt" "$cFILE" | tee -a $rout >> $tfile # We have different time and indication of change. 
-							        echo "Modified $dt $y" | tee -a $rout >> $tfile # We have different time and indication of change. 
-							    fi
+								else # Regular mode
+									echo "Modified $dt $y" | tee -a $rout >> $tfile # We have different time and indication of change. 
+								fi
 							fi
 						fi
 					fi
 				fi
 			fi
-		done < $1
+		done < $1 #SORTCOMPLETE
 		unset IFS
 	fi
 	rm $2
-		# A big mistake. We dont have the necessary info to make this determination. Imagine saying metadata change when the file was replaced or modified.
-		# else # Subtle metadata change
-		#if [ -n "$cat" ] && [ -n "$oat" ]; then 
-		#	aoat=$(date -d "$cat" +%s)
-		#	acat=$(date -d "$oat" +%s)
-		#	if [ -n "$aoat" ] && [ -n "$acat" ]; then # We are certain the format is 100%
-		#tag="Metach"
-		#	if [ "$cat" != "$oat" ]; then
-		#	tag="xtimech"
-		#else
-		#	tag="Metach"
-		#fi
-		#[ "$cat" != "$oat" ] && tag="xtimech" || tag="Metach"
-		#printf "%-10s %-19s %s\n" "$tag" "$dt" "$cFILE" | tee -a "$rout" >> "$tfile"
-		#echo "$tag $dt $cFILE" | tee -a $rout >> $tfile
-		#fi
-		#fi
-	# Notes
-	# We have no checksum to compare
-	#else # Its not in the log yet. File creation is already implied but was it Replaced or Modified?
-	# We know there is nosum currently but the file might already be logged ie without checkSUM enabled
-	#grep -qsF "$cFILE" "$2" && if ! grep -qsF "\"$cFILE\" $in" "$2"; then echo "Replacd $dt $cFILE" | tee -a "$tfile" >> "$rout"; else echo "Modified $dt $cFILE" | tee -a "$tfile" >> "$rout"; fi 
-	#else
-	#printf "%-9s %-19s %s\n" "Noinode" "$dt" "$cFILE" | tee -a "$tfile" >> "$rout"
+    processha
+}
+processha() {
     if [ -s $rout ]; then
         if [ -s $tfile ]; then
             echo >> "$difffile"
             echo "Hybrid analysis" >> "$difffile"
             echo >> "$difffile"
+			#sed -E 's/^([^,]+),"([^"]+)","([^"]+)"$/\1 \2 \3/' $tfile # rev from csv 
 			sort -o $tfile $tfile
-			if [ -s $ABSENT ]; then sort -o $ABSENT $ABSENT; comm -23 $tfile $ABSENT > $TMPCOMPLETE ; else cat $tfile > $TMPCOMPLETE; fi # We dont want anything already in written
+			if [ -s $ABSENT ]; then sort -o $ABSENT $ABSENT; comm -23 $tfile $ABSENT > $TMPCOMPLETE ; else cat $tfile > $TMPCOMPLETE ; fi #   ; else  cat $tfile > $TMPCOMPLETE; fi # We dont want anything already in written
 			if [ "$flsrh" == "true" ] || [ "$3" == "filtered" ]; then  # Filter the view for filtered searches. A file search or rn	
 			     if ! { [ "$flsrh" == "true" ] && [ "$3" == "filtered" ]; } ; then	# If flsrh and $3 is filtered its inverse from  rnt  so we dont want to filter this time																																					    	
 				 /usr/local/save-changesnew/filter $TMPCOMPLETE $USR 
@@ -404,9 +388,98 @@ hanly(){
 				cp $TMPOUTPUT $TMPCOMPLETE
 			fi
 			#awk '{ printf "%s%s\n", $1, substr($0, length($1)+2) }' $TMPCOMPLETE >> "$difffile"
-
+			
 			awk '{printf "%-10s %-25s %-60s\n", $1, $2" "$3, $4}' $TMPCOMPLETE >> "$difffile"
-       		if [ "$csm" != "" ]; then echo "csum"; else echo "$cores"; fi
+       		if [ "$csm" != "" ]; then echo "csum"; else [ -n "$cores" ] && echo "$cores"; fi
         fi
 	fi
 }
+search() {
+while IFS= read -r -d '' x; do
+	adtcmd="" ; output="" ; fs=""
+	y="${x//$'\n'/\\n}"
+	if [ -e "$x" ] && [ -f "$x" ]; then
+		stat_out=$(stat -c "%Y %X %i" "$x")
+		read -r f atime i <<<"$stat_out"
+		mt=$(date -d "@$f" +"%Y-%m-%d %H:%M:%S")
+		ats=$(date -d "@$atime" +"%Y-%m-%d %H:%M:%S")
+		if [ -n "$mt" ]; then  # This at least ensures the format is correct if there is no date
+			if [ "$checkSUM" == "true" ]; then
+				csum=$(md5sum "$x")  #csum=$(md5sum "$x" | awk '{print $1}')
+				csum=${csum%% *}
+				fs=$(stat --format=%s "$x") 
+				adtcmd="$csum $fs"
+			fi	
+			output="$mt \"$y\" $i $ats $adtcmd"
+			printf '%s\n' "$output" >> $2
+		fi
+	else
+		printf 'NOTA-FI-LE 77:77:77 "%s"\n' "$y" >> $2
+		printf 'Nosuchfile,,%s\n' "$y" >> $3
+	fi
+done < $1
+unset IFS
+}
+searcharr () {
+while IFS= read -r -d '' x; do
+	adtcmd="" ; output="" ; fs=""
+	y="${x//$'\n'/\\n}"
+	if [ -e "$x" ] && [ -f "$x" ]; then
+		stat_out=$(stat -c "%Y %X %i" "$x")
+		read -r f atime i <<<"$stat_out"
+		mt=$(date -d "@$f" +"%Y-%m-%d %H:%M:%S")
+		ats=$(date -d "@$atime" +"%Y-%m-%d %H:%M:%S")
+		if [ -n "$mt" ]; then  # This at least ensures the format is correct if there is no date
+			if [ "$checkSUM" == "true" ]; then
+				csum=$(md5sum "$x")  #csum=$(md5sum "$x" | awk '{print $1}')
+				csum=${csum%% *}
+				fs=$(stat --format=%s "$x") 
+				adtcmd="$csum $fs"
+			fi
+			output="$mt \"$y\" $i $ats $adtcmd"
+			ffile+=("$output")
+		fi
+	else
+		ffile+=("NOTA-FI-LE 77:77:77 \"$y\"")
+		nsf+=("Nosuchfile,,$y")
+	fi
+done < $1
+unset IFS
+}
+ #called for two diff searched flt or unflt clear old logs  sed "s|^/||g"
+clearlogs() { 
+    local suffixes=(
+        "xSystemDiffFromLastSearch"
+        "xFltDiffFromLastSearch"
+        "xFltchanges"
+        "xFltTmp"
+        "xSystemchanges"
+        "xSystemTmp"
+        "xNewerThan"
+        "xDiffFromLast_"
+    )
+for suffix in "${suffixes[@]}"; do rm -f "${MODULENAME/#\//}$suffix"* 2>/dev/null ; done 
+}
+stealth() {
+local file="$1"
+local original_size="$2"
+local current_size="$3"
+local label="$4"  # \n \\n
+local diag="$5"
+if [ -f "$file" ] && [ "$diag" == "true" ]; then
+	local a_mod
+	local afrm
+	a_mod=$(stat --format=%Y "$file") # actual modified tm fs=$(stat --format=%s "$cFILE") # actual size
+	afrm=$(date -d "@$a_mod" +"%Y-%m-%d %H:%M:%S") # UTC 
+	if [ -n "$original_size" ] && [ -n "$current_size" ] && [ -n "$afrm" ]; then #format
+		local delta=$(( current_size - original_size ))
+		local abs_delta=${delta#-}
+		if [ "$abs_delta" -le 3  ] && [ "$abs_delta" -ne 0 ]; then
+			echo "Checksum indicates a change in ${label}. Size changed slightly — possible stealth edit. ($original_size → $current_size)." >> /tmp/scr
+		elif [ "$abs_delta" -ne 0 ] && [ "$6" == "csum" ]; then # rare event
+			echo "File collision ${label}. Same modified date and checksum. Either md5 is too weak or file was edited and matches exact checksum." >> /tmp/cerr # flag
+		fi
+	fi
+fi
+}
+

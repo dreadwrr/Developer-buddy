@@ -86,9 +86,9 @@ local p
         #fi
         #: "${p:=Unkown}"
         #if [ "$p" == "Unkown" ]; then
-            # do we go back and check the actual changes for size??
-            p=$osize # actual original size (could have changed from the original as we are resuming
-
+        # do we go back and check the actual changes for size??
+        p=$osize # actual original size (could have changed from the original as we are resuming
+		if [ "$1" == "true" ]; then > "${target}${rlt}${MODULENM}.bak.log" ; fi # If called on logSIZE and delete pref we got the previous data
         # we need to make one
         # generate log file        
 		dlog # check d2d
