@@ -83,7 +83,6 @@ def dencr(gpgfile, database):
 
 def results(database):
 
-    import sqlite3
     conn = sqlite3.connect(database)
     cur = conn.cursor()
     cur.execute("SELECT * FROM logs")
@@ -95,8 +94,15 @@ def results(database):
     root.title("Database Viewer")
 
     tree = ttk.Treeview(root, columns=columns, show='headings')
-    tree.pack(expand=True, fill=tk.BOTH)
+    tree.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
 
+    # Create vertical scrollbar and link it to the treeview
+    scrollbar = tk.Scrollbar(root, orient=tk.VERTICAL, command=tree.yview)
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+    tree.configure(yscrollcommand=scrollbar.set)
+
+    # Your existing column setup and insertions
     for col in columns:
         tree.heading(col, text=col, command=lambda _col=col: sort_column(tree, _col, columns))
         if col == "filename":
@@ -190,16 +196,25 @@ def main() :
             # Search breakdown
             atime=averagetm(opt)
             print(f"{CYAN}Search breakdown{RESET}")
-            print(f'Avg hour of activity: {atime}')
             conn = sqlite3.connect(opt) # Calculate the average filesize
             cur = conn.cursor()
+            cur.execute("""
+                SELECT 
+                datetime(AVG(strftime('%s', accesstime)), 'unixepoch') AS average_accesstime
+                FROM logs
+                WHERE accesstime IS NOT NULL;
+            """)
+            result = cur.fetchone()
+            average_accesstime = result[0] if result and result[0] is not None else None
+            if average_accesstime:
+                print(f'Average access time: {average_accesstime}')
+            print(f'Avg hour of activity: {atime}')
             cnt = getcount(cur)
             cur.execute('''
             SELECT filesize
             FROM logs
             ''')
             filesizes = cur.fetchall()
-            conn.close()
             total_filesize = 0
             valid_entries = 0
             for filesize in filesizes:
@@ -213,16 +228,13 @@ def main() :
                 print()
             print(f'Searches {cnt}') # count
             print()
-
-            conn = sqlite3.connect(opt)   # top directories      
-            cur = conn.cursor()
+            # top directories      
             cur.execute('''
             SELECT filename 
             FROM logs
             WHERE TRIM(filename) != ''
             ''')
             filenames = cur.fetchall()
-       
             directories = [os.path.dirname(filename[0]) for filename in filenames]
             directory_counts = Counter(directories)
             top_3_directories = directory_counts.most_common(3)
@@ -230,12 +242,9 @@ def main() :
             for directory, count in top_3_directories:
                 print(f'{count}: {directory} times')
             print()
-            
-            conn = sqlite3.connect(opt)  # common file 5
-            cur = conn.cursor()
+           # common file 5
             cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''") 
             filenames = [row[0] for row in cur.fetchall()]
-            conn.close()
             filename_counts = Counter(filenames)
             top_5_filenames = filename_counts.most_common(5)
             print(f"{CYAN}Top 5 created{RESET}")
@@ -254,10 +263,8 @@ def main() :
             # print(f"{GREEN}Top 5 replaced by inode{RESET}")
             # #print("Top 5 Inodes:", top_5_inodes)
             # for inode, count in top_5_inodes:
-            #     print(f'{count} {inode}')
-            
-            conn = sqlite3.connect(opt)  # Top 5 mod
-            cur = conn.cursor()
+            #     print(f'{count} {inode}')    
+            # Top 5 mod
             cur.execute('''
             SELECT * 
             FROM stats
@@ -266,15 +273,13 @@ def main() :
             LIMIT 5
             ''')
             top_5_modified = cur.fetchall()
-            conn.close()
             filenames = [row[3] for row in top_5_modified]
             filename_counts = Counter(filenames)
             top_5_filenames = filename_counts.most_common(5)
             print(f"{CYAN}Top 5 modified{RESET}")
             for filename, count in top_5_filenames:
                 print(f'{count} {filename}')        
-            conn = sqlite3.connect(opt)  # Top 7 del
-            cur = conn.cursor()
+            # Top 7 del
             cur.execute('''
             SELECT * 
             FROM stats
@@ -283,15 +288,13 @@ def main() :
             LIMIT 7
             ''')
             top_7_deleted = cur.fetchall()
-            conn.close()
             filenames = [row[3] for row in top_7_deleted]
             filename_counts = Counter(filenames)
             top_7_filenames = filename_counts.most_common(7)
             print(f"{CYAN}Top 7 deleted{RESET}")
             for filename, count in top_7_filenames:
                 print(f'{count} {filename}')        
-            conn = sqlite3.connect(opt)  # Top 7 ovwrite
-            cur = conn.cursor()
+            # Top 7 ovwrite
             cur.execute('''
             SELECT * 
             FROM stats
@@ -300,15 +303,13 @@ def main() :
             LIMIT 7
             ''')
             top_7_writen = cur.fetchall()
-            conn.close()
             filenames = [row[3] for row in top_7_writen]
             filename_counts = Counter(filenames)
             top_7_filenames = filename_counts.most_common(7)
             print(f"{CYAN}Top 7 overwritten{RESET}")
             for filename, count in top_7_filenames:
                 print(f'{count} {filename}')        
-            conn = sqlite3.connect(opt)  # Top 5 no such file
-            cur = conn.cursor()
+            # Top 5 no such file
             cur.execute('''
             SELECT * 
             FROM stats

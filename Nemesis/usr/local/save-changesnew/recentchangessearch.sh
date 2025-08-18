@@ -9,7 +9,7 @@ get_colors
 . /usr/local/save-changesnew/rntchangesfunctions
 if [ `whoami` != "root" ]; then # This script requires 4 variables  $1 search  $2 thetime or notime  $3 theusername  $4 PWD
 	echo "Please enter your root password below"
-    su - -c "DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY /usr/local/save-changesnew/recentchangessearch.sh $1 '$2' $3 '$4'"
+    su - -c "/usr/local/save-changesnew/recentchangessearch.sh $1 '$2' $3 '$4'"
     exit
 fi
 USR=$3
@@ -35,7 +35,7 @@ pytmp=$atmp/pytmp.tmp 														;     	pydbpst=/usr/local/save-changesnew/re
 statpst=$dr/stats.gpg 															;		logpst=$dr/logs.gpg 																				 																		
 diffrlt="false"											                        	;		nodiff="false"
 validrlt="false"										                           		;		flsrh="false"
-pstc="false"																				;		dbc="false"
+pstc="false"																			;		dbc="false"
 mkdir $tmp																	
 mkdir $atmp
 if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
@@ -69,9 +69,9 @@ if [ "$2" != "noarguser" ] && [ "$2" != "" ]; then # If a desired time is specif
 		cyan "searching for files $2 seconds old or newer"  					   
     else
         # we dont want the log file to become a .tar.gz for example
-        argone=".txt"    $RECENT
+        argone=".txt"
     	test -d "${4}" && cd "${4}" || { echo "Invalid argument ${4} . PWD required."; exit 1; }
-    	filename=$2
+    	filename="$2"
 
     	test -f "${filename}" || { test -d "${filename}" || echo no such directory file or integer; exit 1; }
     	parseflnm=$(echo $2 | sed 's@.*/@@')         # filename
@@ -79,13 +79,13 @@ if [ "$2" != "noarguser" ] && [ "$2" != "" ]; then # If a desired time is specif
     	# sed -e 's/\/$//')  this will   take  /mydir/thisdir/myfile.txt and return   	/myfile.txt
     	# sed sed -e 's@.*/@@' this will take /myfile.txt and return 					myfile.txt
     	if [ "$parseflnm" == "" ]; then
-    		parseflnm=$(echo $2 | sed -e 's/\/$//' -e 's@.*/@@')  # user selected a directory so we have to reparse
+    		parseflnm="$(echo "$2" | sed -e 's/\/$//' -e 's@.*/@@')"  # user selected a directory so we have to reparse
     	fi
     	cyan "searching for files newer than $filename "
     	flsrh="true"
     	FEEDFILE=$RECENTNUL	
-		fc="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var -newer $filename -not -type d -print0"
-        if [ "$FEEDBACK" != "true" ]; then $fc 2> /dev/null | tee $RECENTNUL > /dev/null 2> /dev/null ; else $fc | tee "$RECENTNUL" 2>/dev/null ;  fi # adjust FEEDBACK
+		fc="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var -newer \"$filename\" -not -type d -print0"
+        if [ "$FEEDBACK" != "true" ]; then eval "$fc" 2> /dev/null | tee $RECENTNUL > /dev/null 2> /dev/null ; else eval "$fc" | tee $RECENTNUL 2>/dev/null ;  fi # adjust FEEDBACK
     fi
 else # Search the default time  5 minutes.
 	argone="5" ; tmn=$argone
@@ -96,7 +96,7 @@ if [ "$tmn" != "" ]; then # The search is for system files
     FEEDFILE=$COMPLETENUL
 	fc="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var -mmin -${tmn} -not -type d -print0 "
 	fca="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var \( -cmin -${tmn} -o -amin -${tmn} \) -not -type d -print0 "
-    if [ "$FEEDBACK" != "true" ]; then $fc 2> /dev/null | tee $COMPLETENUL > /dev/null 2> /dev/null ; $fca 2> /dev/null | tee "$toutnul" > /dev/null 2> /dev/null ;  else $fc | tee "$COMPLETENUL" 2>/dev/null ; $fca | tee "$toutnul" 2> /dev/null ; fi # ..        
+    if [ "$FEEDBACK" != "true" ]; then eval "$fc" 2> /dev/null | tee $COMPLETENUL > /dev/null 2> /dev/null ; $fca 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null ;  else eval "$fc" | tee $COMPLETENUL 2>/dev/null ; $fca | tee $toutnul 2> /dev/null ; fi # ..        
 fi
 if [ "$checkSUM" == "true" ]; then cyan "Running checksum."; fi
 if [ "$ANALYTICSECT" == "true" ]; then 
@@ -120,8 +120,8 @@ if [ -s $TMPCOMPLETE ]; then
 		searcharr $xdata 
 	elif [ "$mMODE" == "mc" ]; then # Single core these files are few. Mainloop is parallel
 	    xargs -0 -I{} /usr/local/save-changesnew/searchfiles "{}" "$atmp" "$checkSUM" < $xdata
-		if compgen -G "$atmp/searchfiles1_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles1_*_tmp.log > "$tout"; fi
-		if compgen -G "$atmp/searchfiles2_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles2_*_tmp.log > "$COMPLETE"; fi
+		if compgen -G "$atmp/searchfiles1_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles1_*_tmp.log > $tout; fi
+		if compgen -G "$atmp/searchfiles2_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles2_*_tmp.log > $COMPLETE; fi
 	else
 		echo incorrect mMODE && exit
 	fi 
@@ -137,8 +137,8 @@ elif [ "$mMODE" == "mem" ]; then
 elif [ "$mMODE" == "mc" ]; then # parallel search
 	#xargs -0 -I{} -P4 /usr/local/save-changesnew/mainloop "{}" $atmp $checkSUM < $FEEDFILE
 	xargs -0 -n8 -P4 /usr/local/save-changesnew/mainloop "$atmp" "$checkSUM" < $FEEDFILE # no improvement beyond 4
-	if compgen -G "$atmp/mainloop1_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop1_*_tmp.log > "$SORTCOMPLETE"; fi
-	if compgen -G "$atmp/mainloop2_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop2_*_tmp.log >> "$COMPLETE"; fi
+	if compgen -G "$atmp/mainloop1_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop1_*_tmp.log > $SORTCOMPLETE; fi
+	if compgen -G "$atmp/mainloop2_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop2_*_tmp.log >> $COMPLETE; fi
 fi
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
 # Lose the quotes
@@ -187,15 +187,15 @@ if [ -s $SORTCOMPLETE ]; then
     cat $TMPOPT | grep ' /tmp/' > $TMPOUTPUT        # Version 3 proper format   | sed -E 's/^([^ ]+ [^ ]+ [^ ]+)( .*)$/\1/'
 	sort -o $TMPOUTPUT $TMPOUTPUT   # This is viewable tmp files
 	#sed -i '/[[:space:]]"\/tmp/d' "$SORTCOMPLETE" # Remove /tmp  from the main search data
-	sed -i '/\"\/tmp/d' "$SORTCOMPLETE"
-	sed -i '/ \/tmp/d' "$TMPOPT" # Remove /tmp  from the main search data
-	sed -i '/ \/tmp/d' "$RECENT" # Remove /tmp  from the main search data
+	sed -i '/\"\/tmp/d' $SORTCOMPLETE
+	sed -i '/ \/tmp/d' $TMPOPT # Remove /tmp  from the main search data
+	sed -i '/ \/tmp/d' $RECENT # Remove /tmp  from the main search data
 	## End Removing tmp from search
 fi
 #called by rnt symlink so filtered search or its a newer than file search
 if [ "$5" == "filtered" ] || [ "$flsrh" == "true" ]; then 
 	logf="$TMPOPT"
-	if [ "$5" == "filtered" ] && [ "$flsrh" == "true" ]; then logf="$RECENT" ; fi  # We dont want to filter its inverse from rnt myfile
+	if [ "$5" == "filtered" ] && [ "$flsrh" == "true" ]; then logf=$RECENT ; fi  # We dont want to filter its inverse from rnt myfile
 	# Our search criteria is only filtered items therefor logf has to be $TMPOPT
     /usr/local/save-changesnew/filter $TMPOPT $USR # TMPOPT is filtered viewable
 fi
@@ -310,7 +310,7 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
 				if [ -s "$pydbpst" ]; then if ! decrypt "$pydb" "$pydbpst"; then dbc="false" ; else dbc="true"; fi ; fi
 				[[ ! -s "$pydbpst" ]] && echo Initializing database... && python3 /usr/local/save-changesnew/pstsrg.py --init && dbc="true"
 				if [ -s "$pydbpst" ] && [ "$dbc" == "true" ]; then # Skip first pass
-					rt=$(python3 /usr/local/save-changesnew/hanlydb.py $SORTCOMPLETE $COMPLETE $pydb $rout $tfile $checkSUM $cdiag) # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
+					rt="$(python3 /usr/local/save-changesnew/hanlydb.py $SORTCOMPLETE $COMPLETE $pydb $rout $tfile $checkSUM $cdiag)" # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
 					ret=$?
 					if [ $ret -ne 0 ]; then
 						echo "ha failed from hanlydb.py."
@@ -332,10 +332,10 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
 			sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2",\3/' $rout
 			if [ -s $COMPLETE ]; then cat $COMPLETE >> $rout; fi   # Nosuchfile  cant ensure no duplicates but this action is unique
 			if [ "$backend" != "default" ] && [ "$dbc" == "true" ]; then # db mode	if we failed to decompress we dont want to overwrite it
-				imsg=$(python3 /usr/local/save-changesnew/pstsrg.py $rout "stats")
+				imsg="$(python3 /usr/local/save-changesnew/pstsrg.py $rout "stats")"
 				ret=$?
 			elif [ "$backend" == "default" ] && [ "$pstc" == "true" ]; then 
-			    imsg=$(storeenc $rout $statpst) # save and encrypt statpst log  
+			    imsg="$(storeenc $rout $statpst)" # save and encrypt statpst log  
 			    ret=$?
 			fi
 			if [ $ret -ne 0 ]; then
@@ -346,10 +346,10 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
         fi
 		# Logfile save
 		if [[ "$backend" != "default" && "$dbc" == "true" ]]; then # We do not want to compromise the db if failed to decrypt
-			imsg=$(python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE "log")
+			imsg="$(python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE "log")"
 			ret=$?
 		elif [ "$backend" == "default" ] && [ "$pstc" == "true" ]; then
-		    imsg=$(storeenc $SORTCOMPLETE $logpst "dcr") # save and encrypt main log
+		    imsg="$(storeenc $SORTCOMPLETE $logpst "dcr")" # save and encrypt main log
 		    ret=$?
 		fi
 		if [ $ret -ne 0 ]; then
@@ -368,7 +368,7 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
 		elif [ "$backend" != "default" ] && [ "$dbc" == "false" ]; then 
 			echo Find out why db not decrypting or delete it to make a new one
 		fi
-		[[ -s $difffile ]] && [[ -n "$( tail -n 1 $difffile)" ]] && [[ "$dbc" == "true" || "$pstc" == "true" ]] && green "Hybrid analysis on"
+		[[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && [[ "$dbc" == "true" || "$pstc" == "true" ]] && green "Hybrid analysis on"
     fi # End STATPST
 	# Loose ends        # Yes if a file changed during search system or cache item.  cdiag detect stealth changes.
 	[[ "$cc" != "csum" && -s $slog && "$cdiag" != "true" ]] && cat $slog
@@ -410,4 +410,4 @@ if [ "$validrlt" == "false" ]; then
 	echo
 fi
 #test -e /usr/bin/featherpad && featherpad $USRDIR$MODULENAME"${flnm}"
-test -e /usr/bin/xed && xed $USRDIR$MODULENAME"${flnm}"
+#test -e /usr/bin/xed && xed $USRDIR$MODULENAME"${flnm}"
