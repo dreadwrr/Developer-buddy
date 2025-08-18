@@ -9,11 +9,11 @@
 # we would fail to get our correct username such as they put a second bogus argument
 if [ `whoami` != "root" ]; then
 	echo "Please enter your root password below"
-
-
+	if [ "$1" == "search" ]; then echo "usage rnt 60, rnt src rnt 60 src or rnt myfile" && exit; fi
     if [ "$1" == "query" ] || [ "$1" == "SRC" ] || [ "$1" == "src" ]; then
         argone=$1
 		argtwo=$2
+		if [ -z "$argtwo" ]; then argtwo="noarguser"; fi
 	else
         argone="search"
         argtwo="$1"
@@ -21,22 +21,14 @@ if [ `whoami` != "root" ]; then
 	if [ "$2" == "SRC" ] || [ "$2" == "src" ]; then  # flipped
 		argone=$2
 		argtwo=$1	
-	fi
-	if [ -z "$argtwo" ]; then argtwo="noarguser"; fi	
-
-    
-    su - -c "/usr/local/save-changesnew/filteredsearch $argone "$argtwo" `whoami` '$PWD'"
+	fi    
+    su - -c "/usr/local/save-changesnew/filteredsearch $argone '$argtwo' `whoami` '$PWD'"
     exit
 fi
-
-# What if the root calls       SRC         ??
-
 USR=$3 ; dir="$4"
 if [ "$3" == "" ] || [ "$4" == "" ]; then USR="guest"; dir="$PWD"; fi #Default user & pwd
 test -d "$dir" || { echo  "not a valid directory. usage rnt search time."; exit 1; }
 if  ! id $3 >/dev/null 2>&1; then  echo "user:" ${3} "not found"; exit 1 ; fi # quick user check if called by root    recentchanges compile asdfas asdfasd    it could break the script  asdfasd user notfound
-
-
 THETIME=$2 # Handle root call           # looks complicated but we only have to manage two arguments here
 if [ "$2" == "" ]; then
     THETIME=$1
@@ -58,7 +50,6 @@ if [ "$2" == "" ]; then
 		THETIME=$1
 	fi
 fi 	
-
 if [ "$1" == "query" ]; then
     /usr/local/bin/recentchanges query "$THETIME" $USR "$dir"
 elif [ "$1" == "SRC" ] || [ "$2" == "SRC" ] ; then

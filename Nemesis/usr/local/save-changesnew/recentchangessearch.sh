@@ -1,5 +1,5 @@
 #!/bin/bash
-#      recentchanges search             Developer Buddy v3.0    08/14/2025
+#      recentchanges search             Developer Buddy v3.0    08/18/2025
 #
 # If some as root calls the program with 2 arguments thats not intended use so exit
 # we would fail to get our correct username such as they put a second bogus argument
@@ -74,7 +74,7 @@ if [ "$2" != "noarguser" ] && [ "$2" != "" ]; then # If a desired time is specif
     	filename="$2"
 
     	test -f "${filename}" || { test -d "${filename}" || echo no such directory file or integer; exit 1; }
-    	parseflnm=$(echo $2 | sed 's@.*/@@')         # filename
+    	parseflnm="$(echo $2 | sed 's@.*/@@')"         # filename
     	# sed -e 's![^/]*$!!'   this will take /mydir/thisdir/myfile.txt and return     /mydir/myfile/
     	# sed -e 's/\/$//')  this will   take  /mydir/thisdir/myfile.txt and return   	/myfile.txt
     	# sed sed -e 's@.*/@@' this will take /myfile.txt and return 					myfile.txt
@@ -84,19 +84,27 @@ if [ "$2" != "noarguser" ] && [ "$2" != "" ]; then # If a desired time is specif
     	cyan "searching for files newer than $filename "
     	flsrh="true"
     	FEEDFILE=$RECENTNUL	
-		fc="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var -newer \"$filename\" -not -type d -print0"
-        if [ "$FEEDBACK" != "true" ]; then eval "$fc" 2> /dev/null | tee $RECENTNUL > /dev/null 2> /dev/null ; else eval "$fc" | tee $RECENTNUL 2>/dev/null ;  fi # adjust FEEDBACK
+		fc="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var -newer \"$filename\" -not -type d -print0 "
+		ct=$(date +%s)
+		fmt=$(stat -c %Y "$filename")
+		ag=$(( ct - fmt ))
+		fca="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var \( -cmin -${ag} -o -amin -${ag} \) -not -type d -print0 "
+        eval "$fc" 2> /dev/null | tee $RECENTNUL > /dev/null 2> /dev/null
+		eval "$fca" 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null
+		#else eval "$fc" | tee $RECENTNUL 2>/dev/null ;  fi # adjust FEEDBACK
     fi
 else # Search the default time  5 minutes.
 	argone="5" ; tmn=$argone
     cyan "searching for files 5 minutes old or newer"
 fi 
 if [ "$tmn" != "" ]; then # The search is for system files
-	logf="$RECENT" 
+	logf=$RECENT 
     FEEDFILE=$COMPLETENUL
 	fc="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var -mmin -${tmn} -not -type d -print0 "
 	fca="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var \( -cmin -${tmn} -o -amin -${tmn} \) -not -type d -print0 "
-    if [ "$FEEDBACK" != "true" ]; then eval "$fc" 2> /dev/null | tee $COMPLETENUL > /dev/null 2> /dev/null ; $fca 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null ;  else eval "$fc" | tee $COMPLETENUL 2>/dev/null ; $fca | tee $toutnul 2> /dev/null ; fi # ..        
+    eval "$fc" 2> /dev/null | tee $COMPLETENUL > /dev/null 2> /dev/null  
+	eval "$fc" 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null   
+	#else eval "$fc" | tee $COMPLETENUL 2>/dev/null ; $fca | tee $toutnul 2> /dev/null ; fi # ..        
 fi
 if [ "$checkSUM" == "true" ]; then cyan "Running checksum."; fi
 if [ "$ANALYTICSECT" == "true" ]; then 
@@ -109,6 +117,7 @@ fi #read -r -p "Press Enter to continue..."
 >$tout
 while IFS= read -r -d '' f; do f="${f//$'\n'/\\n}" ; echo "$f" ; done < $FEEDFILE >> $xdata
 while IFS= read -r -d '' f; do f="${f//$'\n'/\\n}" ; echo "$f" ; done < $toutnul >> $tout # Tempory Secondary list ..   for comparison
+if [ "$FEEDBACK" == "true" ]; then cat $tout; cat $xdata; fi
 if [ -s $tout ]; then grep -Fxv -f $xdata $tout > $TMPCOMPLETE; >$tout; fi
 if [ -s $TMPCOMPLETE ]; then
 	while IFS= read -r x; do x="${x//$'\\n'/\n}" ; printf '%s\0' "$x"; done < $TMPCOMPLETE > $xdata     # convert back to \n  and \0 for copying
@@ -119,7 +128,8 @@ if [ -s $TMPCOMPLETE ]; then
 		declare -a nsf
 		searcharr $xdata 
 	elif [ "$mMODE" == "mc" ]; then # Single core these files are few. Mainloop is parallel
-	    xargs -0 -I{} /usr/local/save-changesnew/searchfiles "{}" "$atmp" "$checkSUM" < $xdata
+	    #xargs -0 -I{} /usr/local/save-changesnew/searchfiles "{}" "$atmp" "$checkSUM" < $xdata
+		xargs -0 -n8 -P4 /usr/local/save-changesnew/searchfiles "$atmp" "$checkSUM" < $xdata
 		if compgen -G "$atmp/searchfiles1_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles1_*_tmp.log > $tout; fi
 		if compgen -G "$atmp/searchfiles2_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles2_*_tmp.log > $COMPLETE; fi
 	else
@@ -275,12 +285,10 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
         if [ -s $ofile ]; then 
             sort -u -o $ofile $ofile # Built the previous search history
 			cc=$(hanly $SORTCOMPLETE $ofile $5) #hybrid analysis
-			#ret=$?	
-			#if [ $ret -gt 0 ]; then
-			#	echo error is "$ret"
-			#	echo "$cc"
-			#	echo "failure in ANALYTICS hanly subprocess"
-			#fi
+			ret=$?	
+			if [ $ret -gt 0 ]; then
+				echo "failure in ANALYTICS hanly subprocess"
+			fi
         fi   
     fi
     if [ "$STATPST" == "true" ]; then # STATPST SRG
@@ -294,10 +302,10 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
 						 if [ -s $ofile ]; then 
 							sort -u -o $ofile $ofile 
 							cc=$(hanly $SORTCOMPLETE $ofile $5) #hybrid analysis		New to version 3
-							#ret=$?
-							#if [ $ret -ne 0 ]; then
-							#	echo "failure in STATPST hanyl subprocess"
-							#fi
+							ret=$?
+							if [ $ret -ne 0 ]; then
+								echo "failure in STATPST hanyl subprocess"
+							fi
 						fi
 						pstc="true"						
 					else
@@ -307,9 +315,9 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
 					pstc="true"
 				fi
 			else
-				if [ -s "$pydbpst" ]; then if ! decrypt "$pydb" "$pydbpst"; then dbc="false" ; else dbc="true"; fi ; fi
+				if [ -s "$pydbpst" ]; then if decrypt "$pydb" "$pydbpst"; then dbc="true"; fi ;fi
 				[[ ! -s "$pydbpst" ]] && echo Initializing database... && python3 /usr/local/save-changesnew/pstsrg.py --init && dbc="true"
-				if [ -s "$pydbpst" ] && [ "$dbc" == "true" ]; then # Skip first pass
+				if [ -s "$pydbpst" ] && [ "$dbc" == "true" ]; then
 					rt="$(python3 /usr/local/save-changesnew/hanlydb.py $SORTCOMPLETE $COMPLETE $pydb $rout $tfile $checkSUM $cdiag)" # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
 					ret=$?
 					if [ $ret -ne 0 ]; then
@@ -317,7 +325,7 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
 					else
 						if [ "$rt" == "csm" ]; then
 							awk '{ print "\033[31m *** Checksum of file \033[0m" $0 "\033[31m altered without a modified time\033[0m" }' /tmp/cerr && rm /tmp/cerr
-						elif [ "$rt" != "" ]; then # Custom feedback
+						elif [ "$rt" != "" ]; then
 							echo "$rt"
 						fi
 					fi
@@ -329,7 +337,7 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
 		[[ -n "$cc" && "$cc" == "csum" ]] && { awk '{ print "\033[31m *** Checksum of file \033[0m" $0 "\033[31m altered without a modified time\033[0m" }' /tmp/cerr && rm /tmp/cerr; } || [[ -n "$cc" ]] && echo "Detected $cc CPU cores." #red "*** Checksum of file altered without a modified time."
         if [ -s $rout ]; then # Encrypt stage
             sort -u -o $rout $rout # remove anything already in written
-			sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2",\3/' $rout
+			sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2",\3/' $rout 
 			if [ -s $COMPLETE ]; then cat $COMPLETE >> $rout; fi   # Nosuchfile  cant ensure no duplicates but this action is unique
 			if [ "$backend" != "default" ] && [ "$dbc" == "true" ]; then # db mode	if we failed to decompress we dont want to overwrite it
 				imsg="$(python3 /usr/local/save-changesnew/pstsrg.py $rout "stats")"
@@ -344,7 +352,6 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
 		        if [ "$imsg" != "" ]; then green "Persistent stats file created."; imsg=""; fi
 		    fi
         fi
-		# Logfile save
 		if [[ "$backend" != "default" && "$dbc" == "true" ]]; then # We do not want to compromise the db if failed to decrypt
 			imsg="$(python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE "log")"
 			ret=$?
@@ -383,8 +390,8 @@ if [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ] ; then
     stmp $SORTCOMPLETE # save log to /tmp
     if [ ! -f /tmp/rc/full ]; then cyan "Search saved in /tmp"; fi # save in /tmp but make notification go away after full 
 fi # Logging complete
-#rm -rf $tmp #cleanup
-#rm -rf $atmp
+rm -rf $tmp #cleanup
+rm -rf $atmp
 if [ "$ANALYTICSECT" == "true" ]; then
     el=$(awk "BEGIN {print $end - $start}")
     printf "Search took %.3f seconds.\n" "$el"
@@ -411,3 +418,4 @@ if [ "$validrlt" == "false" ]; then
 fi
 #test -e /usr/bin/featherpad && featherpad $USRDIR$MODULENAME"${flnm}"
 #test -e /usr/bin/xed && xed $USRDIR$MODULENAME"${flnm}"
+#if [ -z "$AGENT_PID" ]; then kill "$AGENT_PID"; fi 
