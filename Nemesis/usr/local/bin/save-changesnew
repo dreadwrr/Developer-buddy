@@ -38,8 +38,8 @@ if [ `whoami` != "root" ]; then
 else
     if [ "$2" == "" ]; then theUSER="guest"; else theUSER=$2; fi
 fi
-thetgt="$1" ; if [ "$thetgt" == "" ]; then thetgt=$BASEDIR; fi     # <----- actual root call  is blank      -->   see line 181          /mnt/sdax
-                                                                           
+thetgt="$1" ; if [ "$thetgt" == "" ]; then thetgt=$BASEDIR; fi     # <----- actual root call  is blank see ln181
+                                                                          
 if  ! id $2 >/dev/null 2>&1; then echo "user:" ${2} "not found"; exit 0 ; fi # quick user check we test the target directory $1 after VARS
 if ! grep -iq "Artix" /etc/os-release; then echo "Wrong version of developer buddy. Please use porteus version." && exit 0 ; fi
 
@@ -397,7 +397,7 @@ local instm="$1" # so we can see where its called from
     rm -rf $mtmp
 }
 if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
-	IFOLDERS="$(grep ^/ $CHNEXIT_CONF | sed s/.//)"  # Dynamically build with changes-exit conf
+	IFOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e /mnt/live/memory/changes/"$x" && echo "$x"; done)"  # Dynamically build with changes-exit conf
 	dycmb 
 
 
@@ -411,9 +411,7 @@ emfld="${em#/}"
 rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
 #rlt=$( cat /proc/cmdline | sed -n 's/.*changes=\([^ ]*\).*/\1/p') #parse the commandline
 
-[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt}
-[[ "$rlt" == *"$target"* ]] && { rlt=${rlt%/} && target=""; }
-
+[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt} && [[ "$rlt" == *"$target"* ]] && { rlt=${rlt%/} && target=""; }
 if [ "$rlt" != "" ]; then osize=$( du -sb "${target}${rlt}${MODULENM}/" | cut -f1); fi # original size
 
 #Generate exclude directories Folders to exclude: argument for `egrep'
