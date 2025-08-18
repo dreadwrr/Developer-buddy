@@ -258,7 +258,9 @@ else # Search the default time  5 minutes.
 fi
 fc="find /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var -mmin -${tmn} -not -type d -print0 "
 fca="find /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var \( -cmin -${tmn}-o -amin -${tmn} \) -not -type d -print0"
-if [ "$FEEDBACK" != "true" ]; then eval "$fc" 2> /dev/null | tee $RECENTNUL > /dev/null 2> /dev/null ; $fca 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null ; else eval "$fc" 2>/dev/null ; $fca | tee $toutnul 2> /dev/null ; fi   
+eval "$fc" 2> /dev/null | tee $RECENTNUL > /dev/null 2> /dev/null
+eval "$fca" 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null 
+#else eval "$fc" 2>/dev/null ; eval "$fca" | tee $toutnul 2> /dev/null ; fi   
 
 if [ "$checkSUM" == "true" ]; then cyan "Running checksum. Please wait..."; fi
 if [ "$ANALYTICSECT" == "true" ]; then 
@@ -270,6 +272,7 @@ fi #read -r -p "Press Enter to continue..."
 ###New to version 3
 while IFS= read -r -d '' f; do f="${f//$'\n'/\\n}" ; echo "$f" ; done < $RECENTNUL >> $RECENT # Our main list  with \n escaped to \\n  so we can compare here and also further down
 while IFS= read -r -d '' f; do f="${f//$'\n'/\\n}" ; echo "$f"	; done < $toutnul >> $tout 	
+if [ "$FEEDBACK" == "true" ]; then cat $tout ; cat $RECENT; fi
 if [ -s $tout ]; then grep -Fxv -f $RECENT $tout > $TMPCOMPLETE; fi
 > $tout
 # Slackpkg and pacman download detection ect
@@ -282,7 +285,8 @@ if [ -s $TMPCOMPLETE ]; then
 		declare -a nsf
 		searcharr $xdata # .. array
 	elif [ "$mMODE" == "mc" ]; then
-		xargs -0 -I{} /usr/local/save-changesnew/searchfiles "{}" "$atmp" "$checkSUM" < $xdata
+		#xargs -0 -I{} /usr/local/save-changesnew/searchfiles "{}" "$atmp" "$checkSUM" < $xdata
+		xargs -0 -n8 -P4 /usr/local/save-changesnew/searchfiles "$atmp" "$checkSUM" < $xdata
 		if compgen -G "$atmp/searchfiles1_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles1_*_tmp.log > $tout; fi
 		if compgen -G "$atmp/searchfiles2_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles2_*_tmp.log > $COMPLETE; fi
 	else
@@ -685,10 +689,10 @@ if [ -s $SORTCOMPLETE ]; then
         if [ -s $ofile ]; then 
             sort -u -o $ofile $ofile # Built the previous search history
 			cc="$(hanly $SORTCOMPLETE $ofile)"  #hybrid analysis          New to version 3
-			#ret=$?	
-			#if [ $ret -ne 0 ]; then
-			#	red "failure in ANALYTICS hanly subprocess"
-			#fi
+			ret=$?	
+			if [ $ret -ne 0 ]; then
+				echo "failure in ANALYTICS hanly subprocess"
+			fi
         fi        
     fi
     if [ "$STATPST" == "true" ]; then  # STATPST SRG
@@ -703,10 +707,10 @@ if [ -s $SORTCOMPLETE ]; then
 					     if [ -s $ofile ]; then 
 					        sort -u -o $ofile $ofile 
 					   	   	cc="$(hanly $SORTCOMPLETE $ofile)" #hybrid analysis	 and difffile output
-							#ret=$?
-							#if [ $ret -ne 0 ]; then
-							#	echo "failure in STATPST hanyl subprocess"
-							#fi
+							ret=$?
+							if [ $ret -ne 0 ]; then
+								echo "failure in STATPST hanyl subprocess"
+							fi
 					    fi
 						pstc="true"				
 					else
@@ -718,7 +722,7 @@ if [ -s $SORTCOMPLETE ]; then
 			else
 				if [ -s "$pydbpst" ]; then if decrypt "$pydb" "$pydbpst"; then dbc="true"; fi ; fi # # decrypt if any db if we cant decrypt it do nothing to preserve integrity of database. ie we dont make a new one. As we cant merge two dbs
 				[[ ! -s "$pydbpst" ]] && echo Initializing database... && python3 /usr/local/save-changesnew/pstsrg.py --init && dbc="true"  # db empty prepare for next time
-				if [ -s "$pydbpst" ] && [ "$dbc" == "true" ]; then
+				if [ -s "$pydbpst" ] && [ "$dbc" == "true" ]; then # skip first pass
 					# ha database
 					rt="$(python3 /usr/local/save-changesnew/hanlydb.py $SORTCOMPLETE $COMPLETE $pydb $rout $tfile $checkSUM $cdiag)" # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
 					ret=$?
