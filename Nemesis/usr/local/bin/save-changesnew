@@ -1,5 +1,5 @@
 #!/bin/bash
-#                                               Developer Buddy v3.0                Aug 11, 2025
+#                                               Developer Buddy v3.0                Aug 18, 2025
 #   this script works for two modes porteus nemesis graphics and changes.        
 #
 #   graphics mode all changes are in memory so to implement changes saving this script will save changes to an .xzm. it will then modify the porteus.cfg
@@ -31,7 +31,6 @@
 get_colors
 . /usr/local/save-changesnew/save-changesnewfnts
 if [ `whoami` != "root" ]; then
-
     echo "Please enter your root password below"
     su - -c "/usr/local/bin/save-changesnew '${BASEDIR}' '${USER}' "  # if your script is else where change this to location
     exit
