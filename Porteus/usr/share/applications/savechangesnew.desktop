@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Save changes new
+GenericName=Save-changes new
+Comment=Changes EXIT
+TryExec=/usr/bin/save-changesnew
+Exec=/usr/bin/save-changesnew
+Icon=/home/guest/.config/save-changesnew/icons/Flatpak.svg
+Terminal=true
+Categories=Network
+
+
