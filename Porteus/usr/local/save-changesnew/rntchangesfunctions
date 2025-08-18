@@ -255,7 +255,8 @@ hanly(){
 	local cores=""
 	>$tfile
 	if [ "$mMODE" == "mc" ]; then
-		cores=$(nproc 2>/dev/null || echo 1)
+		cores=$(nproc 2>/dev/null)
+		: "${cores:=1}"
 		max_jobs=$cores
 		if (( max_jobs > 16 )); then max_jobs=16; fi
 		split -l 8 "$SORTCOMPLETE" "$atmp/sortchunk_"
@@ -269,7 +270,7 @@ hanly(){
 			key=$(echo "$line" | awk -F'"' '{print $2}')
 			ref_map["$key"]="$line"
 		done < $2 # Our logpst
-		while IFS="" read -r p || [ -n "$p" ]; do                 
+		while IFS="" read -r p || [ -n "$p" ]; do                
 			#cFILE=$(echo "$p" | awk -F'"' '{print $2}')
 			cFILE=$(echo "$p" | sed -n 's/[^"]*"\(.*\)".*/\1/p')		 #perl -lne 'print $1 if /"(.*)"/'
 			y="$cFILE" # Label human readable
@@ -476,7 +477,7 @@ if [ -f "$file" ] && [ "$diag" == "true" ]; then
 		local abs_delta=${delta#-}
 		if [ "$abs_delta" -le 3  ] && [ "$abs_delta" -ne 0 ]; then
 			echo "Checksum indicates a change in ${label}. Size changed slightly — possible stealth edit. ($original_size → $current_size)." >> /tmp/scr
-		elif [ "$abs_delta" -ne 0 ] && [ "$6" == "csum" ]; then # rare event
+		elif [ "$abs_delta" -ne 0 ] && [ "$diag" == "csum" ]; then # rare event
 			echo "File collision ${label}. Same modified date and checksum. Either md5 is too weak or file was edited and matches exact checksum." >> /tmp/cerr # flag
 		fi
 	fi
