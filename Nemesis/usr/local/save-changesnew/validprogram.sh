@@ -390,41 +390,45 @@ local FN
 
 # Calculate the range from two dates including Day and time
 SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')  #the TIME with DAY
-s=$(date -d "$SRTTIME" "+%s")   # convert to epoch so we can add subtract
+s=$( echo $(date -d "$SRTTIME" "+%s"))   # convert to epoch so we can add subtract
+
 RANGE=$(( s + argone ))  # End time range based on search criteria 
-tm=$argone
 if [ "$THETIME" == "noarguser" ]; then
 	RANGE=$(( s + 300 ))
-	tm=300
 fi
-
 
 PRD=$(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S') # convert back to YYYY MM-DD HH:MM:SS
-FINTIME=$( awk -F" " -v tme="$PRD" '$0 < tme' $1 | sort -sr | head -n 1 | awk -F ' ' '{print $1 " " $2}') # get the last time on the list   
+echo $PRD >> /home/guest/KAP
+
+
+FINTIME=$( awk -F" " -v tme="$PRD" '$0 < tme' $SORTCOMPLETE | sort -sr | head -n 1 | awk -F ' ' '{print $1 " " $2}')   # get the last time on the list                Get the finish time
 f=$(date -d "$FINTIME" "+%s")
-FN=$( date -d "$FINTIME" +"%T")
 
+# get the difference
 DIFFTIME=$(( f - s )) 
-ENDTM=$(date -d "@$DIFFTIME" -u +'%H:%M:%S')  #utc time Rearrange format for log file
 
-#ST=$( head -n1 $1 | awk '{print $2}')         #The TIME  We only want to show HH:MM:SS
 
-#Account for SRC
-ST=$( head -n1 $1 | awk '{print $1 " " $2}')  #the TIME with DAY
-sSRC=$( date -d "$ST" "+%s")     # This is specifc to the rntfiles or SRC app
-fSRC=$( date -d "$FINTIME" +"%s")
-eSRC=$(( fSRC - sSRC ))
+
+ENDTM=$(date -d "@$DIFFTIME" -u +'%H:%M:%S')  # We only want to show HH:MM:SS   utc time   Rearrange format for log file
+
+
+
+#FN=$( date -d "$FINTIME" -u +'%H:%M:%S') # utc
+#FN=$( date -d "$FINTIME" +"%T")
+
+FN=$( tail -n1 $1 | awk '{print $2}')
+f=$(date -d "$FN" "+%s")
+
+ST=$( head -n1 $1 | awk '{print $2}')                                                                     #the TIME with DAY  This is specifc to the rntfiles or SRC app
+sSRC=$( date -d "$ST" "+%s")    
+
+
+eSRC=$(( f - sSRC ))
 srcE=$(date -d "@$eSRC" -u +'%H:%M:%S')
 
-# Check if there is only 1 file or both are same time
-time_str=$ENDTM 
-threshold=$tm  
-IFS=":" read -r hh mm ss <<< "$time_str"
-total_seconds=$((10#$hh * 3600 + 10#$mm * 60 + 10#$ss)) # base 10
-if (( DIFFTIME == 0 )) || (( total_seconds > threshold )); then #if [ "$DIFFTIME" == "0" ]; then
+if [ "$DIFFTIME" == "0" ]; then
 	ENDTM=$ENDTM" file(s) created at: "$SRTTIME   
 fi
-
 echo >> $2
 echo >> $2
 if [ "$THETIME" == "noarguser" ]; then
@@ -438,6 +442,7 @@ echo -e $ST" Start" >> $2
 echo -e $FN" Finish" >> $2
 echo -e $srcE" Compile time" >> $2
 echo "${ENDTM}"
+
 }
 
 # get random number

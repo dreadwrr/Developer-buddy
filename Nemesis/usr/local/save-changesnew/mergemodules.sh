@@ -4,15 +4,11 @@
 # Delete if all goes successful if keepMRGED false
 # Added ROLLBCK from save-changesnew
 #
-#
 # used for merging save-changesnew modules located in $BASEDIR/extramod     
 #
 # only merges  *_uid_*.xzm  in $PWD and only deletes the old on successful completion.
 # the mode can be set to keep the old ones. As well as custom compression level
 # processes changes relative to the modules
-#
-
-
 . /usr/share/porteus/porteus-functions
 get_colors
 

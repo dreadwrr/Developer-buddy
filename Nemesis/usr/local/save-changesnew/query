@@ -14,7 +14,6 @@
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/heuristics
-#vars on line 204
 
 # CHANGABLE 
 # CHANGABLE booleans
@@ -23,7 +22,6 @@ outputTFILE="true"            # show the report in /tmp?
 outputPSTFILE="true"       # .   .               /home/guest/Downloads
 genPSTTFILE="true"           # Run heuristics on PST and include in the report?       
 # End CHANGABLE
-
 dr=/usr/local/save-changesnew
 logpst=$dr/logs.gpg
 statpst=$dr/stats.gpg
@@ -35,9 +33,7 @@ timestamp=$(date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_')
 report=/query_$timestamp
 TOPT=$rtmp/tmpfile.log
 output_file=$rtmp/output.log
-
 mkdir $rtmp
-
 if [ "$STATPST" == "true" ]; then
     if [ -s $logpst ]; then
         cyan "Pulling logs from persistent storage"
@@ -46,12 +42,9 @@ if [ "$STATPST" == "true" ]; then
 			sed -i '/NOTA-FI-LE 77:77:77/d' $xdata  # eronous data we could eliminate it from the logpst but this could be useful statistics     anyway it messes up some awk commands.
             ### Log file queries
             #gpg -e -r $email -o /usr/local/save-changesnew/logs.gpg /tmp/logs_decrypted.log #encrypt
-
             #sed -E 's/^[^ ]+ [^ ]+ (.*)/\1/' $xdata | sed -E 's|(.*)/[^/]+$|\1|' | sort | uniq -c | sort -nr | head -n 3        top 3 
-            
 			cd /home/$2/Downloads || exit
 			rm query_MDY* > /dev/null 2>&1
-
 			{
             green "Logs archive"
 			cyan "Top 3(1) directories(dir)"			
@@ -78,10 +71,7 @@ if [ "$STATPST" == "true" ]; then
 					printf "%d %s\n", dirs[d], d
 				}
 			}' "$xdata" | sort -nr | head -n 3)
-
-			# Extract the count of the 3rd directory (if it exists)
-			tc=$(echo "$dirs" | awk 'NR==3 {print $1}')
-
+			tc=$(echo "$dirs" | awk 'NR==3 {print $1}') # Extract the count of the 3rd directory (if it exists)
 			if [[ -n "$tc" && "$tc" -gt 3 ]]; then
 				echo "$dirs"
 			else
@@ -93,7 +83,6 @@ if [ "$STATPST" == "true" ]; then
             ext $xdata
 			green "Please wait..."
             cyan "Search statistics:"
-			
 			aat $xdata
             echo "Searches: $(grep -c '^[[:space:]]*$' $xdata)" # total searches
 			hr $xdata
@@ -106,7 +95,6 @@ if [ "$STATPST" == "true" ]; then
             #shred -u $xdata
             rm $xdata
 			perl -pe 's/\e(\[[0-9;?]*[a-zA-Z]|[\(\)][AB])//g' -i "$output_file"   # remove ASCII text
-
             if [ -s $statpst ]; then ### Stat queries
                 cyan "Pulling from stats archive"
                 if gpg -d -o $xdata $statpst; then #decrypt
@@ -115,27 +103,22 @@ if [ "$STATPST" == "true" ]; then
                     green "Stats gpg"
                     echo
 					cyan "Most Modified"
-					awk '
+					awk -F',' '
 					{
-						# Extract the action (before first comma)
-						match($0, /^[^,]+/, a)
-						action = a[0]
-						gsub(/"/, "", action)
-						gsub(/^ +| +$/, "", action)
-
-						# Extract the datetime (the first quoted string after action)
-						match($0, /"([^"]+)"/, dt)
-						datetime = dt[1]
-
-						# Remove the part up to datetime match to get the rest
-						rest = substr($0, RSTART + RLENGTH)
-
-						# Extract the filename (next quoted string)
-						match(rest, /"([^"]+)"/, fp)
-						filepath = fp[1]
+						# Get the action from the first field
+						action = $1
+						gsub(/^[ \t"]+|[ \t"]+$/, "", action)
 
 						if (action == "Modified") {
-							counts[filepath]++
+							# Reconstruct file path from fields 3 to NF
+							path = $3
+							for (i = 4; i <= NF; i++) {
+								path = path "," $i
+							}
+
+							gsub(/^[ \t]+|[ \t]+$/, "", path)  # Trim whitespace
+
+							counts[path]++
 							found = 1
 						}
 					}
@@ -150,66 +133,46 @@ if [ "$STATPST" == "true" ]; then
 					' "$xdata" | sort -rn | head -5
 				echo
 				cyan "Top 5 deleted files"
-				awk -v rtmp="$rtmp" '
+				awk -F',' '
 				{
-					# Extract action (before first comma)
-					match($0, /^[^,]+/, a)
-					action = a[0]
-					gsub(/"/, "", action)
-					gsub(/^ +| +$/, "", action)
+				  action = $1
+				  gsub(/^[ \t"]+|[ \t"]+$/, "", action)
+				  if (action == "Deleted") {
+					path = $3
+					for (i=4; i<=NF; i++) path = path "," $i
+					gsub(/^[ \t]+|[ \t]+$/, "", path)
 
-					# Extract datetime (first quoted string)
-					match($0, /"([^"]+)"/, dt)
-					datetime = dt[1]
-
-					# Get the rest after datetime match to extract filename (next quoted string)
-					rest = substr($0, RSTART + RLENGTH)
-					match(rest, /"([^"]+)"/, fp)
-					filepath = fp[1]
-
-					if (action == "Deleted") {
-						counts[filepath]++
-						# Store datetime if not set or if current datetime is newer
-						if (!(filepath in latest_datetime) || datetime > latest_datetime[filepath]) {
-							latest_datetime[filepath] = datetime
-						}
-						found = 1  # Set found to 1 if action is "Deleted"
-					}
+					counts[path]++
+					found = 1
+				  }
 				}
 				END {
-					if (found == 1) {  # Only print if we found any "Deleted" actions
-						for (file in counts) {
-							print counts[file], latest_datetime[file], file
-						}
-					} else {
-						# Print "No entries found" to the output file if no "Deleted" actions
-						print "No entries found" > rtmp"/top_deleted_xdata.txt"
-					}
+				  if (found) {
+					for (f in counts)
+					  print counts[f], f
+				  } else {
+					print "No entries found"
+				  }
 				}
-				' "$xdata" | sort -rn | head -5 > "$rtmp/top_deleted_xdata.txt"				
+				' "$xdata" | sort -k1,1nr | head -5
 				echo
 				cyan "Top 7 Most replaced"
-				awk '
+				awk -F',' '
 				{
-					# Extract the action (before first comma)
-					match($0, /^[^,]+/, a)
-					action = a[0]
-					gsub(/"/, "", action)
-					gsub(/^ +| +$/, "", action)
-
-					# Extract the datetime (the first quoted string after action)
-					match($0, /"([^"]+)"/, dt)
-					datetime = dt[1]
-
-					# Remove the part up to datetime match to get the rest
-					rest = substr($0, RSTART + RLENGTH)
-
-					# Extract the filename (next quoted string)
-					match(rest, /"([^"]+)"/, fp)
-					filepath = fp[1]
+					# Clean and check action field
+					action = $1
+					gsub(/^[ \t"]+|[ \t"]+$/, "", action)
 
 					if (action == "Replaced") {
-						counts[filepath]++
+						# Reconstruct full file path from fields 3 and beyond
+						path = $3
+						for (i = 4; i <= NF; i++) {
+							path = path "," $i
+						}
+
+						gsub(/^[ \t]+|[ \t]+$/, "", path)  # Trim leading/trailing spaces
+
+						counts[path]++
 						found = 1
 					}
 				}
@@ -223,29 +186,23 @@ if [ "$STATPST" == "true" ]; then
 				}
 				' "$xdata" | sort -rn | head -7
 				echo
-
 				cyan "Top overwritten files top 3"
-				awk '
+				awk -F',' '
 				{
-					# Extract the action (before first comma)
-					match($0, /^[^,]+/, a)
-					action = a[0]
-					gsub(/"/, "", action)
-					gsub(/^ +| +$/, "", action)
-
-					# Extract the datetime (the first quoted string after action)
-					match($0, /"([^"]+)"/, dt)
-					datetime = dt[1]
-
-					# Remove the part up to datetime match to get the rest
-					rest = substr($0, RSTART + RLENGTH)
-
-					# Extract the filename (next quoted string)
-					match(rest, /"([^"]+)"/, fp)
-					filepath = fp[1]
+					# Extract and clean the action field
+					action = $1
+					gsub(/^[ \t"]+|[ \t"]+$/, "", action)
 
 					if (action == "Overwrt") {
-						counts[filepath]++
+						# Reconstruct full file path from fields 3 and onward
+						path = $3
+						for (i = 4; i <= NF; i++) {
+							path = path "," $i
+						}
+
+						gsub(/^[ \t]+|[ \t]+$/, "", path)  # Trim leading/trailing spaces
+
+						counts[path]++
 						found = 1
 					}
 				}
@@ -259,45 +216,45 @@ if [ "$STATPST" == "true" ]; then
 				}
 				' "$xdata" | sort -rn | head -3
 				echo
-				cyan "Top 5 Thats not actually a file"		
-				awk '
-				{
-					# Extract action (before first comma)
-					match($0, /^[^,]+/, m)
-					action = m[0]
-					gsub(/^ +| +$/, "", action)
+				cyan "Top 5 Thats not actually a file"
 
-					# Extract filename inside quotes (match last quoted string)
-					match($0, /"([^"]+)"[^"]*$/, arr)
-					filepath = arr[1]
+				awk -F',' '
+				{
+					if (NF == 0) next   # skip blank lines
+
+					# Clean action (first field)
+					action = $1
+					gsub(/^[ \t"]+|[ \t"]+$/, "", action)
 
 					if (action == "Nosuchfile") {
-						counts[filepath]++
-						found=1
+						# Reconstruct full filepath from fields 3 and beyond (handle commas in path)
+						path = $3
+						for (i = 4; i <= NF; i++) {
+							path = path "," $i
+						}
+						gsub(/^[ \t]+|[ \t]+$/, "", path)  # Trim whitespace
+
+						counts[path]++
+						found = 1
 					}
 				}
 				END {
 					if (found) {
-						for (f in counts)
-							print counts[f], f
+						for (file in counts)
+							print counts[file], file
 					} else {
 						print "No Nosuchfile entries found"
 					}
 				}
 				' "$xdata" | sort -rn | head -5
-
 					} 2>&1 | tee -a $output_file 
-
 					echo >> $output_file
-
 				echo
                     rm $xdata
                 else
                     echo "Error decrypting ${statpst} stat file. Skipping"
-                fi
-			
-				# Append any heuristics
-				[ -s "$TOPT" ] && cat $TOPT >> $output_file && rm $TOPT # Search statistics
+                fi		
+				[ -s "$TOPT" ] && cat $TOPT >> $output_file && rm $TOPT #Append any heuristics Search statistics
 				perl -pe 's/\e(\[[0-9;?]*[a-zA-Z]|[\(\)][AB])//g' -i "$output_file"   # remove ASCII text
                 ### End Stat queries
             fi
@@ -335,14 +292,12 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then # data to work from
 
         #Heuristic session?
 		(
-
         echo "Top 5 files created"
 		awk '
 		{
 			match($0, /"([^"]+)"/, arr)
 			if (arr[1] != "") print arr[1]
 		}' "$ofile" | sort | uniq -c | sort -nr | head -n 5
-
         echo
 		#read -r -p "any key continue..." 
 		echo
@@ -350,14 +305,9 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then # data to work from
 		aat $ofile
 		hr $ofile
 		asz $ofile
-		
 		read -r -p "any key continue..." 
-
-		echo
-		#read -r -p "any key continue..." k
-
-		#Average hour
-		x=$( sed -n '/^[[:space:]]*$/p' $ofile | wc -l)
+		echo #read -r -p "any key continue..." k
+		x=$( sed -n '/^[[:space:]]*$/p' $ofile | wc -l) #Average hour
 		if [ $x -eq 0 ]; then x=1; fi
 		echo "Searches: ${x}"
 		awk '
@@ -433,11 +383,8 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then # data to work from
 			printf "(%s)\n", half
 		}
 		' $ofile
-		
 		echo
-		echo "Detecting deleted files if overlap"
-		#delsnap $ofile $output_file
-				
+		echo "Detecting deleted files if overlap" #delsnap $ofile $output_file		
 		(cat "$ofile"; echo) | awk -v RS="" -v OFILE="$ofile" '
 		function toNumTimestamp(date, time) {
     		gsub(/[-:]/, "", date)
@@ -516,9 +463,7 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then # data to work from
     		# fflush()
 		}
 		'
-		
-		#read -r -p "any key continue..." 
-        echo
+        echo #read -r -p "any key continue..." 
 		echo "Type" # Heuristic session?
 		awk -v RS="" '
 		function to_epoch(ts,    cmd, epoch) {
@@ -573,11 +518,9 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then # data to work from
 		  delete files
 		}
 		' "$ofile"
-
         echo
         cyan "Most common extensions"
         ext $ofile
-
         echo
 		echo "Detecting replaced files by inode (awk generated)"
 		awk -v RS="" -v max=7 '
@@ -620,9 +563,7 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then # data to work from
   		}
 		}
 		' "$ofile" | sort -rn | head -7
-
         ) 2>&1 | tee "$output_file"
-	
         rm $ofile     
     fi
 fi

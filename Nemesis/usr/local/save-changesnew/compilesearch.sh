@@ -10,7 +10,6 @@
 # interpret the filter and insert lines or remove lines from known platforms
 #
 #
-#
 # Check system usage or recent usage in the last 90 seconds. as the user does random things we can capture it as well as previous actions to exclude.
 # end result is to provide the user a .conf file to use to compare to recentchanges filters and tweak script to their system.
 #

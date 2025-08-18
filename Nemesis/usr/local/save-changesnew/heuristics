@@ -5,22 +5,19 @@
 
 ## Main  same as tmp query but non interactive so saves to report       modify here for STATPSTTFILE
 asz() {
-awk '{
-    # Check if field 5 (file size) exists and is a valid number
-    if ($5 ~ /^[0-9]+$/) {
-        filesize = $5
-        total_size += filesize
-        file_count++
-    }
+awk 'NF && $8 ~ /^[0-9]+$/ && $8 > 0 {
+    filesize = $8
+    total_size += filesize
+    file_count++
 }
 END {
-    # Only print the average file size if we have valid file sizes
     if (file_count > 0) {
-        avg_size_kb = total_size / file_count / 1024  # Convert to KB
+        avg_size_kb = total_size / file_count / 1024
         printf "Average file size: %.2f KB\n", avg_size_kb
+    } else {
+        print "No file sizes."
     }
-}' $1
-
+}' "$1"
 }
 aat () {
 awk '
@@ -121,6 +118,7 @@ awk '{
 
     print ext
 }' $1 | sort | uniq -c | sort -nr | head -3
+
 echo
 }
 #Avg hour top or bottom of hour? time? of entire logs or statpst
@@ -204,10 +202,18 @@ hr() {
 echo "Top 5 files created (awk generated)"
 awk '
 {
-    match($0, /"([^"]+)"/, arr)
-    if (arr[1] != "") print arr[1]
-}' "$1" | sort | uniq -c | sort -nr | head -n 5
+    # Split line by comma
+    n = split($0, fields, ",")
 
+    # Join fields from 3rd to end in case filepath contains commas
+    filepath = fields[3]
+    for (i = 4; i <= n; i++) filepath = filepath "," fields[i]
+
+    # Trim leading/trailing spaces
+    gsub(/^ +| +$/, "", filepath)
+
+    print filepath
+}' "$1" | sort | uniq -c | sort -nr | head -n 5
 
 # Session type
 #
@@ -277,27 +283,38 @@ function process_session(block, snum,    lines, n, i, parts, timestamp, times, g
 echo
 echo "Most Replaced by inode (awk generated)"
 awk -v RS="" -v max=7 '
-function process_snapshot(snapshot,   i, lines, path, inode, m, rest, ino_match) {
+function process_snapshot(snapshot,   i, lines, path, inode, rest, ino_match, n, fields, filepath) {
   n = split(snapshot, lines, "\n")
   for (i = 1; i <= n; i++) {
-    if (match(lines[i], /"([^"]+)"/, m)) {
-      path = m[1]
-      rest = substr(lines[i], RSTART + RLENGTH)
-      if (match(rest, /[0-9]+/, ino_match)) {
-        inode = ino_match[0]
-      } else {
-        inode = ""
-      }
+    # Split the line by comma
+    split(lines[i], fields, ",")
 
-      if (path == "" || inode == "") continue
-
-      if (prev_inode[path] && prev_inode[path] != inode) {
-        changes[path]++
-        found = 1        # Mark that we found at least one change
-      }
-      prev_inode[path] = inode
+    # Join fields from the 3rd to the end (in case filepath contains commas)
+    filepath = fields[3]
+    for (j = 4; j <= length(fields); j++) {
+      filepath = filepath "," fields[j]
     }
+
+    # Trim leading/trailing spaces from filepath
+    gsub(/^ +| +$/, "", filepath)
+
+    # Get inode number after filepath (assuming inode is the first number after the filepath)
+    rest = substr(lines[i], index(lines[i], filepath) + length(filepath))
+    if (match(rest, /[0-9]+/, ino_match)) {
+      inode = ino_match[0]
+    } else {
+      inode = ""
+    }
+
+    if (filepath == "" || inode == "") continue
+
+    if (prev_inode[filepath] && prev_inode[filepath] != inode) {
+      changes[filepath]++
+      found = 1        # Mark that we found at least one change
+    }
+    prev_inode[filepath] = inode
   }
+}
 }
 
 {

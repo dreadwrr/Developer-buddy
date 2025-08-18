@@ -1,17 +1,15 @@
 #!/bin/bash
-# save-changesnew functions to move options further up the script             08/04/2025
-#
+# save-changesnew functions to move options further up the script             08/14/2025
 #
 # Function for creating a original format log with new master list and original size
 # get new size and put in new log. Called twice once for resuming from a pause
 # or exceeding log size in log delete preference. For Graphics changes mode
 # General inc exl logfile structure d2d or no
 dycmb() {
-    # New version 5.0
     TFLD="$(for x in $( echo $FOLDERS); do test -e "$ch/$x" && echo "$x"; done)"  
     FOLDERS="$TFLD" ; TFLD=""
-    [[ -n "$IFOLDERS" ]] && TFLD="$(for x in $(echo "$IFOLDERS" | tr ' ' '\n' | awk '!seen[$0]++'); do [[ ! " $FOLDERS " == *" $x "* ]] && test -e "$ch/$x" && echo "$x" ; done)" # Dynamically build with changes-exit conf
-    [[ -n "$TFLD" ]] && { IFOLDERS="$TFLD" ; FOLDERS=$IFOLDERS; } # combine
+    [[ -n "$IFOLDERS" ]] && TFLD="$(for x in $(echo "$IFOLDERS" | tr ' ' '\n' | awk '!seen[$0]++'); do [[ ! " $FOLDERS " == *" $x "* ]] && echo "$x" ; done)" # Dynamically build with changes-exit conf
+    [[ -n "$TFLD" ]] && { FOLDERS="$FOLDERS $TFLD" ; IFOLDERS=$FOLDERS ; } # combine
 }
 #Generate exclude directories changes-commit
 exldir() {
@@ -69,7 +67,6 @@ dlog() {
 glog() {
 local k
 local p
-
         ### grab the original byte count before its erased ###
 
         b=$( sed -nE 's/.original count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log) # the current saved bytes over time
@@ -88,51 +85,19 @@ local p
         #fi
         #: "${p:=Unkown}"
         #if [ "$p" == "Unkown" ]; then
-            # do we go back and check the actual changes for size??
-            p=$osize # actual original size (could have changed from the original as we are resuming
-        #fi 
+        # do we go back and check the actual changes for size??
+        p=$osize # actual original size (could have changed from the original as we are resuming
+		if [ "$1" == "true" ]; then > "${target}${rlt}${MODULENM}.bak.log" ; fi # If called on logSIZE and delete pref we got the previous data
         # we need to make one
         # generate log file        
-
-		# If this is called from a log size limit exceedence we can clear it as we have the necessary byte count
-		#if [ "$1" == "true" ]; then :> "${target}${rlt}${MODULENM}.bak.log"; fi
-#        if [ "$d2drive" == "true" ]; then
-#            
-#            # we need to get only the the included folders from the new source drive
-#            for fld in $FOLDERS; do
-#                full_path="$dirSRC/$fld"                    
-#                if [ -d "$full_path" ]; then
-#                    find "$full_path" -type f -printf '%P\n' | sed "s|^|/$fld/|" >> "${target}${rlt}${MODULENM}.bak.log"
-#                fi
-#            done
-#        else
-#            find "$dirSRC" -type f -printf '%P\n' >> "${target}${rlt}${MODULENM}.bak.log"
-#        fi
-#        echo >> "${target}${rlt}${MODULENM}.bak.log"
 		dlog # check d2d
-
-
-
 
         echo "original size(source)=$k" >> "${target}${rlt}${MODULENM}.bak.log"
         echo "new size(source)=$p" >> "${target}${rlt}${MODULENM}.bak.log"
         if (( c != 0 )); then
             echo "original count=$c" >> "${target}${rlt}${MODULENM}.bak.log" # insert the original byte count for analytic purposes only if we have it
         fi
-        
-        #if [ "$ANALYTICS" == "true" ]; then
-             # filesize=$(stat -c %s "$filename")
-
-            # osize=$(du -sb "${target}${rlt}${MODULENM}/" | cut -f1) #original size       <----       we dont know anything about it
-            #csize=$(du -sb "${target}${rlt}${MODULENM}.bak/" | cut -f1) # backup size
-
-            #tsize=$(( osize - csize )) <--- nope
-         
-            
-            # see line 273 as we cant append anything else unless rsync runs so we set nOPT here and return to check
-            # as user may change a setting while already having the backup        
-        #fi
-
+       
         echo  "END ORIGINAL FILES $(date +"%m-%d-%y_%R")" >> "${target}${rlt}${MODULENM}.bak.log"
     
         # at this point we are making a new backup because we are resuming and have no idea the original format
