@@ -77,29 +77,21 @@ done < $lt
 unset IFS
 rm $lt
 }
-#create/open and save encrypted log/stats gpg $1 logfile $2 output
-storeenc() {
-shopt -s expand_aliases
-local c
+generatekey() {
+	#if grep -iq "Porteus 5.01" /etc/os-release && which gpg2; then alias gpg="gpg2"; fi
+	
+	# 5.1 porteus   GPG 2.x+ generate key but if 5.01 has GPG2 do it too
+	if which gpg2 > /dev/null 2>&1 || gpg --version | grep -q "(GnuPG) 2"; then #gpg --full-generate-key
+		
 
-if [ "$STATPST" == "true" ]; then # Requires encryption
-	#if grep -iq "Porteus 5.01" /etc/os-release && which gpg2 > /dev/null; then alias gpg="gpg2"; fi
-    if ! gpg --list-keys | grep -q $email; then
+        read -sp "Enter passphrase for new GPG key: " p
+        #read -sp "Confirm passphrase: " passphrase_confirm
+        #echo
 
-		#if grep -iq "Porteus 5.01" /etc/os-release && which gpg2; then alias gpg="gpg2"; fi
-	   	
-	   	# 5.1 porteus   GPG 2.x+ generate key but if 5.01 has GPG2 do it too
-		if which gpg2 > /dev/null 2>&1 || gpg --version | grep -q "(GnuPG) 2"; then #gpg --full-generate-key
-			
-
-            read -sp "Enter passphrase for new GPG key: " p
-            #read -sp "Confirm passphrase: " passphrase_confirm
-            #echo
-
-            #if [ "$passphrase" != "$passphrase_confirm" ]; then
-            #    echo "Passphrases do not match. Aborting."
-            #    exit 1
-            #fi
+        #if [ "$passphrase" != "$passphrase_confirm" ]; then
+        #    echo "Passphrases do not match. Aborting."
+        #    exit 1
+        #fi
 cat > /tmp/keyparams.conf <<EOF
 %echo Generating a GPG key
 Key-Type: RSA
@@ -114,109 +106,116 @@ Passphrase: $p
 %echo done
 EOF
 
-       			if which gpg2 > /dev/null 2>&1; then
-        		gpg2 --batch --pinentry-mode loopback --passphrase "$p" --generate-key /tmp/keyparams.conf
-        		echo made
-        	else
-        		gpg --batch --pinentry-mode loopback --passphrase "$p" --generate-key /tmp/keyparams.conf
-        	fi
-        	shred -u /tmp/keyparams.conf
-	
-        	echo "GPG key generated for ${email}."	
-		else
-    		if grep -iq "Porteus 5.01" /etc/os-release; then  
-    			if which expect > /dev/null 2>&1; then # is expect installed?
-    				echo "expect needs to be installed. And run the keygen file for 5.01. Remember to remove passphrase after from file."
-    			else
-    				echo "Please run the keygen file for 5.01. Then erase the passphrase you entered in the file from the file."
-    			fi
-				return 1
-			fi
-		fi
-
-	else # Good to go
-        if grep -m 1 -q '^Modified,' $1; then  msg=" stats"; else msg=" log"; fi 
-        if [ -s "$2" ]; then
-
-            ag="true"
-			if [ "$3" != "dcr" ]; then
-				if ! decrypt $xdata $2; then
-					if [ "$ag" == "false" ]; then
-                    	echo "Agent not installed for gpg 1.4 skipping... ${msg}"
-                	else
-                    	echo "Failed to decrypt"  $2$msg
-					fi
-					return 1
-                fi
-				source=$xdata
-			else
-				source=$xdata2
-			fi
-			if [ "$msg" == " stats" ]; then
-				declare -A ref_map  # Load the database          As we at 300 searches this is far more efficient than grepping the entire file its in assosiative array
-				while IFS="" read -r line || [ -n "$line" ]; do
-					key=$(awk -F'"' '{print $2}' <<< "$line" )
-					[[ -n "$key" ]] && ref_map["$key"]="$line"
-				done < $source
-                while IFS="" read -r p || [ -n "$p" ]; do
-                    ft=$(echo "$p" | cut -d',' -f1)       # Action | tr -d '"')   optional ""                   Modified, Delete  field
-					if [ "$ft" == "Nosuchfile" ]; then # We want to keep track of any occurence of this         filepath=$( echo "$p" | awk -F',' '{ gsub(/^"|"$/, "", $3); print $3 }')
-						filepath=$(echo "$p" | cut -d',' -f3- | sed 's/^ *//;s/ *$//')
-						entry="Nosuchfile,,${filepath}"
-						echo "$entry" >> $source
-					else
-		                dt=$(echo "$p" | cut -d',' -f2 | tr -d '"')   	 #  , "date time" 
-						filepath=${p#*,*,}  # returns after 2nd ,
-						if [[ ! -v ref_map["$filepath"] ]]; then #if [ ! -n "$found_line" ]; then
-			                entry="$ft,\"${dt}\",${filepath}"
-			                echo "$entry" >> $source
-						fi
-					fi
-                done < $1
-                unset IFS
-
-				# Nosuchfile,,"path file name"      from the file search         We dont care about date.
-                if [ -s $COMPLETE ]; then cat $COMPLETE >> $source; fi  #$COMPLETE used to be $tout # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
-            else # its a log
-                # count check
-                c=$( grep -c '^$' $source) # line count blank line sep
-                if  (( c == logCT )); then 
-                    sed -i '1,/^$/d' $source 
-                fi
-                cat $1 >> $source
-                echo >> $source # end of log
-            fi
-			if which gpg2 > /dev/null 2>&1; then # 5.01 with 2.0
-		        cmmd=(gpg2 --yes -e -r $email -o $2 $source) # normal usage
-				if [ "$nc" == "true" ]; then cmmd=(gpg2 --yes --compress-level 0 -e -r $email -o $2 $source); fi # If over the size limit disable compression for speed
-        	else # 5.1 with gpg2 or 5.01 with gpg 1.4.23 and gpg agent 2.1.11
-		        cmmd=(gpg --yes -e -r $email -o $2 $source) # normal usage
-				if [ "$nc" == "true" ]; then cmmd=(gpg --yes --compress-level 0 -e -r $email -o $2 $source); fi # If over the size limit disable compression for speed
-        	fi
-			# Encrypt
-			if ! "${cmmd[@]}"; then  
-				echo "Encryption failed for file: $source  . $2$msg "
-				return 1
-			fi
-            rm $source #shred -u $source
-            if [ "$msg" == " log" ]; then echo $c; fi
-        else # no file create file 
-            echo >> $1
-			if which gpg2 > /dev/null 2>&1; then # 5.01 with 2.0
-            	if ! gpg2 --yes -e -r $email -o $2 "$1"; then #encrypt
-                	echo "Encryption failed for file: $1"
-                	return 1
-            	fi   
-        	else # 5.1 or 5.01 with 1.4.23
-            	if ! gpg --yes -e -r $email -o $2 "$1"; then #encrypt
-                	echo "Encryption failed for file: $1"
-                	return 1
-            	fi   
-        	fi
-            echo "The${msg} was created."
+       		if which gpg2 > /dev/null 2>&1; then
+        	gpg2 --batch --pinentry-mode loopback --passphrase "$p" --generate-key /tmp/keyparams.conf
+        	echo made
+        else
+        	gpg --batch --pinentry-mode loopback --passphrase "$p" --generate-key /tmp/keyparams.conf
         fi
+        shred -u /tmp/keyparams.conf
+
+        echo "GPG key generated for ${email}."	
+	else
+    	if grep -iq "Porteus 5.01" /etc/os-release; then  
+    		if which expect > /dev/null 2>&1; then # is expect installed?
+    			echo "expect needs to be installed. And run the keygen file for 5.01. Remember to remove passphrase after from file."
+    		else
+    			echo "Please run the keygen file for 5.01. Then erase the passphrase you entered in the file from the file."
+    		fi
+			return 1
+		fi
+	fi	
+}
+#create/open and save encrypted log/stats gpg $1 logfile $2 output
+storeenc() {
+shopt -s expand_aliases
+local c
+if [ "$STATPST" == "true" ]; then # Requires encryption
+	#if grep -iq "Porteus 5.01" /etc/os-release && which gpg2 > /dev/null; then alias gpg="gpg2"; fi
+	if ! gpg --list-keys | grep -q $email; then
+		generatekey
+	fi
+    if grep -m 1 -q '^Modified,' $1; then  msg=" stats"; else msg=" log"; fi 
+    if [ -s "$2" ]; then
+        ag="true"
+		if [ "$3" != "dcr" ]; then
+			if ! decrypt $xdata $2; then
+				if [ "$ag" == "false" ]; then
+                    echo "Agent not installed for gpg 1.4 skipping... ${msg}"
+                else
+                    echo "Failed to decrypt"  $2$msg
+				fi
+				return 1
+            fi
+			source=$xdata
+		else
+			source=$xdata2
+		fi
+		if [ "$msg" == " stats" ]; then
+			declare -A ref_map  # Load the database          As we at 300 searches this is far more efficient than grepping the entire file its in assosiative array
+			while IFS="" read -r line || [ -n "$line" ]; do
+				key=$(awk -F'"' '{print $2}' <<< "$line" )
+				[[ -n "$key" ]] && ref_map["$key"]="$line"
+			done < $source
+            while IFS="" read -r p || [ -n "$p" ]; do
+                ft=$(echo "$p" | cut -d',' -f1)       # Action | tr -d '"')   optional ""                   Modified, Delete  field
+				if [ "$ft" == "Nosuchfile" ]; then # We want to keep track of any occurence of this         filepath=$( echo "$p" | awk -F',' '{ gsub(/^"|"$/, "", $3); print $3 }')
+					filepath=$(echo "$p" | cut -d',' -f3- | sed 's/^ *//;s/ *$//')
+					entry="Nosuchfile,,${filepath}"
+					echo "$entry" >> $source
+				else
+		            dt=$(echo "$p" | cut -d',' -f2 | tr -d '"')   	 #  , "date time" 
+					filepath=${p#*,*,}  # returns after 2nd ,
+					if [[ ! -v ref_map["$filepath"] ]]; then #if [ ! -n "$found_line" ]; then
+			            entry="$ft,\"${dt}\",${filepath}"
+			            echo "$entry" >> $source
+					fi
+				fi
+            done < $1
+            unset IFS
+
+			# Nosuchfile,,"path file name"      from the file search         We dont care about date.
+            if [ -s $COMPLETE ]; then cat $COMPLETE >> $source; fi  #$COMPLETE used to be $tout # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
+        else # its a log
+            # count check
+            c=$( grep -c '^$' $source) # line count blank line sep
+            if  (( c == logCT )); then 
+                sed -i '1,/^$/d' $source 
+            fi
+            cat $1 >> $source
+            echo >> $source # end of log
+        fi
+		if which gpg2 > /dev/null 2>&1; then # 5.01 with 2.0
+		    cmmd=(gpg2 --yes -e -r $email -o $2 $source) # normal usage
+			if [ "$nc" == "true" ]; then cmmd=(gpg2 --yes --compress-level 0 -e -r $email -o $2 $source); fi # If over the size limit disable compression for speed
+        else # 5.1 with gpg2 or 5.01 with gpg 1.4.23 and gpg agent 2.1.11
+		    cmmd=(gpg --yes -e -r $email -o $2 $source) # normal usage
+			if [ "$nc" == "true" ]; then cmmd=(gpg --yes --compress-level 0 -e -r $email -o $2 $source); fi # If over the size limit disable compression for speed
+        fi
+		# Encrypt
+		if ! "${cmmd[@]}"; then  
+			echo "Encryption failed for file: $source  . $2$msg "
+			return 1
+		fi
+        rm $source #shred -u $source
+        if [ "$msg" == " log" ]; then echo $c; fi
+    else # no file create file 
+        echo >> $1
+		if which gpg2 > /dev/null 2>&1; then # 5.01 with 2.0
+            if ! gpg2 --yes -e -r $email -o $2 "$1"; then #encrypt
+                echo "Encryption failed for file: $1"
+                return 1
+            fi   
+        else # 5.1 or 5.01 with 1.4.23
+            if ! gpg --yes -e -r $email -o $2 "$1"; then #encrypt
+                echo "Encryption failed for file: $1"
+                return 1
+            fi   
+        fi
+        echo "The${msg} was created."
     fi
 fi
+
 }
 decrypt() {			
 SVRSYNC=/mnt/live/tmp/modset
@@ -330,7 +329,7 @@ hanly(){
 										if [ "$org" == "$cs" ]; then # same checksum file copied over
 											echo "Overwrt $dt $y" | tee -a $rout >> "$tfile"
 										else # New file
-											os=$(echo "$original_ln" | cut -d " " -f7)
+											os=$(echo "$original_ln" | cut -d " " -f7-)
 											csze=$(echo "$current_ln" | cut -d " " -f7-)
 											if [ -n "$t" ] && [ -n "$k" ]; then
 												if [ -n "$csze" ]; then stealth $cFILE $os $csze $y $cdiag ;fi
@@ -367,7 +366,7 @@ hanly(){
 		unset IFS
 	fi
 	rm $2
-    processha
+    echo $(processha)
 }
 processha() {
     if [ -s $rout ]; then
