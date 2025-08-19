@@ -655,7 +655,7 @@ if [ -s $SORTCOMPLETE ]; then
             sort -u -o $ofile $ofile # Built the previous search history
 			cc="$(hanly $SORTCOMPLETE $ofile)"  #hybrid analysis          New to version 3
 			ret=$?	
-			if [ $ret -ne 0 ]; then
+			if [ "$ret" -ne 0 ]; then
 				echo "failure in ANALYTICS hanly subprocess"
 			fi
         fi        
@@ -673,7 +673,7 @@ if [ -s $SORTCOMPLETE ]; then
 					        sort -u -o $ofile $ofile 
 					   	   	cc="$(hanly $SORTCOMPLETE $ofile)" #hybrid analysis	 and difffile output
 							ret=$?
-							if [ $ret -ne 0 ]; then
+							if [ "$ret" -ne 0 ]; then
 								echo "failure in STATPST hanyl subprocess"
 							fi
 					    fi
@@ -686,12 +686,12 @@ if [ -s $SORTCOMPLETE ]; then
 				fi
 			else
 				if [ -s "$pydbpst" ]; then if decrypt "$pydb" "$pydbpst"; then dbc="true"; fi ; fi # # decrypt if any db if we cant decrypt it do nothing to preserve integrity of database. ie we dont make a new one. As we cant merge two dbs
-				[[ ! -s "$pydbpst" ]] && echo Initializing database... && python3 /usr/local/save-changesnew/pstsrg.py --init && dbc="true"  # db empty prepare for next time
+				[[ ! -s "$pydbpst" ]] && echo Initializing database... && python3 /usr/local/save-changesnew/pstsrg.py --init && generatekey && dbc="true"  # db empty prepare for next time
 				if [ -s "$pydbpst" ] && [ "$dbc" == "true" ]; then # skip first pass
 					# ha database
-					rt="$(python3 /usr/local/save-changesnew/hanlydb.py $SORTCOMPLETE $COMPLETE $pydb $rout $tfile $checkSUM $cdiag)" # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
+					rt=$(python3 /usr/local/save-changesnew/hanlydb.py $SORTCOMPLETE $COMPLETE $pydb $rout $tfile $checkSUM $cdiag) # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
 					ret=$?
-					if [ $ret -ne 0 ]; then
+					if [ "$ret" -ne 0 ]; then
 						echo "ha failed from hanlydb.py."
 					else
 						if [ "$rt" == "csm" ]; then
@@ -719,7 +719,7 @@ if [ -s $SORTCOMPLETE ]; then
 		        imsg="$(storeenc $rout $statpst)" # statistics persist
 		        ret=$?
 			fi  
-	        if [ $ret -ne 0 ]; then # Error handling 
+	        if [ "$ret" -ne 0 ]; then # Error handling 
 	            echo "$imsg"
 	        else
 	            if [ "$imsg" != "" ]; then green "Persistent stats database created."; imsg=""; fi
@@ -727,13 +727,13 @@ if [ -s $SORTCOMPLETE ]; then
         fi
 		# Logfile save
 		if [[ "$backend" != "default" && "$dbc" == "true" ]]; then # database mode
-			imsg="$(python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE "log")"	
+			imsg=$(python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE "log")	
 			ret=$?
   		elif [ "$backend" == "default" ] && [ "$pstc" == "true" ]; then
 		    imsg="$(storeenc $SORTCOMPLETE $logpst "dcr")" # save and encrypt main log
 		    ret=$?
 		fi	
-		if [ $ret -ne 0 ]; then
+		if [ "$ret" -ne 0 ]; then
 		    echo "$imsg"
 		else
 		    if [ "$imsg" -ge 0 ] 2>/dev/null; then 
