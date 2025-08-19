@@ -77,20 +77,16 @@ done < $lt
 unset IFS
 rm $lt
 }
-#create/open and save encrypted log/stats gpg $1 logfile $2 output
-storeenc() {
-local c
-    if [ "$STATPST" == "true" ]; then # Requires encryption
-        if ! gpg --list-keys | grep -q $email; then #gpg --full-generate-key
-            echo pwd $PWD
-            read -sp "Enter passphrase for new GPG key: " p
-            echo
-            #read -sp "Confirm passphrase: " passphrase_confirm
-            #echo
-            #if [ "$passphrase" != "$passphrase_confirm" ]; then
-            #    echo "Passphrases do not match. Aborting."
-            #    exit 1
-            #fi
+generatekey() {
+        echo pwd $PWD
+        read -sp "Enter passphrase for new GPG key: " p
+        echo
+        #read -sp "Confirm passphrase: " passphrase_confirm
+        #echo
+        #if [ "$passphrase" != "$passphrase_confirm" ]; then
+        #    echo "Passphrases do not match. Aborting."
+        #    exit 1
+        #fi
 cat > /tmp/keyparams.conf <<EOF
 %echo Generating a GPG key
 Key-Type: RSA
@@ -104,10 +100,17 @@ Passphrase: $p
 %commit
 %echo done
 EOF
-        gpg --batch --pinentry-mode loopback  --passphrase "$p" --generate-key /tmp/keyparams.conf
-        shred -u /tmp/keyparams.conf
-        echo "GPG key generated for ${email}."
-        fi
+    gpg --batch --pinentry-mode loopback  --passphrase "$p" --generate-key /tmp/keyparams.conf
+    shred -u /tmp/keyparams.conf
+    echo "GPG key generated for ${email}."
+}
+#create/open and save encrypted log/stats gpg $1 logfile $2 output
+storeenc() {
+local c
+    if [ "$STATPST" == "true" ]; then # Requires encryption
+		if ! gpg --list-keys | grep -q $email; then #gpg --full-generate-key
+			generatekey
+		fi
         if grep -m 1 -q '^Modified,' $1; then msg=" stats"; else msg=" log"; fi
         if [ -s "$2" ]; then
 			if [ "$3" != "dcr" ]; then
@@ -150,8 +153,6 @@ EOF
                 cat $1 >> $source #sed '/NOTA-FI-LE 77:77:77/d' $1     # We either delete these here or in query if wanted but stats are useful
                 echo >> $source # end of log
             fi
-
-
             cmmd=(gpg --yes -e -r $email -o $2 $source) # normal usage
 			if [ "$nc" == "true" ]; then cmmd=(gpg --yes --compress-level 0 -e -r $email -o $2 $source); fi # If over the size limit disable compression for speed
 			if ! "${cmmd[@]}"; then  # Encrypt

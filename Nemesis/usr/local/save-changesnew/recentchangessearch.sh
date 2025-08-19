@@ -103,7 +103,7 @@ if [ "$tmn" != "" ]; then # The search is for system files
 	fc="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var -mmin -${tmn} -not -type d -print0 "
 	fca="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var \( -cmin -${tmn} -o -amin -${tmn} \) -not -type d -print0 "
     eval "$fc" 2> /dev/null | tee $COMPLETENUL > /dev/null 2> /dev/null  
-	eval "$fc" 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null   
+	eval "$fca" 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null   
 	#else eval "$fc" | tee $COMPLETENUL 2>/dev/null ; $fca | tee $toutnul 2> /dev/null ; fi # ..        
 fi
 if [ "$checkSUM" == "true" ]; then cyan "Running checksum."; fi
@@ -286,7 +286,7 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
             sort -u -o $ofile $ofile # Built the previous search history
 			cc=$(hanly $SORTCOMPLETE $ofile $5) #hybrid analysis
 			ret=$?	
-			if [ $ret -gt 0 ]; then
+			if [ "$ret" -gt 0 ]; then
 				echo "failure in ANALYTICS hanly subprocess"
 			fi
         fi   
@@ -303,7 +303,7 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
 							sort -u -o $ofile $ofile 
 							cc=$(hanly $SORTCOMPLETE $ofile $5) #hybrid analysis		New to version 3
 							ret=$?
-							if [ $ret -ne 0 ]; then
+							if [ "$ret" -ne 0 ]; then
 								echo "failure in STATPST hanyl subprocess"
 							fi
 						fi
@@ -316,11 +316,11 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
 				fi
 			else
 				if [ -s "$pydbpst" ]; then if decrypt "$pydb" "$pydbpst"; then dbc="true"; fi ;fi
-				[[ ! -s "$pydbpst" ]] && echo Initializing database... && python3 /usr/local/save-changesnew/pstsrg.py --init && dbc="true"
+				[[ ! -s "$pydbpst" ]] && echo Initializing database... && python3 /usr/local/save-changesnew/pstsrg.py --init && generatekey && dbc="true"
 				if [ -s "$pydbpst" ] && [ "$dbc" == "true" ]; then
-					rt="$(python3 /usr/local/save-changesnew/hanlydb.py $SORTCOMPLETE $COMPLETE $pydb $rout $tfile $checkSUM $cdiag)" # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
+					rt=$(python3 /usr/local/save-changesnew/hanlydb.py $SORTCOMPLETE $COMPLETE $pydb $rout $tfile $checkSUM $cdiag) # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
 					ret=$?
-					if [ $ret -ne 0 ]; then
+					if [ "$ret" -ne 0 ]; then
 						echo "ha failed from hanlydb.py."
 					else
 						if [ "$rt" == "csm" ]; then
@@ -340,26 +340,26 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
 			sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2",\3/' $rout 
 			if [ -s $COMPLETE ]; then cat $COMPLETE >> $rout; fi   # Nosuchfile  cant ensure no duplicates but this action is unique
 			if [ "$backend" != "default" ] && [ "$dbc" == "true" ]; then # db mode	if we failed to decompress we dont want to overwrite it
-				imsg="$(python3 /usr/local/save-changesnew/pstsrg.py $rout "stats")"
+				imsg=$(python3 /usr/local/save-changesnew/pstsrg.py $rout "stats")
 				ret=$?
 			elif [ "$backend" == "default" ] && [ "$pstc" == "true" ]; then 
 			    imsg="$(storeenc $rout $statpst)" # save and encrypt statpst log  
 			    ret=$?
 			fi
-			if [ $ret -ne 0 ]; then
+			if [ "$ret" -ne 0 ]; then
 		        echo "$imsg"
 		    else
 		        if [ "$imsg" != "" ]; then green "Persistent stats file created."; imsg=""; fi
 		    fi
         fi
 		if [[ "$backend" != "default" && "$dbc" == "true" ]]; then # We do not want to compromise the db if failed to decrypt
-			imsg="$(python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE "log")"
+			imsg=$(python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE "log")
 			ret=$?
 		elif [ "$backend" == "default" ] && [ "$pstc" == "true" ]; then
 		    imsg="$(storeenc $SORTCOMPLETE $logpst "dcr")" # save and encrypt main log
 		    ret=$?
 		fi
-		if [ $ret -ne 0 ]; then
+		if [ "$ret" -ne 0 ]; then
 		    echo "$imsg"
 		else
 		    if [ "$imsg" -ge 0 ] 2>/dev/null; then 
@@ -418,4 +418,3 @@ if [ "$validrlt" == "false" ]; then
 fi
 #test -e /usr/bin/featherpad && featherpad $USRDIR$MODULENAME"${flnm}"
 #test -e /usr/bin/xed && xed $USRDIR$MODULENAME"${flnm}"
-#if [ -z "$AGENT_PID" ]; then kill "$AGENT_PID"; fi 
