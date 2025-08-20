@@ -8,7 +8,6 @@ import sqlite3
 import subprocess
 import sys
 import time 
-
 from pstsrg import parse_line
 from datetime import datetime
 from pathlib import Path
@@ -23,35 +22,6 @@ cdiag=sys.argv[7] # setting
 recent = []  # the recent entry to compare to ify any
 parsed = [] # from file SORTCOMPLETE
 csm=False # from bash nothing flagged yet
-
-# Our current search     Loads the current record from the bottom
-# def recententry ():
-#     global recent
-#     conn = sqlite3.connect(database)
-#     cur = conn.cursor()
-#     cur.execute("SELECT * FROM logs")  # Replace 'logs' with your table name
-#     records = cur.fetchall()
-#     found = False
-#     for record in reversed(records):
-#         if not any(record):  # Check if the record is empty
-#             if found:
-#                 break  # Once we find the first non-empty record, stop processing
-#             continue  # Skip empty records
-#         found = True
-#         recent.append(record)
-#     conn.close()
-
-# Extract the filepath between quotes and parse rest on blank space delimiter
-
-
-# Original not as safe if filepath has , which is more common than "  as its closer on the keyboard
-# def parse_line(line):
-#     regex = r'(?:"([^"]*)"|([^"\s]+))' # Regex to match quoted strings (like filenames) and other columns
-#     fields = re.findall(regex, line)  # Find all matches (either quoted strings or non-quoted fields)
-    
-#     fields = [field[0] if field[0] else field[1] for field in fields]  # Flatten the list of tuples  trys to grab within the quotes
-#     return fields
-
 
 def get_recent_changes(filename):
 
@@ -71,8 +41,6 @@ def get_recent_changes(filename):
 
     return recent_entries
 
-#Error checking or rather avoiding as we dont want to return an error.
-# If there is an error we just skip the ha no big deal
 def get_md5(file_path):
     try:
         with open(file_path, "rb") as f:
@@ -95,8 +63,6 @@ def is_valid_datetime(value, fmt="%Y-%m-%d %H:%M:%S"):
     except (ValueError, TypeError):
         return False
 
-# If there was a stealth edit ie the file changed by 3 bytes
-# Or md5 collision or the file was edited and somehow has the exact checksum <-- move to sha256
 def stealth(file, original_size, current_size, label, diag, csum):
 
 	result=subprocess.run(['stat','--format=%Y', file], text=True) 
@@ -115,8 +81,8 @@ def stealth(file, original_size, current_size, label, diag, csum):
 
 #Hybrid analysis
 def hanly():
-
-	with open(rout, 'a') as file, open(tfile, 'a') as file2, open('/tmp/cerr', 'a') as file3, open('/home/guest/aris', 'w') as file4:
+	#open('/home/guest/debug', 'w') as file4:
+	with open(rout, 'a') as file, open(tfile, 'a') as file2, open('/tmp/cerr', 'a') as file3:
 		for record in parsed:
 
 			label = record[1] # human readable
@@ -150,14 +116,7 @@ def hanly():
 													md5 = get_md5(file_path)
 													original_size = previous[5]
 													current_size = record[5]
-													#result=subprocess.run(['stat','--format=%s',file_path], text=True)  # get the actual size
-													#fs=int(result.stdout.strip())
-													#result=subprocess.run(['md5sum', file_path], text=True) #using below more efficient
-													#md5=result.stdout.split()[0]
-													# We do not want to give a false positive so every step is taken to ensure that the file exists
-													# that the data is available and properly parsed. This uses the two key system. So we can 
-													# definitively say that the same modified time and checksum has been changed. A telltale
-													# of either intentional act or a failing harddrive.
+
 													if md5:
 														if result.returncode == 0:  # still exists ensure we have all the data
 															a_mod=int(result.stdout.strip()) # epoch
@@ -171,23 +130,23 @@ def hanly():
 																csm=True
  
 															else:
-																#filesize=os.path.getsize(file_path)  get actual size? too unrealiable we rather be static
+
 																current_checksum=record[4]
-																if md5 != current_checksum and cdiag == 'true': # Used to check if its a system file or cache item more explicit with cdiag
+																if md5 != current_checksum and cdiag == 'true':
 																	with open('/tmp/scr', 'a') as file6:
 																		print(f'File changed during the search. {label} at {afrm}. Size was {original_size}, now {current_size} ', file=file6)
-																elif md5 != current_checksum: # Same as above just basic the file changed during search
+																elif md5 != current_checksum:
 																	with open('/tmp/scr', 'a') as file6:
 																		print(f'File changed during search. File likely changed. system cache item.', file=file6)
 												else:
-													stealth(filename, original_size, current_size, label, cdiag) # File collision the file was edited in such a way that the checksum is exactly the same
-																																						# unlikely. switch to sha256 as md5 collision
+													stealth(filename, original_size, current_size, label, cdiag) # File collision 
+										
 
 				else:  # Regular but What changed?
 					
 					if record[2] != previous[2]: # inode
 						if checksum == 'true':
-							#print('thisbranch')
+						
 							if record[4] and previous[4]: # checksum good format
 
 								if record[4] == previous[4]:  # more detail
@@ -240,9 +199,9 @@ def hanly():
 # main 
 if __name__ == "__main__":
 
-	with open(xdata, 'r') as file:    # We have to parse the search in its entirety 
+	with open(xdata, 'r') as file:
 		for line in file:
-			inputln = parse_line(line)  # Parse with regex
+			inputln = parse_line(line)
 
 			if not inputln:
 				continue
@@ -257,16 +216,13 @@ if __name__ == "__main__":
 			# regex and flatten tupples
 			parsed.append([
 				timestamp,	
-				filename,           		# Filename
-				inode,           		# ID
-				accesstime, # Previous Timestamp
-				checksum,							# Checksum
-				filesize            				# Filesize
+				filename, 
+				inode,
+				accesstime,
+				checksum,
+				filesize
 			])
 
 	hanly() 
 	if  csm:
 		print('csm')
-         
-
-

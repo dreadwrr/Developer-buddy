@@ -1,9 +1,5 @@
 #!/bin/bash
-# the tmp section run on STATPST                  08/11/2025
-# Modify to match  /usr/local/save-changesnew/query
-# This is non interactive version for report ..
-
-## Main  same as tmp query but non interactive so saves to report       modify here for STATPSTTFILE
+# 08/11/2025
 asz() {
 awk 'NF && $8 ~ /^[0-9]+$/ && $8 > 0 {
     filesize = $8

@@ -1,44 +1,46 @@
 #!/bin/bash
 . /usr/local/save-changesnew/rntchangesfunctions
+	#cFILE=$(echo "$p" | sed -n 's/[^"]*"\(.*\)".*/\1/p')		
+	#cfile=$(echo "$p" | perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/')   # for " infilenm
+	#cfile=$(echo "$p" | perl -nE '
+	#  if (/"((?:[^"\\]|\\.)*)"/) {
+	#	(my $s = $1) =~ s/\\(.)/$1/g;  # unescape backslash-escaped chars
+	#	say $s;
+	#  }
+	#')
 atmp="$1"
 SORTCOMPLETE="$2"
 ofile="$3"
 checkSUM="$4"
 rout="$atmp/haloop1_${RANDOM}$$_tmp.log"
 tfile="$atmp/haloop2_${RANDOM}$$_tmp.log"
-#declare -A ref_map                    # found_line=""  If batch is over 50 files use assosiative array
-#while IFS= read -r line; do 
-#    key=$(echo "$line" | awk -F'"' '{print $2}')
-#    ref_map["$key"]="$line"
-#done < "$ofile"
-#found_line="${ref_map[$y]}"
-#if [ -n "$found_line" ]; then
-mapfile -t ref_lines < "$ofile" # Load the reference file into memory (for faster grep)
+#mapfile -t ref_lines < "$ofile" # Load the reference file into memory (for faster grep)
+#for line in "${ref_lines[@]}"; do if [[ "$line" == *"\"$y\""* ]]; then found_line="$line" ; fi ; done
+#	
 while IFS= read -r p || [ -n "$p" ]; do
 	found_line=""
-	#cFILE=$(echo "$p" | awk -F'"' '{print $2}')
-	cFILE=$(echo "$p" | sed -n 's/[^"]*"\(.*\)".*/\1/p')		
-	y=$cFILE
-	current_ln="${p//\"$cFILE\"/}"
+	cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")  
+	y="$( escape "$cFILE")"
+	current_ln="${p//\"$y\"/}"
 	current_ln="$(echo "$current_ln" | xargs)"
     in=$(echo "$current_ln" | cut -d " " -f3)
     if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then
-        for line in "${ref_lines[@]}"; do if [[ "$line" == *"\"$y\""* ]]; then found_line="$line" ; fi ; done
-        if [ -n "$found_line" ]; then
+		found_line="$(tac "$ofile" | grep -F -m1 "\"$y\"")"
+		if [ -n "$found_line" ]; then
 			sline="$found_line"
-			original_ln="${sline//\"$cFILE\"/}"
+			original_ln="${sline//\"$y\"/}"
 			original_ln="$(echo "$original_ln" | xargs)" 
-			cFILE="${cFILE//$'\\n'/\n}"
+			cFILE="$(unescf "$cFILE")"
 			oin=$(echo "$original_ln" | cut -d " " -f3)
 			if [ -n "$oin" ] && [ "$oin" -ge 0 ] 2>/dev/null; then
 				omt=$(echo "$original_ln" | cut -d " " -f1-2)
 				oat=$(echo "$original_ln" | cut -d " " -f4-5) 
 				org=$(echo "$original_ln" | cut -d " " -f6)
 				t=$(date -d "$oat" +%s 2>/dev/null)   
-				k=$(date -d "$cat" +%s 2>/dev/null)
 				dt=$(echo "$current_ln" | cut -d " " -f1-2)
 				cat=$(echo "$current_ln" | cut -d " " -f4-5) 
 				cs=$(echo "$current_ln" | cut -d " " -f6)
+				k=$(date -d "$cat" +%s 2>/dev/null)
 				if [ "$dt" == "$omt" ]; then
 					if [ "$checkSUM" == "true" ]; then
 						if [ -n "$t" ] && [ -n "$k" ]; then
@@ -62,7 +64,7 @@ while IFS= read -r p || [ -n "$p" ]; do
 											fi	
 										fi
 									else
-										stealth $cFILE $os $csze $y $cdiag "csum"
+										stealth "$cFILE" $os $csze "$y" $cdiag "csum"
 									fi
 								fi
 							fi
@@ -78,7 +80,7 @@ while IFS= read -r p || [ -n "$p" ]; do
 									os=$(echo "$original_ln" | cut -d " " -f7-)
 									csze=$(echo "$current_ln" | cut -d " " -f7-)
 									if [ -n "$t" ] && [ -n "$k" ]; then
-										if [ -n "$csze" ]; then stealth $cFILE $os $csze $y $cdiag ;fi
+										if [ -n "$csze" ]; then stealth "$cFILE" $os $csze "$y" $cdiag ;fi
 									fi
 									echo "Replaced $dt $y" | tee -a $rout >> "$tfile"
 								fi
@@ -93,7 +95,7 @@ while IFS= read -r p || [ -n "$p" ]; do
 									os=$(echo "$original_ln" | cut -d " " -f7-)
 									csze=$(echo "$current_ln" | cut -d " " -f7-)
 									if [ -n "$t" ] && [ -n "$k" ]; then
-										if [ -n "$csze" ]; then stealth $cFILE $os $csze $y $cdiag ;fi
+										if [ -n "$csze" ]; then stealth "$cFILE" $os $csze "$y" $cdiag ;fi
 									fi
 									echo "Modified $dt $y" | tee -a $rout  >> $tfile
 								else

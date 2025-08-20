@@ -1,13 +1,12 @@
 #!/bin/bash
 #      recentchanges search             Developer Buddy v3.0    08/18/2025
-#
 # If some as root calls the program with 2 arguments thats not intended use so exit
 # we would fail to get our correct username such as they put a second bogus argument
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/comp
 . /usr/local/save-changesnew/rntchangesfunctions
-if [ `whoami` != "root" ]; then # This script requires 4 variables  $1 search  $2 thetime or notime  $3 theusername  $4 PWD
+if [ `whoami` != "root" ]; then
 	echo "Please enter your root password below"
     su - -c "/usr/local/save-changesnew/recentchangessearch.sh $1 '$2' $3 '$4'"
     exit
@@ -16,8 +15,6 @@ USR=$3
 if [ "$USR" == "" ]; then echo please call from recentchanges; exit; fi
 if [ "$4" == "" ]; then echo "incorrect usage please call from recentchanges"; exit 1; fi
 if [ "$1" != "search" ]; then echo exiting not a search && exit; fi
-#set -o pipefail
-#set -x +x
 work=work$$												                    	;		tmp=/tmp/work$$		
 FLBRAND=`date +"MDY_%m-%d-%y-TIME_%R_%S"|tr ':' '_'`		;		ABSENT=$tmp/absent.txt	
 BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`				;		chxzm=/rntfiles.xzm
@@ -54,30 +51,26 @@ if [ "$STATPST" == "true" ]; then
                 STATPST="true"
             fi
 		elif [ $(( sz / 1048576 )) -ge $compLVL ]; then
-	    	nc="true" #disable compression
+	    	nc="true"
         elif [ $sz -eq 0 ]; then
             cyan "$logpst is 0 bytes. to resume persistent logging delete file"
             STATPST="false"
         fi
     fi
 fi
-if [ "$2" != "noarguser" ] && [ "$2" != "" ]; then # If a desired time is specified we will search for that  (in seconds)
-	if [ "$2" -ge 0 ] 2>/dev/null; then # is it a number
-        argone=$2 #What the user passed
+if [ "$2" != "noarguser" ] && [ "$2" != "" ]; then
+	if [ "$2" -ge 0 ] 2>/dev/null; then
+        argone=$2
         comp $argone
         tmn=$qtn
 		cyan "searching for files $2 seconds old or newer"  					   
     else
-        # we dont want the log file to become a .tar.gz for example
         argone=".txt"
     	test -d "${4}" && cd "${4}" || { echo "Invalid argument ${4} . PWD required."; exit 1; }
     	filename="$2"
 
     	test -f "${filename}" || { test -d "${filename}" || echo no such directory file or integer; exit 1; }
     	parseflnm="$(echo $2 | sed 's@.*/@@')"         # filename
-    	# sed -e 's![^/]*$!!'   this will take /mydir/thisdir/myfile.txt and return     /mydir/myfile/
-    	# sed -e 's/\/$//')  this will   take  /mydir/thisdir/myfile.txt and return   	/myfile.txt
-    	# sed sed -e 's@.*/@@' this will take /myfile.txt and return 					myfile.txt
     	if [ "$parseflnm" == "" ]; then
     		parseflnm="$(echo "$2" | sed -e 's/\/$//' -e 's@.*/@@')"  # user selected a directory so we have to reparse
     	fi
@@ -91,20 +84,18 @@ if [ "$2" != "noarguser" ] && [ "$2" != "" ]; then # If a desired time is specif
 		fca="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var \( -cmin -${ag} -o -amin -${ag} \) -not -type d -print0 "
         eval "$fc" 2> /dev/null | tee $RECENTNUL > /dev/null 2> /dev/null
 		eval "$fca" 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null
-		#else eval "$fc" | tee $RECENTNUL 2>/dev/null ;  fi # adjust FEEDBACK
     fi
-else # Search the default time  5 minutes.
+else
 	argone="5" ; tmn=$argone
     cyan "searching for files 5 minutes old or newer"
 fi 
-if [ "$tmn" != "" ]; then # The search is for system files
+if [ "$tmn" != "" ]; then
 	logf=$RECENT 
     FEEDFILE=$COMPLETENUL
 	fc="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var -mmin -${tmn} -not -type d -print0 "
 	fca="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var \( -cmin -${tmn} -o -amin -${tmn} \) -not -type d -print0 "
     eval "$fc" 2> /dev/null | tee $COMPLETENUL > /dev/null 2> /dev/null  
-	eval "$fca" 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null   
-	#else eval "$fc" | tee $COMPLETENUL 2>/dev/null ; $fca | tee $toutnul 2> /dev/null ; fi # ..        
+	eval "$fca" 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null          
 fi
 if [ "$checkSUM" == "true" ]; then cyan "Running checksum."; fi
 if [ "$ANALYTICSECT" == "true" ]; then 
@@ -112,23 +103,22 @@ if [ "$ANALYTICSECT" == "true" ]; then
 	if [ "$checkSUM" == "true" ]; then 
 		  cstart=$(date +%s.%N)
 	fi 
-fi #read -r -p "Press Enter to continue..."
-# Slackpkg and pacman download detection ect
+fi
 >$tout
 while IFS= read -r -d '' f; do f="${f//$'\n'/\\n}" ; echo "$f" ; done < $FEEDFILE >> $xdata
-while IFS= read -r -d '' f; do f="${f//$'\n'/\\n}" ; echo "$f" ; done < $toutnul >> $tout # Tempory Secondary list ..   for comparison
+while IFS= read -r -d '' f; do f="${f//$'\n'/\\n}" ; echo "$f" ; done < $toutnul >> $tout
 if [ "$FEEDBACK" == "true" ]; then cat $tout; cat $xdata; fi
 if [ -s $tout ]; then grep -Fxv -f $xdata $tout > $TMPCOMPLETE; >$tout; fi
 if [ -s $TMPCOMPLETE ]; then
-	while IFS= read -r x; do x="${x//$'\\n'/\n}" ; printf '%s\0' "$x"; done < $TMPCOMPLETE > $xdata     # convert back to \n  and \0 for copying
+	while IFS= read -r x; do x="${x//$'\\n'/\n}" ; printf '%s\0' "$x"; done < $TMPCOMPLETE > $xdata
 	if [ "$mMODE" == "normal" ]; then
-		search $xdata $tout $COMPLETE # $tout is merged into $SORTCOMPLETE after main loop below
+		search $xdata $tout $COMPLETE
 	elif [ "$mMODE" == "mem" ]; then
+		declare -a xfile
 		declare -a ffile
 		declare -a nsf
-		searcharr $xdata 
-	elif [ "$mMODE" == "mc" ]; then # Single core these files are few. Mainloop is parallel
-	    #xargs -0 -I{} /usr/local/save-changesnew/searchfiles "{}" "$atmp" "$checkSUM" < $xdata
+		searcharr $xdata "ctime"
+	elif [ "$mMODE" == "mc" ]; then
 		xargs -0 -n8 -P4 /usr/local/save-changesnew/searchfiles "$atmp" "$checkSUM" < $xdata
 		if compgen -G "$atmp/searchfiles1_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles1_*_tmp.log > $tout; fi
 		if compgen -G "$atmp/searchfiles2_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles2_*_tmp.log > $COMPLETE; fi
@@ -139,88 +129,58 @@ fi
 rm $xdata
 # Main loop                                                                        																																																																
 if [ "$mMODE" == "normal" ]; then 
-	search $FEEDFILE $SORTCOMPLETE $COMPLETE  # traditional loop
+	search $FEEDFILE $SORTCOMPLETE $COMPLETE
 elif [ "$mMODE" == "mem" ]; then
 	searcharr $FEEDFILE
 	printf "%s\n" "${ffile[@]}" >> $SORTCOMPLETE
 	if [ ${#nsf[@]} -gt 0 ]; then printf "%s\n" "${nsf[@]}" > $COMPLETE; fi
-elif [ "$mMODE" == "mc" ]; then # parallel search
-	#xargs -0 -I{} -P4 /usr/local/save-changesnew/mainloop "{}" $atmp $checkSUM < $FEEDFILE
-	xargs -0 -n8 -P4 /usr/local/save-changesnew/mainloop "$atmp" "$checkSUM" < $FEEDFILE # no improvement beyond 4
-	if compgen -G "$atmp/mainloop1_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop1_*_tmp.log > $SORTCOMPLETE; fi
+elif [ "$mMODE" == "mc" ]; then
+	xargs -0 -n8 -P4 /usr/local/save-changesnew/mainloop "$atmp" "$checkSUM" < $FEEDFILE
+	if compgen -G "$atmp/mainloop1_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop1_*_tmp.log > $SORTCOMPLETE;  fi
 	if compgen -G "$atmp/mainloop2_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop2_*_tmp.log >> $COMPLETE; fi
 fi
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
-# Lose the quotes
-#awk -F'"' '{print $2}' $TMPCOMPLETE >> $SORTCOMPLETE        this will grab whatever is inside the quotes
-# if there are results seperate /tmp out so not confusing  ie unnessesary files in system log
 if [ -s $SORTCOMPLETE ]; then
-	# New to version 3 appending unq ctime files regarding slackpkg pacman
-	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE      # Original  -o       version 3   -u -o
-	SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')  # day and time
+	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE
+	SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')
 	PRD=$SRTTIME
-	#
-	if [ -s $tout ]; then  #   We dont want anything before our main files.
+	if [ ${#xfile[@]} -gt 0 ]; then printf "%s\n" "${xfile[@]}" >> $SORTCOMPLETE; fi
+	if [ -s $tout ]; then
 		grep -v 'NOTA-FI-LE 77:77:77' "$tout" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' > $TMPOPT ; cat $TMPOPT >> $SORTCOMPLETE
 	fi   
-	#
-	##
-	# At this point we have to filter out files from the future cache files ect
 	if [ "$flsrh" != "true" ]; then
 		s=$( echo $(date -d "$SRTTIME" "+%s"))  
-		if [ "$2" == "noarguser" ]; then         # Also if its noarguser         We know its 300 seconds
+		if [ "$2" == "noarguser" ]; then
 			RANGE=$(( s + 300 ))
 		else
-			#if [ "$2" -ge 0 ] 2>/dev/null; then      #   seconds
-				RANGE=$(( s + argone ))  # End time range based on search criteria 
-			#fi
+			RANGE=$(( s + argone ))
 		fi
-		PRD=$(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S') # convert back to YYYY MM-DD HH:MM:SS
+		PRD=$(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S')
 		grep -v 'NOTA-FI-LE 77:77:77' "$SORTCOMPLETE" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' > $tout ; mv $tout $SORTCOMPLETE
 	fi	
+	cp $SORTCOMPLETE /home/guest/Ariz
 	if [ "$flsrh" == "true" ]; then grep -v 'NOTA-FI-LE 77:77:77' "$SORTCOMPLETE" > $tout ; mv $tout $SORTCOMPLETE ; fi
 	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE
-	# Human readable
-	# We want a human readballe first two columns date and time and the filename without the quotes.
 	awk '{print $1, $2}' $SORTCOMPLETE > $tout
-	awk -F'"' '{print $2}' $SORTCOMPLETE  > $TMPCOMPLETE
+	perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' "$SORTCOMPLETE" > "$TMPCOMPLETE"
 	paste -d' ' $tout $TMPCOMPLETE > $TMPOPT
 	sort -o $TMPOPT $TMPOPT
-	cp $TMPOPT $RECENT # RECENT is unfiltered viewable
-	#sed -i -E 's/^([^ ]+ [^ ]+ [^ ]+)( .*)$/\1/' $TMPOPT  # bring it to proper format    first 3 columns  doesnt work with spaces ***
-	# Lose the quotes
-	#sed -i 's/"//g' $TMPOPT      #  remove quotes on filename  works
-	# End Human readable
-	# End Version 3	
-	## Removing tmp from search Specific to this script
-    #Remove /tmp from system search as it can be too confusing
-    cat $TMPOPT | grep ' /tmp/' > $TMPOUTPUT        # Version 3 proper format   | sed -E 's/^([^ ]+ [^ ]+ [^ ]+)( .*)$/\1/'
-	sort -o $TMPOUTPUT $TMPOUTPUT   # This is viewable tmp files
-	#sed -i '/[[:space:]]"\/tmp/d' "$SORTCOMPLETE" # Remove /tmp  from the main search data
+	cp $TMPOPT $RECENT
+    cat $TMPOPT | grep ' /tmp/' > $TMPOUTPUT
+	sort -o $TMPOUTPUT $TMPOUTPUT
 	sed -i '/\"\/tmp/d' $SORTCOMPLETE
-	sed -i '/ \/tmp/d' $TMPOPT # Remove /tmp  from the main search data
-	sed -i '/ \/tmp/d' $RECENT # Remove /tmp  from the main search data
-	## End Removing tmp from search
+	sed -i '/ \/tmp/d' $TMPOPT
+	sed -i '/ \/tmp/d' $RECENT
 fi
-#called by rnt symlink so filtered search or its a newer than file search
 if [ "$5" == "filtered" ] || [ "$flsrh" == "true" ]; then 
 	logf="$TMPOPT"
-	if [ "$5" == "filtered" ] && [ "$flsrh" == "true" ]; then logf=$RECENT ; fi  # We dont want to filter its inverse from rnt myfile
-	# Our search criteria is only filtered items therefor logf has to be $TMPOPT
+	if [ "$5" == "filtered" ] && [ "$flsrh" == "true" ]; then logf=$RECENT ; fi
     /usr/local/save-changesnew/filter $TMPOPT $USR # TMPOPT is filtered viewable
 fi
-#Filtering complete
-# $SORTCOMPLETE is our system log 
-# $TMPOPT is human readable and filtered from  SORTCOMPLETE
-# $RECENT is human readable and unfiltered ... 
-# $COMPLETE is used to save to PST storage stats
-#	$tout is availble for a tmp file now
-#	$FEEDFILE is available for tmp file     $RECENTNUL or $COMPLETENUL
-# $TMPOUTPUT is availbe for tmp file
-#End of Systemchanges log
-MODULENAME=${chxzm:0:9}         # Our module name
+
+MODULENAME=${chxzm:0:9}
 cd $USRDIR
-if [ -s $SORTCOMPLETE ] ; then # Set out filenames
+if [ -s $SORTCOMPLETE ] ; then
 	validrlt="true"
     if [ "$flsrh" == "true" ]; then #FILTERED
 	    flnm="xNewerThan_${parseflnm}"$argone
@@ -233,7 +193,7 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
         test -e "$USRDIR$MODULENAME$flnm" && cp "$USRDIR$MODULENAME$flnm" $tmp 
 		[[ ! -s "$tmp$MODULENAME$flnm" ]] && test -e "/tmp/${MODULENAME}${flnm}" && cp "$/tmp${MODULENAME}${flnm}" $tmp # New we can look for old searches from recentchanges Hybrid in /tmp
         clearlogs
-        if [ -s $TMPOUTPUT ]; then # move /tmp output for user
+        if [ -s $TMPOUTPUT ]; then
             cp $TMPOUTPUT $USRDIR$MODULENAME"xFltTmpfiles"$argone
             chown $USR $USRDIR$MODULENAME"xFltTmpfiles"$argone
         fi
@@ -248,27 +208,26 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
         fi
     fi
 
-    difffile=$USRDIR$MODULENAME"${flnmdff}"																																								#$SORTCOMPLETE
+    difffile=$USRDIR$MODULENAME"${flnmdff}"
     test -e $tmp$MODULENAME"${flnm}" && { OLDSORTED=$tmp$MODULENAME"${flnm}" ; comm -23 "${OLDSORTED}" $logf; } > "${difffile}" && nodiff="true"
-    cp $logf $USRDIR$MODULENAME"${flnm}" # viewable search to user 
+    cp $logf $USRDIR$MODULENAME"${flnm}"
     chown $USR $USRDIR$MODULENAME"${flnm}"
 
-    if [ -s "${difffile}" ]; then #grep -q '[^[:space:]]' "${difffile}" || validrlt="false"
+    if [ -s "${difffile}" ]; then
     	diffrlt="true"
-    	CDATE=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')   #Get the date and time of the first file in the search
-    	#Cut out irrelevant files
+    	CDATE=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')
+
         if [ "$flsrh" == "false" ]; then
         	awk -v tme="$CDATE" '$0 >= tme' "$difffile" > $TMPCOMPLETE
-    	    #cat "${difffile}" | awk -F" " -v tme="$cTIME" '$2 >= tme' > $TMPCOMPLETE	<---- original "    "       as above
         else
             cat "${difffile}" > $TMPCOMPLETE 
         fi
     	echo >> "${difffile}"
     	
     	while IFS="" read -r p || [ -n "$p" ]; do
-			cFILE="$( echo "$p" | cut -d " " -f3-)"  # no quotes in $TMPCOMPLETE        cFILE=$(echo "$p" | awk -F'"' '{print $2}')    # Version 3  grab the filename from quotes   "   spaces in file       "
-            #dt=$(echo "$p" | cut -d " " -f1-2)
-			grep -Fqs "$cFILE" $SORTCOMPLETE && { echo "Modified" "$p" >> $ABSENT; echo "Modified" "$p" >> $rout; } || { echo "Deleted " "$p" >> $ABSENT; echo "Deleted" "$p" >> $rout; } # record delete for stats                 
+			cFILE="$( echo "$p" | cut -d " " -f3-)"
+			cFILE="$( escapef "$cFILE")"
+			grep -Fqs "$cFILE" $SORTCOMPLETE && { echo "Modified" "$p" >> $ABSENT; echo "Modified" "$p" >> $rout; } || { echo "Deleted " "$p" >> $ABSENT; echo "Deleted" "$p" >> $rout; }       
 		done < $TMPCOMPLETE
 		unset IFS
 		test -f $ABSENT  && { echo Applicable to your search ; cat $ABSENT ; } >> "${difffile}" || { echo "None of above is applicable to search. It is the previous search"; } >> "${difffile}"
@@ -283,8 +242,8 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
             cat $file >> $ofile  2> /dev/null
         done
         if [ -s $ofile ]; then 
-            sort -u -o $ofile $ofile # Built the previous search history
-			cc=$(hanly $SORTCOMPLETE $ofile $5) #hybrid analysis
+            sort -u -o $ofile $ofile
+			cc=$(hanly $SORTCOMPLETE $ofile $5)
 			ret=$?	
 			if [ "$ret" -gt 0 ]; then
 				echo "failure in ANALYTICS hanly subprocess"
@@ -292,16 +251,14 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
         fi   
     fi
     if [ "$STATPST" == "true" ]; then # STATPST SRG
-		if [ "$ANALYTICS" == "false" ]; then # process the hybrid anlys
-			# Hybrid analysis
+		if [ "$ANALYTICS" == "false" ]; then
 			if [ "$backend" == "default" ]; then
-				# default mode
-				if [ -s $logpst ]; then # skip first pass
+				if [ -s $logpst ]; then
 					if decrypt $xdata2 $logpst; then 			
-						awk 'NF' $xdata2 > $ofile # Remove spaces and built the previous search history
+						awk 'NF' $xdata2 > $ofile
 						 if [ -s $ofile ]; then 
 							sort -u -o $ofile $ofile 
-							cc=$(hanly $SORTCOMPLETE $ofile $5) #hybrid analysis		New to version 3
+							cc=$(hanly $SORTCOMPLETE $ofile $5)
 							ret=$?
 							if [ "$ret" -ne 0 ]; then
 								echo "failure in STATPST hanyl subprocess"
@@ -314,9 +271,9 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
 				else
 					pstc="true"
 				fi
-			else
-				if [ -s "$pydbpst" ]; then if decrypt "$pydb" "$pydbpst"; then dbc="true"; fi ;fi
-				[[ ! -s "$pydbpst" ]] && echo Initializing database... && python3 /usr/local/save-changesnew/pstsrg.py --init && generatekey && dbc="true"
+			else #db
+				if [ -s "$pydbpst" ]; then if decrypt "$pydb" "$pydbpst"; then dbc="true"; fi ;fi 
+				[[ ! -s "$pydbpst" ]] && echo Initializing database... && python3 /usr/local/save-changesnew/pstsrg.py --init && if ! gpg --list-keys | grep -q $email ; then generatekey ; fi && dbc="true"
 				if [ -s "$pydbpst" ] && [ "$dbc" == "true" ]; then
 					rt=$(python3 /usr/local/save-changesnew/hanlydb.py $SORTCOMPLETE $COMPLETE $pydb $rout $tfile $checkSUM $cdiag) # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
 					ret=$?
@@ -329,21 +286,23 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
 							echo "$rt"
 						fi
 					fi
-					processha # db difffile output	
+					processha
 					[ "$ANALYTICSECT" == "true" ] && [ "$mMODE" == "mc" ] && [ "$rt" != "csm" ] && [ "$dbc" == "true" ] && echo Detected $(nproc 2>/dev/null || echo 1) CPU cores.
 				fi		
 			fi
 		fi
 		[[ -n "$cc" && "$cc" == "csum" ]] && { awk '{ print "\033[31m *** Checksum of file \033[0m" $0 "\033[31m altered without a modified time\033[0m" }' /tmp/cerr && rm /tmp/cerr; } || [[ -n "$cc" ]] && echo "Detected $cc CPU cores." #red "*** Checksum of file altered without a modified time."
         if [ -s $rout ]; then # Encrypt stage
-            sort -u -o $rout $rout # remove anything already in written
+            sort -u -o $rout $rout
 			sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2",\3/' $rout 
-			if [ -s $COMPLETE ]; then cat $COMPLETE >> $rout; fi   # Nosuchfile  cant ensure no duplicates but this action is unique
-			if [ "$backend" != "default" ] && [ "$dbc" == "true" ]; then # db mode	if we failed to decompress we dont want to overwrite it
-				imsg=$(python3 /usr/local/save-changesnew/pstsrg.py $rout "stats")
+			if [ -s $COMPLETE ]; then cat $COMPLETE >> $rout; fi
+			if [ "$backend" != "default" ] && [ "$dbc" == "true" ]; then
+				imsg="$(python3 /usr/local/save-changesnew/pstsrg.py $rout "stats")"
 				ret=$?
 			elif [ "$backend" == "default" ] && [ "$pstc" == "true" ]; then 
-			    imsg="$(storeenc $rout $statpst)" # save and encrypt statpst log  
+
+			    imsg="$(storeenc $rout $statpst)"
+				
 			    ret=$?
 			fi
 			if [ "$ret" -ne 0 ]; then
@@ -352,20 +311,20 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
 		        if [ "$imsg" != "" ]; then green "Persistent stats file created."; imsg=""; fi
 		    fi
         fi
-		if [[ "$backend" != "default" && "$dbc" == "true" ]]; then # We do not want to compromise the db if failed to decrypt
+		if [[ "$backend" != "default" && "$dbc" == "true" ]]; then
 			imsg=$(python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE "log")
 			ret=$?
 		elif [ "$backend" == "default" ] && [ "$pstc" == "true" ]; then
-		    imsg="$(storeenc $SORTCOMPLETE $logpst "dcr")" # save and encrypt main log
+		    imsg="$(storeenc $SORTCOMPLETE $logpst "dcr")"
 		    ret=$?
 		fi
 		if [ "$ret" -ne 0 ]; then
 		    echo "$imsg"
 		else
 		    if [ "$imsg" -ge 0 ] 2>/dev/null; then 
-		        if (( imsg % 10 == 0 )); then  cyan "$imsg searches in gpg log"; fi # only output every 10 incriments
+		        if (( imsg % 10 == 0 )); then  cyan "$imsg searches in gpg log"; fi
 		    elif [ "$imsg" != "" ]; then
-		        green "Persistent search log file created." # only... creation
+		        green "Persistent search log file created."
 		    fi
 		fi
 		if [ "$backend" != "default" ] && [ "$dbc" == "true" ]; then
@@ -376,21 +335,20 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
 			echo Find out why db not decrypting or delete it to make a new one
 		fi
 		[[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && [[ "$dbc" == "true" || "$pstc" == "true" ]] && green "Hybrid analysis on"
-    fi # End STATPST
-	# Loose ends        # Yes if a file changed during search system or cache item.  cdiag detect stealth changes.
+    fi
 	[[ "$cc" != "csum" && -s $slog && "$cdiag" != "true" ]] && cat $slog
 	[[ "$cc" != "csum" && -s $slog && "$cdiag" == "true" ]] && { echo; echo "cdiag"; echo ; cat $slog; } >> "$difffile"
-	test -f $slog && rm $slog #blank?
-    test -f $rout && rm $rout # incase pst off
-    filterhits $RECENT $flth # store stats     pass a clean complete list so regex doesnt break
-    postop $logf $6 # run post op scripts  ie file doctrine  POSTOP var           IF this is a filtered search or new than file search we do post ops on those specific files
+	test -f $slog && rm $slog
+    test -f $rout && rm $rout
+    filterhits $RECENT $flth
+    postop $logf $6
 	test -e "$difffile" && chown $USR "$difffile"
 fi 
 if [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ] ; then 
-    stmp $SORTCOMPLETE # save log to /tmp
-    if [ ! -f /tmp/rc/full ]; then cyan "Search saved in /tmp"; fi # save in /tmp but make notification go away after full 
-fi # Logging complete
-rm -rf $tmp #cleanup
+    stmp $SORTCOMPLETE
+    if [ ! -f /tmp/rc/full ]; then cyan "Search saved in /tmp"; fi
+fi
+rm -rf $tmp
 rm -rf $atmp
 if [ "$ANALYTICSECT" == "true" ]; then
     el=$(awk "BEGIN {print $end - $start}")

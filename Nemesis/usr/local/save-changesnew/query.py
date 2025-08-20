@@ -8,37 +8,26 @@ import sys
 import tempfile
 import tkinter as tk
 import time
-
 from collections import Counter
 from datetime import datetime
 from pyfunctions import getcount
 from tkinter import ttk  
-#email='john.doe@email.com'
 dr='/usr/local/save-changesnew'
-#logopt='recent.db' #output database
-#statopt='stats.db'
-dbtarget='recent.gpg' # has everything stats logpst table
+dbtarget='recent.gpg'
 xdata='logs.db'
-
 CYAN = "\033[36m"
 RED = "\033[31m"
 GREEN = "\033[32m"
 YELLOW = "\033[33m"
 RESET = "\033[0m" 
-
 sort_directions = {}
 
 def sort_column(tree, col, columns):
     global sort_directions
-
-    # Get index of the column to sort by
     index = columns.index(col)
-
-    # Toggle sort direction (default ascending)
     ascending = sort_directions.get(col, True)
     sort_directions[col] = not ascending
 
-    # Get all items currently in the tree
     data = [(tree.set(child, col), child) for child in tree.get_children('')]
 
     def convert(value):
@@ -46,17 +35,14 @@ def sort_column(tree, col, columns):
             try:
                 return int(value)
             except (ValueError, TypeError):
-                return -1  # Treat blank or invalid as -1
+                return -1
         else:
             return value.lower() if isinstance(value, str) else value
 
-    # Sort data based on converted value
     data.sort(key=lambda t: convert(t[0]), reverse=not ascending)
 
-    # Rearrange items in the treeview
     for index_, (val, item) in enumerate(data):
         tree.move(item, '', index_)
-
 
 def dencr(gpgfile, database):
 
@@ -89,78 +75,57 @@ def results(database):
     rows = cur.fetchall()
     columns = [desc[0] for desc in cur.description]
     conn.close()
-
     root = tk.Tk()
     root.title("Database Viewer")
-
     tree = ttk.Treeview(root, columns=columns, show='headings')
     tree.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
-
-    # Create vertical scrollbar and link it to the treeview
     scrollbar = tk.Scrollbar(root, orient=tk.VERTICAL, command=tree.yview)
     scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
     tree.configure(yscrollcommand=scrollbar.set)
 
-    # Your existing column setup and insertions
     for col in columns:
         tree.heading(col, text=col, command=lambda _col=col: sort_column(tree, _col, columns))
         if col == "filename":
-            tree.column(col, width=1000)      # bigger filename
+            tree.column(col, width=1000)
         elif col == "id":
-            tree.column(col, width=50)       # smaller id
+            tree.column(col, width=50)
         elif col == "timestamp":
-            tree.column(col, width=150)      # a bit bigger timestamp
+            tree.column(col, width=150)
         elif col == "accesstime":
-            tree.column(col, width=150)      # a bit bigger accesstime
+            tree.column(col, width=150)
         elif col == "checksum":
-            tree.column(col, width=270)      # a bit bigger checksum
+            tree.column(col, width=270)
         else:
-            tree.column(col, width=100)      # default width
+            tree.column(col, width=100) 
 
     for row in rows:
         tree.insert('', tk.END, values=row)
 
     root.mainloop()
 
-
-        # #create_db(output)
-
-        # #stats
-
 def averagetm(database):
-
     conn = sqlite3.connect(database)
     cur = conn.cursor()
-
     cur.execute('''
     SELECT timestamp
     FROM logs
     ORDER BY timestamp ASC
     ''')
-
     timestamps = cur.fetchall()
     conn.close()
-
     total_minutes = 0
     valid_timestamps = 0
-
     for timestamp in timestamps:
-
         if timestamp and timestamp[0]:
-
             current_time = datetime.strptime(timestamp[0], "%Y-%m-%d %H:%M:%S")
             total_minutes += current_time.hour * 60 + current_time.minute
             valid_timestamps += 1
 
-    if valid_timestamps > 0: #average time in minutes
+    if valid_timestamps > 0:
         avg_minutes = total_minutes / len(timestamps)
-        
         avg_hours = int(avg_minutes // 60)
         avg_minutes = int(avg_minutes % 60)
-
         avg_time = f"{avg_hours:02d}:{avg_minutes:02d}"
-        
         return avg_time
 
 def showdb(question):
@@ -175,22 +140,10 @@ def showdb(question):
 
 def main() :
 
-    # log pst db
-    
-        # db Test  starting point
-        # print(opt)
-        #conn = sqlite3.connect(opt)
-        #cur = conn.cursor()
-        # cur.execute("SELECT COUNT(*) FROM logs;")
-        # count = cur.fetchone()[0]
-        # print("Number of rows in logs:", count)
-        # conn.close()
     with tempfile.TemporaryDirectory(dir="/tmp") as tempdir:
-        output=os.path.join(tempdir, xdata) #tmp area
+        output=os.path.join(tempdir, xdata)
         dencr(dr +"/" + dbtarget, output)
-        opt=tempdir + "/" + xdata # our decrypted db       
-
-        #time.sleep(555)
+        opt=tempdir + "/" + xdata
 
         if os.path.isfile(opt):
             # Search breakdown
@@ -228,13 +181,30 @@ def main() :
                 print()
             print(f'Searches {cnt}') # count
             print()
-            # top directories      
             cur.execute('''
             SELECT filename 
             FROM logs
             WHERE TRIM(filename) != ''
             ''')
             filenames = cur.fetchall()
+            extensions = []
+            for entry in filenames:
+                filepath = entry[0] 
+                if '.' in filepath:
+                    ext = '.' + filepath.split('.')[-1] if '.' in filepath else ''
+                else:
+                    ext = '[no extension]'
+                extensions.append(ext)       
+            if extensions:
+                counter = Counter(extensions)
+                top_3 = counter.most_common(3)
+                #most_common_ext, count = counter.most_common(1)[0]
+                #print(f"Most common extension: {most_common_ext}")
+                print(f"{CYAN}Top extensions{RESET}")
+                for ext, count in top_3:
+                    print(f"{ext}")
+                print()
+            # top directories      
             directories = [os.path.dirname(filename[0]) for filename in filenames]
             directory_counts = Counter(directories)
             top_3_directories = directory_counts.most_common(3)
@@ -244,26 +214,12 @@ def main() :
             print()
            # common file 5
             cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''") 
-            filenames = [row[0] for row in cur.fetchall()]
+            filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines
             filename_counts = Counter(filenames)
             top_5_filenames = filename_counts.most_common(5)
             print(f"{CYAN}Top 5 created{RESET}")
             for file, count in top_5_filenames:
                 print(f'{count} {file}')
-            # most replaced by inode
-            # conn = sqlite3.connect(opt)
-            # cur = conn.cursor()
-            # cur.execute("SELECT inode, filename FROM logs")  
-            # rows = cur.fetchall()
-            # conn.close()
-            # inodes = [row[1] for row in rows] 
-            # inode_counts = Counter(inodes)
-            # top_5_inodes = inode_counts.most_common(5)
-
-            # print(f"{GREEN}Top 5 replaced by inode{RESET}")
-            # #print("Top 5 Inodes:", top_5_inodes)
-            # for inode, count in top_5_inodes:
-            #     print(f'{count} {inode}')    
             # Top 5 mod
             cur.execute('''
             SELECT * 
@@ -330,7 +286,7 @@ def main() :
             print(f"{RED}Filter hits{RESET}")
             with open('/usr/local/save-changesnew/flth.csv', 'r') as file:
                 for line in file:
-                    print(line, end='')  # end='' prevents extra newlines
+                    print(line, end='')
             #Results?
             if showdb("display database?"):
                 if os.environ.get("XDG_SESSION_TYPE") == "wayland":
@@ -347,7 +303,6 @@ def main() :
                 print("You chose no")
 
 if __name__ == "__main__":
- 
     main()
 
 

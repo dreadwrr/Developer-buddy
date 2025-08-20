@@ -1,14 +1,13 @@
 #!/bin/bash
-# Developer buddy 3.0
-# main search loop used by xargs, now supports multiple files per run
+. /usr/local/save-changesnew/rntchangesfunctions
 atmp="$1"
 checkSUM="$2"
-shift 2  # shift past the first two parameters
+shift 2
 SORTCOMPLETE="$atmp/mainloop1_${RANDOM}$$_tmp.log"
 COMPLETE="$atmp/mainloop2_${RANDOM}$$_tmp.log"
-files=("$@")  # remaining arguments are files
+files=("$@")
 for x in "${files[@]}"; do
-    y="${x//$'\n'/\\n}"
+    y="$(escapef "$x")"
     if [ -e "$x" ] && [ -f "$x" ]; then               
        	stat_out=$(stat -c "%Y %X %i" "$x")
 		read -r f atime i <<<"$stat_out"
@@ -16,7 +15,7 @@ for x in "${files[@]}"; do
         ats=$(date -d "@$atime" +"%Y-%m-%d %H:%M:%S")
         if [ -n "$mt" ]; then
 			if [ "$checkSUM" == "true" ]; then
-				csum=$(md5sum "$x")  #csum=$(md5sum "$x" | awk '{print $1}')
+				csum=$(md5sum "$x")
 				csum=${csum%% *}
 				fs=$(stat --format=%s "$x") 
 				adtcmd="$csum $fs"

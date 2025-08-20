@@ -1,21 +1,9 @@
 #!/bin/bash
 # Merge modules                                                                                 08/01/2025
-# Rename before making new file better practice
-# Delete if all goes successful if keepMRGED false
-# Added ROLLBCK from save-changesnew
-#
-# used for merging save-changesnew modules located in $BASEDIR/extramod     
-#
 # only merges  *_uid_*.xzm  in $PWD and only deletes the old on successful completion.
-# the mode can be set to keep the old ones. As well as custom compression level
-# processes changes relative to the modules
 . /usr/share/porteus/porteus-functions
 get_colors
-
-#Check for root
 if [[ $(whoami) != "root" ]]; then echo Please run script as root; exit; fi
-
-
 #VARS
 tmp=/mnt/live/tmp/atmp$$
 elog=/tmp/error.log
@@ -35,19 +23,14 @@ keepMRGED="true"       # default is delete the old ones after merging
 
 if [ "$1" != "" ]; then keepMRGED="$1"; fi
 # END CHANGABLE
-
-
-
-#SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-pst=$PWD    # save where we started
-
+pst=$PWD
 r=$( ls -l | grep -c '.*_uid_.*.xzm')
 if [ "$r" -gt 1 ]; then
     mkdir $tmp
     > $oMF
     for mods in $PWD"/"*_uid_*.xzm; do 
-         [[ "$mods" == *_uid_L* ]] && continue  # Skip files with _uid_L
-        echo $mods >> $oMF #build the log of original list of modules names and paths
+         [[ "$mods" == *_uid_L* ]] && continue
+        echo $mods >> $oMF
 
         dest="/mnt/loop-$(basename "$mods" .xzm)"
         mkdir $dest                   
@@ -58,23 +41,17 @@ if [ "$r" -gt 1 ]; then
 
         IFS="
         "
-        cd $tmp || exit         # safer to cd into the directory
-        for y in $(find "${dest}/" -name ".wh.*"); do  # process the .wh. on the merge
+        cd $tmp || exit
+        for y in $(find "${dest}/" -name ".wh.*"); do
           f="$(echo $y | sed -e "s^${dest}/^^g" -e 's@\.wh\.@@g')"
           test -e "$f" && rm -rf "$f";
-          test -e "$INAME/"*"/$f" || test -e "$y" && rm -f "$y"  # we are excluding the .wh.
-                       #         ^   changed from "$INAME/*/$f"       to prevent binary operator expected on empty sym link
+          test -e "$INAME/*/$f" || test -e "$y" && rm -f "$y"
         done
         unset IFS
-        # Remove conflicting whiteouts we have these files in place since the start of the script
-        #for y in $(find $mtmp -name ".wh.*"); do
-        #    f="$(echo "$y" | sed -e "s^$mtmp^^g" -e 's^\.wh\.^^g')"
-        #    test -e "$f" && rm "$y";
-        #done
 
-        cp -aufv $dest/* $tmp 2> >(tee $elog >&2)      #unsquashfs -d $tmp $mods # xzm2dir $mods $tmp 
+        cp -aufv $dest/* $tmp 2> >(tee $elog >&2)
         if [ $? -ne 0 ]; then
-            if grep -v '\.wh\.' $elog > /dev/null; then # more errors
+            if grep -v '\.wh\.' $elog > /dev/null; then
                 if [ "$1" != "" ]; then echo Error processing one mdl $mods >> $elog; fi
                 red "Error processing one of the modules ${mods}"
                 cyan "Everything preserved. Check the script and try again."
@@ -87,29 +64,23 @@ if [ "$r" -gt 1 ]; then
                 cyan "White out file detected and processed"  >&2
             fi
         fi
-
-        #using to avoid unsquashfs from err on .wh. lstat
         umount $dest
         rm -rf $dest
     done
-    # we have no whiteouts because cp wont copy them but they are processed .wh..wh..opq wont be there because same
+
     cd $pst
     SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`
     rand2d=$(printf "%02d" $((RANDOM % 100)))
 
-
-
-    # rename before making new file
-    if [ "$keepMRGED" == "true" ]; then #only from the original list of modules
-        while IFS= read -r ofile; do #only from the original list of modules
-            [[ -z "$ofile" || "$ofile" == \#* ]] && continue #skip blank line and comments
+    if [ "$keepMRGED" == "true" ]; then
+        while IFS= read -r ofile; do
+            [[ -z "$ofile" || "$ofile" == \#* ]] && continue
             fname=${ofile%.xzm}".bak"	 
-            mv "$ofile" "$fname" #make them into .bak 
+            mv "$ofile" "$fname"
         done < "$oMF"
         unset IFS
     fi
 
-    #dir2xzm $tmp "${PWD}/${MODULENM}${SERIAL}_uid_$$.xzm" 
     mksquashfs $tmp "${PWD}/${MODULENM}${SERIAL}_uid_${$}${rand2d}.xzm" -comp $cmode
     if [ $? -ne 0 ]; then
         if [ "$1" != "" ]; then echo Error making new mdl: $mods >> $elog; fi    
@@ -119,7 +90,6 @@ if [ "$r" -gt 1 ]; then
         rm -rf $tmp
         exit 1
     fi
-
 	if [ "$2" == "true" ] && [ "$1" != "" ]; then
 		if [ -d archive/_uid_ ]; then
 			r=$(find archive/_uid_ -maxdepth 1 -type f -name '*.bak' 2>/dev/null | wc -l)
@@ -141,10 +111,9 @@ if [ "$r" -gt 1 ]; then
     		echo $BRAND >> archive/_uid_/${MODULENM}${SERIAL}_uid_${$}${rand2d}.bak.txt
 		fi
 	fi
-
-    if [ "$keepMRGED" == "false" ]; then #succeeded 
+    if [ "$keepMRGED" == "false" ]; then
         while IFS= read -r ofile; do
-            [[ -z "$ofile" || "$ofile" == \#* ]] && continue #skip blank line and comments
+            [[ -z "$ofile" || "$ofile" == \#* ]] && continue
             rm $ofile
         done < "$oMF"
         unset IFS

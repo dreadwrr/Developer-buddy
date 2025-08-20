@@ -1,12 +1,5 @@
 #!/bin/bash
 #      recentchanges search        filtered     recentchanges v3.0    08/01/2025
-#
-#   rlt or rlt n         search for filtered files to /Downloads as opposed to recentchanges search would be unfiltered
-#   rlt SRC or rlt SRC n or rlt n SRC       /tmp
-#   rlt query
-#
-# If some as root calls the program with 2 arguments thats not intended use so exit
-# we would fail to get our correct username such as they put a second bogus argument
 if [ `whoami` != "root" ]; then
 	echo "Please enter your root password below"
 	if [ "$1" == "search" ]; then echo "usage rnt 60, rnt src rnt 60 src or rnt myfile" && exit; fi
@@ -18,7 +11,7 @@ if [ `whoami` != "root" ]; then
         argone="search"
         argtwo="$1"
     fi
-	if [ "$2" == "SRC" ] || [ "$2" == "src" ]; then  # flipped
+	if [ "$2" == "SRC" ] || [ "$2" == "src" ]; then
 		argone=$2
 		argtwo=$1	
 	fi    
@@ -26,25 +19,25 @@ if [ `whoami` != "root" ]; then
     exit
 fi
 USR=$3 ; dir="$4"
-if [ "$3" == "" ] || [ "$4" == "" ]; then USR="guest"; dir="$PWD"; fi #Default user & pwd
+if [ "$3" == "" ] || [ "$4" == "" ]; then USR="guest"; dir="$PWD"; fi
 test -d "$dir" || { echo  "not a valid directory. usage rnt search time."; exit 1; }
-if  ! id $3 >/dev/null 2>&1; then  echo "user:" ${3} "not found"; exit 1 ; fi # quick user check if called by root    recentchanges compile asdfas asdfasd    it could break the script  asdfasd user notfound
-THETIME=$2 # Handle root call           # looks complicated but we only have to manage two arguments here
+if  ! id $3 >/dev/null 2>&1; then  echo "user:" ${3} "not found"; exit 1 ; fi
+THETIME=$2
 if [ "$2" == "" ]; then
     THETIME=$1
     if [ "$1" != "" ]; then
-        if [ "$1" == "query" ]; then  # good
+        if [ "$1" == "query" ]; then
             THETIME="noarguser"
         elif [ "$1" == "SRC" ] || [ "$1" == "src" ]; then
             THETIME="$2"
 			if [ "$2" == "" ]; then THETIME="noarguser"; fi
-        else # we know its a search            
-            if ! [ "$1" -ge 0 ] 2>/dev/null; then # could be a file
+        else   
+            if ! [ "$1" -ge 0 ] 2>/dev/null; then
 	            test -f "$1" || { test -d "$1" || echo echo usage rct or rct time  in seconds or rct file. no such directory file or integer; exit 1; }
             fi
         fi
     else
-        THETIME="noarguser" #root no time
+        THETIME="noarguser"
     fi
 	if [ "$2" == "SRC" ] || [ "$2" == "src" ]; then
 		THETIME=$1
