@@ -180,52 +180,49 @@ hanly(){
 		if compgen -G $atmp/haloop1_*_tmp.log > /dev/null; then cat "$atmp"/haloop1_*_tmp.log >> $rout; fi
 		if compgen -G $atmp/haloop2_*_tmp.log > /dev/null; then cat "$atmp"/haloop2_*_tmp.log >> $tfile; fi
 	else
-		declare -A ref_map  # Load the database
-		while read -r line; do
-			key=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$line")
-			if [ -n "$key" ]; then
-				ref_map["$key"]="$line"
-			fi
-		done < $2 # Our logpst
-		while IFS="" read -r p || [ -n "$p" ]; do      
-          	cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")
-			y="$( escape "$cFILE")" # Label human readable
-			current_ln="${p//\"$cFILE\"/}" # Remove the " path file "
-			current_ln="$(echo "$current_ln" | xargs -d '\n')"           
-			in=$(echo "$current_ln" | cut -d " " -f3) # Current inode
-			if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then # The format for current is at least correct .. this far
-				found_line="${ref_map[$y]}"
-				if [ -n "$found_line" ]; then #if grep -qsF "\"$y\"" $2; then	 # start here	
-					sline="$found_line" # Lets make sure we have both sets of data before we fully parse
-					original_ln="${sline//\"$cFILE\"/}" # Remove the " file path "
-					original_ln="$(echo "$original_ln" | xargs -d '\n')" 
+		mapfile -t ref_lines < "$2"
+		while IFS= read -r p || [ -n "$p" ]; do
+			found_line=""
+			cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")  
+			y="$( escapef "$cFILE")"
+			current_ln="${p//\"$y\"/}"
+			current_ln="$(echo "$current_ln" | xargs)"
+			read -r f1 f2 f3 f4 f5 f6 f7 <<< "$current_ln"
+    		in="$f3"
+    		if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then
+				for line in "${ref_lines[@]}"; do if [[ "$line" == *"\"$y\""* ]]; then found_line="$line" ; fi ; done
+				if [ -n "$found_line" ]; then
+					sline="$found_line"
+					original_ln="${sline//\"$y\"/}"
+					original_ln="$(echo "$original_ln" | xargs)" 
+					read -r of1 of2 of3 of4 of5 of6 of7 <<< "$original_ln"
 					cFILE="$(unescf "$cFILE")"
-					oin=$(echo "$original_ln" | cut -d " " -f3) # Original inode
-					if [ -n "$oin" ] && [ "$oin" -ge 0 ] 2>/dev/null; then # Format original good we can parse the rest of the data
-						omt=$(echo "$original_ln" | cut -d " " -f1-2)
-						oat=$(echo "$original_ln" | cut -d " " -f4-5) 
-						org=$(echo "$original_ln" | cut -d " " -f6) #
+					oin="$of3"
+					if [ -n "$oin" ] && [ "$oin" -ge 0 ] 2>/dev/null; then
+						omt="$of1 $of2"
+						oat="$of4 $of5" 
+						org="$of6"
 						t=$(date -d "$oat" +%s 2>/dev/null)   
-						dt=$(echo "$current_ln" | cut -d " " -f1-2)
-						cat=$(echo "$current_ln" | cut -d " " -f4-5) 
-						cs=$(echo "$current_ln" | cut -d " " -f6)
+						dt="$f1 $f2"
+						cat="$f4 $f5"
+						cs="$f6"
 						k=$(date -d "$cat" +%s 2>/dev/null)
-						if [ "$dt" == "$omt" ]; then # Not a candidate we want but if checkSUM is on you believe you do
-							if [ "$checkSUM" == "true" ]; then # Bonus output is checksum on	
-								if [ -n "$t" ] && [ -n "$k" ]; then # two key verification to be sure we are at the checksum  format is perfect
-									if [ -n "$org" ] && [ -n "$cs" ] && [ -f "$cFILE" ]; then	# format is looking good.
-										csze=$(echo "$current_ln" | cut -d " " -f7-) # current size
-										os=$(echo "$original_ln" | cut -d " " -f7-)
-										if [ -n "$csze" ]; then # Perfect format now
-											if [ "$org" != "$cs" ]; then # suspicious
+						if [ "$dt" == "$omt" ]; then
+							if [ "$checkSUM" == "true" ]; then
+								if [ -n "$t" ] && [ -n "$k" ]; then
+									if [ -n "$org" ] && [ -n "$cs" ] && [ -f "$cFILE" ]; then
+										os="$of7"
+										csze="$f7"
+										if [ -n "$csze" ]; then
+											if [ "$org" != "$cs" ]; then
 												a_checksum=$(md5sum "$cFILE" | awk '{print $1}') 
 												a_mod=$(stat --format=%Y "$cFILE")
 												afrm=$(date -d "@$a_mod" +"%Y-%m-%d %H:%M:%S")
-												if [ -n "$os" ] && [ -n "$afrm" ]; then # Ensure the file is still there
-													if [ "$afrm" == "$dt" ]; then #flag
+												if [ -n "$os" ] && [ -n "$afrm" ]; then
+													if [ "$afrm" == "$dt" ]; then
 														echo "Csumc $dt $y"| tee -a "$rout" >> "$tfile"| tee -a /tmp/cerr; csm="true"	
 													else
-														if [ "$a_checksum" != "$cs" ] && [ "$cdiag" == "true" ]; then # Changed during search
+														if [ "$a_checksum" != "$cs" ] && [ "$cdiag" == "true" ]; then
 															echo "File changed during the search. ${y} at ${afrm}. Size was $os, now $fs. " >> /tmp/scr
 														elif [ "$a_checksum" != "$cs" ]; then
 															echo "File changed during search ${y}. File likely changed. system cache item." >> /tmp/scr
@@ -233,7 +230,7 @@ hanly(){
 													fi	
 												fi
 											else
-												stealth "$cFILE "$os $csze "$y" $cdiag "csum" # file collision or file was edited in such as way that its checksum is exactly the same? swith to sha256
+												stealth "$cFILE" $os $csze "$y" $cdiag "csum"
 											fi
 										fi
 									fi
@@ -246,23 +243,23 @@ hanly(){
 										if [ "$org" == "$cs" ]; then
 											echo "Overwrt $dt $y" | tee -a $rout >> "$tfile"
 										else
-											os=$(echo "$original_ln" | cut -d " " -f7-)
-											csze=$(echo "$current_ln" | cut -d " " -f7-)
+											os="$of7"
+											csze="$f7"
 											if [ -n "$t" ] && [ -n "$k" ]; then
 												if [ -n "$csze" ]; then stealth "$cFILE" $os $csze "$y" $cdiag ;fi
 											fi
-											echo "Replaced $dt $y" | tee -a $rout >> $tfile
+											echo "Replaced $dt $y" | tee -a $rout >> "$tfile"
 										fi
 									fi
 								else
-									echo "Replaced $dt $y" | tee -a $rout >> $tfile
+									echo "Replaced $dt $y" | tee -a $rout >> "$tfile"
 								fi
 							else
 								if [ "$checkSUM" == "true" ]; then
 									if [ -n "$org" ] && [ -n "$cs" ]; then
 										if [ "$org" != "$cs" ]; then
-											os=$(echo "$original_ln" | cut -d " " -f7-)
-											csze=$(echo "$current_ln" | cut -d " " -f7-)
+											os="$of7"
+											csze="$f7"
 											if [ -n "$t" ] && [ -n "$k" ]; then
 												if [ -n "$csze" ]; then stealth "$cFILE" $os $csze "$y" $cdiag ;fi
 											fi
@@ -275,11 +272,11 @@ hanly(){
 									echo "Modified $dt $y" | tee -a $rout >> $tfile
 								fi
 							fi
-						fi
+						fi	
 					fi
 				fi
 			fi
-		done < $1
+		done < "$SORTCOMPLETE"
 		unset IFS
 	fi
 	rm $2

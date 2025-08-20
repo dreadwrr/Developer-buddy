@@ -19,9 +19,7 @@ DEPTH=$( echo "${BASEDIR}" | awk -F '/' '{print NF-1}')
 FCOUNT=$( grep -c "${BASEDIR}" $LOGFILE)                                
 p=0
 z=$( insetdirectory)   
-
 if [ "$z" != "" ]; then
-
 	if (( z = DEPTH)); then
     	strt=$z
     else
@@ -33,14 +31,10 @@ fi
 
 for ((i=strt; i<=DEPTH; i++))
 do
-
 	IDIR=$( echo "${BASEDIR}" | cut -d '/' -f 1-$i)
-
 	y=$( grep -c "^${IDIR}" $LOGFILE)
-
 	if (( y >= p )); then
 		p=$y
-        
 		CDSTRING=$IDIR
 	else
 		break

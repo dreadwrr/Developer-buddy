@@ -244,10 +244,11 @@ if [ -s $SORTCOMPLETE ] ; then
         if [ -s $ofile ]; then 
             sort -u -o $ofile $ofile
 			cc=$(hanly $SORTCOMPLETE $ofile $5)
-			ret=$?	
-			if [ "$ret" -gt 0 ]; then
-				echo "failure in ANALYTICS hanly subprocess"
-			fi
+			#ret=$?	
+			#if [ "$ret" -gt 0 ]; then
+			#	echo "failure in ANALYTICS hanly subprocess"
+			#fi
+			[[ -n "$cc" && "$cc" == "csum" ]] && { awk '{ print "\033[31m *** Checksum of file \033[0m" $0 "\033[31m altered without a modified time\033[0m" }' /tmp/cerr && rm /tmp/cerr; } || [[ -n "$cc" ]] && echo "Detected $cc CPU cores." #red "*** Checksum of file altered without a modified time."
         fi   
     fi
     if [ "$STATPST" == "true" ]; then # STATPST SRG
@@ -259,10 +260,10 @@ if [ -s $SORTCOMPLETE ] ; then
 						 if [ -s $ofile ]; then 
 							sort -u -o $ofile $ofile 
 							cc=$(hanly $SORTCOMPLETE $ofile $5)
-							ret=$?
-							if [ "$ret" -ne 0 ]; then
-								echo "failure in STATPST hanyl subprocess"
-							fi
+							#ret=$?
+							#if [ "$ret" -ne 0 ]; then
+							#	echo "failure in STATPST hanyl subprocess"
+							#fi
 						fi
 						pstc="true"						
 					else
