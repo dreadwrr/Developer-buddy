@@ -1,26 +1,15 @@
 #!/bin/bash 
 #   recentchanges query                recentchanges v3.0                                                                                08/11/2025
-#   provide output of files to block in /usr/local/save-changesnew/filter for recentchanges and excld.ini for rsync save-changesnew
-#   example if there are only 3 list the top 1. if there are many say 7 list the top 3. Always better to include than exclude with a filter
-#
-#	 When STATPST is on TMP data doesnt save. This is done for efficiency. So either ANALYTICS or STATPST. but not both. If youre on STATPST 
-#	you dont want to save in /tmp. Plus the overhead of running two hybrid analysises is not good. TMP is good because it TMPFS and gone on reboot.
-#	The general idea is use this data to tweak your filter and then turn them both off. For ease of use and making recentchanges autonomous in setting the filter
-#
-#   There can be the standard query but also 1) filter hits 2) list the top 3 regardless 3) most common file 4) generate platform exclusion list
-#   
-#   Make your own custom queries based on the data
 #   retrieval of data  from  /tmp  or  logpst and statpst
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/heuristics
-
 # CHANGABLE 
 # CHANGABLE booleans
-outputTFILE="true"            # show the report in /tmp?
+outputTFILE="false"            # show the report in /tmp?
 
-outputPSTFILE="true"       # .   .               /home/guest/Downloads
-genPSTTFILE="true"           # Run heuristics on PST and include in the report?       
+outputPSTFILE="false"       # .   .               /home/guest/Downloads
+genPSTTFILE="false"           # Run heuristics on PST and include in the report?       
 # End CHANGABLE
 dr=/usr/local/save-changesnew
 logpst=$dr/logs.gpg
@@ -39,10 +28,7 @@ if [ "$STATPST" == "true" ]; then
         cyan "Pulling logs from persistent storage"
         if gpg -d -o $xdata $logpst; then #decrypt
             #cp $xdata /tmp/logdebug
-			sed -i '/NOTA-FI-LE 77:77:77/d' $xdata  # eronous data we could eliminate it from the logpst but this could be useful statistics     anyway it messes up some awk commands.
-            ### Log file queries
-            #gpg -e -r $email -o /usr/local/save-changesnew/logs.gpg /tmp/logs_decrypted.log #encrypt
-            #sed -E 's/^[^ ]+ [^ ]+ (.*)/\1/' $xdata | sed -E 's|(.*)/[^/]+$|\1|' | sort | uniq -c | sort -nr | head -n 3        top 3 
+			sed -i '/NOTA-FI-LE 77:77:77/d' $xdata
 			cd /home/$2/Downloads || exit
 			rm query_MDY* > /dev/null 2>&1
 			{
@@ -71,7 +57,7 @@ if [ "$STATPST" == "true" ]; then
 					printf "%d %s\n", dirs[d], d
 				}
 			}' "$xdata" | sort -nr | head -n 3)
-			tc=$(echo "$dirs" | awk 'NR==3 {print $1}') # Extract the count of the 3rd directory (if it exists)
+			tc=$(echo "$dirs" | awk 'NR==3 {print $1}')
 			if [[ -n "$tc" && "$tc" -gt 3 ]]; then
 				echo "$dirs"
 			else
@@ -84,20 +70,20 @@ if [ "$STATPST" == "true" ]; then
 			green "Please wait..."
             cyan "Search statistics:"
 			aat $xdata
-            echo "Searches: $(grep -c '^[[:space:]]*$' $xdata)" # total searches
+            echo "Searches: $(grep -c '^[[:space:]]*$' $xdata)"
 			hr $xdata
 			asz $xdata
 			echo
-			} 2>&1 | tee $output_file     # write the report to the report and show on terminal
+			} 2>&1 | tee $output_file
 			echo
 			echo
 			[ "$genPSTTFILE" == "true" ] && { green "Generating heuristics..." ; { echo; echo "Heuristics"; echo; } >> $TOPT; } && /usr/local/save-changesnew/heuristics $xdata $TOPT && { echo; green "Heuristics complete"; } 
             #shred -u $xdata
             rm $xdata
 			perl -pe 's/\e(\[[0-9;?]*[a-zA-Z]|[\(\)][AB])//g' -i "$output_file"   # remove ASCII text
-            if [ -s $statpst ]; then ### Stat queries
+            if [ -s $statpst ]; then
                 cyan "Pulling from stats archive"
-                if gpg -d -o $xdata $statpst; then #decrypt
+                if gpg -d -o $xdata $statpst; then
 					#cp $xdata /tmp/statdebut
 					{					
                     green "Stats gpg"
@@ -263,19 +249,9 @@ if [ "$STATPST" == "true" ]; then
         fi
     fi
 fi
-# If there are searches in /tmp/rc prompt to display second set of awk commands
-#if [ "$STATPST" == "true" ]; then
-#    if [ -d $trc ]; then
-#        read -t 10 -p "Show /tmp stats? (y/n): " ans
-#        if [ $? -gt 128 ]; then
-#          ans="n"
-#        fi
-#    fi
-#fi
-# Analysis on       /tmp searches
+
 ofile=$rtmp/tmpinfo
-#if [ -d $trc ] && [ "$STATPST" == "false" ] || [[ "$ans" =~ ^[Yy]$ ]]; then
-if [ -d $trc ] && [ "$STATPST" == "false" ]; then # data to work from
+if [ -d $trc ] && [ "$STATPST" == "false" ]; then
     fs=$(find $trc -maxdepth 1 -type f | wc -l)
     if (( fs > 0 )); then
         x=0
@@ -284,12 +260,10 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then # data to work from
             cat "$file" >> $ofile
             if [[ $x -lt $fs ]]; then echo >> $ofile; fi
         done
-
 		# Init
 		sed -i '/NOTA-FI-LE 77:77:77/d' $ofile 
 		cd /tmp || exit
 		rm query_MDY* > /dev/null 2>&1
-
         #Heuristic session?
 		(
         echo "Top 5 files created"
@@ -384,7 +358,7 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then # data to work from
 		}
 		' $ofile
 		echo
-		echo "Detecting deleted files if overlap" #delsnap $ofile $output_file		
+		echo "Detecting deleted files if overlap"
 		(cat "$ofile"; echo) | awk -v RS="" -v OFILE="$ofile" '
 		function toNumTimestamp(date, time) {
     		gsub(/[-:]/, "", date)
@@ -576,8 +550,6 @@ if [ -s $flth ]; then #filter hits
     cat $flth 
 	) 2>&1 | tee -a $output_file
 
-	#[ "$outputTFILE" = "false" ]  && [ "$STATPST" == "false" ] && rm $output_file 
-	#[ "$outputPSTFILE" == "false" ] && [ "$STATPST" == "true" ] && rm $output_file
 	if [ "$outputTFILE" = "true" ]  && [ "$STATPST" == "false" ] && [ -d $trc ]; then
 		test -e $output_file && green "Report in /tmp"
 		cp $output_file /tmp$report

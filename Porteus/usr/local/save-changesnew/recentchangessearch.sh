@@ -131,9 +131,10 @@ if [ -s $TMPCOMPLETE ]; then
 	if [ "$mMODE" == "normal" ]; then
 		search $xdata $tout $COMPLETE # $tout is merged into $SORTCOMPLETE after main loop below
 	elif [ "$mMODE" == "mem" ]; then
+		declare -a xfile
 		declare -a ffile
 		declare -a nsf
-		searcharr $xdata 
+		searcharr $xdata "ctime"
 	elif [ "$mMODE" == "mc" ]; then # Single core these files are few. Mainloop is parallel
 	    #xargs -0 -I{} /usr/local/save-changesnew/searchfiles "{}" "$atmp" "$checkSUM" < $xdata
 		xargs -0 -n8 -P4 /usr/local/save-changesnew/searchfiles "$atmp" "$checkSUM" < $xdata
@@ -166,6 +167,7 @@ if [ -s $SORTCOMPLETE ]; then
 	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE      # Original  -o       version 3   -u -o
 	SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')  # day and time
 	PRD=$SRTTIME
+	if declare -p xfile &>/dev/null && [ ${#xfile[@]} -gt 0 ]; then printf "%s\n" "${xfile[@]}" >> $SORTCOMPLETE; fi
 	#
 	if [ -s $tout ]; then  #   We dont want anything before our main files.
 		grep -v 'NOTA-FI-LE 77:77:77' "$tout" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' > $TMPOPT ; cat $TMPOPT >> $SORTCOMPLETE
@@ -190,7 +192,7 @@ if [ -s $SORTCOMPLETE ]; then
 	# Human readable
 	# We want a human readballe first two columns date and time and the filename without the quotes.
 	awk '{print $1, $2}' $SORTCOMPLETE > $tout
-	awk -F'"' '{print $2}' $SORTCOMPLETE  > $TMPCOMPLETE
+	perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' "$SORTCOMPLETE" > "$TMPCOMPLETE"
 	paste -d' ' $tout $TMPCOMPLETE > $TMPOPT
 	sort -o $TMPOPT $TMPOPT
 	cp $TMPOPT $RECENT # RECENT is unfiltered viewable
@@ -274,7 +276,7 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
     	
     	while IFS="" read -r p || [ -n "$p" ]; do
 			cFILE="$( echo "$p" | cut -d " " -f3-)"  # no quotes in $TMPCOMPLETE        cFILE=$(echo "$p" | awk -F'"' '{print $2}')    # Version 3  grab the filename from quotes   "   spaces in file       "
-            #dt=$(echo "$p" | cut -d " " -f1-2)
+            cFILE="$( escapef "$cFILE")"
 			grep -Fqs "$cFILE" $SORTCOMPLETE && { echo "Modified" "$p" >> $ABSENT; echo "Modified" "$p" >> $rout; } || { echo "Deleted " "$p" >> $ABSENT; echo "Deleted" "$p" >> $rout; } # record delete for stats                 
 		done < $TMPCOMPLETE
 		unset IFS
@@ -323,7 +325,7 @@ if [ -s $SORTCOMPLETE ] ; then # Set out filenames
 				fi
 			else
 				if [ -s "$pydbpst" ]; then if decrypt "$pydb" "$pydbpst"; then dbc="true"; fi ;fi
-				[[ ! -s "$pydbpst" ]] && echo Initializing database... && python3 /usr/local/save-changesnew/pstsrg.py --init && generatekey && dbc="true"
+				[[ ! -s "$pydbpst" ]] && echo Initializing database... && python3 /usr/local/save-changesnew/pstsrg.py --init && if ! gpg --list-keys | grep -q $email ; then generatekey ; fi && dbc="true"
 				if [ -s "$pydbpst" ] && [ "$dbc" == "true" ]; then
 					rt=$(python3 /usr/local/save-changesnew/hanlydb.py $SORTCOMPLETE $COMPLETE $pydb $rout $tfile $checkSUM $cdiag) # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
 					ret=$?

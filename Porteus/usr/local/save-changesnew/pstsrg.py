@@ -1,5 +1,6 @@
 #!/usr/bin/env python3 
 # pstsrg.py - Process and store logs in a SQLite database, encrypting the database       8/14/2025
+import codecs
 import csv
 import os
 import re
@@ -68,58 +69,15 @@ def insert(log):
             VALUES (?, ?, ?, ?, ?, ?)
       ''', blank_row)
       
-      # elif act == 'stats':         original
-      #       c.executemany('''
-      #             INSERT OR IGNORE INTO stats (action, timestamp, filename)
-      #             VALUES (?, ?, ?)
-      #       ''', log)
-      #       c.execute('''
-      #       SELECT action, timestamp, filename FROM stats ORDER BY rowid DESC LIMIT 1
-      #       ''')
-      #       last_row = c.fetchone()
-      #       if last_row:
-      #             action, timestamp, filename = last_row
-      #             if action == '' and timestamp == '' and filename == '':
-      #                   # Blank row is already at the bottom, no need to insert it again
-      #                   print("Blank row already at the bottom.")
-      #             else:
-      #                   # Insert blank row at the bottom
-      #                   blank_row = ('', '', '')
-      #                   c.execute('''
-      #                         INSERT INTO stats (action, timestamp, filename)
-      #                         VALUES (?, ?, ?)
-      #                   ''', blank_row)
-      #       else:
-      #             # No rows in the table, insert the first blank row
-      #             blank_row = ('', '', '')
-      #             c.execute('''
-      #                   INSERT INTO stats (action, timestamp, filename)
-      #                   VALUES (?, ?, ?)
-      #             ''', blank_row)
-
       conn.commit()
       conn.close()
 
 
 def insert_if_not_exists(action, timestamp, filename):
 
-      conn = sqlite3.connect(dbopt)  # Replace with your actual database file path
+      conn = sqlite3.connect(dbopt)
       c = conn.cursor()
-      #if action == 'Nosuchfile': #insert to keep count###
-      #      c.execute('''
-      #            INSERT INTO stats (action, timestamp, filename)
-      #            VALUES (?, ?, ?)
-      #      ''', (action, timestamp, filename))     
-      #      conn.commit()
 
-      #else:
-            # Check if the record already exists based on timestamp and filename
-            #c.execute('''
-            #SELECT 1 FROM stats WHERE timestamp = ? AND filename = ?
-            #''', (timestamp, filename))
-
-            # If no row is returned, insert the new record
-            #if not c.fetchone():
       timestamp = timestamp or None
       c.execute('''
       INSERT OR IGNORE INTO stats (action, timestamp, filename)
@@ -129,29 +87,34 @@ def insert_if_not_exists(action, timestamp, filename):
       conn.close()
 
 def parse_line(line):
-      # Extract the quoted path (first quoted string)
-      quoted_match = re.search(r'"(.*?)"', line)
+     
+      quoted_match = re.search(r'"((?:[^"\\]|\\.)*)"', line)
       if not quoted_match:
-            return None  # or raise an error / return empty list
+            return None
+      raw_filepath = quoted_match.group(1)
 
-      filepath = quoted_match.group(1)
-      line_without_file = line.replace(f'"{filepath}"', '').strip() # Remove the quoted part
-      other_fields = line_without_file.split()     # Split the remaining fields by whitespace
+      try:
+            filepath = codecs.decode(raw_filepath.encode(), 'unicode_escape')
+            #print(f"Decoded filepath: {filepath}")
+
+      except UnicodeDecodeError as e:
+            #print(f"Error decoding filepath: {e}")
+            return None
+      
+      line_without_file = line.replace(quoted_match.group(0), '').strip()
+      other_fields = line_without_file.split()
+      if len(other_fields) < 5:
+            return None  # Not enough fields
 
       timestamp1 = other_fields[0] + ' ' + other_fields[1]
       inode = other_fields[2]
       timestamp2 = other_fields[3] + ' ' + other_fields[4]
       rest = other_fields[5:]
 
-      # Combine: timestamp1,  timestamp2
       return [timestamp1, filepath, inode, timestamp2] + rest
 
 
 if __name__ == "__main__":
-
-
-
-
 
       dr='/usr/local/save-changesnew/'
       dbtarget=dr + 'recent.gpg' # target encrypted file
@@ -163,21 +126,17 @@ if __name__ == "__main__":
             create_db(dbopt) # if there isnt one
             sys.exit(0) 
 
-      #target=sys.argv[1] # to gpg file tgt
       xdata=sys.argv[1] # data source    
       act=sys.argv[2] .strip() # action            
-      #email=sys.argv[3]
-      #clvl = None # compression  
 
       if act == 'log':
             
             try:
-                  with open(xdata, 'r') as record: # from our search  SORTCOMPLETE
+                  with open(xdata, 'r') as record:
   
                         logs = []
                         for line in record:
                              
-                              #match = re.match(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) "([^"]+)" (\d+) (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) ([a-f0-9]+) (\d+)', line)
                               parsed = parse_line(line)
 
                               if not parsed:
@@ -187,20 +146,8 @@ if __name__ == "__main__":
                               filename = parsed[1]
                               inode = parsed[2]
                               accesstime = parsed[3]
-                              checksum = parsed[4]  # if len(parsed) > 4 else None
-                              filesize = parsed[5]   #if len(parsed) > 5 else None
-                  
-                              # timestamp = parsed.group(0)
-                              # filename = parsed.group(1)
-                              # inode = parsed.group(2)
-                              # accesstime = parsed.group(3)
-                              # checksum = parsed.group(4) if len(parsed) > 4 else None
-                              # filesize = parsed.group(5) if len(parsed) > 5 else None
-                        
-                              #timestampObject = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
-                              #accesstimeObject = datetime.strptime(accesstime, '%Y-%m-%d %H:%M:%S')
-                              #formatted_timestamp = timestampObject.strftime('%Y-%m-%d %H:%M:%S')
-                              #formatted_accesstime = accesstimeObject.strftime('%Y-%m-%d %H:%M:%S')
+                              checksum = parsed[4]
+                              filesize = parsed[5]
 
                               logs.append((timestamp, filename, inode, accesstime, checksum, filesize))
 
@@ -214,27 +161,29 @@ if __name__ == "__main__":
             
       if act == 'stats':
             logs = []
-#                        for line in record:
-#                              if not line.strip():
-#                                    continue
-#                              #match = re.match(r'(\w+),?"([\d\- :]+)",?"([^"]+)"', line.strip())
-#                              if match:
-#                                    action = match.group(1)
-#                                    timestamp = match.group(2)
-#                                    filename = match.group(3)
-		
+
             try:                                              
                   with open(xdata, 'r', newline='') as record:
 
                         for line in record:
                               line = line.strip()
                               if not line:
-                                    continue  # skip empty lines
+                                    continue
                               parts = line.split(",", 2)  # split at the first two commas only
+                              if len(parts) < 2:
+                                    continue
                               action = parts[0].strip()
                               datetime = parts[1].strip() #if len(parts) > 1 else ""
-                              filepath = parts[2].strip()          #if len(parts) > 2 else ""
-                              if filepath:						
+                              fp = parts[2].strip()          #if len(parts) > 2 else ""
+
+                              if fp:
+
+                                    try:
+                                          filepath = codecs.decode(fp, 'unicode_escape')
+
+                                    except Exception:
+                                          filepath = fp  # fallback if decoding fails		
+                                          				
                                     logs.append((action, datetime, filepath))
 
                   if logs:
@@ -243,7 +192,7 @@ if __name__ == "__main__":
                               timestamp = record[1]  
                               filename = record[2]  
 
-                              insert_if_not_exists(action, timestamp, filename) # Call the function to check if the record exists and insert if not #insert(logs)
+                              insert_if_not_exists(action, timestamp, filename)
                                
             except Exception as e:
                   print('stats db failed to insert', e)
