@@ -37,7 +37,7 @@ if [ `whoami` != "root" ]; then
 else
     if [ "$2" == "" ]; then theUSER="guest"; else theUSER=$2; fi    # the user from root call used for chown modules to specific user
 fi
-thetgt="$1" ; if [ "$thetgt" == "" ]; then thetgt=$BASEDIR; fi     #  for autosaving change to "/mnt/sdx"   ie   /mnt/sda3  as its blank as actual root
+thetgt="$1" ; if [ "$thetgt" == "" ]; then thetgt=$BASEDIR; fi     #  for autosaving change to "/mnt/sdx"   ie   /mnt/sda3  as its blank as actual root can either change here on in /etc/rc.d/rc.local_shutdown
                                                                           
 if  ! id $2 >/dev/null 2>&1; then echo "user:" ${2} "not found"; exit 0 ; fi 
 if ! grep -iq "Artix" /etc/os-release; then echo "Wrong version of developer buddy. Please use porteus version." && exit 0 ; fi
@@ -411,7 +411,8 @@ emfld="${em#/}"
 rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
 #rlt=$( cat /proc/cmdline | sed -n 's/.*changes=\([^ ]*\).*/\1/p') #parse the commandline
 
-[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt} && [[ "$rlt" == *"$target"* ]] && { rlt=${rlt%/} && target=""; }
+[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt} && 
+[[ "$rlt" == *"$target"* ]] && rlt=${rlt%/} && target=""
 if [ "$rlt" != "" ]; then osize=$( du -sb "${target}${rlt}${MODULENM}/" | cut -f1); fi # original size
 
 #Generate exclude directories Folders to exclude: argument for `egrep'
@@ -1051,7 +1052,8 @@ else
 
 	line=43
 	pth="/boot/syslinux/porteus.cfg"
-	[[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; } && [[ "$bootdvc" != "" ]] && thetgt=$bootdvc
+	[[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; }
+	[[ "$bootdvc" != "" ]] && thetgt=$bootdvc
 	[[ -n "$grubln" ]] && test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth.bak
     test -e "$thetgt/boot/syslinux/porteus.cfg" && rlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on ln ## Notes returns the value grep 'extramod=[^ ]*')
 
@@ -1141,7 +1143,7 @@ else
 
 		cmd="sed -i \"0,/APPEND/ s|\\(APPEND\\)|\\1 extramod=${epath}|\" \"$thetgt$pth\""
 		if [ -n "$grubln" ]; then
-			cmd="sed -i \"${line}s/\\\$/ extramod=${epath}/\" \"$thetgt$pth\""
+			cmd="sed -i \"${line}s|\\\$| extramod=${epath}|\" \"$thetgt$pth\""
 		fi
 		test -e "$thetgt$pth" && bash -c "$cmd" || echo "Using other bootloader append ${target}${em} to it with extramod=" 
 
