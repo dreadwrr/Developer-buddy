@@ -16,8 +16,6 @@ USR=$3
 if [ "$USR" == "" ]; then echo please call from recentchanges; exit; fi
 if [ "$4" == "" ]; then echo "incorrect usage please call from recentchanges"; exit 1; fi
 if [ "$1" != "search" ]; then echo exiting not a search && exit; fi
-#set -o pipefail
-#set -x +x
 work=work$$												    ;		tmp=/tmp/work$$		
 FLBRAND=`date +"MDY_%m-%d-%y-TIME_%R_%S"|tr ':' '_'`		;		ABSENT=$tmp/absent.txt	
 BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`				;		chxzm=/rntfiles.xzm

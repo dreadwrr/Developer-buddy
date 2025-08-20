@@ -3,9 +3,9 @@
 #   saving in tmp, filter hits, encrypt decrypt and hanly        
 postop() {
 if [ "$POSTOP" == "true" ]; then 
-	while IFS= read -r x; do x=$(unescf "$x") ; printf '%s\0' "$x"; done < $1 >> $xdata # convert \\n back to \n and \0 for file search
+	while IFS= read -r x; do x="$(unescf "$x")" ; printf '%s\0' "$x"; done < $1 >> $xdata
     if [ -f $USRDIR/doctrine.tsv ]; then 
-        sed -i 's/^export POSTOP="true"/export POSTOP="false"/' $2 # Avoid calling again unless file removed
+        sed -i 's/^export POSTOP="true"/export POSTOP="false"/' $2
     else
         echo -e "Datetime\tFile\tSize(kb)\tType\tModified\tAccessed\tOwner" > $atmp/doctrine
         while IFS= read -r -d '' x; do        
@@ -17,8 +17,8 @@ if [ "$POSTOP" == "true" ]; then
                 if [ "$mtyp" == "application/octet-stream" ]; then mtyp="Unknown"; fi
                 if [ -L "$f" ]; then mtyp="Symlink"; fi
                 sz=$( stat -c %s "$f")
-                md=$( stat -c '%Y' "$f") ; x=$(date -d "@$md" +'%Y-%m-%d %H:%M:%S') # modification date
-                ae=$( stat -c '%X' "$f") ; y=$(date -d "@$ae" +'%Y-%m-%d %H:%M:%S') # access date
+                md=$( stat -c '%Y' "$f") ; x=$(date -d "@$md" +'%Y-%m-%d %H:%M:%S')
+                ae=$( stat -c '%X' "$f") ; y=$(date -d "@$ae" +'%Y-%m-%d %H:%M:%S')
                 echo -e "$dt\t$f\t$(( sz / 1024 ))\t$mtyp\t$x\t$y\t$onr" >> $atmp/doctrine
             fi
         done < $xdata
@@ -29,8 +29,7 @@ if [ "$POSTOP" == "true" ]; then
         #column -t -s $'\t' $USRDIR/doctrine.tsv      this command prints a nice tab seperated log
     fi
 fi
-}
-# tmp storage saving remove last one if full    
+}  
 stmp() {                         
 sf=$MODULENAME"_"$FLBRAND
 if (( tmpSRHS > 0 )); then #store it in tmp
@@ -44,12 +43,10 @@ if (( tmpSRHS > 0 )); then #store it in tmp
             break
         done
     fi
-	awk 'NF' $1 > $TMPCOMPLETE; mv $TMPCOMPLETE $1   # Remove any blank lines important
+	awk 'NF' $1 > $TMPCOMPLETE; mv $TMPCOMPLETE $1
     cp $1 "/tmp/rc"$sf
 fi
 }
-# write stats if filters grep from logfile then pull filter line from filter and send to csv
-# $1 logfile $2 csv file
 filterhits() {
 local lt=$atmp/patterns.txt
 local fl=/usr/local/save-changesnew/filter
@@ -58,16 +55,14 @@ sed -n '/^[[:space:]]*#/!s|sed -i '\''/\(.*\)/d'\''.*|\1|p' "$fl" > $lt
 while IFS= read -r pattern; do
     k=$( echo "$pattern" | sed -e 's/\\//g' -e "s|'\"\${2}\"'|$USR|g") #convert for grep
     x=$( grep -Fc -- "$k" $1) # search matches from logs
-    if grep -Fq "sed -i '/$pattern/d" $2; then      # in stats file?
+    if grep -Fq "sed -i '/$pattern/d" $2; then
         if (( x > 0 )); then
-            y=$( grep -F "sed -i '/$pattern/d" $2 | cut -d',' -f2) # count     
+            y=$( grep -F "sed -i '/$pattern/d" $2 | cut -d',' -f2)    
             b=$(( y + x ))
-            #line=$( grep -Fn "sed -i '/$pattern/d" $2)
-            #lno=$( echo "$line" | cut -d: -f1) 
-            lno=$(grep -Fn "sed -i '/$pattern/d" "$2" | cut -d: -f1) # get the line# from grep for sed
+            lno=$(grep -Fn "sed -i '/$pattern/d" "$2" | cut -d: -f1)
             sed -i "${lno}s/,[0-9]\+\$/,$b/" $2
         fi
-    else #write it to the file
+    else
         line=$(grep -F "sed -i '/$pattern/d" "$fl" | grep -v '^[[:space:]]*#')
         if [ "$line" != "" ]; then
             echo "\"$line\",$x" >> $2
@@ -78,20 +73,9 @@ unset IFS
 rm $lt
 }
 generatekey() {
-	#if grep -iq "Porteus 5.01" /etc/os-release && which gpg2; then alias gpg="gpg2"; fi
-	
 	# 5.1 porteus   GPG 2.x+ generate key but if 5.01 has GPG2 do it too
 	if which gpg2 > /dev/null 2>&1 || gpg --version | grep -q "(GnuPG) 2"; then #gpg --full-generate-key
-		
-
         read -sp "Enter passphrase for new GPG key: " p
-        #read -sp "Confirm passphrase: " passphrase_confirm
-        #echo
-
-        #if [ "$passphrase" != "$passphrase_confirm" ]; then
-        #    echo "Passphrases do not match. Aborting."
-        #    exit 1
-        #fi
 cat > /tmp/keyparams.conf <<EOF
 %echo Generating a GPG key
 Key-Type: RSA
@@ -105,7 +89,6 @@ Passphrase: $p
 %commit
 %echo done
 EOF
-
        		if which gpg2 > /dev/null 2>&1; then
         	gpg2 --batch --pinentry-mode loopback --passphrase "$p" --generate-key /tmp/keyparams.conf
         	echo made
@@ -113,7 +96,6 @@ EOF
         	gpg --batch --pinentry-mode loopback --passphrase "$p" --generate-key /tmp/keyparams.conf
         fi
         shred -u /tmp/keyparams.conf
-
         echo "GPG key generated for ${email}."	
 	else
     	if grep -iq "Porteus 5.01" /etc/os-release; then  
@@ -130,8 +112,7 @@ EOF
 storeenc() {
 shopt -s expand_aliases
 local c
-if [ "$STATPST" == "true" ]; then # Requires encryption
-	#if grep -iq "Porteus 5.01" /etc/os-release && which gpg2 > /dev/null; then alias gpg="gpg2"; fi
+if [ "$STATPST" == "true" ]; then
 	if ! gpg --list-keys | grep -q $email; then
 		generatekey
 	fi
@@ -151,39 +132,36 @@ if [ "$STATPST" == "true" ]; then # Requires encryption
 		else
 			source=$xdata2
 		fi
-		declare -A ref_map  # Load the database          As we at 300 searches this is far more efficient than grepping the entire file its in assosiative array
-		while IFS="" read -r line || [ -n "$line" ]; do
-			key=${line#*,*,}
-			[[ -n "$key" ]] && ref_map["$key"]="$line"
-		done < $source
-        while IFS="" read -r p || [ -n "$p" ]; do
-            ft=$(echo "$p" | cut -d',' -f1)       # Action | tr -d '"')   optional ""                   Modified, Delete  field
-			if [ "$ft" == "Nosuchfile" ]; then # We want to keep track of any occurence of this         filepath=$( echo "$p" | awk -F',' '{ gsub(/^"|"$/, "", $3); print $3 }')
-				filepath=$(echo "$p" | cut -d',' -f3- | sed 's/^ *//;s/ *$//')
-				entry="Nosuchfile,,${filepath}"
-				echo "$entry" >> $source
-			else
-                dt=$(echo "$p" | cut -d',' -f2 | tr -d '"')   	 #  , "date time" 
-				filepath=${p#*,*,}  # returns after 2nd ,
-				entry="$ft,\"${dt}\",${filepath}"
-				if [[ ! -v ref_map["$filepath"] ]]; then #if [ ! -n "$found_line" ]; then
-	                echo "$entry" >> $source
+		if [ "$msg" == " stats" ]; then 
+			declare -A ref_map  # Load the database          As we at 300 searches this is far more efficient than grepping the entire file its in assosiative array
+			while IFS="" read -r line || [ -n "$line" ]; do
+				key=${line#*,*,}
+				[[ -n "$key" ]] && ref_map["$key"]="$line"
+			done < $source
+        	while IFS="" read -r p || [ -n "$p" ]; do
+            	ft=$(echo "$p" | cut -d',' -f1)       # Action | tr -d '"')   optional ""                   Modified, Delete  field
+				if [ "$ft" == "Nosuchfile" ]; then # We want to keep track of any occurence of this
+					filepath=$(echo "$p" | cut -d',' -f3- | sed 's/^ *//;s/ *$//')
+					entry="Nosuchfile,,${filepath}"
+					echo "$entry" >> $source
 				else
-				 	found="${ref_map["$filepath"]}"
-					old_dt=$(echo "$found" | cut -d',' -f2 | tr -d '"')
-					if [[ "$dt" > "$old_dt" ]]; then
-						echo "$entry" >> $source
+                	dt=$(echo "$p" | cut -d',' -f2 | tr -d '"')   	 #  , "date time" 
+					filepath=${p#*,*,}  # returns after 2nd ,
+					entry="$ft,\"${dt}\",${filepath}"
+					if [[ ! -v ref_map["$filepath"] ]]; then
+	                	echo "$entry" >> $source
+					else
+				 		found="${ref_map["$filepath"]}"
+						old_dt=$(echo "$found" | cut -d',' -f2 | tr -d '"')
+						if [[ "$dt" > "$old_dt" ]]; then
+							echo "$entry" >> $source
+						fi
 					fi
 				fi
-			fi
-        done < $1
-        unset IFS
-
-			# Nosuchfile,,"path file name"      from the file search         We dont care about date.
-            if [ -s $COMPLETE ]; then cat $COMPLETE >> $source; fi  #$COMPLETE used to be $tout # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
+        	done < $1
+        	unset IFS
         else # its a log
-            # count check
-            c=$( grep -c '^$' $source) # line count blank line sep
+            c=$( grep -c '^$' $source)
             if  (( c == logCT )); then 
                 sed -i '1,/^$/d' $source 
             fi
@@ -191,13 +169,12 @@ if [ "$STATPST" == "true" ]; then # Requires encryption
             echo >> $source # end of log
         fi
 		if which gpg2 > /dev/null 2>&1; then # 5.01 with 2.0
-		    cmmd=(gpg2 --yes -e -r $email -o $2 $source) # normal usage
-			if [ "$nc" == "true" ]; then cmmd=(gpg2 --yes --compress-level 0 -e -r $email -o $2 $source); fi # If over the size limit disable compression for speed
+		    cmmd=(gpg2 --yes -e -r $email -o $2 $source)
+			if [ "$nc" == "true" ]; then cmmd=(gpg2 --yes --compress-level 0 -e -r $email -o $2 $source); fi
         else # 5.1 with gpg2 or 5.01 with gpg 1.4.23 and gpg agent 2.1.11
 		    cmmd=(gpg --yes -e -r $email -o $2 $source) # normal usage
-			if [ "$nc" == "true" ]; then cmmd=(gpg --yes --compress-level 0 -e -r $email -o $2 $source); fi # If over the size limit disable compression for speed
+			if [ "$nc" == "true" ]; then cmmd=(gpg --yes --compress-level 0 -e -r $email -o $2 $source); fi
         fi
-		# Encrypt
 		if ! "${cmmd[@]}"; then  
 			echo "Encryption failed for file: $source  . $2$msg "
 			return 1
@@ -223,13 +200,11 @@ fi
 
 }
 decrypt() {			
-SVRSYNC=/mnt/live/tmp/modset
-#if grep -iq "Porteus 5.01" /etc/os-release && ! gpg --version | grep -q "(GnuPG) 2"; then # GnuPG 1.4.23 
 if grep -iq "Porteus 5.01" /etc/os-release && ! which gpg2 > /dev/null 2>&1; then # GnuPG 1.4.23 
     if which gpg-agent > /dev/null 2>&1; then
 	    export GPG_TTY=$(tty)            # If you cant get it to work try commenting these two out and the other two in recentchanges might fix it
         export GPG_AGENT_INFO=/root/.gnupg/S.gpg-agent:0:1
-	    if ! gpg -d -o $1 $2; then #decrypt  
+	    if ! gpg -d -o $1 $2; then
 		    return 1
 	    fi	
     else
@@ -238,17 +213,16 @@ if grep -iq "Porteus 5.01" /etc/os-release && ! which gpg2 > /dev/null 2>&1; the
     fi
 else # all version with  GPG 2.0
 	if which gpg2 > /dev/null 2>&1; then # porteus 5.01 with v2
-		if ! gpg2 -d -o $1 $2; then #decrypt  
+		if ! gpg2 -d -o $1 $2; then
     		return 1
 		fi
 	else # porteus 5.1 with v2
-		if ! gpg -d -o $1 $2; then #decrypt  
+		if ! gpg -d -o $1 $2; then
     		return 1
 		fi	
 	fi
 fi          
 }
-# hybrid analysis used either saving in /tmp or persistent storage
 hanly(){
 	local csm=""
 	local cores=""
@@ -263,52 +237,51 @@ hanly(){
 		if compgen -G $atmp/haloop1_*_tmp.log > /dev/null; then cat "$atmp"/haloop1_*_tmp.log >> $rout; fi
 		if compgen -G $atmp/haloop2_*_tmp.log > /dev/null; then cat "$atmp"/haloop2_*_tmp.log >> $tfile; fi
 	else
-		declare -A ref_map  # Load the database
-		while read -r line; do
-			key=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$line")
-			if [ -n "$key" ]; then
-				ref_map["$key"]="$line"
-			fi
-		done < $2 # Our logpst
-		while IFS="" read -r p || [ -n "$p" ]; do      
-          	cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")
-			y="$( escape "$cFILE")" # Label human readable
-			current_ln="${p//\"$cFILE\"/}" # Remove the " path file "
-			current_ln="$(echo "$current_ln" | xargs -d '\n')"           
-			in=$(echo "$current_ln" | cut -d " " -f3) # Current inode
-			if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then # The format for current is at least correct .. this far
-				found_line="${ref_map[$y]}"
-				if [ -n "$found_line" ]; then #if grep -qsF "\"$y\"" $2; then	 # start here	
-					sline="$found_line" # Lets make sure we have both sets of data before we fully parse
-					original_ln="${sline//\"$cFILE\"/}" # Remove the " file path "
-					original_ln="$(echo "$original_ln" | xargs -d '\n')" 
+		mapfile -t ref_lines < "$2"
+		while IFS= read -r p || [ -n "$p" ]; do
+			found_line=""
+			cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")  
+			y="$( escapef "$cFILE")"
+			current_ln="${p//\"$y\"/}"
+			current_ln="$(echo "$current_ln" | xargs)"
+			read -r f1 f2 f3 f4 f5 f6 rest <<< "$current_ln"
+    		in="$f3"
+    		if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then
+				for line in "${ref_lines[@]}"; do if [[ "$line" == *"\"$y\""* ]]; then found_line="$line" ; fi ; done
+				if [ -n "$found_line" ]; then
+					sline="$found_line"
+					original_ln="${sline//\"$y\"/}"
+					original_ln="$(echo "$original_ln" | xargs)" 
+					read -r of1 of2 of3 of4 of5 of6 orest <<< "$original_ln"
 					cFILE="$(unescf "$cFILE")"
-					oin=$(echo "$original_ln" | cut -d " " -f3) # Original inode
-					if [ -n "$oin" ] && [ "$oin" -ge 0 ] 2>/dev/null; then # Format original good we can parse the rest of the data
-						omt=$(echo "$original_ln" | cut -d " " -f1-2)
-						oat=$(echo "$original_ln" | cut -d " " -f4-5) 
-						org=$(echo "$original_ln" | cut -d " " -f6) #
+					oin="$of3"
+					if [ -n "$oin" ] && [ "$oin" -ge 0 ] 2>/dev/null; then
+						
+						omt="$of1 $of2"
+						oat="$of4 $of5" 
+						org="$of6"
 						t=$(date -d "$oat" +%s 2>/dev/null)   
-						dt=$(echo "$current_ln" | cut -d " " -f1-2)
-						cat=$(echo "$current_ln" | cut -d " " -f4-5) 
-						cs=$(echo "$current_ln" | cut -d " " -f6)
+						read -r f1 f2 f3 f4 f5 f6 rest <<< "$current_ln"
+						dt="$f1 $f2"
+						cat="$f4 $f5"
+						cs="$f6"
 						k=$(date -d "$cat" +%s 2>/dev/null)
-						if [ "$dt" == "$omt" ]; then # Not a candidate we want but if checkSUM is on you believe you do
-							if [ "$checkSUM" == "true" ]; then # Bonus output is checksum on	
-								if [ -n "$t" ] && [ -n "$k" ]; then # two key verification to be sure we are at the checksum  format is perfect
-									if [ -n "$org" ] && [ -n "$cs" ] && [ -f "$cFILE" ]; then	# format is looking good.
-										csze=$(echo "$current_ln" | cut -d " " -f7-) # current size
-										os=$(echo "$original_ln" | cut -d " " -f7-)
-										if [ -n "$csze" ]; then # Perfect format now
-											if [ "$org" != "$cs" ]; then # suspicious
+						if [ "$dt" == "$omt" ]; then
+							if [ "$checkSUM" == "true" ]; then
+								if [ -n "$t" ] && [ -n "$k" ]; then
+									if [ -n "$org" ] && [ -n "$cs" ] && [ -f "$cFILE" ]; then
+										os="$orest"
+										csze="$rest"
+										if [ -n "$csze" ]; then
+											if [ "$org" != "$cs" ]; then
 												a_checksum=$(md5sum "$cFILE" | awk '{print $1}') 
 												a_mod=$(stat --format=%Y "$cFILE")
 												afrm=$(date -d "@$a_mod" +"%Y-%m-%d %H:%M:%S")
-												if [ -n "$os" ] && [ -n "$afrm" ]; then # Ensure the file is still there
-													if [ "$afrm" == "$dt" ]; then #flag
+												if [ -n "$os" ] && [ -n "$afrm" ]; then
+													if [ "$afrm" == "$dt" ]; then
 														echo "Csumc $dt $y"| tee -a "$rout" >> "$tfile"| tee -a /tmp/cerr; csm="true"	
 													else
-														if [ "$a_checksum" != "$cs" ] && [ "$cdiag" == "true" ]; then # Changed during search
+														if [ "$a_checksum" != "$cs" ] && [ "$cdiag" == "true" ]; then
 															echo "File changed during the search. ${y} at ${afrm}. Size was $os, now $fs. " >> /tmp/scr
 														elif [ "$a_checksum" != "$cs" ]; then
 															echo "File changed during search ${y}. File likely changed. system cache item." >> /tmp/scr
@@ -316,7 +289,7 @@ hanly(){
 													fi	
 												fi
 											else
-												stealth "$cFILE "$os $csze "$y" $cdiag "csum" # file collision or file was edited in such as way that its checksum is exactly the same? swith to sha256
+												stealth "$cFILE" $os $csze "$y" $cdiag "csum"
 											fi
 										fi
 									fi
@@ -329,23 +302,23 @@ hanly(){
 										if [ "$org" == "$cs" ]; then
 											echo "Overwrt $dt $y" | tee -a $rout >> "$tfile"
 										else
-											os=$(echo "$original_ln" | cut -d " " -f7-)
-											csze=$(echo "$current_ln" | cut -d " " -f7-)
+											os="$orest"
+											csze="$rest"
 											if [ -n "$t" ] && [ -n "$k" ]; then
 												if [ -n "$csze" ]; then stealth "$cFILE" $os $csze "$y" $cdiag ;fi
 											fi
-											echo "Replaced $dt $y" | tee -a $rout >> $tfile
+											echo "Replaced $dt $y" | tee -a $rout >> "$tfile"
 										fi
 									fi
 								else
-									echo "Replaced $dt $y" | tee -a $rout >> $tfile
+									echo "Replaced $dt $y" | tee -a $rout >> "$tfile"
 								fi
 							else
 								if [ "$checkSUM" == "true" ]; then
 									if [ -n "$org" ] && [ -n "$cs" ]; then
 										if [ "$org" != "$cs" ]; then
-											os=$(echo "$original_ln" | cut -d " " -f7-)
-											csze=$(echo "$current_ln" | cut -d " " -f7-)
+											os="$orest"
+											csze="$rest"
 											if [ -n "$t" ] && [ -n "$k" ]; then
 												if [ -n "$csze" ]; then stealth "$cFILE" $os $csze "$y" $cdiag ;fi
 											fi
@@ -358,11 +331,11 @@ hanly(){
 									echo "Modified $dt $y" | tee -a $rout >> $tfile
 								fi
 							fi
-						fi
+						fi	
 					fi
 				fi
 			fi
-		done < $1
+		done < "$SORTCOMPLETE"
 		unset IFS
 	fi
 	rm $2
@@ -494,5 +467,3 @@ if [ -f "$file" ] && [ "$diag" == "true" ]; then
 	fi
 fi
 }
-
-

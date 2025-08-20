@@ -1,0 +1,61 @@
+# #!/bin/bash
+# # For TMP section of query outhere for now until further notice          08/08/2025
+# {
+# echo "Detecting deleted files if overlap"
+# awk -v RS="" '
+# function toNumTimestamp(date, time) {
+#     # Convert "YYYY-MM-DD" and "HH:MM:SS" into a comparable number YYYYMMDDHHMMSS
+#     gsub(/[-:]/, "", date)
+#     gsub(/[:]/, "", time)
+#     return date time
+# }
+# 
+# {
+#     # Process each snapshot block
+#     n = split($0, lines, "\n")
+#     delete files
+#     min_ts = ""
+#     max_ts = ""
+# 
+#     for (i = 1; i <= n; i++) {
+# 
+#     split(lines[i], parts, " ")
+#     ts_num = toNumTimestamp(parts[1], parts[2])
+#     if (min_ts == "" || ts_num < min_ts) min_ts = ts_num
+#     if (max_ts == "" || ts_num > max_ts) max_ts = ts_num
+#     # Store filepath from line (everything after timestamp)
+#     filepath = substr(lines[i], index(lines[i], parts[2]) + length(parts[2]) + 1)
+#     files[filepath] = 1
+#     }
+# 
+#     # Save current snapshot info
+#     snapshot_num = NR
+#     min_times[snapshot_num] = min_ts
+#     max_times[snapshot_num] = max_ts
+#     delete snapshots[snapshot_num]
+#     for (f in files) snapshots[snapshot_num][f] = 1
+# 
+#     # Now compare with previous snapshot if exists
+#     if (snapshot_num > 1) {
+#     # Check if time ranges overlap
+#     # overlap if (min_times[n] <= max_times[n-1]) and (min_times[n-1] <= max_times[n])
+#     if (min_ts <= max_times[snapshot_num-1] && min_times[snapshot_num-1] <= max_ts) {
+#         print "Snapshots " snapshot_num-1 " and " snapshot_num " overlap in time."
+#         print "Deleted files between snapshots " snapshot_num-1 " and " snapshot_num ":"
+#         deleted_found = 0
+#         for (f in snapshots[snapshot_num-1]) {
+#         if (!(f in snapshots[snapshot_num])) {
+#             print "  " f
+#             deleted_found = 1
+#         }
+#         }
+#         if (!deleted_found) print "  None"
+#         print ""
+#     } else {
+#         print "Snapshots " snapshot_num-1 " and " snapshot_num " do NOT overlap in time. Skipping deletion check.\n"
+#     }
+#     }
+# }
+# ' $1
+# 
+# } >> $2 2>&1

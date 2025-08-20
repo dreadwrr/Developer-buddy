@@ -142,14 +142,9 @@ if __name__ == "__main__":
                               if not parsed:
                                     continue
 
-                              timestamp = parsed[0]
-                              filename = parsed[1]
-                              inode = parsed[2]
-                              accesstime = parsed[3]
-                              checksum = parsed[4]
-                              filesize = parsed[5]
+                              logs.append(tuple(parsed))
 
-                              logs.append((timestamp, filename, inode, accesstime, checksum, filesize))
+                              #logs.append((timestamp, filename, inode, accesstime, checksum, filesize))
 
                         if logs:
 

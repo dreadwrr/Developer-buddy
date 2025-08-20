@@ -1,52 +1,45 @@
 #!/bin/bash
 . /usr/local/save-changesnew/rntchangesfunctions
-	#cFILE=$(echo "$p" | sed -n 's/[^"]*"\(.*\)".*/\1/p')		
-	#cfile=$(echo "$p" | perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/')   # for " infilenm
-	#cfile=$(echo "$p" | perl -nE '
-	#  if (/"((?:[^"\\]|\\.)*)"/) {
-	#	(my $s = $1) =~ s/\\(.)/$1/g;  # unescape backslash-escaped chars
-	#	say $s;
-	#  }
-	#')
 atmp="$1"
 SORTCOMPLETE="$2"
 ofile="$3"
 checkSUM="$4"
 rout="$atmp/haloop1_${RANDOM}$$_tmp.log"
 tfile="$atmp/haloop2_${RANDOM}$$_tmp.log"
-#mapfile -t ref_lines < "$ofile" # Load the reference file into memory (for faster grep)
-#for line in "${ref_lines[@]}"; do if [[ "$line" == *"\"$y\""* ]]; then found_line="$line" ; fi ; done
-#	
+mapfile -t ref_lines < "$ofile"
 while IFS= read -r p || [ -n "$p" ]; do
 	found_line=""
 	cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")  
-	y="$( escape "$cFILE")"
+	y="$( escapef "$cFILE")"
 	current_ln="${p//\"$y\"/}"
 	current_ln="$(echo "$current_ln" | xargs)"
-    in=$(echo "$current_ln" | cut -d " " -f3)
+	read -r f1 f2 f3 f4 f5 f6 rest <<< "$current_ln"
+    in="$f3"
     if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then
-		found_line="$(tac "$ofile" | grep -F -m1 "\"$y\"")"
+		for line in "${ref_lines[@]}"; do if [[ "$line" == *"\"$y\""* ]]; then found_line="$line" ; fi ; done
 		if [ -n "$found_line" ]; then
 			sline="$found_line"
 			original_ln="${sline//\"$y\"/}"
 			original_ln="$(echo "$original_ln" | xargs)" 
+			read -r of1 of2 of3 of4 of5 of6 orest <<< "$original_ln"
 			cFILE="$(unescf "$cFILE")"
-			oin=$(echo "$original_ln" | cut -d " " -f3)
+			oin="$of3"
 			if [ -n "$oin" ] && [ "$oin" -ge 0 ] 2>/dev/null; then
-				omt=$(echo "$original_ln" | cut -d " " -f1-2)
-				oat=$(echo "$original_ln" | cut -d " " -f4-5) 
-				org=$(echo "$original_ln" | cut -d " " -f6)
+				omt="$of1 $of2"
+				oat="$of4 $of5" 
+				org="$of6"
 				t=$(date -d "$oat" +%s 2>/dev/null)   
-				dt=$(echo "$current_ln" | cut -d " " -f1-2)
-				cat=$(echo "$current_ln" | cut -d " " -f4-5) 
-				cs=$(echo "$current_ln" | cut -d " " -f6)
+				read -r f1 f2 f3 f4 f5 f6 rest <<< "$current_ln"
+				dt="$f1 $f2"
+				cat="$f4 $f5"
+				cs="$f6"
 				k=$(date -d "$cat" +%s 2>/dev/null)
 				if [ "$dt" == "$omt" ]; then
 					if [ "$checkSUM" == "true" ]; then
 						if [ -n "$t" ] && [ -n "$k" ]; then
 							if [ -n "$org" ] && [ -n "$cs" ] && [ -f "$cFILE" ]; then
-								os=$(echo "$original_ln" | cut -d " " -f7-)
-								csze=$(echo "$current_ln" | cut -d " " -f7-)
+								os="$orest"
+								csze="$rest"
 								if [ -n "$csze" ]; then
 									if [ "$org" != "$cs" ]; then
 										a_checksum=$(md5sum "$cFILE" | awk '{print $1}') 
@@ -77,8 +70,8 @@ while IFS= read -r p || [ -n "$p" ]; do
 								if [ "$org" == "$cs" ]; then
 									echo "Overwrt $dt $y" | tee -a $rout >> "$tfile"
 								else
-									os=$(echo "$original_ln" | cut -d " " -f7-)
-									csze=$(echo "$current_ln" | cut -d " " -f7-)
+									os="$orest"
+									csze="$rest"
 									if [ -n "$t" ] && [ -n "$k" ]; then
 										if [ -n "$csze" ]; then stealth "$cFILE" $os $csze "$y" $cdiag ;fi
 									fi
@@ -92,8 +85,8 @@ while IFS= read -r p || [ -n "$p" ]; do
 						if [ "$checkSUM" == "true" ]; then
 							if [ -n "$org" ] && [ -n "$cs" ]; then
 								if [ "$org" != "$cs" ]; then
-									os=$(echo "$original_ln" | cut -d " " -f7-)
-									csze=$(echo "$current_ln" | cut -d " " -f7-)
+									os="$orest"
+									csze="$rest"
 									if [ -n "$t" ] && [ -n "$k" ]; then
 										if [ -n "$csze" ]; then stealth "$cFILE" $os $csze "$y" $cdiag ;fi
 									fi
@@ -112,3 +105,4 @@ while IFS= read -r p || [ -n "$p" ]; do
 	fi
 done < "$SORTCOMPLETE"
 unset IFS
+
