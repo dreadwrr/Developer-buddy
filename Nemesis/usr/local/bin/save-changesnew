@@ -7,12 +7,12 @@ get_colors
 . /usr/local/save-changesnew/save-changesnewfnts
 if [ `whoami` != "root" ]; then
     echo "Please enter your root password below"
-    su - -c "/usr/local/bin/save-changesnew '${BASEDIR}' '${USER}' "  # if your script is else where change this to location
+    su - -c "/usr/local/bin/save-changesnew '${BASEDIR}' '${USER}' "
     exit
 else
-    if [ "$2" == "" ]; then theUSER="guest"; else theUSER=$2; fi # the user from root call used for chown modules to specific user 
+    if [ "$2" == "" ]; then theUSER="guest"; else theUSER=$2; fi
 fi
-thetgt="$1" ; if [ "$thetgt" == "" ]; then thetgt=$BASEDIR; fi     # <----- for autosaving change to "/mnt/sda"  ie   /mnt/sda3                                                        
+thetgt="$1" ; if [ "$thetgt" == "" ]; then thetgt=$BASEDIR; fi     # <----- for autosaving change to "/mnt/sda"  ie   /mnt/sda3          /etc/rc.d/rc.local_shutdown                                              
 if  ! id $2 >/dev/null 2>&1; then echo "user:" ${2} "not found"; exit 0 ; fi # quick user check we test the target directory $1 after VARS
 if ! grep -iq "Artix" /etc/os-release; then echo "Wrong version of developer buddy. Please use porteus version." && exit 0 ; fi
 # CHANGABLE 
@@ -150,7 +150,7 @@ LOGFILE="save.sfiles.tmp"														#; SVFILES=$MNAME/home/$USR/Downloads/sav
 #Used for changes-exit conf
 IFOLDERS=""																;			rname=""
 adtCMD=""																;			MODULENM="" 
-sentinal=""																#;			thetgt=$BASEDIR  ##thetgt="/mnt/sda3"   <----- change if actual root
+sentinal=""
 mbyte=1048576														;			osize=0   # the original size of changes folder to be captured before moving things to /tmp
 #booleans
 rlt=""
@@ -309,7 +309,8 @@ emfld="${em#/}"
 
 rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
 
-[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt} && [[ "$rlt" == *"$target"* ]] && { rlt=${rlt%/} && target=""; }
+[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt}
+[[ "$rlt" == *"$target"* ]] && rlt=${rlt%/} && target=""
 if [ "$rlt" != "" ]; then osize=$( du -sb "${target}${rlt}${MODULENM}/" | cut -f1); fi # original size
 
 exldir $exclfiles

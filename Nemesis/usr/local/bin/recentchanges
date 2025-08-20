@@ -25,7 +25,7 @@ get_colors
 . /usr/local/save-changesnew/comp
 # If you want xed or featherpad to open uncomment at bottom of script
 # CHANGEABLE       New to version 3   
-export backend="database" 	# default    bash 2 gpg and queries text based stable tested
+export backend="default" 	# default    bash 2 gpg and queries text based stable tested
 											# database   binary database faster queries 1 gpg and python (easier ha)
 
 export email="john.doe@email.com" # default for asymmetrical gpg auth for STATPST
@@ -47,7 +47,7 @@ export tmpSRHS=7 # Default 7 store most recent searches in /tmp try 30 and then 
                                 # for hybrid analysis in diff file
                                  # also queries ie recentchanges query stats 
 
-export mMODE="mc"  # normal default. robust less prone to failure
+export mMODE="mem"  # normal default. robust less prone to failure
 								  # mem    balanced store search in arrays less i/o									
 								   # mc      turbo mode run the search in parallel or multiple cores. 
 
@@ -520,10 +520,11 @@ if [ -s $SORTCOMPLETE ]; then
         if [ -s $ofile ]; then 
             sort -u -o $ofile $ofile
 			cc="$(hanly $SORTCOMPLETE $ofile)"
-			ret=$?	
-			if [ "$ret" -ne 0 ]; then
-				echo "failure in ANALYTICS hanly subprocess"
-			fi
+			#ret=$?	
+			#if [ "$ret" -ne 0 ]; then
+			#	echo "failure in ANALYTICS hanly subprocess"
+			#fi
+			[[ -n "$cc" && "$cc" == "csum" ]] && { awk '{ print "\033[31m *** Checksum of file \033[0m" $0 "\033[31m altered without a modified time\033[0m" }' /tmp/cerr && rm /tmp/cerr; } || [[ -n "$cc" ]] && echo "Detected $cc CPU cores."
         fi        
     fi
     if [ "$STATPST" == "true" ]; then  # STATPST SRG
@@ -535,10 +536,10 @@ if [ -s $SORTCOMPLETE ]; then
 					     if [ -s $ofile ]; then 
 					        sort -u -o $ofile $ofile 
 					   	   	cc="$(hanly $SORTCOMPLETE $ofile)" #hybrid analysis	 and difffile output
-							ret=$?
-							if [ "$ret" -ne 0 ]; then
-								echo "failure in STATPST hanyl subprocess"
-							fi
+							#ret=$?
+							#if [ "$ret" -ne 0 ]; then
+							#	echo "failure in STATPST hanyl subprocess"
+							#fi
 					    fi
 						pstc="true"				
 					else
