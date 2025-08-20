@@ -22,7 +22,6 @@ for x in "${files[@]}"; do
             else
                 adtcmd=""
             fi
-			
             output="$mt \"$y\" $i $ats $adtcmd"
 			printf '%s\n' "$output" >> "$SORTCOMPLETE"
         fi

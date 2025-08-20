@@ -13,7 +13,7 @@ while IFS= read -r p || [ -n "$p" ]; do
 	y="$( escapef "$cFILE")"
 	current_ln="${p//\"$y\"/}"
 	current_ln="$(echo "$current_ln" | xargs)"
-	read -r f1 f2 f3 f4 f5 f6 rest <<< "$current_ln"
+	read -r f1 f2 f3 f4 f5 f6 f7 <<< "$current_ln"
     in="$f3"
     if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then
 		for line in "${ref_lines[@]}"; do if [[ "$line" == *"\"$y\""* ]]; then found_line="$line" ; fi ; done
@@ -21,7 +21,7 @@ while IFS= read -r p || [ -n "$p" ]; do
 			sline="$found_line"
 			original_ln="${sline//\"$y\"/}"
 			original_ln="$(echo "$original_ln" | xargs)" 
-			read -r of1 of2 of3 of4 of5 of6 orest <<< "$original_ln"
+			read -r of1 of2 of3 of4 of5 of6 of7 <<< "$original_ln"
 			cFILE="$(unescf "$cFILE")"
 			oin="$of3"
 			if [ -n "$oin" ] && [ "$oin" -ge 0 ] 2>/dev/null; then
@@ -29,7 +29,6 @@ while IFS= read -r p || [ -n "$p" ]; do
 				oat="$of4 $of5" 
 				org="$of6"
 				t=$(date -d "$oat" +%s 2>/dev/null)   
-				read -r f1 f2 f3 f4 f5 f6 rest <<< "$current_ln"
 				dt="$f1 $f2"
 				cat="$f4 $f5"
 				cs="$f6"
@@ -38,8 +37,8 @@ while IFS= read -r p || [ -n "$p" ]; do
 					if [ "$checkSUM" == "true" ]; then
 						if [ -n "$t" ] && [ -n "$k" ]; then
 							if [ -n "$org" ] && [ -n "$cs" ] && [ -f "$cFILE" ]; then
-								os="$orest"
-								csze="$rest"
+								os="$of7"
+								csze="$f7"
 								if [ -n "$csze" ]; then
 									if [ "$org" != "$cs" ]; then
 										a_checksum=$(md5sum "$cFILE" | awk '{print $1}') 
@@ -70,8 +69,8 @@ while IFS= read -r p || [ -n "$p" ]; do
 								if [ "$org" == "$cs" ]; then
 									echo "Overwrt $dt $y" | tee -a $rout >> "$tfile"
 								else
-									os="$orest"
-									csze="$rest"
+									os="$of7"
+									csze="$f7"
 									if [ -n "$t" ] && [ -n "$k" ]; then
 										if [ -n "$csze" ]; then stealth "$cFILE" $os $csze "$y" $cdiag ;fi
 									fi
@@ -85,8 +84,8 @@ while IFS= read -r p || [ -n "$p" ]; do
 						if [ "$checkSUM" == "true" ]; then
 							if [ -n "$org" ] && [ -n "$cs" ]; then
 								if [ "$org" != "$cs" ]; then
-									os="$orest"
-									csze="$rest"
+									os="$of7"
+									csze="$f7"
 									if [ -n "$t" ] && [ -n "$k" ]; then
 										if [ -n "$csze" ]; then stealth "$cFILE" $os $csze "$y" $cdiag ;fi
 									fi
@@ -105,4 +104,3 @@ while IFS= read -r p || [ -n "$p" ]; do
 	fi
 done < "$SORTCOMPLETE"
 unset IFS
-
