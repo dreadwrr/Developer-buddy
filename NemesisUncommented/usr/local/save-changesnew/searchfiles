@@ -1,0 +1,35 @@
+#!/bin/bash
+atmp="$1"
+checkSUM="$2"
+shift 2
+tout="$atmp/searchfiles1_${RANDOM}$$_tmp.log"
+COMPLETE="$atmp/searchfiles2_${RANDOM}$$_tmp.log"
+files=("$@") 
+for x in "${files[@]}"; do
+	y="${x//$'\n'/\\n}"
+	if [ -e "$x" ] && [ -f "$x" ]; then
+		stat_output=$(stat -c "%Y %X %Z %i" "$x")
+		read -r mtime atime itime i <<< "$stat_output"
+		ct=$(date -d "@$itime" +"%Y-%m-%d %H:%M:%S")
+		at=$(date -d "@$atime" +"%Y-%m-%d %H:%M:%S")
+		if [ -n "$ct" ]; then
+			if (( itime > mtime )); then
+				if [ "$checkSUM" == "true" ]; then
+					csum=$(md5sum "$x")
+					csum=${csum%% *}
+					fs=$(stat --format=%s "$x") 
+					adtcmd="$csum $fs"
+				else
+					adtcmd=""
+				fi
+				if [ -n "$ct" ] && [ -n "$at" ]; then
+					output="$ct \"$y\" $i $at $adtcmd"
+					printf '%s\n' "$output" >> "$tout"
+				fi
+			fi
+		fi
+	else
+		printf 'NOTA-FI-LE 77:77:77 "%s"\n' "$y" >> "$tout"
+		printf 'Nosuchfile,,%s\n' "$y" >> "$COMPLETE"
+	fi
+done
