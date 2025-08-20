@@ -1,0 +1,81 @@
+#!/bin/bash
+# save-changesnew functions to move options further up the script             08/14/2025
+dycmb() {
+    TFLD="$(for x in $( echo $FOLDERS); do test -e "$ch/$x" && echo "$x"; done)"  
+    FOLDERS="$TFLD" ; TFLD=""
+    [[ -n "$IFOLDERS" ]] && TFLD="$(for x in $(echo "$IFOLDERS"); do [[ ! " $FOLDERS " == *" $x "* ]] && test -e "$ch/$x" && echo "$x" ; done)" # Dynamically build with changes-exit conf
+    [[ -n "$TFLD" ]] && { IFOLDERS="$TFLD" ; FOLDERS=$IFOLDERS; } # combine
+    
+}
+exldir() {
+	read -ra arr <<< "$EXCLUDE" 
+	> $1
+	for item in "${arr[@]}"; do
+		if [[ "${item:0:1}" == "/" ]]; then
+		    echo ".${item}" >> $1
+		else
+		    echo $item >> $1
+		fi
+	done
+	grep ^!/ $CHNEXIT_CONF | fixdir > $EXCL
+	if [ -s "$EXCL" ]; then
+		cat $EXCL | fixexcl > $EXCLUDED
+		sed -i 's|^|/|' $EXCLUDED
+		EXCLUDE="$EXCLUDE $(tr '\n' ' ' < $EXCLUDED | sed 's/ *$//')"
+		sed -i 's|^/|./|' $EXCLUDED
+		grep -Fvxf $1 $EXCLUDED >> $UPDATE; test -s $UPDATE && cat $UPDATE >> $1
+	fi 			
+}
+dlog() {
+	if [ "$d2drive" == "true" ]; then
+       for fld in $FOLDERS; do
+            fp="$dirSRC/$fld"                    
+            if [ -d "$fp" ]; then
+                find "$fp" -type f -printf '%P\n' | sed "s|^|/$fld/|" >> "${target}${rlt}${MODULENM}.bak.log"
+            fi
+        done
+        for fld in $EXCLUDE; do
+            fp="$dirSRC/$fld"                    
+			if [[ "${fp:0:1}" == "/" ]]; then
+			  e=$(sed 's/[&/\]/\\&/g' <<< "$fp" )
+				p="^"
+			else
+			  e="$fp" ; p=""
+			fi
+			sed "/$p$e/d" "${target}${rlt}${MODULENM}.bak.log"
+		done
+    else
+        find "$dirSRC" -type f -printf '%P\n' >> "${target}${rlt}${MODULENM}.bak.log"
+    fi
+    echo >> "${target}${rlt}${MODULENM}.bak.log"
+}
+glog() {
+local k
+local p
+b=$( sed -nE 's/.original count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
+: "${b:-0}"
+c=$( sed -nE 's/.total count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
+: "${c:-0}"
+c=$(( c + b ))
+k=$( sed -nE 's/.*original size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
+: "${k:=Unkown}"
+
+p=$osize
+if [ "$1" == "true" ]; then > "${target}${rlt}${MODULENM}.bak.log" ; fi
+dlog
+
+echo "original size(source)=$k" >> "${target}${rlt}${MODULENM}.bak.log"
+echo "new size(source)=$p" >> "${target}${rlt}${MODULENM}.bak.log"
+if (( c != 0 )); then
+    echo "original count=$c" >> "${target}${rlt}${MODULENM}.bak.log"
+fi
+
+echo  "END ORIGINAL FILES $(date +"%m-%d-%y_%R")" >> "${target}${rlt}${MODULENM}.bak.log"
+nLOG="true" 
+}
+rand_alpha() { letters=( {A..Z} {a..z} ); echo -n "${letters[RANDOM % 52]}${letters[RANDOM % 52]}" ; }
+loadermsg() { green "Updated bootloader in /syslinux/"; cyan "if you use a different loader use cheatcode extramod=${target}${em} include changes modules" ; }
+fixdir() { sed -e 's_\._\\._g' -e 's_?_._g' -e 's_*_.*_g' -e 's@..@^@'; }
+fixsqh() {  sed -e 's|^/||'; }
+fixwh() { sed -e '/^\^/!s@^@^@' -e 's_\._\\._g' -e 's_?_\\?_g' -e 's_+_\\+_g' -e 's_*_\\*_g' -e 's_\$_\\$_g' -e 's_\[_\\[_g' -e 's_(_\\(_g' -e 's_\&_\\&_g' -e 's_\(^.\)\^\(.*\)_\1\\^\2_'; } # Translating
+fixexcl() { sed -e 's/^\^//'; }
