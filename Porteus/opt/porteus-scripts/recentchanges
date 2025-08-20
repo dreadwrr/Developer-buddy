@@ -55,7 +55,7 @@ export tmpSRHS=7 # Default 7 store most recent searches in /tmp try 30 and then 
                                 # for hybrid analysis in diff file
                                  # also queries ie recentchanges query stats 
 
-export mMODE="mc"  # normal default. robust less prone to failure
+export mMODE="mem"  # normal default. robust less prone to failure
 								  # mem    balanced store search in arrays less i/o									
 								   # mc      turbo mode run the search in parallel or multiple cores. 
 
