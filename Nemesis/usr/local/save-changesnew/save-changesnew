@@ -32,19 +32,20 @@ get_colors
 . /usr/local/save-changesnew/save-changesnewfnts
 if [ `whoami` != "root" ]; then
     echo "Please enter your root password below"
-    su - -c "/usr/local/bin/save-changesnew '${BASEDIR}' '${USER}' "  # if your script is else where change this to location
+    su - -c "/usr/local/bin/save-changesnew '${BASEDIR}' '${USER}' " 
     exit
 else
-    if [ "$2" == "" ]; then theUSER="guest"; else theUSER=$2; fi
+    if [ "$2" == "" ]; then theUSER="guest"; else theUSER=$2; fi 
 fi
-thetgt="$1" ; if [ "$thetgt" == "" ]; then thetgt=$BASEDIR; fi     # <-----  for autosaving change "/mnt/sdx"
+thetgt="$1" ; if [ "$thetgt" == "" ]; then thetgt=$BASEDIR; fi     # <----- change for autosaving   /mnt/sdx         /etc/rc.d/rc.local_shutdown
                                                                           
 if  ! id $2 >/dev/null 2>&1; then echo "user:" ${2} "not found"; exit 0 ; fi # quick user check we test the target directory $1 after VARS
 if ! grep -iq "Artix" /etc/os-release; then echo "Wrong version of developer buddy. Please use porteus version." && exit 0 ; fi
 
 # CHANGABLE 
-                                # the user from root call used for chown modules to specific user 
-
+                                
+grubln=""                                     # default null.  to automatically update grub for graphics extramod to boot with changes                     
+bootdvc=""		                              # default null.  if booting from another harddrive for bootloader   ie   /mnt/sdc1   porteus bootloader        or      where grub2 is installed  example /mnt/nvme0n1p8      
 target=$thetgt                               # change this to specify the location of porteus install this passed from root call where porteus is installed via $BASEDIR
                                                 # examples      "/mnt/sda1"
                                                 #                   "/dev/sda1"
@@ -177,7 +178,7 @@ LOGFILE="save.sfiles.tmp"														#; SVFILES=$MNAME/home/$USR/Downloads/sav
 #Used for changes-exit conf
 IFOLDERS=""																;			rname=""
 adtCMD=""																;			MODULENM="" 
-sentinal=""																
+sentinal=""					
 mbyte=1048576														;			osize=0   # the original size of changes folder to be captured before moving things to /tmp
 #booleans
 rlt=""
@@ -1048,42 +1049,34 @@ else
 
     #
     ### Bootloader section 
-    test -e "$thetgt/boot/syslinux/porteus.cfg" && rlt=$( sed -n '43p' "$thetgt/boot/syslinux/porteus.cfg" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on line 43?  ## Notes returns the value grep 'extramod=[^ ]*')
+	line=43
+	pth="/boot/syslinux/porteus.cfg"
+	[[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; } && [[ "$bootdvc" != "" ]] && thetgt=$bootdvc
+	[[ -n "$grubln" ]] && test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth.bak
+    test -e "$thetgt/boot/syslinux/porteus.cfg" && rlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on ln?  ## Notes returns the value grep 'extramod=[^ ]*')
 
-    # escape any | or &
-    #                                               $epath
-    epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g') #escape any | or & if the directory has it so it doesnt break sed
+    epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g')
 
-    #   Is extramod already in the config file?
-    # it is there so we append to the start of it
     if [ "$rlt" != "" ]; then
-        if [[ ! "${rlt}" == *$BASEDIR"/"$emfld* ]]; then #if extramod is not anywhere after extramod=      we append it   case insensitive #${rlt,,} switches to all lower case
+        if [[ ! "${rlt}" == *$BASEDIR"/"$emfld* ]]; then
 
             test -d "$target$em" || mkdir -p "$target$em"
-            #sed -i "s|\(extramod=\)|\1${target}/extramod;|" 
 
             #append to start of boot loader
-            sed -i "s|\(extramod=\)\([^ ]*\)|\1${epath};\2|" "$thetgt"/boot/syslinux/porteus.cfg 
+            sed -i "s|\(extramod=\)\([^ ]*\)|\1${epath};\2|" "$thetgt$pth"
             loadermsg
 
-            #
-            #
-            # 
-            # the user may have changed the name for the "extramod" folder of the changes modules created by this script
-            # check the other extramod directorires in cmdline for *_uid_*.xzm and if any move them to the new one 
-            ###
             IFS=';' read -ra parts <<< "${rlt}"
             unset IFS
             u=""
 
             for part in "${parts[@]}"; do
-                erlt=$( sed -n '43p' "$thetgt/boot/syslinux/porteus.cfg" | grep -oP 'extramod=\K[^ ]*') #used to remove entry from bootloader if conditions are met
+                erlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*')
                 testfile="${part}/.writetest_${$}"
 
                 if touch "$testfile" 2>/dev/null; then
                     rm -f "$testfile"
 
-                    # are there any _uid_.xzm files to new extramod dir?
                     for file in "${part}"/*_uid_*.xzm; do
                         [ -e "$file" ] || continue
                         mv "$file" "${target}${em}"
@@ -1101,19 +1094,13 @@ else
                 fi
 
                 if [ "$u" == "true" ] && [ -d "$part" ] && [ -z "$(ls -A "$part")" ]; then
-                    #we have moved the modules and it is now empty
-                    ##
-                    ### remove it from the bootloader
-                    #sed -i '/total count=[0-9]\+/d' "$target"/boot/syslinux/porteus.cfg              
-                    #sed -i "s|\(extramod=\)\([^ ]*\)|\1${target}${em};\2|" "$target"/boot/syslinux/porteus.cfg      
 
-                    # Remove with semicolon 
-                    erlt="${erlt//;$part/}"   # middle or end
-                    erlt="${erlt//$part;/}"   # beginning
-                    erlt="${erlt//$part/}"     # only one item         
+                    erlt="${erlt//;$part/}"
+                    erlt="${erlt//$part;/}"
+                    erlt="${erlt//$part/}" 
 
                     erlt=$(printf '%s' "$erlt" | sed 's/[&|]/\\&/g')   #escape | and also & which may appear in a directory so doesnt break sed
-                    sed -i "s|\(extramod=\)[^ ]*|\1${erlt}|" "$thetgt"/boot/syslinux/porteus.cfg 
+                    sed -i "s|\(extramod=\)[^ ]*|\1${erlt}|" "$thetgt$pth"
                     cyan "bootloader updated"
                 fi
             done
@@ -1121,21 +1108,18 @@ else
             if [ "$u" != "" ]; then
                 green "all previous changes modules in other extramod directories moved to new extramod dir"
             fi
-
-            # we have to check how changes modules are handled. We dont know if we are either using this script for the first time
-            # or changing the name for the changes directory. So we have to figure out how to move from here to there
-            #
-            #
-            #
-            #
         fi
-    
-    #its not after APPEND in graphics boot option so insert it
     else
-        sed -i '43s/ *extramod= *//g' "$thetgt/boot/syslinux/porteus.cfg"
-        test -e "$thetgt/boot/syslinux/porteus.cfg" && { sed -i "0,/APPEND/ s|\(APPEND\)|\1 extramod=${epath}|" "$thetgt"/boot/syslinux/porteus.cfg; loadermsg; } || echo "Using other bootloader append ${target}${em} to it with extramod=" 
+		cmd="sed -i \"0,/APPEND/ s|\\(APPEND\\)|\\1 extramod=${epath}|\" \"$thetgt$pth\""
+		if [ -n "$grubln" ]; then
+			cmd="sed -i \"${line}s/\\\$/ extramod=${epath}/\" \"$thetgt$pth\""
+		fi
+		test -e "$thetgt$pth" && bash -c "$cmd" || echo "Using other bootloader append ${target}${em} to it with extramod=" 
+       
+		# 	test -e "$thetgt$pth" && { sed -i "0,/APPEND/ s|\(APPEND\)|\1 extramod=${epath}|" "$thetgt$pth"; loadermsg; } || echo "Using other bootloader append ${target}${em} to it with extramod=" 
+		#	test -e "$thetgt$pth" && sed -i "${line}s/\$/ extramod=${epath}/" "$thetgt$pth"; loadermsg || echo "Using other bootloader append ${target}${em} to it with extramod=" 
         
-    fi 
+    fi
     ### END Bootloader section
     #
 
