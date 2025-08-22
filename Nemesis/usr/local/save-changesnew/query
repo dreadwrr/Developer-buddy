@@ -1,15 +1,15 @@
-#!/bin/bash 
+#!/bin/bash
 #   recentchanges query                recentchanges v3.0                                                                                08/11/2025
 #   retrieval of data  from  /tmp  or  logpst and statpst
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/heuristics
-# CHANGABLE 
+# CHANGABLE
 # CHANGABLE booleans
 outputTFILE="false"            # show the report in /tmp?
 
 outputPSTFILE="false"       # .   .               /home/guest/Downloads
-genPSTTFILE="false"           # Run heuristics on PST and include in the report?       
+genPSTTFILE="false"           # Run heuristics on PST and include in the report?
 # End CHANGABLE
 dr=/usr/local/save-changesnew
 logpst=$dr/logs.gpg
@@ -33,7 +33,7 @@ if [ "$STATPST" == "true" ]; then
 			rm query_MDY* > /dev/null 2>&1
 			{
             green "Logs archive"
-			cyan "Top 3(1) directories(dir)"			
+			cyan "Top 3(1) directories(dir)"
 			dirs=$(awk '
 			{
 				# Match quoted file path in the line
@@ -77,7 +77,7 @@ if [ "$STATPST" == "true" ]; then
 			} 2>&1 | tee $output_file
 			echo
 			echo
-			[ "$genPSTTFILE" == "true" ] && { green "Generating heuristics..." ; { echo; echo "Heuristics"; echo; } >> $TOPT; } && /usr/local/save-changesnew/heuristics $xdata $TOPT && { echo; green "Heuristics complete"; } 
+			[ "$genPSTTFILE" == "true" ] && { green "Generating heuristics..." ; { echo; echo "Heuristics"; echo; } >> $TOPT; } && /usr/local/save-changesnew/heuristics $xdata $TOPT && { echo; green "Heuristics complete"; }
             #shred -u $xdata
             rm $xdata
 			perl -pe 's/\e(\[[0-9;?]*[a-zA-Z]|[\(\)][AB])//g' -i "$output_file"   # remove ASCII text
@@ -85,7 +85,7 @@ if [ "$STATPST" == "true" ]; then
                 cyan "Pulling from stats archive"
                 if gpg -d -o $xdata $statpst; then
 					#cp $xdata /tmp/statdebut
-					{					
+					{
                     green "Stats gpg"
                     echo
 					cyan "Most Modified"
@@ -233,13 +233,13 @@ if [ "$STATPST" == "true" ]; then
 					}
 				}
 				' "$xdata" | sort -rn | head -5
-					} 2>&1 | tee -a $output_file 
+					} 2>&1 | tee -a $output_file
 					echo >> $output_file
 				echo
                     rm $xdata
                 else
                     echo "Error decrypting ${statpst} stat file. Skipping"
-                fi		
+                fi
 				[ -s "$TOPT" ] && cat $TOPT >> $output_file && rm $TOPT #Append any heuristics Search statistics
 				perl -pe 's/\e(\[[0-9;?]*[a-zA-Z]|[\(\)][AB])//g' -i "$output_file"   # remove ASCII text
                 ### End Stat queries
@@ -261,7 +261,7 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then
             if [[ $x -lt $fs ]]; then echo >> $ofile; fi
         done
 		# Init
-		sed -i '/NOTA-FI-LE 77:77:77/d' $ofile 
+		sed -i '/NOTA-FI-LE 77:77:77/d' $ofile
 		cd /tmp || exit
 		rm query_MDY* > /dev/null 2>&1
         #Heuristic session?
@@ -273,13 +273,13 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then
 			if (arr[1] != "") print arr[1]
 		}' "$ofile" | sort | uniq -c | sort -nr | head -n 5
         echo
-		#read -r -p "any key continue..." 
+		#read -r -p "any key continue..."
 		echo
         echo "Initiating recursive checks..."
 		aat $ofile
 		hr $ofile
 		asz $ofile
-		read -r -p "any key continue..." 
+		read -r -p "any key continue..."
 		echo #read -r -p "any key continue..." k
 		x=$( sed -n '/^[[:space:]]*$/p' $ofile | wc -l) #Average hour
 		if [ $x -eq 0 ]; then x=1; fi
@@ -365,19 +365,19 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then
     		gsub(/[:]/, "", time)
     		return date time
 		}
-		
+
 		{
     		n = split($0, lines, "\n")
     		delete files
     		min_ts = ""
     		max_ts = ""
-		
+
     		for (i = 1; i <= n; i++) {
         		split(lines[i], parts, /[ \t]+/)
         		ts_num = toNumTimestamp(parts[1], parts[2])
         		if (min_ts == "" || ts_num < min_ts) min_ts = ts_num
         		if (max_ts == "" || ts_num > max_ts) max_ts = ts_num
-		
+
         		pos = match(lines[i], /"[^"]+"/)
         		if (pos > 0) {
             		filepath = substr(lines[i], RSTART, RLENGTH)
@@ -386,33 +386,33 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then
         		} else {
             		filepath = ""
         		}
-		
+
         		if (filepath != "") {
             		files[filepath] = 1
         		}
     		}
-		
+
     		snapshot_num = NR
     		min_times[snapshot_num] = min_ts
     		max_times[snapshot_num] = max_ts
-		
+
     		for (k in snapshots) {
         		split(k, arr, SUBSEP)
         		if (arr[1] == snapshot_num) {
             		delete snapshots[k]
         		}
     		}
-		
+
     		for (f in files) {
         		key = snapshot_num SUBSEP f
         		snapshots[key] = 1
     		}
-		
+
     		if (snapshot_num > 1) {
         		if (min_ts <= max_times[snapshot_num-1] && min_times[snapshot_num-1] <= max_ts) {
             		print "Snapshots " snapshot_num-1 " and " snapshot_num " overlap in time."
             		print "Deleted files between snapshots " snapshot_num-1 " and " snapshot_num ":"
-		
+
             		deleted_found = 0
             		for (k in snapshots) {
                 		split(k, arr, SUBSEP)
@@ -432,12 +432,12 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then
             		print ""
         		}
     		}
-		
+
     		print "===END_OF_SNAPSHOT==="
     		# fflush()
 		}
 		'
-        echo #read -r -p "any key continue..." 
+        echo #read -r -p "any key continue..."
 		echo "Type" # Heuristic session?
 		awk -v RS="" '
 		function to_epoch(ts,    cmd, epoch) {
@@ -509,9 +509,9 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then
       		} else {
         		inode = ""
       		}
-		
+
       		if (path == "" || inode == "") continue
-		
+
       		if (prev_inode[path] && prev_inode[path] != inode) {
         		changes[path]++
         		found = 1        # Mark that we found at least one change
@@ -520,11 +520,11 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then
     		}
   		}
 		}
-		
+
 		{
   		snapshots[NR] = $0
 		}
-		
+
 		END {
   		start = (NR > max) ? NR - max + 1 : 1
   		for (i = start; i <= NR; i++) {
@@ -538,7 +538,7 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then
 		}
 		' "$ofile" | sort -rn | head -7
         ) 2>&1 | tee "$output_file"
-        rm $ofile     
+        rm $ofile
     fi
 fi
 if [ -s $flth ]; then #filter hits
@@ -547,13 +547,13 @@ if [ -s $flth ]; then #filter hits
     echo
     cyan "Accessing filter"
     green "Filter"
-    cat $flth 
+    cat $flth
 	) 2>&1 | tee -a $output_file
 
 	if [ "$outputTFILE" = "true" ]  && [ "$STATPST" == "false" ] && [ -d $trc ]; then
 		test -e $output_file && green "Report in /tmp"
 		cp $output_file /tmp$report
-	fi	
+	fi
 	if [ "$outputPSTFILE" == "true" ] && [ "$STATPST" == "true" ]  && [ "$genPSTTFILE" == "true" ] && [ -s $logpst ]; then
 		green "Report in /Downloads along with heuristics"
 		cp $output_file /home/$2/Downloads$report

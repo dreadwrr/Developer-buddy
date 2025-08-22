@@ -1,5 +1,5 @@
-#!/bin/bash                  
-#	Compile Search - Detect system changes and build custom profile  v3.0 07/24/2025    
+#!/bin/bash
+#	Compile Search - Detect system changes and build custom profile  v3.0 07/24/2025
 # Also borred script features from various scripts on porteus forums
 # working off of base save-changes script by
 # Author: Brokenman <brokenman@porteus.org>
@@ -10,14 +10,14 @@ get_colors
 
 #CHANGEABLE
 platform="nemesis"  #default nemesis    ie porteus
-#Customize the search																
-deepscanBK=60   # Default 60    Change these for foward and back      
-deepscanFWR=300 # 300												    
+#Customize the search
+deepscanBK=60   # Default 60    Change these for foward and back
+deepscanFWR=300 # 300
 scanBK=30 # 30
-scanFWR=60 # 60						
+scanFWR=60 # 60
 deltaDIFF=0	 #dont change this
 #CHANGEABLE BOOLEANS
-cFILTER="false" # default false      actually create the filter 
+cFILTER="false" # default false      actually create the filter
 #END CHANGEABLE
 
 if [ `whoami` != "root" ]; then
@@ -37,11 +37,11 @@ SORTCOMPLETE=$tmp/list_complete_sorted.txt  	;   SRTCOMPLETETWO=$tmp/list_srtcom
 TMPCOMPLETE=$tmp/tmp_complete.txt              	;   USRDIR=/home/$USR
 UPDATE=$tmp/save.transferlog.tmp		            	;   moduleDIR=/CustomFilter$$
 chxzm=/rntfiles.xzm								    			;	CONFIGDIR=/.config/save-changesnew
-INSTRU="/xCustomFilterInstructions"				    	;	PRFLFLT=$tmp/list_sedfilters.txt		
-SNDRYDIR="false"													;	BASEDIR="false"	
+INSTRU="/xCustomFilterInstructions"				    	;	PRFLFLT=$tmp/list_sedfilters.txt
+SNDRYDIR="false"													;	BASEDIR="false"
 SYSCHG="false"														;	FLTCHG="false"
-inputTIME="false"													;	inputSCAN="false"	
-inputSED="true"														;   validRLT="false"					 					
+inputTIME="false"													;	inputSCAN="false"
+inputSED="true"														;   validRLT="false"
 diffRLT="false"
 if [ $deepscanBK -lt 10 ] || [ $scanBK -lt 10 ]; then echo "unsupported time. please select number ge to 10"; exit 1; fi
 if [ $deepscanBK -ge $deepscanFWR ] || [ $scanBK -ge $scanFWR ]; then echo Scan back is greater than scan forwards; exit 1; fi
@@ -68,31 +68,31 @@ read input
 if [ "$input" == "N" ]  || [ "$input" == "n" ]; then
 	inputSED="false"
 	echo "                             "
-    echo "you answered no setting saved." 
+    echo "you answered no setting saved."
 else
 	echo "custom sed filters will be made"
-	 
+
 fi
 echo "                               "
 echo  "processing... "
 mkdir $tmp
 if [ "$xMODE" == "compile" ]; then
-    
+
     if [[ "$inputSCAN" == "true" ]]; then
     	cyan   "Starting deep scan. scanning back $deepscanBK seconds. continue to use your machine as you normally would "
     	f=$deepscanBK
     	deltaDIFF=$(( deepscanFWR + deepscanBK ))
-    	
+
     else
     	cyan   "Starting regular scan. scanning back $scanBK seconds. continue to use your machine as you normally would "
-    	f=$scanBK               
-    	deltaDIFF=$(( scanFWR + scanBK )) 
-    fi 
+    	f=$scanBK
+    	deltaDIFF=$(( scanFWR + scanBK ))
+    fi
     comp $f
     cyan    "searching back to get the delta"
-    cyan    "                               "    
+    cyan    "                               "
 	cyan     " while this completes. Suggest grab a coffee   "
-	cyan    "searching for files" $f" seconds old or newer" 
+	cyan    "searching for files" $f" seconds old or newer"
 
 	find /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var -mmin "-"$qtn -not -type d 2> /dev/null |tee $COMPLETE > /dev/null 2> /dev/null
 
@@ -105,7 +105,7 @@ cyan "preliminary sample complete.                     "
 cyan "         Scanning delta"$deltaDIFF" <--------->  "
 cyan "                                                 "
 
-if [ "$inputSCAN" == "true" ]; then        
+if [ "$inputSCAN" == "true" ]; then
 	c=$deepscanFWR
 else
 	c=$scanFWR
@@ -126,36 +126,36 @@ fi
 
 if [ "$inputTIME" == "true" ]; then
 
- 	while IFS= read -r x || [ -n "$x" ]; do 
+ 	while IFS= read -r x || [ -n "$x" ]; do
  		f=$(stat -c '%Y' "$x" 2> /dev/null);
- 		
+
  		theDATE=$( date -d "@$f" +'%Y-%m-%d %H:%M:%S' 2> /dev/null)
  		if [ "${f}" == "" ] || [ "${theDATE}" == "" ]; then
    		 	theDATE="Filedoes notexist"
-		fi	
+		fi
  		h=$theDATE
  		test -e "$x" && { echo $h "$x" || echo "FILEDOES -NOTEXIST" "$x"; } >> $SORTCOMPLETE; done < $COMPLETE
- 		
- 	while IFS= read -r x || [ -n "$x" ]; do 
+
+ 	while IFS= read -r x || [ -n "$x" ]; do
  		f=$(stat -c '%Y' "$x" 2> /dev/null);
- 		
+
  		theDATE=$( date -d "@$f" +'%Y-%m-%d %H:%M:%S' 2> /dev/null)
  		if [ "${f}" == "" ] || [ "${theDATE}" == "" ]; then
    		 	theDATE="Filedoes notexist"
-		fi 				
+		fi
 		h=$theDATE
  		test -e "$x" && { echo $h "$x" || echo "FILEDOES -NOTEXIST" "$x"; } >> $SRTCOMPLETETWO; done < $COMPLETETWO
     else
-  		while IFS= read x; do test -e "$x" &&  { test -f "$x" && echo "$x" || echo "FILEDOES -NOTEXIST" "$x"; } >> $SORTCOMPLETE; done < $COMPLETE   
-		while IFS= read x; do test -e "$x" &&  { test -f "$x" && echo "$x" || echo "FILEDOES -NOTEXIST" "$x"; } >> $SRTCOMPLETETWO; done < $COMPLETETWO   
-    fi  
+  		while IFS= read x; do test -e "$x" &&  { test -f "$x" && echo "$x" || echo "FILEDOES -NOTEXIST" "$x"; } >> $SORTCOMPLETE; done < $COMPLETE
+		while IFS= read x; do test -e "$x" &&  { test -f "$x" && echo "$x" || echo "FILEDOES -NOTEXIST" "$x"; } >> $SRTCOMPLETETWO; done < $COMPLETETWO
+    fi
 unset IFS
 
 
 cp $SORTCOMPLETE $RECENT
 cp $SRTCOMPLETETWO $RECENTTWO
 
-/usr/local/save-changesnew/filter $RECENT $USR $RECENTTWO 
+/usr/local/save-changesnew/filter $RECENT $USR $RECENTTWO
 
 if grep -Fq "^/var/run/" $RECENT; then
     if ! grep -Fq "^/var/run/" $RECENTTWO; then
@@ -165,7 +165,7 @@ fi
 
  if grep -Fq "^/etc" $RECENT; then
     if grep -Fq "^/etc" $RECENTTWO; then
-        BASEDIR="true"      # example /etc is commented so BASEDIR is true #not filtering /etc    it is not filtered 
+        BASEDIR="true"      # example /etc is commented so BASEDIR is true #not filtering /etc    it is not filtered
     fi
 fi
 
@@ -196,9 +196,9 @@ else
 	if (( d >= 10 )); then
 		SYSCHG="true"
 	fi
-	
+
 	echo $BRAND >> $diffFile
-	
+
 	k=$( head -n1 $diffFile | grep "MDY")
 	if [ -z "$k" ]; then
 
@@ -207,21 +207,21 @@ else
     	echo xSysDifferences$deltaDIFF"xSearch is total unfiltered system changes. The total differences" >> $USRDIR$CONFIGDIR$INSTRU
     	echo "exactly what has changed. " >> $USRDIR$CONFIGDIR$INSTRU
     	echo "                                               " >> $USRDIR$CONFIGDIR$INSTRU
-   
-    	cp $SORTCOMPLETE $USRDIR$CONFIGDIR"/xSysDifferences"$deltaDIFF"secondsxSearch"	
+
+    	cp $SORTCOMPLETE $USRDIR$CONFIGDIR"/xSysDifferences"$deltaDIFF"secondsxSearch"
 	fi
 fi
-if [[ "$inputSED" == "true" ]]; then 	
-    	
+if [[ "$inputSED" == "true" ]]; then
+
     echo "                                         " >> $USRDIR$CONFIGDIR$INSTRU
 	echo "xSysDifferences"$deltaDIFF"secondsSeds are drag and drop into recent changes. " >> $USRDIR$CONFIGDIR$INSTRU
 	echo " so you can review either and add some new filters     " >> $USRDIR$CONFIGDIR$INSTRU
 	echo "                                                  " >> $USRDIR$CONFIGDIR$INSTRU
-    	
-	if [[ "$inputTIME" == "true" ]]; then 
+
+	if [[ "$inputTIME" == "true" ]]; then
 		awk '{print $3}' $SORTCOMPLETE > $TMPCOMPLETE
 	else
-		awk '{print $1}' $SORTCOMPLETE > $TMPCOMPLETE   	
+		awk '{print $1}' $SORTCOMPLETE > $TMPCOMPLETE
     fi
    	sed -i 's![^/]*$!!' $TMPCOMPLETE
    	sed -i 's/\/$//' $TMPCOMPLETE
@@ -231,7 +231,7 @@ if [[ "$inputSED" == "true" ]]; then
 	sed -i "s/$/\/d'/g" $PRFLFLT
 	awk '!seen[$0]++' $PRFLFLT > $TMPCOMPLETE ; cat $TMPCOMPLETE > $PRFLFLT
 	echo $BRAND >> $PRFLFLT
-	cp $PRFLFLT $USRDIR$CONFIGDIR"/xSysDifferences"$deltaDIFF"secondsSeds"			
+	cp $PRFLFLT $USRDIR$CONFIGDIR"/xSysDifferences"$deltaDIFF"secondsSeds"
 fi
 diffFileTwo=$tmp"/xCustomFilterProfile"
 
@@ -244,7 +244,7 @@ if [ ! -s $diffFileTwo ]; then
 	echo " made it past the filters. This was the active search" >> $USRDIR$CONFIGDIR$INSTRU
 	echo "                                               " >> $USRDIR$CONFIGDIR$INSTRU
 	cp $RECENT $USRDIR$CONFIGDIR"/xCustomFilterProfile"
-else	
+else
 	echo $BRAND >> $diffFileTwo
 	d=$( grep -c ^ $diffFileTwo)
 	if (( d >= 4 )); then
@@ -252,7 +252,7 @@ else
 	fi
 	if (( d == 1)); then
 		echo "only 1 file made it paste the filters. the delta"
-	fi	
+	fi
 	if [ -z "$d" ]; then
 		echo "break runtime error"
 		exit 1
@@ -260,26 +260,26 @@ else
 
 	echo "xCustomFilterProfile is what you should look at" >> $USRDIR$CONFIGDIR$INSTRU
 	echo "for your filters in recent changes. " >> $USRDIR$CONFIGDIR$INSTRU
-	echo " this is the important file         " >> $USRDIR$CONFIGDIR$INSTRU	
+	echo " this is the important file         " >> $USRDIR$CONFIGDIR$INSTRU
 	echo " In otherwords this file combines   " >> $USRDIR$CONFIGDIR$INSTRU
 	echo " the differential of what made it   " >> $USRDIR$CONFIGDIR$INSTRU
 	echo " past the filters                   " >> $USRDIR$CONFIGDIR$INSTRU
-	echo "                                    " >> $USRDIR$CONFIGDIR$INSTRU		
+	echo "                                    " >> $USRDIR$CONFIGDIR$INSTRU
 
 	k=$( head -n1 $diffFileTwo | grep "MDY")
-	
+
 	if [ -z "$k" ]; then
 		echo " You had deltas in the search and they were appended " >> $USRDIR$CONFIGDIR$INSTRU
 		echo "to xCustomFilterProfile" >> $USRDIR$CONFIGDIR$INSTRU
-				
+
 		cat $diffFileTwo >> $RECENT
 		sort $RECENT > $TMPCOMPLETE ; mv $TMPCOMPLETE $RECENT
-	    
-	else 
+
+	else
 		diffRLT="true"
 		echo $BRAND >> $RECENT
 		echo "You had no deltas During the search no new files made it past the filters"
-		
+
 	fi
 
 	cp $RECENT $USRDIR$CONFIGDIR"/xCustomFilterProfile"
@@ -298,15 +298,15 @@ if [ "$inputSED" == "true" ]; then
     sort $RECENT | uniq -c | sort -n | awk '{print $2}' > $TMPCOMPLETE
     cat $TMPCOMPLETE > $RECENT
 
-	if [[ "$inputTIME" == "true" ]]; then 
+	if [[ "$inputTIME" == "true" ]]; then
 		awk '{print $3}' $RECENT > $TMPCOMPLETE
 	else
-		awk '{print $1}' $RECENT > $TMPCOMPLETE   	
+		awk '{print $1}' $RECENT > $TMPCOMPLETE
     fi
 
     echo "Note these are sorted by highest count first" >> $TMPCOMPLETE
-    echo >> $TMPCOMPLETE 
-   	sed -i 's![^/]*$!!' $TMPCOMPLETE 
+    echo >> $TMPCOMPLETE
+   	sed -i 's![^/]*$!!' $TMPCOMPLETE
    	sed -i 's/\/$//' $TMPCOMPLETE
 	cat $TMPCOMPLETE | fixwh | fixOT > $PRFLFLT
 	sed -i '$d' $PRFLFLT
@@ -315,7 +315,7 @@ if [ "$inputSED" == "true" ]; then
 	echo $BRAND >> $PRFLFLT
 	cp $PRFLFLT $USRDIR$CONFIGDIR"/CustomFilterProfileSeds"
 fi
-echo " Thank you for using Developer buddy. " >> $USRDIR$CONFIGDIR$INSTRU	
+echo " Thank you for using Developer buddy. " >> $USRDIR$CONFIGDIR$INSTRU
 echo "                                     " >> $USRDIR$CONFIGDIR$INSTRU
 echo " if you see any bugs please let me know " >> $USRDIR$CONFIGDIR$INSTRU
 rm -rf $tmp
@@ -343,7 +343,7 @@ cyan " Filter change boolean indicates you dont need to  change "
 cyan "your filter.  ie less than 4 files made it past the filter"
 cyan "															"
 fi
-if  [ "$SYSCHG" == "true" ]; then								 	
+if  [ "$SYSCHG" == "true" ]; then
 green " Warn system changed from earlier ensure sterile enviro	"
 else
 cyan " System didnt change during the search					"

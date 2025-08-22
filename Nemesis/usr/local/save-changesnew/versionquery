@@ -7,7 +7,7 @@ if [ "$1" = "-v" ]; then
    echo "recentchanges aka Developer buddy"
    echo
    exit
-   
+
 elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    echo "version 3.0"
    echo
@@ -23,19 +23,19 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    echo
    echo
    echo "recentchanges s         where s is time in seconds"
-   echo            
+   echo
    echo -e "usage:    recentchanges \t\t grab all files 5 minutes or new		these will include system search as well"
    echo -e "usage:    recentchanges 30	\t grab all files 30 seconds or newer"
    echo
    echo
    echo "Modes"
-   echo 
+   echo
    echo "Search        for just a system search"
-   echo  
+   echo
    echo -e "recentchanges search \t\t search for files 5 minutes or netmpw"
    echo -e "recentchanges search 30 \t search for files 30 seconds or newer"
    echo
-   echo "Search for files newer than a file or directory " 
+   echo "Search for files newer than a file or directory "
    echo
    echo "recentchanges search /home/guest/myfile.txt    search for files newer than myfile "
    echo "recentchanges search myfile.txt                                                   "
@@ -63,7 +63,7 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    echo
    echo -e "recentchanges compile \t\t Dynamically build a filter profile - Deepscan or standard search "
    echo "																	"
-   echo "                                       							" 
+   echo "                                       							"
    echo " profiles will be stored in  /home"$USR"/.config/save-changesnew   "
    echo "         							                                "
    echo "    Deepscan 300 seconds including delta of 60 backwards           "
@@ -72,7 +72,7 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    echo "																	"
    echo "																	"
    echo "Inverse search with Symlink"
-   echo  
+   echo
    echo -e "rnt \t\t search for filtered files 5 minutes or netmpw"
    echo -e "rnt 30 \t search for filtered files 30 seconds or newer"
    echo -e "rnt myfile.txt      search for unfiltered files newer than myfile "

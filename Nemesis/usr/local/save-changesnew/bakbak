@@ -17,13 +17,13 @@ BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`				;		chxzm=/rntfiles.xzm
 USRDIR=/home/$USR/Downloads											;		RECENT=$tmp/list_recentchanges_filtered.txt
 UPDATE=$tmp/save.transferlog.tmp		    							; 		RECENTNUL=$tmp/list_recentchanges_filterednul.txt
 COMPLETE=$tmp/list_complete.txt							           		; 		SORTCOMPLETE=$tmp/list_complete_sorted.txt
-COMPLETENUL=$tmp/list_completenul.txt							    ;		atmp=/tmp/atmp$$
-TMPCOMPLETE=$tmp/tmp_complete.txt									;		tout=$atmp/toutput.tmp
-TMPOUTPUT=$tmp/list_tmp_sorted.txt						       		; 		toutnul=$atmp/toutputnul.tmp
-flth=/usr/local/save-changesnew/flth.csv						       		;      	xdata=$atmp/logs_stat.log
-slog=/tmp/scr																		;     	xdata2=$atmp/logs_log.log
-TMPOPT=$tmp/tmp_holding													;		pytmp=$atmp/pytmp.tmp
-rout=$atmp/routput.tmp																									
+COMPLETENUL=$tmp/list_completenul.txt							    ;		toutnul=$atmp/toutputnul.tmp
+TMPCOMPLETE=$tmp/tmp_complete.txt									;		rout=$atmp/routput.tmp
+TMPOUTPUT=$tmp/list_tmp_sorted.txt						       		; 		tout=$atmp/toutput.tmp
+flth=/usr/local/save-changesnew/flth.csv						       		;       xdata=$atmp/logs_stat.log
+atmp=/tmp/atmp$$																;     	xdata2=$atmp/logs_log.log
+TMPOPT=$tmp/tmp_holding
+pytmp=$atmp/pytmp.tmp														;		slog=/tmp/scr
 diffrlt="false"											                        	;		nodiff="false"
 validrlt="false"										                           		;		flsrh="false"
 pstc="false"
@@ -33,7 +33,7 @@ if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
 if [ "$STATPST" == "true" ]; then
     if [ -f $logpst ]; then
         sz=$( stat -c %s "$logpst")
-        if (( ( sz / 1048576 ) > logSIZE )); then
+        if [ $(( sz / 1048576 )) -gt $logSIZE ]; then
             if [ "$logPRF" == "del" ]; then
                 : > $logpst
             elif [ "$logPRF" == "stop" ]; then
@@ -44,9 +44,9 @@ if [ "$STATPST" == "true" ]; then
                 rm $logpst
                 STATPST="true"
             fi
-		elif (( ( sz / 1048576 )  >= compLVL )); then
+		elif [ $(( sz / 1048576 )) -ge $compLVL ]; then
 	    	nc="true"
-        elif (( sz == 0 )); then
+        elif [ $sz -eq 0 ]; then
             cyan "$logpst is 0 bytes. to resume persistent logging delete file"
             STATPST="false"
         fi
@@ -60,12 +60,11 @@ if [ "$2" != "noarguser" ] && [ "$2" != "" ]; then
 		cyan "searching for files $2 seconds old or newer"
     else
         argone=".txt"
-    	test -d "${4}" || { echo "Invalid argument ${4} . PWD required."; exit 1; }
-		cd "${4}"  || exit
+    	test -d "${4}" && cd "${4}" || { echo "Invalid argument ${4} . PWD required."; exit 1; }
     	filename="$2"
     	test -f "${filename}" || { test -d "${filename}" || echo no such directory file or integer; exit 1; }
-    	parseflnm="${2##*/}"
-		if [ "$parseflnm" == "" ]; then
+    	parseflnm="$(echo $2 | sed 's@.*/@@')"
+    	if [ "$parseflnm" == "" ]; then
     		parseflnm="$(echo "$2" | sed -e 's/\/$//' -e 's@.*/@@')"
     	fi
     	cyan "searching for files newer than $filename "
@@ -139,7 +138,7 @@ if [ -s $SORTCOMPLETE ]; then
 	if [ ${#xfile[@]} -gt 0 ]; then printf "%s\n" "${xfile[@]}" >> $SORTCOMPLETE; fi
 	if [ -s $tout ]; then grep -v 'NOTA-FI-LE 77:77:77' "$tout" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' > $TMPOPT ; cat $TMPOPT >> $SORTCOMPLETE ; fi
 	if [ "$flsrh" != "true" ]; then
-		s=$(date -d "$SRTTIME" "+%s")
+		s=$( echo $(date -d "$SRTTIME" "+%s"))
 		if [ "$2" == "noarguser" ]; then
 			RANGE=$(( s + 300 ))
 		else
@@ -170,30 +169,30 @@ MODULENAME=${chxzm:0:9}
 cd $USRDIR
 if [ -s $SORTCOMPLETE ] ; then
 	validrlt="true"
-    if [ "$flsrh" == "true" ]; then
+    if [ "$flsrh" == "true" ]; then #FILTERED
 	    flnm="xNewerThan_${parseflnm}"$argone
 	    flnmdff="xDiffFromLast_${parseflnm}"$argone
 		clearlogs
-	    test -e $USRDIR$MODULENAME"${flnm}" && { cp $USRDIR$MODULENAME"${flnm}" $tmp; }
+	    test -e $USRDIR$MODULENAME"${flnm}" && { cp $USRDIR$MODULENAME"${flnm}" $tmp; } # do we have an old search to  use?  If an old search is valid we compare to our new search
     elif [ "$5" == "filtered" ]; then
 	    flnm="xFltchanges_"$argone
 	    flnmdff="xFltDiffFromLastSearch_"$argone
         test -e "$USRDIR$MODULENAME$flnm" && cp "$USRDIR$MODULENAME$flnm" $tmp
-		[[ ! -s "$tmp$MODULENAME$flnm" ]] && test -e "/tmp/${MODULENAME}${flnm}" && cp "$/tmp${MODULENAME}${flnm}" $tmp
+		[[ ! -s "$tmp$MODULENAME$flnm" ]] && test -e "/tmp/${MODULENAME}${flnm}" && cp "$/tmp${MODULENAME}${flnm}" $tmp # New we can look for old searches from recentchanges Hybrid in /tmp
         clearlogs
         if [ -s $TMPOUTPUT ]; then
             cp $TMPOUTPUT $USRDIR$MODULENAME"xFltTmpfiles"$argone
             chown $USR $USRDIR$MODULENAME"xFltTmpfiles"$argone
         fi
-    else
+    else #UNFILTERED
 	    flnm="xSystemchanges"$argone
 	    flnmdff="xSystemDiffFromLastSearch"$argone
 	    test -e $USRDIR$MODULENAME$flnm && cp $USRDIR$MODULENAME$flnm $tmp
         clearlogs
-        if [ -s $TMPOUTPUT ]; then 
-			cp $TMPOUTPUT $USRDIR$MODULENAME"xSystemTmpfiles"$argone
-			chown $USR $USRDIR$MODULENAME"xSystemTmpfiles"$argone
-		fi
+        if [ -s $TMPOUTPUT ]; then
+            cp $TMPOUTPUT $USRDIR$MODULENAME"xSystemTmpfiles"$argone
+            chown $USR $USRDIR$MODULENAME"xSystemTmpfiles"$argone
+        fi
     fi
     difffile=$USRDIR$MODULENAME"${flnmdff}"
     test -e $tmp$MODULENAME"${flnm}" && { OLDSORTED=$tmp$MODULENAME"${flnm}" ; comm -23 "${OLDSORTED}" $logf; } > "${difffile}" && nodiff="true"
@@ -202,16 +201,20 @@ if [ -s $SORTCOMPLETE ] ; then
     if [ -s "${difffile}" ]; then
     	diffrlt="true"
     	CDATE=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')
-        if [ "$flsrh" == "false" ]; then awk -v tme="$CDATE" '$0 >= tme' "$difffile" > $TMPCOMPLETE ; else cat "${difffile}" > $TMPCOMPLETE; fi
+        if [ "$flsrh" == "false" ]; then
+        	awk -v tme="$CDATE" '$0 >= tme' "$difffile" > $TMPCOMPLETE
+        else
+            cat "${difffile}" > $TMPCOMPLETE
+        fi
     	echo >> "${difffile}"
     	while IFS="" read -r p || [ -n "$p" ]; do cFILE="$( echo "$p" | cut -d " " -f3-)" ; cFILE="$( escapef "$cFILE")" ; grep -Fqs "$cFILE" $SORTCOMPLETE && { echo "Modified" "$p" >> $ABSENT; echo "Modified" "$p" >> $rout; } || { echo "Deleted " "$p" >> $ABSENT; echo "Deleted" "$p" >> $rout; } ; done < $TMPCOMPLETE
 		test -f $ABSENT  && { echo Applicable to your search ; cat $ABSENT ; } >> "${difffile}" || { echo "None of above is applicable to search. It is the previous search"; } >> "${difffile}"
     else
         test -e "${difffile}" && rm "${difffile}"
     fi
-
-	ofile=$atmp/tmpinfo ; tfile=$atmp/tmpd
-    if [ -d /tmp/rc ] && [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then 
+	ofile=$atmp/tmpinfo
+	tfile=$atmp/tmpd
+    if [ -d /tmp/rc ] && [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then
         for file in /tmp/rc/*; do
             cat $file >> $ofile  2> /dev/null
         done
@@ -224,8 +227,7 @@ if [ -s $SORTCOMPLETE ] ; then
 			fi
         fi
     fi
-
-    if [ "$STATPST" == "true" ]; then 
+    if [ "$STATPST" == "true" ]; then
 		if [ "$ANALYTICS" == "false" ]; then
 			if [ "$backend" == "default" ]; then
 				if [ -s $logpst ]; then
@@ -246,51 +248,44 @@ if [ -s $SORTCOMPLETE ] ; then
 				else
 					pstc="true"
 				fi
+			fi
+			if [ "$pstc" == "true" ]; then
+				imsg="$(storeenc $SORTCOMPLETE $logpst "dcr")"
+				ret=$?
+				if [ "$ret" -ne 0 ]; then
+					echo "$imsg"
+				else
+					if [ "$imsg" -ge 0 ] 2>/dev/null; then
+						if (( imsg % 10 == 0 )); then  cyan "$imsg searches in gpg log"; fi
+					elif [ "$imsg" != "" ]; then
+						green "Persistent search log file created."
+					fi
+				fi
+			fi
+		fi
+	    if [ -s $rout ]; then
+	        sort -u -o $rout $rout
+			sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2",\3/' $rout
+			if [ -s $COMPLETE ]; then cat $COMPLETE >> $rout; fi
+			if [ "$backend" == "default" ]; then
 				if [ "$pstc" == "true" ]; then
-					imsg="$(storeenc $SORTCOMPLETE $logpst "dcr")"
+					imsg="$(storeenc $rout $statpst)"
 					ret=$?
 					if [ "$ret" -ne 0 ]; then
 						echo "$imsg"
 					else
-						if [ "$imsg" -ge 0 ] 2>/dev/null; then
-							if (( imsg % 10 == 0 )); then  cyan "$imsg searches in gpg log"; fi
-						elif [ "$imsg" != "" ]; then
-							green "Persistent search log file created."
-						fi
-					fi
-					if [ -s $rout ]; then 
-						sort -u -o $rout $rout
-						sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2",\3/' $rout
-						if [ -s $COMPLETE ]; then cat $COMPLETE >> $rout; fi
-						if [ "$pstc" == "true" ]; then
-							imsg="$(storeenc $rout $statpst)"
-							ret=$?
-							if [ "$ret" -ne 0 ]; then
-								echo "$imsg"
-							else
-								if [ "$imsg" != "" ]; then green "Persistent stats file created."; imsg=""; fi
-							fi
-						fi
+						if [ "$imsg" != "" ]; then green "Persistent stats file created."; imsg=""; fi
 					fi
 				fi
-			else 
-
-				python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $COMPLETE $pydbpst $rout $tfile $checkSUM $cdiag $email $mMODE
+			else
+				python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $COMPLETE $pydb $rout $tfile $checkSUM $cdiag $email $mMODE # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
 				ret=$?
 				if [ "$ret" -ne 0 ]; then
-					if [ "$ret" -eq 2 ] || [ "$ret" -eq 3 ]; then
-						echo "Problem with GPG refer to instructions on setting up pinentry ect. Database preserved."
-					elif [ "$ret" -eq 4 ]; then
-						echo "Problem with database in psysrg.py"
-					else
-						echo "Pstsrg.py failed. exitcode ${ret}"
-					fi
+					echo "Pstsrg.py failed. exitcode ${ret}"
 				fi
-
 				processha
-				
 			fi
-		fi
+	    fi
     fi
 	[[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && [[ "$pstc" == "true" ]] && green "Hybrid analysis on"
 	[[ "$cc" != "csum" && -s $slog && "$cdiag" != "true" ]] && cat $slog

@@ -14,10 +14,10 @@ ch=/mnt/live/memory/changes     ; INAME=/mnt/live/memory/images
 msr="${PWD}/lscheck"
 
 # Any files to exclude                      #  only if we have to escape for regex
-EXCL=/tmp/squashexfiles.log        ;  EXFILES=/tmp/squashregex     
+EXCL=/tmp/squashexfiles.log        ;  EXFILES=/tmp/squashregex
 oMF=/tmp/flog.log               #original module name list used for removing or renaming after merging
 
-# CHANGABLE 
+# CHANGABLE
 MODULENM="changes"        # the new name of merged .xzms
 
 cmode="gzip"                            # default nothing. uses gzip compression level balanced
@@ -27,7 +27,7 @@ cmode="gzip"                            # default nothing. uses gzip compression
 
 # CHANGABLE BOOLEANS
 
-keepMRGED="true"       # default is normally false but we want to rename all .xzms to .bak anyway 
+keepMRGED="true"       # default is normally false but we want to rename all .xzms to .bak anyway
                                         # in this script regardless of preference
 
 # END CHANGABLE
@@ -41,12 +41,12 @@ if [ "$r" -gt 0 ]; then
     mkdir $mtmp
     > $EXCL ; > $EXFILES ; > $oMF
     for mods in $PWD"/"*_uid_*.xzm; do
-     
+
         [[ "$mods" == *_uid_L* ]] && continue
         echo $mods >> $oMF
 
         dest="/mnt/loop-$(basename "$mods" .xzm)"
-        mkdir $dest         
+        mkdir $dest
 
         if mountpoint -q $dest; then echo "Error: $dest already mounted. Everything preserved."; exit 1; fi
         if [ ! -f "$mods" ]; then echo "Error: Module file $mods. Check the script and try again"; exit 1; fi
@@ -84,8 +84,8 @@ if [ "$r" -gt 0 ]; then
 
     cd $ch
     find $mtmp -name ".wh.*" -printf '%P\0' | while IFS= read -r -d '' y; do
-        f="${y#$mtmp}"           
-        f="${f//.wh./}"           
+        f="${y#$mtmp}"
+        f="${f//.wh./}"
         test -e "$f" && rm "$y"
     done
     unset IFS
@@ -95,15 +95,15 @@ if [ "$r" -gt 0 ]; then
 
     cd $pst
 
-    if [ "$keepMRGED" == "true" ]; then 
+    if [ "$keepMRGED" == "true" ]; then
         while IFS= read -r ofile; do
             [[ -z "$ofile" || "$ofile" == \#* ]] && continue
-                fname=${ofile%.xzm}".bak"     
+                fname=${ofile%.xzm}".bak"
                 mv "$ofile" "$fname"
         done < "$oMF"
         unset IFS
     fi
-             
+
     SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`
 
     ssbn=$(rand_alpha)
@@ -127,13 +127,13 @@ if [ "$r" -gt 0 ]; then
         done < "$oMF"
         unset IFS
     fi
-         
+
     xsize=$( du -sb "${PWD}/${rname}" | cut -f1)
     echo "bytes:"$xsize > $msr
     echo "file name:${rname}" >> $msr
     echo >> $msr
-   
-    rm $oMF 
+
+    rm $oMF
     rm $EXCL
     rm $EXFILES
     rm -rf $mtmp
