@@ -9,16 +9,16 @@
 #     gsub(/[:]/, "", time)
 #     return date time
 # }
-# 
+#
 # {
 #     # Process each snapshot block
 #     n = split($0, lines, "\n")
 #     delete files
 #     min_ts = ""
 #     max_ts = ""
-# 
+#
 #     for (i = 1; i <= n; i++) {
-# 
+#
 #     split(lines[i], parts, " ")
 #     ts_num = toNumTimestamp(parts[1], parts[2])
 #     if (min_ts == "" || ts_num < min_ts) min_ts = ts_num
@@ -27,14 +27,14 @@
 #     filepath = substr(lines[i], index(lines[i], parts[2]) + length(parts[2]) + 1)
 #     files[filepath] = 1
 #     }
-# 
+#
 #     # Save current snapshot info
 #     snapshot_num = NR
 #     min_times[snapshot_num] = min_ts
 #     max_times[snapshot_num] = max_ts
 #     delete snapshots[snapshot_num]
 #     for (f in files) snapshots[snapshot_num][f] = 1
-# 
+#
 #     # Now compare with previous snapshot if exists
 #     if (snapshot_num > 1) {
 #     # Check if time ranges overlap
@@ -57,5 +57,5 @@
 #     }
 # }
 # ' $1
-# 
+#
 # } >> $2 2>&1

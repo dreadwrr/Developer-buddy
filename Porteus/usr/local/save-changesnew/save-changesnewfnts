@@ -6,15 +6,15 @@
 # or exceeding log size in log delete preference. For Graphics changes mode
 # General inc exl logfile structure d2d or no
 dycmb() {
-    TFLD="$(for x in $( echo $FOLDERS); do test -e "$ch/$x" && echo "$x"; done)"  
+    TFLD="$(for x in $FOLDERS; do test -e "$ch/$x" && echo "$x"; done)"
     FOLDERS="$TFLD" ; TFLD=""
     [[ -n "$IFOLDERS" ]] && TFLD="$(for x in $(echo "$IFOLDERS"); do [[ ! " $FOLDERS " == *" $x "* ]] && test -e "$ch/$x" && echo "$x" ; done)" # Dynamically build with changes-exit conf
     [[ -n "$TFLD" ]] && { IFOLDERS="$TFLD" ; FOLDERS=$IFOLDERS; } # combine
-    
+
 }
 #Generate exclude directories changes-commit
 exldir() {
-	read -ra arr <<< "$EXCLUDE" 
+	read -ra arr <<< "$EXCLUDE"
 	> $1
 	for item in "${arr[@]}"; do
 		if [[ "${item:0:1}" == "/" ]]; then #if ! grep -Fxq "./$item" $exlfiles; then ;fi
@@ -30,28 +30,28 @@ exldir() {
 	# Process exclusions from changes exit conf
 	if [ -s "$EXCL" ]; then    # Include into a exclusions
 		cat $EXCL | fixexcl > $EXCLUDED  # Temporary holding var/lib     ^^ to no ^^ and converts regex back to std
-		
+
 		#sed -i 's|^[^/]|\//&|' $EXCLUDED #  If it doesnt start with  /   add     /
-		sed -i 's|^|/|' $EXCLUDED # for rsync ./var/lib      
+		sed -i 's|^|/|' $EXCLUDED # for rsync ./var/lib
 		EXCLUDE="$EXCLUDE $(tr '\n' ' ' < $EXCLUDED | sed 's/ *$//')"    # Duplicates dont matter as not using mksquashfs
 		#UPDATE="$(for x in $EXCLUDED; do if [[ " $EXCLUDE " != *" $x "* ]];  # Dynamically build with changes-exit conf  EXCLUDE  var
 		#[[ -n "$UPDATE" ]] && EXCLUDE="$EXCLUDE $UPDATE"     # combine
 		sed -i 's|^/|./|' $EXCLUDED # for rsync ./var/lib
 		#sed -i 's|^|.|' $EXCLUDED # for rsync ./var/lib
 		grep -Fvxf $1 $EXCLUDED >> $UPDATE; test -s $UPDATE && cat $UPDATE >> $1 # only those that are unique to $EXCLUDED appended from changes-exit conf if [[ " $EXCLUDE " != *" $x "* ]]; then echo "$x"; fi
-	fi 			
+	fi
 }
 #dyn exclude d2d
 dlog() {
-	if [ "$d2drive" == "true" ]; then  # generate log file 
+	if [ "$d2drive" == "true" ]; then  # generate log file
        for fld in $FOLDERS; do
-            fp="$dirSRC/$fld"                    
+            fp="$dirSRC/$fld"
             if [ -d "$fp" ]; then
                 find "$fp" -type f -printf '%P\n' | sed "s|^|/$fld/|" >> "${target}${rlt}${MODULENM}.bak.log"
             fi
         done
         for fld in $EXCLUDE; do
-            fp="$dirSRC/$fld"                    
+            fp="$dirSRC/$fld"
 			if [[ "${fp:0:1}" == "/" ]]; then
 			  e=$(sed 's/[&/\]/\\&/g' <<< "$fp" )
 				p="^"
@@ -90,7 +90,7 @@ local p
         p=$osize # actual original size (could have changed from the original as we are resuming
 		if [ "$1" == "true" ]; then > "${target}${rlt}${MODULENM}.bak.log" ; fi # If called on logSIZE and delete pref we got the previous data
         # we need to make one
-        # generate log file        
+        # generate log file
 		dlog # check d2d
 
         echo "original size(source)=$k" >> "${target}${rlt}${MODULENM}.bak.log"
@@ -98,12 +98,12 @@ local p
         if (( c != 0 )); then
             echo "original count=$c" >> "${target}${rlt}${MODULENM}.bak.log" # insert the original byte count for analytic purposes only if we have it
         fi
-       
+
         echo  "END ORIGINAL FILES $(date +"%m-%d-%y_%R")" >> "${target}${rlt}${MODULENM}.bak.log"
-    
+
         # at this point we are making a new backup because we are resuming and have no idea the original format
         # and we cant rebuilt the exact original format so we have to generate one based on the current state
-        nLOG="true" 
+        nLOG="true"
 }
 # random serial generating function
 rand_alpha() { letters=( {A..Z} {a..z} ); echo -n "${letters[RANDOM % 52]}${letters[RANDOM % 52]}" ; }

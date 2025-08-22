@@ -16,9 +16,9 @@ local CDSTRING=""
 
 BASEDIR=$( cat $LOGFILE | uniq -c | sort -sr | head -n 1 | awk '{print $2}')
 DEPTH=$( echo "${BASEDIR}" | awk -F '/' '{print NF-1}')
-FCOUNT=$( grep -c "${BASEDIR}" $LOGFILE)                                
+FCOUNT=$( grep -c "${BASEDIR}" $LOGFILE)
 p=0
-z=$( insetdirectory)   
+z=$( insetdirectory)
 
 if [ "$z" != "" ]; then
 
@@ -40,7 +40,7 @@ do
 
 	if (( y >= p )); then
 		p=$y
-        
+
 		CDSTRING=$IDIR
 	else
 		break
@@ -56,7 +56,7 @@ local result
 local newdir
 local d
 local template=()
-	
+
 template+=("/home/$USR/Downloads/")
 template+=("/home/$USR/Pictures/")
 template+=("/home/$USR/Desktop/")
@@ -89,7 +89,7 @@ template+=("/var/run/")
 template+=("/var/tmp/")
 template+=("/var/")
 
-for element in "${template[@]}"; do 
+for element in "${template[@]}"; do
     result=$( echo "$BASEDIR" | grep -o "^$element")
     if [ "$result" != "" ]; then
         d=$( echo "${result}" | awk -F '/' '{print NF-1}')
@@ -99,7 +99,7 @@ for element in "${template[@]}"; do
         echo ""
     fi
 
-done	
+done
 }
 gettime() {
 local SRTTIME
@@ -122,17 +122,17 @@ PRD=$(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S')
 
 FINTIME=$( awk -F" " -v tme="$PRD" '$0 < tme' $SORTCOMPLETE | sort -sr | head -n 1 | awk -F ' ' '{print $1 " " $2}')
 f=$(date -d "$FINTIME" "+%s")
-DIFFTIME=$(( f - s )) 
+DIFFTIME=$(( f - s ))
 ENDTM=$(date -d "@$DIFFTIME" -u +'%H:%M:%S')
 
 FN=$( tail -n1 $1 | awk '{print $2}')
 f=$(date -d "$FN" "+%s")
 ST=$( head -n1 $1 | awk '{print $2}')
-sSRC=$( date -d "$ST" "+%s")    
+sSRC=$( date -d "$ST" "+%s")
 eSRC=$(( f - sSRC ))
 srcE=$(date -d "@$eSRC" -u +'%H:%M:%S')
 if [ "$DIFFTIME" == "0" ]; then
-	ENDTM=$ENDTM" file(s) created at: "$SRTTIME   
+	ENDTM=$ENDTM" file(s) created at: "$SRTTIME
 fi
 echo >> $2
 echo >> $2
