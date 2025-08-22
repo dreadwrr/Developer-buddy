@@ -110,7 +110,7 @@ if [ `whoami` != "root" ]; then #if [[ $(whoami) != "root" ]]; su -c "$0"; exit 
     if [ -z "$argone" ]; then argone="noarguser" ; fi
     if [ -z "$argtwo" ]; then argtwo="noarguser" ; fi
 	if [ "$2" == "inv" ]; then argtwo="noarguser" ; argf="filtered" ; fi
-	if [ "$3" == "inv" ]; then argf="filtered" ; fi 
+	if [ "$3" == "inv" ]; then argf="filtered" ; fi
 	#if [ "$XDG_SESSION_TYPE" = "wayland" ]; then/root/somefile\\\"quote.txt
 		su - -c "/usr/local/bin/recentchanges $argone '$argtwo' $argthree '$PWD' $argf"
 	#else
@@ -120,7 +120,7 @@ if [ `whoami` != "root" ]; then #if [[ $(whoami) != "root" ]]; su -c "$0"; exit 
     exit
 fi
 # Handle rnt inverse switching
-arge=() 
+arge=()
 for item in "$@"; do if [ "$item" != "inv" ]; then arge+=("$item") ; else arge+=("") ; argf="filtered" ; fi ;done
 
 p=${#arge[@]}
@@ -128,7 +128,7 @@ while (( p < 5 )); do arge+="" ; ((p++)) ; done
 
 # Handle root call
 THETIME="${arge[1]}"
-USR="${arge[2]}" 
+USR="${arge[2]}"
 passdir="${arge[3]}"
 export DISPLAY=:0 # for tkl and root xed featherpad
 export XAUTHORITY=/home/$USR/.Xauthority
@@ -450,8 +450,8 @@ if [ -s $SORTCOMPLETE ]; then
     fi
 	ofile=$atmp/tmpinfo ; tfile=$atmp/tmpd
 	# Hybrid analysis
-						# TMP 
-    if [ -d /tmp/rc ] && [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then 
+						# TMP
+    if [ -d /tmp/rc ] && [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then
         for file in /tmp/rc/*; do
             cat $file >> $ofile  2> /dev/null
         done
@@ -463,9 +463,9 @@ if [ -s $SORTCOMPLETE ]; then
 				echo "failure in ANALYTICS hanly subprocess"
 			fi
         fi
-    fi				
+    fi
 						# STATPST
-    if [ "$STATPST" == "true" ]; then 
+    if [ "$STATPST" == "true" ]; then
 		if [ "$ANALYTICS" == "false" ]; then
 			if [ "$backend" == "default" ]; then
 				if [ -s $logpst ]; then
@@ -499,7 +499,7 @@ if [ -s $SORTCOMPLETE ]; then
 							green "Persistent search log file created."
 						fi
 					fi
-					if [ -s $rout ]; then 
+					if [ -s $rout ]; then
 						sort -u -o $rout $rout
 						sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2",\3/' $rout
 						if [ -s $COMPLETE ]; then cat $COMPLETE >> $rout; fi
@@ -516,9 +516,9 @@ if [ -s $SORTCOMPLETE ]; then
 				fi
 
 			# Database Hybrid analysis, statpst and encrypt
-			else 
+			else
 
-				python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $COMPLETE $pydbpst $rout $tfile $checkSUM $cdiag $email $mMODE # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
+				python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $pydbpst $rout $tfile $checkSUM $cdiag $email $mMODE $ANALYTICSECT # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
 				ret=$?
 				if [ "$ret" -ne 0 ]; then
 					if [ "$ret" -eq 2 ] || [ "$ret" -eq 3 ]; then
@@ -531,11 +531,11 @@ if [ -s $SORTCOMPLETE ]; then
 				fi
 
 				processha
-				
+
 			fi
 		fi
     fi
-	[[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && [[ "$pstc" == "true" ]] && green "Hybrid analysis on"
+	[[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && [[ "$pstc" == "true" ]] && && [[ "$ANALYTICSECT" == "true" ]] && green "Hybrid analysis on"
 	[[ "$cc" != "csum" && -s $slog && "$cdiag" != "true" ]] && cat $slog
 	[[ "$cc" != "csum" && -s $slog && "$cdiag" == "true" ]] && { echo; echo "cdiag"; echo ; cat $slog; } >> "$difffile"
 	test -f $slog && rm $slog ;  test -f $rout && rm $rout
