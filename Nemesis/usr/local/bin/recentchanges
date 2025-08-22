@@ -1,6 +1,6 @@
 #!/bin/bash
 #   NMS5                                                                            08/18/2025  v3.0
-#   recentchanges. Developer buddy      make xzm     
+#   recentchanges. Developer buddy      make xzm
 #   Provide ease of pattern finding ie what files to block we can do this a number of ways
 #   1) if a file was there (many as in more than a few) and another search lists them as deleted its either a sys file or not but unwanted nontheless
 #   2) Is a system file inherent to the specifc platform
@@ -10,7 +10,7 @@
 #or what changed on your system. So if you compiled something you call this script to build a module of it for distribution.
 #  If not using for developing call it a file change snapshot
 #  We use the find command to list all files 5 minutes or newer. Filter it and then get to copying the files in a temporary staging directory.
-#  Then take those files and make an .xzm. It will be placed in   /tmp  along with a transfer log to staging directory and file manifest of the xzm 
+#  Then take those files and make an .xzm. It will be placed in   /tmp  along with a transfer log to staging directory and file manifest of the xzm
 #
 #  recentchanges command from    /usr/bin/recentchanges
 #  Also borred script features from various scripts on porteus forums
@@ -24,36 +24,39 @@ get_colors
 . /usr/local/save-changesnew/rntchangesfunctions
 . /usr/local/save-changesnew/comp
 # If you want xed or featherpad to open uncomment at bottom of script
-# CHANGEABLE       New to version 3   
-export backend="default" 	# default    bash 2 gpg and queries text based stable tested
+# CHANGEABLE       New to version 3
+
+
+export backend="database" 	# default normal    bash 2 gpg and queries text based stable tested
 											# database   binary database faster queries 1 gpg and python (easier ha)
 
 export email="john.doe@email.com" # default for asymmetrical gpg auth for STATPST
-                                                        # asks for paraphrase and caches for 15 minutes 
+                                                        # asks for paraphrase and caches for 15 minutes
                                                         # leave default
 
 export logSIZE=50 # default 50mb for persistent storage pst
 
 export logCT=300 # Max searches to store in pst storage before removing one
 
-export logPRF="del" # del delete and stop    what to do on max logSIZE 
+export logPRF="del" # del delete and stop    what to do on max logSIZE
                                 # stop leave in place
                                 # rfh refresh clear and log again
 
-export compLVL=200  # default 200mb to disable compression on logpst size 
 
+export compLVL=200  # default 200mb to disable compression on logpst size
 
 export tmpSRHS=7 # Default 7 store most recent searches in /tmp try 30 and then nrun recentchanges query with STATPST false
                                 # for hybrid analysis in diff file
-                                 # also queries ie recentchanges query stats 
+                                 # also queries ie recentchanges query stats
+
+
 
 export mMODE="mem"  # normal default. robust less prone to failure
-								  # mem    balanced store search in arrays less i/o									
-								   # mc      turbo mode run the search in parallel or multiple cores. 
+								  		# mem    balanced store search in arrays less i/o
+								   		# mc      turbo mode run the search in parallel or multiple cores.
 
-# CHANGEABLE BOOLEANS
 
-export ANALYTICS="false" # store recent searches in /tmp       default false 
+export ANALYTICS="false" # store recent searches in /tmp       default false
                                         # gives hybrid analysis in diff file more files to compare no overhead as only checks modified
                                         # makes more sense to work off of /tmp than to decrypt everytime
                                         # for that reason you can choose /tmp or STATPST or both and recentchanges query
@@ -71,105 +74,117 @@ export STATPST="true" # persistent storage searches encrypted in /usr/local/save
                                     # if you prefer security turn ANALYTICS false and use this
 
 
+#Display
 export ANALYTICSECT="true" # provides more feedback
                                             # total search time ect
                                             # we dont want too much output on the terminal just a slight bit more
                                             # others stats
 
-
-export FEEDBACK="false"  # include find output in terminal as well ie scrolling terminal look   
+export FEEDBACK="false"  # include find output in terminal as well ie scrolling terminal look
 
 
 ## Diagnostics
 export checkSUM="true"	# compare file checksums for slight changes
 										# slower useful if you want to check deeper level of stats
-
 export cdiag="false"       # Include stealth changes in diff file    a file was changed but has the same checksum and filesize subtle edit  ie cache items or string was changed
 
-export POSTOP="false" # Diagnostics. Create file doctrine. Runs post search operation that can only be done at this time as search is relevant    
-                                    # more overhead so recommend off unless one off. output /Downloads  
+export POSTOP="false" # Diagnostics. Create file doctrine. Runs post search operation that can only be done at this time as search is relevant
+                                    # more overhead so recommend off unless one off. output /Downloads
                                     #
                                     # if it is run again and a file is still there it will not run the POSTOP and the script will set POSTOP to false to itself
 ## End Diagnostics
+
+export logpst="/usr/local/save-changesnew/logs.gpg"
+export statpst="/usr/local/save-changesnew/stats.gpg"
+export pydbpst="/usr/local/save-changesnew/recent.gpg"
+
 # END CHANGEABLE
-if [ "$STATPST" == "true" ] && [ "$ANALYTICS" == "true" ]; then echo With STATPST cant run with ANALYTICS. for security reasons as its stored in gpg. ; echo you can modify to run both if wanted. && exit; fi 
+
+if [ "$STATPST" == "true" ] && [ "$ANALYTICS" == "true" ]; then echo With STATPST cant run with ANALYTICS. for security reasons as its stored in gpg. ; echo you can modify to run both if wanted. && exit; fi
 if [ "$1" = "-v" ]; then get_vrn $1 ; elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] || [ "$1" = "-help" ]; then get_vrn $1; fi # If inquery tag no need to call root. pass to other function and exit.
+argf=$5
 if [ `whoami` != "root" ]; then #if [[ $(whoami) != "root" ]]; su -c "$0"; exit fi  if [[ $(id -u) -ne 0 ]]; then sudo "$0" "$@"; exit 0; fi
     echo "Please enter your root password below"
-    argone="$1" ; argtwo="$2" 
-    argthree=`whoami` # What user is it?
-    if [ -z "$1" ]; then
-    	argone="noarguser"
-    fi
-    if [ -z "$2" ]; then
-    	argtwo="noarguser"
-    fi
+	if [ "$1" == "inv" ]; then argone="noarguser" ; argtwo="noarguser" ; argf="filtered" ; else argone="$1" ; argtwo="$2"  ; fi
+	argthree=`whoami`
+    if [ -z "$argone" ]; then argone="noarguser" ; fi
+    if [ -z "$argtwo" ]; then argtwo="noarguser" ; fi
+	if [ "$2" == "inv" ]; then argtwo="noarguser" ; argf="filtered" ; fi
+	if [ "$3" == "inv" ]; then argf="filtered" ; fi 
 	#if [ "$XDG_SESSION_TYPE" = "wayland" ]; then/root/somefile\\\"quote.txt
-		su - -c "/usr/local/bin/recentchanges $argone '$argtwo' $argthree '$PWD'"
+		su - -c "/usr/local/bin/recentchanges $argone '$argtwo' $argthree '$PWD' $argf"
 	#else
 	#	sudo -k
 	#	exec sudo "$0" $argone "$argtwo" $argthree "$PWD"
 	#fi
     exit
 fi
-THETIME=$2 ; USR=$3
-passdir=$4
-if [ "$2" == "" ]; then THETIME="noarguser" ; fi
-if [ "$3" == "" ] || [ "$4" == "" ]; then 	USR="guest" ; passdir=$PWD ; fi #Default user
+# Handle rnt inverse switching
+arge=() 
+for item in "$@"; do if [ "$item" != "inv" ]; then arge+=("$item") ; else arge+=("") ; argf="filtered" ; fi ;done
+
+p=${#arge[@]}
+while (( p < 5 )); do arge+="" ; ((p++)) ; done
+
+# Handle root call
+THETIME="${arge[1]}"
+USR="${arge[2]}" 
+passdir="${arge[3]}"
 export DISPLAY=:0 # for tkl and root xed featherpad
 export XAUTHORITY=/home/$USR/.Xauthority
-if [ "$3" == "SRC" ]; then echo "Incorrect usage please use recentchanges SRC s , s SRC or SRC" && exit 1; fi
-if  ! id $3 >/dev/null 2>&1; then echo "user:" ${3} "not found"; exit 1; fi
 
-if [ "$1" == "compile" ]; then 
-   	/usr/local/save-changesnew/compilesearch.sh $1 $USR "$passdir"
+if [ "${arge[1]}" == "" ]; then THETIME="noarguser" ; fi
+if [ "${arge[2]}" == "" ] || [ "${arge[3]}" == "" ]; then USR="guest" ; passdir=$PWD ; fi #Default user
+if [ "${arge[2]}" == "SRC" ]; then echo "Incorrect usage please use recentchanges SRC s , s SRC or SRC" && exit 1; fi
+if  ! id $USR>/dev/null 2>&1; then echo "user: $USR not found"; exit 1; fi
+
+#Fork
+if [ "${arge[0]}" == "compile" ]; then
+   	/usr/local/save-changesnew/compilesearch.sh ${arge[0]} $USR "$passdir"
    	testone=$?
-   	if [ "$testone" == "1" ]; then
-   		echo "Script failure."
-   		exit 1 
-   	fi     		
-   	test -e /home/$USR/.config/save-changesnew/xCustomFilterProfile && { test -e /usr/bin/featherpad && featherpad /home/$USR/.config/save-changesnew/xCustomFilterProfile 2> /dev/null || echo featherpad not installed; }    		  		
+   	if [ "$testone" -eq 1 ]; then echo "Script failure." && exit 1 ; fi
+   	test -e /home/$USR/.config/save-changesnew/xCustomFilterProfile && { test -e /usr/bin/featherpad && featherpad /home/$USR/.config/save-changesnew/xCustomFilterProfile 2> /dev/null || echo featherpad not installed; }
    	exit
-elif [ "$1" == "search" ]; then
+elif [ "${arge[0]}" == "search" ]; then
    	test -d "${passdir}" || { echo  "not a valid directory. usage recentchanges search time."; exit 1; }
-    argf="$5"
-    if [ -z "$5" ]; then argf="bnk"; fi
-   	source /usr/local/save-changesnew/recentchangessearch.sh "$1" "$THETIME" $USR "$passdir" $argf "$0"
+	if [ -z "$argf" ]; then argf="bnk"; fi
+   	source /usr/local/save-changesnew/recentchangessearch.sh "${arge[0]}" "$THETIME" $USR "$passdir" $argf "$0"
    	exit
-elif [ "$1" == "query" ]; then
-	if [ "$backend" == "default" ]; then  /usr/local/save-changesnew/query "$THETIME" $USR "$passdir"; exit; else python3 /usr/local/save-changesnew/query.py; exit; fi
-fi  
+elif [ "${arge[0]}" == "query" ]; then
+	if [ "$backend" == "default" ]; then  /usr/local/save-changesnew/query "$THETIME" $USR "$passdir"; exit; else python3 /usr/local/save-changesnew/query.py $pydbpst $email ; exit; fi
+fi
+
 tmp=/tmp/work$$													;		work=work$$
 workdir=/myfiles													;		chxzm=/rntfiles.xzm
 SVFILES=$tmp/save.rncfilesmanifest.tmp				;   	BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
 SVFOLDERS=$tmp/save.rncfoldersmanifest.tmp		;		FLBRAND=`date +"MDY_%m-%d-%y-TIME_%R_%S"|tr ':' '_'`
-ABSENT=$tmp/tmp_absent.txt								;		UPDATE=$tmp/save.transferlog.tmp      
-RECENT=$tmp/list_recentchanges_filtered.txt         ;		RECENTAPP=$tmp/list_recentapp_filtered.txt          
-COMPLETE=$tmp/list_complete.txt							;		RECENTNUL=$tmp/list_recentchanges_filterednul.txt 
+ABSENT=$tmp/tmp_absent.txt								;		UPDATE=$tmp/save.transferlog.tmp
+RECENT=$tmp/list_recentchanges_filtered.txt         ;		RECENTAPP=$tmp/list_recentapp_filtered.txt
+COMPLETE=$tmp/list_complete.txt							;		RECENTNUL=$tmp/list_recentchanges_filterednul.txt
 TMPCOMPLETE=$tmp/tmp_complete.txt					;		RSYNCEXCL=$tmp/list_filesexclude.txt
-TMPOPT=$tmp/tmp_holding	                                ;		REJECTLOG=$tmp/list_rejectsrc.txt              
-FOLDERLOG=$tmp/save.totalfolders.tmp				;		SORTCOMPLETE=$tmp/list_complete_sorted.txt                               
-#Version 3                                                        
-dr=/usr/local/save-changesnew								;       logpst=$dr/logs.gpg 
-flth=$dr/flth.csv														;       statpst=$dr/stats.gpg  
-atmp=/tmp/atmp$$												;		pydbpst=/usr/local/save-changesnew/recent.gpg
-rout=$atmp/routput.tmp										;		pydb=/usr/local/save-changesnew/recent.db                   
-toutnul=$atmp/toutputnul.tmp								;       slog=/tmp/scr # feedback
-tout=$atmp/toutput.tmp 										;		xdata=$atmp/logs_stats.log # dcryp log file	
-USRDIR=/home/$USR/Downloads							;		xdata2=$atmp/logs.log.log # ..						
-THETIME=$1													
-SRCDIR=""  															;		dbc="false"
-diffrlt="false"											            ;		pstc="false"            								
-nodiff="false"											            ;       samerlt="false"      
-syschg="false"											            ;		validrlt="false"
-approval="true"																			
+TMPOPT=$tmp/tmp_holding	                                ;		REJECTLOG=$tmp/list_rejectsrc.txt
+FOLDERLOG=$tmp/save.totalfolders.tmp				;		SORTCOMPLETE=$tmp/list_complete_sorted.txt
+flth=/usr/local/save-changesnew/flth.csv					;		pydbpst=/usr/local/save-changesnew/recent.gpg
+atmp=/tmp/atmp$$												;		slog=/tmp/scr # feedback
+rout=$atmp/routput.tmp										;		xdata=$atmp/logs_stats.log # dcryp log file
+toutnul=$atmp/toutputnul.tmp								;		xdata2=$atmp/logs.log.log # ..
+tout=$atmp/toutput.tmp 										;		THETIME="${arge[0]}" # shift for this script
+USRDIR=/home/$USR/Downloads
+SRCDIR=""
+diffrlt="false"											            ;		pstc="false"
+nodiff="false"											            ;       samerlt="false"
+syschg="false"														;		validrlt="false"
+approval="true"
 mkdir $tmp
 mkdir $tmp$workdir
 mkdir $atmp
 if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
-if [ "$1" == "" ]; then THETIME="noarguser" ; fi # root call
-[ "$THETIME" == "SRC" ] &&{ SRCDIR=$THETIME; THETIME="${2:-noarguser}"; }
-[ "$2" == "SRC" ] && SRCDIR=$2 || { [ "$2" == "SEARCH" ] || [ "$2" == "search" ]; } && echo "The SRC tag is for recentchanges only" && exit
+
+if [ "${arge[0]}" == "" ]; then THETIME="noarguser" ; fi # root call
+
+[ "$THETIME" == "SRC" ] &&{ SRCDIR=$THETIME; THETIME="${2:-noarguser}"; } # shift ..
+[ "${arge[1]}" == "SRC" ] && SRCDIR=${arge[1]} || { [ "${arge[1]}" == "SEARCH" ] || [ "${arge[1]}" == "search" ]; } && echo "The SRC tag is for recentchanges only" && exit
+
 if [ "$STATPST" == "true" ]; then
     if [ -f $logpst ]; then
         sz=$( stat -c %s "$logpst")
@@ -194,42 +209,36 @@ if [ "$STATPST" == "true" ]; then
 fi
 if [ "$THETIME" != "noarguser" ] && [ "$THETIME" != "" ]; then
     if [ "$THETIME" -ge 0 ] 2>/dev/null; then argone=$THETIME ; else echo argument specified not a valid integer or valid flag && exit; fi
-	cyan "Grabbing files (filtered) and searching for total sys files $1 seconds old or newer"  
-    comp $argone                           												
-
+	cyan "Grabbing files (filtered) and searching for total sys files ${arge[0]} seconds old or newer" ; comp $argone
 else
-    cyan "Grabbing files (filtered) and searching for total sys files 5 minutes old or newer"
-    argone="5" ; qtn="5"
+    cyan "Grabbing files (filtered) and searching for total sys files 5 minutes old or newer" ; argone="5" ; qtn="5"
 fi
 fc="find /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var -mmin -${qtn} -not -type d -print0 "
 fca="find /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var \( -cmin -${qtn}-o -amin -${qtn} \) -not -type d -print0"
 eval "$fc" 2> /dev/null | tee $RECENTNUL > /dev/null 2> /dev/null
-eval "$fca" 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null 
+eval "$fca" 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null
 if [ "$checkSUM" == "true" ]; then cyan "Running checksum. Please wait..."; fi
-if [ "$ANALYTICSECT" == "true" ]; then 
-	end=$(date +%s.%N)
-	if [ "$checkSUM" == "true" ]; then 
-		  cstart=$(date +%s.%N)
-	fi 
-fi
-
+if [ "$ANALYTICSECT" == "true" ]; then end=$(date +%s.%N) ; if [ "$checkSUM" == "true" ]; then cstart=$(date +%s.%N) ; fi ; fi
 while IFS= read -r -d '' f; do f="${f//$'\n'/\\n}" ; echo "$f" ; done < $RECENTNUL >> $RECENT
-while IFS= read -r -d '' f; do f="${f//$'\n'/\\n}" ; echo "$f"	; done < $toutnul >> $tout 	
+while IFS= read -r -d '' f; do f="${f//$'\n'/\\n}" ; echo "$f"	; done < $toutnul >> $tout
 if [ "$FEEDBACK" == "true" ]; then cat $tout ; cat $RECENT; fi
 if [ -s $tout ]; then grep -Fxv -f $RECENT $tout > $TMPCOMPLETE; fi
 > $tout
 
+#pacman and slaptget Loops
 if [ -s $TMPCOMPLETE ]; then
 	while IFS= read -r x; do x="${x//$'\\n'/\n}"; printf '%s\0' "$x"; done < $TMPCOMPLETE >> $xdata
 	if [ "$mMODE" == "normal" ]; then
-		search $xdata $tout $COMPLETE # main loop reliable
+		xargs -0 /usr/local/save-changesnew/searchfiles $atmp $tout $COMPLETE $checkSUM < $xdata
 	elif [ "$mMODE" == "mem" ]; then
 		declare -a xfile
 		declare -a ffile
 		declare -a nsf
-		searcharr $xdata "ctime" # .. array
+		searcharr $xdata "arry"
 	elif [ "$mMODE" == "mc" ]; then
-		xargs -0 -n8 -P4 /usr/local/save-changesnew/searchfiles "$atmp" "$checkSUM" < $xdata
+		x=$(tr -cd '\0' < $xdata | wc -c) ; y=8
+		if (( x > 100 )); then y=16 ; fi
+		xargs -0 -n"$y" -P4 /usr/local/save-changesnew/searchfiles $atmp $checkSUM < $xdata
 		if compgen -G "$atmp/searchfiles1_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles1_*_tmp.log > $tout; fi
 		if compgen -G "$atmp/searchfiles2_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles2_*_tmp.log > $COMPLETE; fi
 	else
@@ -237,119 +246,87 @@ if [ -s $TMPCOMPLETE ]; then
 	fi
 	rm $xdata
 fi
- # Main loop           
-if [ "$mMODE" == "normal" ]; then     
-	search $RECENTNUL $SORTCOMPLETE $COMPLETE
+ # Main loop we append to after
+if [ "$mMODE" == "normal" ]; then
+	xargs -0 /usr/local/save-changesnew/mainloop $atmp $SORTCOMPLETE $COMPLETE $checkSUM < $RECENTNUL
 elif [ "$mMODE" == "mem" ]; then
-	searcharr $RECENTNUL # .. array
+	searcharr $RECENTNUL
 	printf "%s\n" "${ffile[@]}" >> $SORTCOMPLETE
 	if [ ${#nsf[@]} -gt 0 ]; then printf "%s\n" "${nsf[@]}" >> $COMPLETE; fi
 elif [ "$mMODE" == "mc" ]; then
-	xargs -0 -n8 -P4 /usr/local/save-changesnew/mainloop "$atmp" "$checkSUM" < $RECENTNUL
+	x=$(tr -cd '\0' < $RECENTNUL | wc -c) ; y=8
+	if (( x > 100 )); then y=16 ; fi
+	xargs -0 -n"$y" -P4 /usr/local/save-changesnew/mainloop $atmp $checkSUM < $RECENTNUL
 	if compgen -G "$atmp/mainloop1_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop1_*_tmp.log > $SORTCOMPLETE; fi
 	if compgen -G "$atmp/mainloop2_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop2_*_tmp.log >> $COMPLETE; fi
 else
 	echo incorrect mMODE && exit
 fi
+
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
-# Main loop we append to it below from our top loop # 
-                                                                                                                                                                                   
-if [ -s $SORTCOMPLETE ]; then 
-	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE      # Original  -o       version 3   -u -o
-	SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')  # day and time
+if [ -s $SORTCOMPLETE ]; then
+	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE
+	SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')
 	PRD=$SRTTIME
 	if declare -p xfile &>/dev/null && [ ${#xfile[@]} -gt 0 ]; then printf "%s\n" "${xfile[@]}" >> $SORTCOMPLETE; fi
-	if [ -s $tout ]; then #   We dont want anything before our main files.
-		grep -v 'NOTA-FI-LE 77:77:77' "$tout" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' > $TMPOPT ; cat $TMPOPT >> $SORTCOMPLETE
-	fi 
-	s=$( echo $(date -d "$SRTTIME" "+%s"))  
-	if [ "$THETIME" == "noarguser" ]; then
-		RANGE=$(( s + 300 ))
-	else
-		RANGE=$(( s + argone ))
-	fi
+	if [ -s $tout ]; then grep -v 'NOTA-FI-LE 77:77:77' "$tout" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' > $TMPOPT ; cat $TMPOPT >> $SORTCOMPLETE ; fi
+	s=$( echo $(date -d "$SRTTIME" "+%s"))
+	if [ "$THETIME" == "noarguser" ]; then RANGE=$(( s + 300 )) ; else RANGE=$(( s + argone )) ; fi
 	PRD=$( echo $(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S')) # convert back to YYYY MM-DD HH:MM:SS
 	grep -v 'NOTA-FI-LE 77:77:77' "$SORTCOMPLETE" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' > $tout ; mv $tout $SORTCOMPLETE
-	syschg="true"; sort -u -o $SORTCOMPLETE $SORTCOMPLETE	
+	syschg="true"; sort -u -o $SORTCOMPLETE $SORTCOMPLETE
 	awk '{print $1, $2}' $SORTCOMPLETE > $tout
 	perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' $SORTCOMPLETE > $TMPCOMPLETE
 	paste -d' ' $tout $TMPCOMPLETE > $TMPOPT
 	sort -o $TMPOPT $TMPOPT
 fi
-/usr/local/save-changesnew/filter $RECENT $USR #Apply filtering
-
+/usr/local/save-changesnew/filter $RECENT $USR
 > $tout
-while IFS= read -r x; do x="$(unescf "$x")" ; printf '%s\0' "$x"; done < $RECENT >> $tout            # convert it  back to \n for copying
+while IFS= read -r x; do x="$(unescf "$x")" ; printf '%s\0' "$x"; done < $RECENT >> $tout
 while IFS= read -r -d '' x; do if cp -a --parents "$x" "$tmp$workdir" > /dev/null 2>> $xdata; then printf '%s %s\n' "$x" "success" >> $UPDATE; else echo "Failed to copy: $x" >&2; echo "ERROR: $x" >> $UPDATE; fi; done < $tout
 unset IFS
 if [ -s $xdata ]; then echo > $UPDATE ; cat $xdata $UPDATE; fi
 test -e $xdata && rm $xdata
 echo $BRAND >> $UPDATE
-
 find $tmp$workdir -not -type d -print0 > $SVFILES
 >$tout
-while IFS= read -r -d '' x; do x="$(escapef "$x")" ; echo "$x" ; done < $SVFILES >> $tout 
+while IFS= read -r -d '' x; do x="$(escapef "$x")" ; echo "$x" ; done < $SVFILES >> $tout
 mv $tout $SVFILES
-
 sed -i -e "s|$tmp$workdir||g" $SVFILES
-cat $SVFILES | sed -e 's![^/]*$!!g' > $SVFOLDERS 
-
+cat $SVFILES | sed -e 's![^/]*$!!g' > $SVFOLDERS
 if [ "$SRCDIR" == "SRC" ]; then
     arrfiles=()
     arrreject=()
     appname="Application"
     FLTOUT="/tmp/${appname}ItemsFilteredout"
-
     test -e "/tmp/${appname}.xzm" && rm "/tmp/${appname}.xzm"
-    rm "/tmp/"*"_xdata" 2> /dev/null 
-    
+    rm "/tmp/"*"_xdata" 2> /dev/null
     rlt=$( validprogram $SVFOLDERS)
- 	if [ "$rlt" == "/" ]; then
- 		echo Fatal error. exiting.
- 		exit 1
- 	fi
+ 	if [ "$rlt" == "/" ]; then echo Fatal error. exiting. && exit 1 ; fi
     if [ "$rlt" != "" ]; then
-
         cat $SVFILES | grep "${rlt}" > $RECENTAPP
         cat $SVFILES | grep -v "${rlt}" > $RSYNCEXCL
-
-        while IFS= read -r p || [ -n "$p" ]; do
-			p="$(unescf "$p")"
-			rm -- "$tmp$workdir$p"
-        done < $RSYNCEXCL
-		unset IFS
-		
+        while IFS= read -r p || [ -n "$p" ]; do p="$(unescf "$p")" ; rm -- "$tmp$workdir$p" ; done < $RSYNCEXCL
 		find $tmp$workdir -type d -empty -delete
         mksquashfs $tmp$workdir "/tmp/${appname}.xzm"
-
         cp $RECENTAPP "/tmp/${appname}_xdata"
         echo $BRAND >> "/tmp/${appname}_xdata"
         sort -o $RECENTAPP $RECENTAPP
-
-        cat $SORTCOMPLETE | grep -Ff $RECENTAPP | grep -v 'NOTA-FI-LE 77:77:77'  | tee $TMPCOMPLETE > /dev/null 
-        
+        cat $SORTCOMPLETE | grep -Ff $RECENTAPP | grep -v 'NOTA-FI-LE 77:77:77'  | tee $TMPCOMPLETE > /dev/null
         endtm=$( gettime "$TMPCOMPLETE" "/tmp/${appname}_xdata")
         printf "\n\n" >> "/tmp/${appname}_xdata"
-        cat $TMPOPT  | grep -Fvf $RECENTAPP > $TMPCOMPLETE 
-
+        cat $TMPOPT  | grep -Fvf $RECENTAPP > $TMPCOMPLETE
 	    cd $tmp$workdir || exit
 	    srcpath="${rlt#?}"
-        
         y=$( wc -l < $RECENTAPP)
         x=0
-		while IFS= read -r -d '' f
-        do 
-			f="$(escapef "$f")"
-            grep -Fq -- "$f" $RECENTAPP && x=$(( x + 1 )) || { approval="false"; arrreject+=("$f"); } 
-        done < <(find "${srcpath}" \( -type f -o -type l \) -print0)
-
+		while IFS= read -r -d '' f ; do f="$(escapef "$f")" ; grep -Fq -- "$f" $RECENTAPP && x=$(( x + 1 )) || { approval="false"; arrreject+=("$f"); } ; done < <(find "${srcpath}" \( -type f -o -type l \) -print0)
 		r=$( find "${rlt}" -type f | wc -l)  # system count
-		echo Root:"${rlt}" >> "/tmp/${appname}_xdata" 
+		echo Root:"${rlt}" >> "/tmp/${appname}_xdata"
 		echo "File count: "$x "of ${y}" >> "/tmp/${appname}_xdata"
 		echo "System count: "$r >> "/tmp/${appname}_xdata"
 		echo >> "/tmp/${appname}_xdata"
 		echo >> "/tmp/${appname}_xdata"
-		
 		if [ "$approval" == "true" ]; then
 			echo "Status: Complete. Files verified " >> "/tmp/${appname}_xdata"
 			echo >> "/tmp/${appname}_xdata"
@@ -359,37 +336,26 @@ if [ "$SRCDIR" == "SRC" ]; then
 			echo >> "/tmp/${appname}_xdata"
 			echo "Following file(s) do not belong" >> "/tmp/${appname}_xdata"
             for element in "${arrreject[@]}"; do echo "$element" >> "/tmp/${appname}_xdata"; done
-		fi 
+		fi
 		echo >> "/tmp/${appname}_xdata"
 		echo >> "/tmp/${appname}_xdata"
         echo $BRAND >> $RECENTAPP
-        
-        if [ -s $TMPCOMPLETE ]; then
-
-	    { echo "Items filterout from filtered files."; echo ; cat $TMPCOMPLETE; }  >> "/tmp/${appname}_xdata"
-
-        else
-            echo "No items filtered out from filter."  >>"/tmp/${appname}_xdata"  
-        fi
-
+        if [ -s $TMPCOMPLETE ]; then { echo "Items filterout from filtered files."; echo ; cat $TMPCOMPLETE; }  >> "/tmp/${appname}_xdata" ; else echo "No items filtered out from filter."  >>"/tmp/${appname}_xdata" ; fi
         find "$tmp$workdir$rlt" -type f -print0 > $TMPCOMPLETE
         while IFS= read -r -d '' f; do f="$(escapef "$f")" ; arrfiles=("${arrfiles[@]}" "${f##*/}"); done < $TMPCOMPLETE
-        unset IFS
-
         x=${#arrfiles[@]}
         y=0
         echo ""
-        for i in "${arrfiles[@]}"
-        do
+        for i in "${arrfiles[@]}" ; do
             p=$(( y + 1 ))
-            printf "%2d %-40s\t\t" "$p" "${i}" 
+            printf "%2d %-40s\t\t" "$p" "${i}"
             (( y++ ))
             if  [ $(( y % 2 )) -eq 0 ]; then
                 echo -en "\n"
             else
                 if (( y == x )); then
                     echo -en "\n"
-                fi           
+                fi
             fi
             if (( y > 70 )); then
                 break
@@ -398,12 +364,11 @@ if [ "$SRCDIR" == "SRC" ]; then
         echo "Root folder" "${rlt##*/}"
         echo  "Press enter for default filename"
         read  -p 'Filename or Selection: ' usrslc
-
         if [ "$usrslc" != "" ]; then
             if [ "$usrslc" -ge 0 ]  2>/dev/null; then
                 echo selected "$usrslc"
                 if [ "${#arrfiles[@]}" -ge "$usrslc" ]; then
-                    filename="${arrfiles[$(( usrslc - 1 ))]}"      # | sed -e 's/\.[^\.]*$//' -e 's/ /_/g')
+                    filename="${arrfiles[$(( usrslc - 1 ))]}"
                 else
                     echo
                     echo "Using default filename."
@@ -413,16 +378,11 @@ if [ "$SRCDIR" == "SRC" ]; then
                 filename="$usrslc" #User
             fi
         else
-            filename="$appname" #Default    
+            filename="$appname" #Default
         fi
-		fn=$(printf '%b' "$filename") # unescape
+		fn=$(printf '%b' "$filename") #unesc
 		fn=$( echo "$fn" | sed -e 's/\...$//' -e 's/\....$//' -e 's/ /_/g')
-
-        if [ "$fn" != "${appname}" ]; then
-            mv /tmp/"${appname}".xzm /tmp/"${fn}".xzm
-            mv /tmp/"${appname}"_xdata /tmp/"${fn}"_xdata
-        fi
-
+        if [ "$fn" != "${appname}" ]; then mv /tmp/"${appname}".xzm /tmp/"${fn}".xzm ; mv /tmp/"${appname}"_xdata /tmp/"${fn}"_xdata ; fi
         chown $USR /tmp/"${fn}".xzm
         chown $USR /tmp/"${fn}"_xdata
     fi
@@ -435,51 +395,37 @@ chxzmnm=$MODULENAME"manifest.txt"
 moduledir=$MODULENAME"_"$FLBRAND
 FLTOUT="/tmp"$MODULENAME"ItemsFilteredout"
 k=$( head -n1 $SVFILES | grep "MDY") #Is there results in the .xzm?
-
 if [ -z "$k" ]; then
 	validrlt="true"
-    #Move old files
-    r=$(find . -maxdepth 1 -type d -name '*rntfiles_MDY*' | wc -l)
-    if [ "$r" -eq 2 ]; then
-        for folder in "/tmp"$MODULENAME"_MDY"*
-        do
-            rm -r $folder
-            break
-        done
-    fi
+    r=$(find . -maxdepth 1 -type d -name '*rntfiles_MDY*' | wc -l) #Move old files
+    if [ "$r" -eq 2 ]; then for folder in "/tmp"$MODULENAME"_MDY"* ;  do rm -r $folder ; break ; done ; fi
     mkdir "/tmp"$moduledir && chown $USR "/tmp"$moduledir
     test -e /tmp"$chxzm" && mv /tmp"$chxzm" "/tmp"$moduledir ; test -e "/tmp"$chxzmnm && mv "/tmp"$chxzmnm "/tmp"$moduledir; test -e "/tmp"$MODULENAME"Transferlog" && mv "/tmp"$MODULENAME"Transferlog" "/tmp"$moduledir
-    mv $LCLMODULENAME"xSystemchanges"* "/tmp"$moduledir 2> /dev/null ; mv $LCLMODULENAME"xSystemDiffFromLastSearch"* "/tmp"$moduledir 2> /dev/null  
+    mv $LCLMODULENAME"xSystemchanges"* "/tmp"$moduledir 2> /dev/null ; mv $LCLMODULENAME"xSystemDiffFromLastSearch"* "/tmp"$moduledir 2> /dev/null
     test -e  "/tmp"$MODULENAME"ItemsFilteredout" && rm  "/tmp"$MODULENAME"ItemsFilteredout"
-
-    if [ "$SRCDIR" != "SRC" ]; then # rntfiles.xzm 
-
+    if [ "$SRCDIR" != "SRC" ]; then # rntfiles.xzm
 	    mksquashfs $tmp$workdir "/tmp"$chxzm
 	    cp $SVFILES "/tmp"$chxzmnm
 	    cp $UPDATE  "/tmp"$MODULENAME"Transferlog"
-
         if [ "$validrlt" == "true" ]; then
             sort -o $RECENT $RECENT
             cat $TMPOPT | grep -Fvf $RECENT > $FLTOUT ; echo $BRAND >> $FLTOUT
-            cat $TMPOPT | grep -Ff $RECENT | grep -v 'NOTA-FI-LE 77:77:77'  | tee $TMPCOMPLETE > /dev/null 
+            cat $TMPOPT | grep -Ff $RECENT | grep -v 'NOTA-FI-LE 77:77:77'  | tee $TMPCOMPLETE > /dev/null
             sed -i '/^[[:space:]]*$/d' $TMPCOMPLETE
             endtm=$( gettime $TMPCOMPLETE "/tmp"$chxzmnm)
         fi
-        chown $USR "/tmp"$chxzm
-        chown $USR "/tmp"$chxzmnm      
-        chown $USR "/tmp"$MODULENAME"Transferlog"
-        chown $USR $FLTOUT
+        chown $USR "/tmp"$chxzm ; chown $USR "/tmp"$chxzmnm ; chown $USR "/tmp"$MODULENAME"Transferlog" ; chown $USR $FLTOUT
         test -e "/tmp"$moduledir && chown $USR "/tmp"$moduledir
     fi
-fi                                                        
-if [ ! -f "/tmp"$moduledir$MODULENAME"xSystemchanges"$argone ]; then # check most recent old
+fi
+if [ ! -f "/tmp"$moduledir$MODULENAME"xSystemchanges"$argone ]; then
 	r=$(find . -type f -path "*/${MODULENAME}_MDY*/*" | wc -l)
 	if (( r >= 1 )); then
 		for folder in $(ls -d /tmp"${MODULENAME}"_MDY* | sort -r); do # most recent folder
 			for file in $folder$MODULENAME"xSystemchanges${argone}"*; do
 			    test -f $file && { OLDSORTED=$file ; nodiff="true"; break; }
 			done
-			[ -n "$OLDSORTED" ] && break  
+			[ -n "$OLDSORTED" ] && break
 		done
 	fi
 else
@@ -489,158 +435,130 @@ difffile="/tmp"$MODULENAME"xSystemDiffFromLastSearch"$argone
 if [ -s $SORTCOMPLETE ]; then
     if [  -n "$OLDSORTED" ] && [ -s $OLDSORTED ]; then
     	sed -i '/^[[:space:]]*$/d' $OLDSORTED
-        comm -23 $OLDSORTED $TMPOPT > $TMPCOMPLETE   
+        comm -23 $OLDSORTED $TMPOPT > $TMPCOMPLETE
         if [ -s $TMPCOMPLETE ]; then
-            cp $TMPCOMPLETE "${difffile}"  
-
+            cp $TMPCOMPLETE "${difffile}"
 	        diffrlt="true"
-            #Cut out irrelevant files
-			cDATE=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')          
+			cDATE=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') #Cut out irrelevant files
             awk -v tme="$cDATE" '$0 >= tme' "$difffile" > $TMPCOMPLETE
 	        echo "          " >> "${difffile}"
-	    
-            while IFS="" read -r p || [ -n "$p" ]; do                          
-		       	cFILE="$( echo "$p" | cut -d " " -f3-)"
-				cFILE=$( escapef "$cFILE")
-                grep -Fqs "$cFILE" $SORTCOMPLETE && { echo "Modified" "$p" >> $ABSENT; echo "Modified" "$p" >> $rout; } || { echo "Deleted " "$p" >> $ABSENT; echo "Deleted" "$p" >> $rout; } # record delete for stats
-	        done < $TMPCOMPLETE
-	        unset IFS
-
+            while IFS="" read -r p || [ -n "$p" ]; do cFILE="$( echo "$p" | cut -d " " -f3-)" ; cFILE=$( escapef "$cFILE") ; grep -Fqs "$cFILE" $SORTCOMPLETE && { echo "Modified" "$p" >> $ABSENT; echo "Modified" "$p" >> $rout; } || { echo "Deleted " "$p" >> $ABSENT; echo "Deleted" "$p" >> $rout; } ;  done < $TMPCOMPLETE
 	        test -f $ABSENT  && { echo Applicable to your search ; cat $ABSENT ; } >> "${difffile}" || { diffrlt="false" ; echo "None of above is applicable to search. It is the previous search."; } >> "${difffile}"
         else
             samerlt="true"
         fi
     fi
-    ofile=$atmp/tmpinfo
-    tfile=$atmp/tmpd
-    if [ -d /tmp/rc ] && [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then # TMP SRG
-        for file in rc/*; do
-            cat $file >> $ofile 2>/dev/null
+	ofile=$atmp/tmpinfo ; tfile=$atmp/tmpd
+	# Hybrid analysis
+						# TMP 
+    if [ -d /tmp/rc ] && [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then 
+        for file in /tmp/rc/*; do
+            cat $file >> $ofile  2> /dev/null
         done
-        if [ -s $ofile ]; then 
+        if [ -s $ofile ]; then
             sort -u -o $ofile $ofile
-			cc="$(hanly $SORTCOMPLETE $ofile)"
-			#ret=$?	
-			#if [ "$ret" -ne 0 ]; then
-			#	echo "failure in ANALYTICS hanly subprocess"
-			#fi
-			[[ -n "$cc" && "$cc" == "csum" ]] && { awk '{ print "\033[31m *** Checksum of file \033[0m" $0 "\033[31m altered without a modified time\033[0m" }' /tmp/cerr && rm /tmp/cerr; } || [[ -n "$cc" ]] && echo "Detected $cc CPU cores."
-        fi        
-    fi
-    if [ "$STATPST" == "true" ]; then  # STATPST SRG
+			hanly $SORTCOMPLETE $ofile $5
+			ret=$?
+			if [ "$ret" -gt 0 ]; then
+				echo "failure in ANALYTICS hanly subprocess"
+			fi
+        fi
+    fi				
+						# STATPST
+    if [ "$STATPST" == "true" ]; then 
 		if [ "$ANALYTICS" == "false" ]; then
 			if [ "$backend" == "default" ]; then
 				if [ -s $logpst ]; then
 					if decrypt $xdata2 $logpst; then
 						awk 'NF' $xdata2 > $ofile
-					     if [ -s $ofile ]; then 
-					        sort -u -o $ofile $ofile 
-					   	   	cc="$(hanly $SORTCOMPLETE $ofile)" #hybrid analysis	 and difffile output
-							#ret=$?
-							#if [ "$ret" -ne 0 ]; then
-							#	echo "failure in STATPST hanyl subprocess"
-							#fi
-					    fi
-						pstc="true"				
+						 if [ -s $ofile ]; then
+							sort -u -o $ofile $ofile
+							hanly $SORTCOMPLETE $ofile $5
+							ret=$?
+							if [ "$ret" -ne 0 ]; then
+								echo "failure in STATPST hanyl subprocess"
+							fi
+						fi
+						pstc="true"
 					else
 						echo "Failed to decrypt log file in hanly for STATPST. log file ${logpst}"
 					fi
 				else
 					pstc="true"
 				fi
-			else # ha database
-				if [ -s "$pydbpst" ]; then if decrypt "$pydb" "$pydbpst"; then dbc="true"; fi ; fi
-				[[ ! -s "$pydbpst" ]] && echo Initializing database... && python3 /usr/local/save-changesnew/pstsrg.py --init && if ! gpg --list-keys | grep -q $email ; then generatekey ; fi && dbc="true"
-				if [ -s "$pydbpst" ] && [ "$dbc" == "true" ]; then # skip first pass
-					rt=$(python3 /usr/local/save-changesnew/hanlydb.py $SORTCOMPLETE $COMPLETE $pydb $rout $tfile $checkSUM $cdiag)
+	# End Hybrid analysis
+				if [ "$pstc" == "true" ]; then # Encrypt
+					imsg="$(storeenc $SORTCOMPLETE $logpst "dcr")"
 					ret=$?
 					if [ "$ret" -ne 0 ]; then
-						echo "ha failed from hanlydb.py."
+						echo "$imsg"
 					else
-						if [ "$rt" == "csm" ]; then
-							awk '{ print "\033[31m *** Checksum of file \033[0m" $0 "\033[31m altered without a modified time\033[0m" }' /tmp/cerr && rm /tmp/cerr
-						elif [ "$rt" != "" ]; then
-							echo "$rt"
+						if [ "$imsg" -ge 0 ] 2>/dev/null; then
+							if (( imsg % 10 == 0 )); then  cyan "$imsg searches in gpg log"; fi
+						elif [ "$imsg" != "" ]; then
+							green "Persistent search log file created."
 						fi
 					fi
-					processha
-					[ "$ANALYTICSECT" == "true" ] && [ "$mMODE" == "mc" ] && [ "$rt" != "csm" ] && [ "$dbf" == "true" ] && echo Detected $(nproc 2>/dev/null || echo 1) CPU cores.
+					if [ -s $rout ]; then 
+						sort -u -o $rout $rout
+						sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2",\3/' $rout
+						if [ -s $COMPLETE ]; then cat $COMPLETE >> $rout; fi
+						if [ "$pstc" == "true" ]; then
+							imsg="$(storeenc $rout $statpst)"
+							ret=$?
+							if [ "$ret" -ne 0 ]; then
+								echo "$imsg"
+							else
+								if [ "$imsg" != "" ]; then green "Persistent stats file created."; imsg=""; fi
+							fi
+						fi
+					fi
 				fi
-			fi
-		fi
-		[[ -n "$cc" && "$cc" == "csum" ]] && { awk '{ print "\033[31m *** Checksum of file \033[0m" $0 "\033[31m altered without a modified time\033[0m" }' /tmp/cerr && rm /tmp/cerr; } || [[ -n "$cc" ]] && echo "Detected $cc CPU cores."
-		# Encrypt stage            		
-        if [ -s $rout ]; then
-            sort -u -o $rout $rout
-			sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2",\3/' $rout  #csv
-			if [ -s $COMPLETE ]; then cat $COMPLETE >> $rout; fi
-			if [ "$backend" != "default" ] && [ "$dbc" == "true" ]; then #db
-				imsg="$(python3 /usr/local/save-changesnew/pstsrg.py $rout "stats")"
+
+			# Database Hybrid analysis, statpst and encrypt
+			else 
+
+				python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $COMPLETE $pydbpst $rout $tfile $checkSUM $cdiag $email $mMODE # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
 				ret=$?
-			elif [ "$backend" == "default" ] && [ "$pstc" == "true" ]; then
-				#save stats encrypt
-		        imsg="$(storeenc $rout $statpst)"
-		        ret=$?
-			fi  
-	        if [ "$ret" -ne 0 ]; then
-	            echo "$imsg"
-	        else
-	            if [ "$imsg" != "" ]; then green "Persistent stats database created."; imsg=""; fi
-	        fi	
-        fi
-		# Logfile save
-		if [[ "$backend" != "default" && "$dbc" == "true" ]]; then
-			imsg=$(python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE "log")	
-			ret=$?
-  		elif [ "$backend" == "default" ] && [ "$pstc" == "true" ]; then
-		    imsg="$(storeenc $SORTCOMPLETE $logpst "dcr")"
-		    ret=$?
-		fi	
-		if [ "$ret" -ne 0 ]; then
-		    echo "$imsg"
-		else
-		    if [ "$imsg" -ge 0 ] 2>/dev/null; then 
-		        if (( imsg % 10 == 0 )); then  cyan "$imsg searches in gpg log"; fi
-		    elif [ "$imsg" != "" ]; then
-		        green "Persistent search log file created."
-		    fi
-		fi
-		if [ "$backend" != "default" ] && [ "$dbc" == "true" ]; then
-			if [ -s "$pydb" ]; then			
-				if ! gpg --yes -e -r $email -o $pydbpst $pydb >/dev/null 2>&1; then echo "Failed to encrypt database. Run   gpg --yes -e -r $email -o $pydbpst $pydb  before running again."; else rm "/usr/local/save-changesnew/recent.db"; fi
+				if [ "$ret" -ne 0 ]; then
+					if [ "$ret" -eq 2 ] || [ "$ret" -eq 3 ]; then
+						echo "Problem with GPG refer to instructions on setting up pinentry ect. Database preserved."
+					elif [ "$ret" -eq 4 ]; then
+						echo "Problem with database in psysrg.py"
+					else
+						echo "Pstsrg.py failed. exitcode ${ret}"
+					fi
+				fi
+
+				processha
+				
 			fi
-		elif [ "$backend" != "default" ] && [ "$dbc" == "false" ]; then
-			echo Find out why db not decrypting or delete it to make a new one
 		fi
-		[[ -s $difffile ]] && [[ -n "$( tail -n 1 $difffile)" ]] && [[ "$dbc" == "true" || "$pstc" == "true" ]] && green "Hybrid analysis on"
-	fi
+    fi
+	[[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && [[ "$pstc" == "true" ]] && green "Hybrid analysis on"
 	[[ "$cc" != "csum" && -s $slog && "$cdiag" != "true" ]] && cat $slog
-	[[ "$cc" != "csum" && -s $slog && "$cdiag" == "true" ]] && { echo "cdiag"; echo ; cat $slog ; } >> $difffile
-	test -f $slog && rm $slog
-    test -f $rout && rm $rout # incase pst off
-	filterhits $TMPOPT $flth  # record hits  ruman readable unfiltered best chance at matching 
+	[[ "$cc" != "csum" && -s $slog && "$cdiag" == "true" ]] && { echo; echo "cdiag"; echo ; cat $slog; } >> "$difffile"
+	test -f $slog && rm $slog ;  test -f $rout && rm $rout
+	filterhits $TMPOPT $flth  # record hits  ruman readable unfiltered best chance at matching
 	postop $TMPOPT $0  # ie file doctrine  POSTOP var
-    #Send the complete list of all changed files for convenience   and label accordingly
-    cp $TMPOPT "/tmp"$MODULENAME"xSystemchanges"$argone  
+    cp $TMPOPT "/tmp"$MODULENAME"xSystemchanges"$argone #Send the complete
 	chown $USR "/tmp"$MODULENAME"xSystemchanges"$argone
 	test -e "$difffile" && chown $USR "$difffile"
 fi
-if [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then   # feedBACK=="true"  also   More analytics 
+if [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then   # feedBACK=="true"  also   More analytics
     stmp $SORTCOMPLETE # save /tmp search
     if [ ! -f /tmp/rc/full ]; then cyan "Search saved in /tmp"; fi # save in /tmp but disable notification after full
-fi #Logging complete
-rm -rf $tmp #cleanup
-rm -rf $atmp
+fi
+rm -rf $tmp ; rm -rf $atmp
 if [ "$ANALYTICSECT" == "true" ]; then
     el=$(awk "BEGIN {print $end - $start}")
     printf "Search took %.3f seconds.\n" "$el"
-
 	if [ "$checkSUM" == "true" ]; then
 		el=$(awk "BEGIN {print $cend - $cstart}")
 		printf "Checksum took %.3f seconds.\n" "$el"
 	fi
 fi
-if [ "$validrlt" == "true" ]; then                                    
+if [ "$validrlt" == "true" ]; then
   	cyan "Your module has been created. in /tmp"
  	echo
     if [ "$SRCDIR" == "SRC" ]; then
@@ -658,23 +576,15 @@ fi
 if [ "$THETIME" != "noarguser" ] && [ "$syschg" == "true" ]; then
 	cyan "All system files in the last $THETIME seconds are included"
 cyan ""$MODULENAME"xSystemchanges"$argone
-	echo             
+	echo
 elif [ "$syschg" == "true" ]; then
-	cyan "All system files in the last 5 minutes are included       "   
+	cyan "All system files in the last 5 minutes are included       "
     cyan ""$MODULENAME"xSystemchanges"$argone
-	echo             
+	echo
 fi
-if [ "$syschg" == "false" ]; then
-    cyan "No sys files to report."
-fi
-if [ "$samerlt" == "true" ] && [ "$syschg" == "true" ] && [ "$nodiff" == "true" ]; then
-    cyan "The sys search was the same as before.                          "
-fi
-if [ "$diffrlt" == "false" ] && [ "$nodiff" == "true" ] && [ "$samerlt" == "false" ]; then
-green " Nothing in the sys diff file. That is the results themselves are true" 
-cyan "Refer to /rntfiles_MDY folder for the previous search"
-fi
+if [ "$syschg" == "false" ]; then  cyan "No sys files to report." ; fi
+if [ "$samerlt" == "true" ] && [ "$syschg" == "true" ] && [ "$nodiff" == "true" ]; then cyan "The sys search was the same as before." ; fi
+if [ "$diffrlt" == "false" ] && [ "$nodiff" == "true" ] && [ "$samerlt" == "false" ]; then green " Nothing in the sys diff file. That is the results themselves are true" ; cyan "Refer to /rntfiles_MDY folder for the previous search" ; fi
 # We could test if featherpad or xed is installed and open it
 #test -e /usr/bin/featherpad && featherpad "/tmp"$MODULENAME"xSystemchanges"$argone
 #test -e /usr/bin/xed && xed "/tmp"$MODULENAME"xSystemchanges"$argone
-#if [ -z "$AGENT_PID" ]; then kill "$AGENT_PID"; fi 
