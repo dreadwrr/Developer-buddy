@@ -127,7 +127,9 @@ elif [ "$mMODE" == "mem" ]; then
 	printf "%s\n" "${ffile[@]}" >> $SORTCOMPLETE
 	if [ ${#nsf[@]} -gt 0 ]; then printf "%s\n" "${nsf[@]}" > $COMPLETE; fi
 elif [ "$mMODE" == "mc" ]; then
-	xargs -0 -n8 -P4 /usr/local/save-changesnew/mainloop "$atmp" "$checkSUM" < $FEEDFILE
+	x=$(tr -cd '\0' < $RECENTNUL | wc -c) ; y=8
+	if (( x > 100 )); then y=16 ; fi
+	xargs -0 -n"$y" -P4 /usr/local/save-changesnew/mainloop "$atmp" "$checkSUM" < $FEEDFILE
 	if compgen -G "$atmp/mainloop1_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop1_*_tmp.log > $SORTCOMPLETE;  fi
 	if compgen -G "$atmp/mainloop2_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop2_*_tmp.log >> $COMPLETE; fi
 fi
