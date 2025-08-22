@@ -160,6 +160,7 @@ if [ "$STATPST" == "true" ]; then
 						fi
 					fi
                 done < $1
+            fi
         else # its a log
             c=$( grep -c '^$' $source)
             if  (( c == logCT )); then
@@ -261,7 +262,10 @@ processha() {
 				cp $TMPOUTPUT $TMPCOMPLETE
 			fi
 			awk '{printf "%-10s %-25s %-60s\n", $1, $2" "$3, $4}' $TMPCOMPLETE >> "$difffile"
-       		if [ "$csm" != "" ] && [ -s "/tmp/cerr" ]; then while IFS= read -r file; do red "*** Checksum of file ${file} altered without a modified time" ; rm /tmp/cerr ; done < /tmp/cerr ; sts="true"; fi
+       		if [ "$csm" != "" ] && [ -s "/tmp/cerr" ]; then 
+       			while IFS= read -r file; do red "*** Checksum of file ${file} altered without a modified time" ; done < /tmp/cerr 
+       			rm /tmp/cerr ; sts="true"
+       		fi
 			if [ -n "$cores" ] && [ "$sts" != "" ]; then echo "Detected $cc CPU cores."; fi
 			#awk '{ print "\033[31m *** Checksum of file \033[0m" $0 "\033[31m altered without a modified time\033[0m" }'
         fi
@@ -288,7 +292,7 @@ if [ -e "$x" ] && [ -f "$x" ]; then
 				output="$ct \"$y\" $i $at $adtcmd"
 				if [ -z "$1" ]; then
 					printf '%s\n' "$output" >> "$tout"
-				else
+				elif [ "$1" == "arry" ]; then
 					xfile+=("$output")
 				fi
 			fi
@@ -299,9 +303,9 @@ else
 		printf 'NOTA-FI-LE 77:77:77 "%s"\n' "$y" >> "$tout"
 		printf 'Nosuchfile,,%s\n' "$y" >> "$COMPLETE"
 	elif [ "$1" == "arry" ] && [ "$2" == "ctime" ]; then
-		ffile+=("NOTA-FI-LE 77:77:77 \"$y\"")
-	else
 		nsf+=("Nosuchfile,,$y")
+	else
+		ffile+=("NOTA-FI-LE 77:77:77 \"$y\"")
 	fi
 fi
 }

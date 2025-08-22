@@ -12,22 +12,22 @@ USR=$3
 if [ "$USR" == "" ]; then echo please call from recentchanges; exit; fi
 if [ "$4" == "" ]; then echo "incorrect usage please call from recentchanges"; exit 1; fi
 if [ "$1" != "search" ]; then echo exiting not a search && exit; fi
-work=work$$												   						;		tmp=/tmp/work$$
+work=work$$												   	;		tmp=/tmp/work$$
 FLBRAND=`date +"MDY_%m-%d-%y-TIME_%R_%S"|tr ':' '_'`		;		ABSENT=$tmp/absent.txt
 BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`				;		chxzm=/rntfiles.xzm
-USRDIR=/home/$USR/Downloads											;		RECENT=$tmp/list_recentchanges_filtered.txt
-UPDATE=$tmp/save.transferlog.tmp		    							; 		RECENTNUL=$tmp/list_recentchanges_filterednul.txt
-COMPLETE=$tmp/list_complete.txt							   				; 		SORTCOMPLETE=$tmp/list_complete_sorted.txt
-COMPLETENUL=$tmp/list_completenul.txt								;		atmp=/tmp/atmp$$
-TMPCOMPLETE=$tmp/tmp_complete.txt									;		dr=/usr/local/save-changesnew
-TMPOUTPUT=$tmp/list_tmp_sorted.txt									; 		rout=$atmp/routput.tmp
-flth=$dr/flth.csv						       											;       tout=$atmp/toutput.tmp
-toutnul=$atmp/toutputnul.tmp												;     	xdata=$atmp/logs_stat.log
-TMPOPT=$tmp/tmp_holding													;       xdata2=$atmp/logs_log.log
-slog=/tmp/scr																		;     	pydb=/usr/local/save-changesnew/recent.db
-pytmp=$atmp/pytmp.tmp 														;     	pydbpst=/usr/local/save-changesnew/recent.gpg
-validrlt="false"										   								;		nodiff="false"
-pstc="false"																			;		flsrh="false"
+USRDIR=/home/$USR/Downloads									;		RECENT=$tmp/list_recentchanges_filtered.txt
+UPDATE=$tmp/save.transferlog.tmp		    				; 		RECENTNUL=$tmp/list_recentchanges_filterednul.txt
+COMPLETE=$tmp/list_complete.txt							   	; 		SORTCOMPLETE=$tmp/list_complete_sorted.txt
+COMPLETENUL=$tmp/list_completenul.txt						;		atmp=/tmp/atmp$$
+TMPCOMPLETE=$tmp/tmp_complete.txt							;		dr=/usr/local/save-changesnew
+TMPOUTPUT=$tmp/list_tmp_sorted.txt							; 		rout=$atmp/routput.tmp
+flth=$dr/flth.csv						       				;       tout=$atmp/toutput.tmp
+toutnul=$atmp/toutputnul.tmp								;     	xdata=$atmp/logs_stat.log
+TMPOPT=$tmp/tmp_holding										;       xdata2=$atmp/logs_log.log
+slog=/tmp/scr												;     	pydb=/usr/local/save-changesnew/recent.db
+pytmp=$atmp/pytmp.tmp 										;     	pydbpst=/usr/local/save-changesnew/recent.gpg
+validrlt="false"										   	;		nodiff="false"
+pstc="false"												;		flsrh="false"
 diffrlt="false"
 mkdir $tmp
 mkdir $atmp
@@ -136,7 +136,7 @@ elif [ "$mMODE" == "mem" ]; then
 	printf "%s\n" "${ffile[@]}" >> $SORTCOMPLETE
 	if [ ${#nsf[@]} -gt 0 ]; then printf "%s\n" "${nsf[@]}" > $COMPLETE; fi
 elif [ "$mMODE" == "mc" ]; then
-	x=$(tr -cd '\0' < $xdata | wc -c) ; y=8
+	x=$(tr -cd '\0' < $FEEDFILE | wc -c) ; y=8
 	if (( x > 100 )); then y=16 ; fi
 	xargs -0 -n"$y" -P4 /usr/local/save-changesnew/mainloop "$atmp" "$checkSUM" < $FEEDFILE
 	if compgen -G "$atmp/mainloop1_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop1_*_tmp.log > $SORTCOMPLETE;  fi
@@ -303,7 +303,7 @@ if [ -s $SORTCOMPLETE ] ; then
 			fi
 		fi
     fi
-	[[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && [[ "$pstc" == "true" ]] && [[ "$ANALYTICSECT" == "true" ]] green "Hybrid analysis on"
+	[[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && [[ "$pstc" == "true" ]] && [[ "$ANALYTICSECT" == "true" ]] && green "Hybrid analysis on"
 	[[ "$cc" != "csum" && -s $slog && "$cdiag" != "true" ]] && cat $slog
 	[[ "$cc" != "csum" && -s $slog && "$cdiag" == "true" ]] && { echo; echo "cdiag"; echo ; cat $slog; } >> "$difffile"
 	test -f $slog && rm $slog ; test -f $rout && rm $rout
