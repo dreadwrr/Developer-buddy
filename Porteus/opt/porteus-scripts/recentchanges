@@ -26,7 +26,6 @@ get_colors
 . /usr/local/save-changesnew/versionquery
 . /usr/local/save-changesnew/validprogram.sh
 . /usr/local/save-changesnew/rntchangesfunctions
-. /usr/local/save-changesnew/comp
 # If you want xed or featherpad to open uncomment at bottom of script
 # CHANGEABLE       New to version 3
 

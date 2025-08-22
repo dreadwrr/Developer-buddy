@@ -439,7 +439,9 @@ if [[ "$ans" = "" ]]; then
     		else
         		dirSRC=$tmp # were working in memory
     		fi
-
+			
+			pst=$PWD
+			cd $dirSRC
 		    # is there a changes backup already?
 		    if [ -d "${target}${rlt}${MODULENM}.bak/" ]; then
 
@@ -997,6 +999,7 @@ if [[ "$ans" = "" ]]; then
 
 		       # fi
 		    fi
+		    cd $pst
 		fi
     	test -e $EXCLUDED && rm $EXCLUDED	# temporary holding
 		rm -rf $tmp	#delete temporary files
