@@ -1,5 +1,5 @@
 #!/bin/bash
-#                                               Developer Buddy v3.0                Aug 18, 2025
+#                                               Developer Buddy v3.0                Aug 22, 2025
 #   this script works for two modes porteus nemesis graphics and changes.
 # # Author: fanthom <fanthom@porteus.org>
 . /usr/share/porteus/porteus-functions
@@ -628,7 +628,7 @@ else # Graphics mode
 	line=43 #Bootloader
 	pth="/boot/syslinux/porteus.cfg"
 	[[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; } && [[ "$bootdvc" != "" ]] && thetgt=$bootdvc
-	[[ -n "$grubln" ]] && test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth.bak
+	[[ -n "$grubln" ]] && test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak
     test -e "$thetgt/boot/syslinux/porteus.cfg" && rlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on ln?  ## Notes returns the value grep 'extramod=[^ ]*')
 
     epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g')

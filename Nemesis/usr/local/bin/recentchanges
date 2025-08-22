@@ -1,5 +1,5 @@
 #!/bin/bash
-#   NMS5                                                                            08/18/2025  v3.0
+#   NMS5                                                                            08/22/2025  v3.0
 #   recentchanges. Developer buddy      make xzm
 #   Provide ease of pattern finding ie what files to block we can do this a number of ways
 #   1) if a file was there (many as in more than a few) and another search lists them as deleted its either a sys file or not but unwanted nontheless
