@@ -201,7 +201,10 @@ processha() {
 				cp $TMPOUTPUT $TMPCOMPLETE
 			fi
 			awk '{printf "%-10s %-25s %-60s\n", $1, $2" "$3, $4}' $TMPCOMPLETE >> "$difffile"
-       		if [ "$csm" != "" ] && [ -s "/tmp/cerr" ]; then while IFS= read -r file; do red "*** Checksum of file ${file} altered without a modified time" ; rm /tmp/cerr ; done < /tmp/cerr ; sts="true"; fi
+       		if [ "$csm" != "" ] && [ -s "/tmp/cerr" ]; then 
+				while IFS= read -r file; do red "*** Checksum of file ${file} altered without a modified time" ; done < /tmp/cerr 
+				rm /tmp/cerr  ; sts="true"
+			fi
 			if [ -n "$cores" ] && [ "$sts" != "" ]; then echo "Detected $cc CPU cores."; fi
 			#awk '{ print "\033[31m *** Checksum of file \033[0m" $0 "\033[31m altered without a modified time\033[0m" }'
         fi

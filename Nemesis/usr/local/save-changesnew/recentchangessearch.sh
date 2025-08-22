@@ -127,7 +127,7 @@ elif [ "$mMODE" == "mem" ]; then
 	printf "%s\n" "${ffile[@]}" >> $SORTCOMPLETE
 	if [ ${#nsf[@]} -gt 0 ]; then printf "%s\n" "${nsf[@]}" > $COMPLETE; fi
 elif [ "$mMODE" == "mc" ]; then
-	x=$(tr -cd '\0' < $RECENTNUL | wc -c) ; y=8
+	x=$(tr -cd '\0' < $FEEDFILE | wc -c) ; y=8
 	if (( x > 100 )); then y=16 ; fi
 	xargs -0 -n"$y" -P4 /usr/local/save-changesnew/mainloop "$atmp" "$checkSUM" < $FEEDFILE
 	if compgen -G "$atmp/mainloop1_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop1_*_tmp.log > $SORTCOMPLETE;  fi
@@ -294,7 +294,7 @@ if [ -s $SORTCOMPLETE ] ; then
 			fi
 		fi
     fi
-	[[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && [[ "$pstc" == "true" ]] && [[ "$ANALYTICSECT" == "true" ]] && green "Hybrid analysis on"
+	[[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && [[ "$ANALYTICSECT" == "true" ]] && green "Hybrid analysis on"
 	[[ "$cc" != "csum" && -s $slog && "$cdiag" != "true" ]] && cat $slog
 	[[ "$cc" != "csum" && -s $slog && "$cdiag" == "true" ]] && { echo; echo "cdiag"; echo ; cat $slog; } >> "$difffile"
 	test -f $slog && rm $slog ; test -f $rout && rm $rout
