@@ -52,12 +52,12 @@ def stealth(file, original_size, current_size, label, diag, csum):
 			if delta < 3 and delta != 0:
 				# stealth cng
 				with open('/tmp/scr', 'a') as file3:
-					print(f'Checksum indicates a change in ${label}. Size changed slightly — possible stealth edit. ({original_size} → {current_size}.', file=file3) 
+					print(f'Checksum indicates a change in ${label}. Size changed slightly — possible stealth edit. ({original_size} → {current_size}.', file=file3)
 
 			elif delta == 0 and csum == "csum":
 				# flag ***
 				with open('/tmp/cerr', 'a') as file4:
-					print(f'File collision {label}. Same modified date and checksum. Either md5 is too weak or file was edited and matches exact checksum.', file=file4) 
+					print(f'File collision {label}. Same modified date and checksum. Either md5 is too weak or file was edited and matches exact checksum.', file=file4)
 
 #Hybrid analysis
 def hanly(rout, tfile, parsed, checksum, cdiag, cursor):
@@ -79,7 +79,7 @@ def hanly(rout, tfile, parsed, checksum, cdiag, cursor):
 
 			previous  = recent_entries[0] # start parsing
 			filedate = record[0]
-		
+
 			if previous[0] and filedate:
 
 				recent_timestamp = datetime.strptime(filedate, "%Y-%m-%d %H:%M:%S")
@@ -89,13 +89,13 @@ def hanly(rout, tfile, parsed, checksum, cdiag, cursor):
 					if recent_timestamp == previous_timestamp:
 
 						if checksum == 'true':
-								
+
 								if is_valid_datetime(record[3]) and is_valid_datetime(previous[3]): # Access time ensures currect format
 									if is_integer(record[4]) and is_integer(previous[4]): # Both have inodes?
 											if current_size and original_size: # Perfect format
 
 												# Checksum cng
-												if record[4] != previous[4]:     
+												if record[4] != previous[4]:
 
 													file_path=Path(filename)
 													if file_path.is_file(): # File didnt disapear
@@ -132,12 +132,12 @@ def hanly(rout, tfile, parsed, checksum, cdiag, cursor):
 
 												# Same checksum
 												else: # File collision ?
-													stealth(filename, original_size, current_size, label, cdiag) 
+													stealth(filename, original_size, current_size, label, cdiag)
 					# Regular
-					else:  
+					else:
 
 						# Inode
-						if record[2] != previous[2]: 
+						if record[2] != previous[2]:
 
 							if checksum == 'true': # More detail
 
@@ -145,7 +145,7 @@ def hanly(rout, tfile, parsed, checksum, cdiag, cursor):
 									if record[4] and previous[4]: # checksum good format
 
 										# Checksum
-										if record[4] == previous[4]:   
+										if record[4] == previous[4]:
 
 											print(f'Overwrt {recent_timestamp} {label}', file=file)
 											print(f'Overwrt {recent_timestamp} {label}', file=file2)
@@ -164,15 +164,15 @@ def hanly(rout, tfile, parsed, checksum, cdiag, cursor):
 							else:  # We have just given more info with Inode change
 								print(f'Replaced {recent_timestamp} {label}', file=file)
 								print(f'Replaced {recent_timestamp} {label}', file=file2)
-								
+
 						# Same Inode
-						else: 
+						else:
 							if checksum == 'true': # more detail
 								if is_valid_datetime(record[3]) and is_valid_datetime(previous[3]):
 									if record[4] and previous[4]:
 
 										# Checksum cng
-										if record[4] != previous[4]: 
+										if record[4] != previous[4]:
 
 											original_size = previous[5] # the database
 											current_size = record[5]  # from our search

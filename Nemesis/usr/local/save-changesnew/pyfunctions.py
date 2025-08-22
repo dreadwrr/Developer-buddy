@@ -3,7 +3,7 @@ import re
 import codecs
 CYAN = "\033[36m"
 RED = "\033[31m"
-GREEN = "\033[1;32m" 
+GREEN = "\033[1;32m"
 YELLOW = "\033[33m"
 RESET = "\033[0m"
 def getcount (curs):

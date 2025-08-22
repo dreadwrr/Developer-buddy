@@ -23,7 +23,7 @@ TMPOUTPUT=$tmp/list_tmp_sorted.txt						       		; 		toutnul=$atmp/toutputnul.tm
 flth=/usr/local/save-changesnew/flth.csv						       		;      	xdata=$atmp/logs_stat.log
 slog=/tmp/scr																		;     	xdata2=$atmp/logs_log.log
 TMPOPT=$tmp/tmp_holding													;		pytmp=$atmp/pytmp.tmp
-rout=$atmp/routput.tmp																									
+rout=$atmp/routput.tmp
 diffrlt="false"											                        	;		nodiff="false"
 validrlt="false"										                           		;		flsrh="false"
 pstc="false"
@@ -190,7 +190,7 @@ if [ -s $SORTCOMPLETE ] ; then
 	    flnmdff="xSystemDiffFromLastSearch"$argone
 	    test -e $USRDIR$MODULENAME$flnm && cp $USRDIR$MODULENAME$flnm $tmp
         clearlogs
-        if [ -s $TMPOUTPUT ]; then 
+        if [ -s $TMPOUTPUT ]; then
 			cp $TMPOUTPUT $USRDIR$MODULENAME"xSystemTmpfiles"$argone
 			chown $USR $USRDIR$MODULENAME"xSystemTmpfiles"$argone
 		fi
@@ -211,7 +211,7 @@ if [ -s $SORTCOMPLETE ] ; then
     fi
 
 	ofile=$atmp/tmpinfo ; tfile=$atmp/tmpd
-    if [ -d /tmp/rc ] && [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then 
+    if [ -d /tmp/rc ] && [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then
         for file in /tmp/rc/*; do
             cat $file >> $ofile  2> /dev/null
         done
@@ -225,7 +225,7 @@ if [ -s $SORTCOMPLETE ] ; then
         fi
     fi
 
-    if [ "$STATPST" == "true" ]; then 
+    if [ "$STATPST" == "true" ]; then
 		if [ "$ANALYTICS" == "false" ]; then
 			if [ "$backend" == "default" ]; then
 				if [ -s $logpst ]; then
@@ -258,7 +258,7 @@ if [ -s $SORTCOMPLETE ] ; then
 							green "Persistent search log file created."
 						fi
 					fi
-					if [ -s $rout ]; then 
+					if [ -s $rout ]; then
 						sort -u -o $rout $rout
 						sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2",\3/' $rout
 						if [ -s $COMPLETE ]; then cat $COMPLETE >> $rout; fi
@@ -273,9 +273,9 @@ if [ -s $SORTCOMPLETE ] ; then
 						fi
 					fi
 				fi
-			else 
+			else
 
-				python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $COMPLETE $pydbpst $rout $tfile $checkSUM $cdiag $email $mMODE
+				python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $pydbpst $rout $tfile $checkSUM $cdiag $email $mMODE $ANALYTICSECT
 				ret=$?
 				if [ "$ret" -ne 0 ]; then
 					if [ "$ret" -eq 2 ] || [ "$ret" -eq 3 ]; then
@@ -288,11 +288,11 @@ if [ -s $SORTCOMPLETE ] ; then
 				fi
 
 				processha
-				
+
 			fi
 		fi
     fi
-	[[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && [[ "$pstc" == "true" ]] && green "Hybrid analysis on"
+	[[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && [[ "$pstc" == "true" ]] && [[ "$ANALYTICSECT" == "true" ]] && green "Hybrid analysis on"
 	[[ "$cc" != "csum" && -s $slog && "$cdiag" != "true" ]] && cat $slog
 	[[ "$cc" != "csum" && -s $slog && "$cdiag" == "true" ]] && { echo; echo "cdiag"; echo ; cat $slog; } >> "$difffile"
 	test -f $slog && rm $slog ; test -f $rout && rm $rout

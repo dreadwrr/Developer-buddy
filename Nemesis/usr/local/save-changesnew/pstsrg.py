@@ -70,7 +70,7 @@ def create_db(database):
             filename TEXT,
 			UNIQUE(timestamp, filename)
             )
-      ''') 
+      ''')
       conn.commit()
       return (conn)
 # Log insert
@@ -98,14 +98,14 @@ def insert_if_not_exists(action, timestamp, filename, conn, c):
 def main():
 
       xdata=sys.argv[1] # data source
-      nfs=sys.argv[2] # more stats
-      dbtarget=sys.argv[3]  # the target
-      rout=sys.argv[4]  # tmp holds action
-      tfile=sys.argv[5] # tmp file
-      checksum=sys.argv[6] # important
-      cdiag=sys.argv[7] # setting
-      email=sys.argv[8]
-      turbo=sys.argv[9]
+      dbtarget=sys.argv[2]  # the target
+      rout=sys.argv[3]  # tmp holds action
+      tfile=sys.argv[4] # tmp file
+      checksum=sys.argv[5] # important
+      cdiag=sys.argv[6] # setting
+      email=sys.argv[7]
+      turbo=sys.argv[8]
+      ANALYTICSECT=[9]
 
       logs = []
       stats = []
@@ -126,7 +126,7 @@ def main():
 
                   print('Find out why db not decrypting or delete it to make a new one')
                   return 2
-            
+
       else:
 
             conn = create_db(dbopt)
@@ -184,7 +184,9 @@ def main():
 
                                           if x:
                                                 print(f'Detected {x} CPU cores.')
-                                    print(f'{pyfunctions.GREEN}Hybrid analysis on{pyfunctions.RESET}')
+
+                                    if ANALYTICSECT:
+                                          print(f'{pyfunctions.GREEN}Hybrid analysis on{pyfunctions.RESET}')
                         except:
                               print('hanlydb failed to process', file=sys.stderr)
 
@@ -213,11 +215,11 @@ def main():
                                     if len(parts) < 4:
                                           continue
 
-                                    
+
                                     action = parts[0]
                                     date = parts[1]
                                     time = parts[2]
-                                    fp = parts[3] 
+                                    fp = parts[3]
                                     filename = fp.strip()
 
                                     if filename:
@@ -240,19 +242,19 @@ def main():
 
             # Encrypt if o.k.
             if not dbe:
-                  
+
                   try:
 
                         sts=encr(dbopt, dbtarget, email, True)
                         if not sts:
                               print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}  before running again.')
-                              
+
                   except Exception as e:
                         print(f'Encryption failed: {e}')
                         return 3
-                  
+
                   return 0
-            
+
             else:
                   return 4
 
