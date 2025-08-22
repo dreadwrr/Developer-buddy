@@ -1,13 +1,7 @@
 #!/bin/bash
 #   Analytics NMS5 porteus
 #   recentchanges. Developer buddy      make xzm     08/11/2025  v3.0
-#Added compLVL disable compression if over 200mb for up to 50% speed increase
-## idea behind v5 is to be able to find anyfile even if its from a package manager and preserves metadata
-## switched loops to null terminated to capture every possible file even if file is like file\nhasthis
-### cMODE normal regular loop proven reliable, mem use arrays less io or mc multiple cores or parallel more risky but works
-### Expanded on hybrid analysis and added checkSUM so can detect if a file changed without modified time and is logged.
-### Csumch, Overwrit, Metacng, Replacd, touched, xtimechg and modified
-# If STATPST on ANALYTICS is locked out for security as you dont want to save in /tmp if logpst srg
+#
 #   Provide ease of pattern finding ie what files to block we can do this a number of ways
 #   1) if a file was there (many as in more than a few) and another search lists them as deleted its either a sys file or not but unwanted nontheless
 #   2) Is a system file inherent to the specifc platform
@@ -37,7 +31,7 @@ get_colors
 # CHANGEABLE       New to version 3
 
 
-export backend="database" 	# default normal    bash 2 gpg and queries text based stable tested
+export backend="default" 	# default normal    bash 2 gpg and queries text based stable tested
 											# database   binary database faster queries 1 gpg and python (easier ha)
 
 export email="john.doe@email.com" # default for asymmetrical gpg auth for STATPST
@@ -66,7 +60,7 @@ export mMODE="mem"  # normal default. robust less prone to failure
 								   		# mc      turbo mode run the search in parallel or multiple cores.
 
 
-export ANALYTICS="false" # store recent searches in /tmp       default false
+export ANALYTICS="true" # store recent searches in /tmp       default false
                                         # gives hybrid analysis in diff file more files to compare no overhead as only checks modified
                                         # makes more sense to work off of /tmp than to decrypt everytime
                                         # for that reason you can choose /tmp or STATPST or both and recentchanges query
@@ -79,7 +73,7 @@ export ANALYTICS="false" # store recent searches in /tmp       default false
                                         # not as secure but still owned by root in /tmp but its temporary anyway and can be turned off
 
 
-export STATPST="true" # persistent storage searches encrypted in /usr/local/save-changesnew for recentchanges query see logSIZE / logCT
+export STATPST="false" # persistent storage searches encrypted in /usr/local/save-changesnew for recentchanges query see logSIZE / logCT
                                     # Only overhead is gpg compression set compression to off. At large size speeds can increase by as much as 50%.
                                     # if you prefer security turn ANALYTICS false and use this
 
@@ -164,23 +158,23 @@ elif [ "${arge[0]}" == "query" ]; then
 	if [ "$backend" == "default" ]; then  /usr/local/save-changesnew/query "$THETIME" $USR "$passdir"; exit; else python3 /usr/local/save-changesnew/query.py $pydbpst $email ; exit; fi
 fi
 
-tmp=/tmp/work$$										;		work=work$$
-workdir=/myfiles									;		chxzm=/rntfiles.xzm
+tmp=/tmp/work$$													;		work=work$$
+workdir=/myfiles													;		chxzm=/rntfiles.xzm
 SVFILES=$tmp/save.rncfilesmanifest.tmp				;   	BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
-SVFOLDERS=$tmp/save.rncfoldersmanifest.tmp			;		FLBRAND=`date +"MDY_%m-%d-%y-TIME_%R_%S"|tr ':' '_'`
-ABSENT=$tmp/tmp_absent.txt							;		UPDATE=$tmp/save.transferlog.tmp
+SVFOLDERS=$tmp/save.rncfoldersmanifest.tmp		;		FLBRAND=`date +"MDY_%m-%d-%y-TIME_%R_%S"|tr ':' '_'`
+ABSENT=$tmp/tmp_absent.txt								;		UPDATE=$tmp/save.transferlog.tmp
 RECENT=$tmp/list_recentchanges_filtered.txt         ;		RECENTAPP=$tmp/list_recentapp_filtered.txt
-COMPLETE=$tmp/list_complete.txt						;		RECENTNUL=$tmp/list_recentchanges_filterednul.txt
+COMPLETE=$tmp/list_complete.txt							;		RECENTNUL=$tmp/list_recentchanges_filterednul.txt
 TMPCOMPLETE=$tmp/tmp_complete.txt					;		RSYNCEXCL=$tmp/list_filesexclude.txt
-TMPOPT=$tmp/tmp_holding	                            ;		REJECTLOG=$tmp/list_rejectsrc.txt
+TMPOPT=$tmp/tmp_holding	                            	;		REJECTLOG=$tmp/list_rejectsrc.txt
 FOLDERLOG=$tmp/save.totalfolders.tmp				;		SORTCOMPLETE=$tmp/list_complete_sorted.txt
 #Version 3
-dr=/usr/local/save-changesnew						;       logpst=$dr/logs.gpg
-flth=$dr/flth.csv									;       statpst=$dr/stats.gpg
-atmp=/tmp/atmp$$									;		pydbpst=/usr/local/save-changesnew/recent.gpg
-rout=$atmp/routput.tmp								;		pydb=/usr/local/save-changesnew/recent.db
-toutnul=$atmp/toutputnul.tmp						;       slog=/tmp/scr # feedback
-tout=$atmp/toutput.tmp 								;		xdata=$atmp/logs_stats.log # dcryp log file
+dr=/usr/local/save-changesnew								;       logpst=$dr/logs.gpg
+flth=$dr/flth.csv														;       statpst=$dr/stats.gpg
+atmp=/tmp/atmp$$												;		pydbpst=/usr/local/save-changesnew/recent.gpg
+rout=$atmp/routput.tmp										;		pydb=/usr/local/save-changesnew/recent.db
+toutnul=$atmp/toutputnul.tmp								;       slog=/tmp/scr # feedback
+tout=$atmp/toutput.tmp 										;		xdata=$atmp/logs_stats.log # dcryp log file
 USRDIR=/home/$USR/Downloads							;		xdata2=$atmp/logs.log.log # ..
 THETIME="${arge[0]}" # shift for this script
 SRCDIR=""  											;		dbc="false"
