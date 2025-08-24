@@ -99,7 +99,6 @@ export statpst="/usr/local/save-changesnew/stats.gpg"
 export pydbpst="/usr/local/save-changesnew/recent.gpg"
 
 # END CHANGEABLE
-
 if [ "$STATPST" == "true" ] && [ "$ANALYTICS" == "true" ]; then echo With STATPST cant run with ANALYTICS. for security reasons as its stored in gpg. ; echo you can modify to run both if wanted. && exit; fi
 if [ "$1" = "-v" ]; then get_vrn $1 ; elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] || [ "$1" = "-help" ]; then get_vrn $1; fi # If inquery tag no need to call root. pass to other function and exit.
 argf=$5
@@ -122,7 +121,6 @@ fi
 # Handle rnt inverse switching
 arge=()
 for item in "$@"; do if [ "$item" != "inv" ]; then arge+=("$item") ; else arge+=("") ; argf="filtered" ; fi ;done
-
 p=${#arge[@]}
 while (( p < 5 )); do arge+="" ; ((p++)) ; done
 
@@ -153,7 +151,6 @@ elif [ "${arge[0]}" == "search" ]; then
 elif [ "${arge[0]}" == "query" ]; then
 	if [ "$backend" == "default" ]; then  /usr/local/save-changesnew/query "$THETIME" $USR "$passdir"; exit; else python3 /usr/local/save-changesnew/query.py $pydbpst $email ; exit; fi
 fi
-
 tmp=/tmp/work$$													;		work=work$$
 workdir=/myfiles													;		chxzm=/rntfiles.xzm
 SVFILES=$tmp/save.rncfilesmanifest.tmp				;   	BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
@@ -179,12 +176,9 @@ mkdir $tmp
 mkdir $tmp$workdir
 mkdir $atmp
 if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
-
 if [ "${arge[0]}" == "" ]; then THETIME="noarguser" ; fi # root call
-
 [ "$THETIME" == "SRC" ] &&{ SRCDIR=$THETIME; THETIME="${2:-noarguser}"; } # shift ..
 [ "${arge[1]}" == "SRC" ] && SRCDIR=${arge[1]} || { [ "${arge[1]}" == "SEARCH" ] || [ "${arge[1]}" == "search" ]; } && echo "The SRC tag is for recentchanges only" && exit
-
 if [ "$STATPST" == "true" ]; then
     if [ -f $logpst ]; then
         sz=$( stat -c %s "$logpst")
@@ -224,7 +218,6 @@ while IFS= read -r -d '' f; do f="${f//$'\n'/\\n}" ; echo "$f"	; done < $toutnul
 if [ "$FEEDBACK" == "true" ]; then cat $tout ; cat $RECENT; fi
 if [ -s $tout ]; then grep -Fxv -f $RECENT $tout > $TMPCOMPLETE; fi
 > $tout
-
 #pacman and slaptget Loops
 if [ -s $TMPCOMPLETE ]; then
 	while IFS= read -r x; do x="${x//$'\\n'/\n}"; printf '%s\0' "$x"; done < $TMPCOMPLETE >> $xdata
@@ -262,7 +255,6 @@ elif [ "$mMODE" == "mc" ]; then
 else
 	echo incorrect mMODE && exit
 fi
-
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
 if [ -s $SORTCOMPLETE ]; then
 	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE
@@ -534,7 +526,7 @@ if [ -s $SORTCOMPLETE ]; then
 					fi
 				fi
 
-				processha
+				processha $5
 
 			fi
 		fi

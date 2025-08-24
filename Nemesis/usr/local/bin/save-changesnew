@@ -10,7 +10,7 @@ thetgt="$1" ; if [ "$thetgt" == "" ]; then thetgt=$BASEDIR; fi     # <----- for 
 if  ! id $2 >/dev/null 2>&1; then echo "user:" ${2} "not found"; exit 0 ; fi # quick user check we test the target directory $1 after VARS
 if ! grep -iq "Artix" /etc/os-release; then echo "Wrong version of developer buddy. Please use porteus version." && exit 0 ; fi
 # CHANGABLE
-grubln=""                                     # default null.  Point to Line number linux /boot/syslinux/vmlinuz from=/dev/nvme0n1p4 root= ...   to automatically update grub for graphics extramod to boot with changes
+grubln=""                                     # default null.  Point to Line number ie  linux /boot/syslinux/vmlinuz from=/dev/nvme0n1p4 root= ...   to automatically update grub for graphics extramod to boot with changes
 bootdvc=""		                              # default null. Point to the line number linux /boot/syslinux/vmlinuz from=/dev/nvme0n1p4 root=UUID=... to automatically update grub for graphics extramod to boot with changes
 
 target=$thetgt                               # change this to specify the location of porteus install this passed from root call where porteus is installed via $BASEDIR
@@ -57,7 +57,7 @@ logSPRF="delete"                         # When log size limit reached what to d
                                             #
                                             # stop      dont log anymore
 
-mdllmt=2                             # Auto Graphics mode module merging default 7
+mdllmt=3                             # Auto Graphics mode module merging default 7
                                                 # when reached will automatically merge if mrgMODULES is set to true below
                                                 # see mrgMODULES boolean
 
@@ -88,7 +88,7 @@ mrgMODULES="true"           # Automatically merge changes modules if over limit 
 keepMRGED="false"       # default is false so delete the old ones after merging
 # End Non linked state options
 
-d2drive="false"                 # default is false   for systems with low memory save directly to drive
+d2drive="true"                 # default is false   for systems with low memory save directly to drive
                                         # default is save to memory for staging purposes and convenience of modifying
                                         # ect more versatle and efficient (less writes on hd)
                                         # but systems with low memory may want to use this to avoid any potential
@@ -124,7 +124,7 @@ ROLLBCK="false"				# backup module after merged to be able to "rollback" by load
 
 ROLLSUMRY="false"            # default false    Include file manifest for archives
 
-archLMT=2						# how many unique roll backs to keep  both _uid_ and _uid_L seperately
+archLMT=4						# how many unique roll backs to keep  both _uid_ and _uid_L seperately
 # End Backup mode
 # END CHANGABLE BOOLEANS
 # END CHANGABLE
@@ -290,20 +290,14 @@ local instm="$1" # so we can see where its called from
 if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
 IFOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e /mnt/live/memory/changes/"$x" && echo "$x"; done)"
 dycmb
+exldir $exclfiles
+sync
+mount -o remount,udba=notify /
 msr=${target}${em}"/lscheck"
 MODULENM="${chxzm%.xzm}"
 mdlnm="${MODULENM#/}"
 emfld="${em#/}"
-
 rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
-[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt}
-[[ "$rlt" == *"$target"* ]] && rlt=${rlt%/} && target=""
-if [ "$rlt" != "" ]; then osize=$( du -sb "${target}${rlt}${MODULENM}/" | cut -f1); fi # original size
-
-exldir $exclfiles
-sync
-mount -o remount,udba=notify /
-
 if [ "$d2drive" == "false" ] || { [ "$d2drive" == "true" ] && [ "$d2dmdl" == "false" ] && [ -z "$rlt" ]; } ; then # Not d2d or graphics d2dmdl
 	mkdir $tmp
     : > /tmp/incfilter.log
@@ -311,20 +305,18 @@ if [ "$d2drive" == "false" ] || { [ "$d2drive" == "true" ] && [ "$d2dmdl" == "fa
 	for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
 else
     green "Direct to drive saving"
-	if [ "$d2dmdl" == "true" ]; then
-		test -d $thetgt/tmp && { mkdir $thetgt/tmp$$; tmp=$thetgt/tmp$$; } || { mkdir $thetgt/tmp; tmp=$thetgt/tmp; }
-		test -d $thetgt/mtmp && mtmp=$thetgt/mtmp$$ || mtmp=$thetgt/mtmp
-	fi
 fi
-
 if [ "$rlt" != "" ]; then
     if [ "$rlt" == "/" ]; then
         rlt=""
     fi
+	[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt}
+	[[ "$rlt" == *"$target"* ]] && rlt=${rlt%/} && target=""
+	osize=$( du -sb "${target}${rlt}${MODULENM}/" | cut -f1) # original size
     if [ "$d2drive" == "true" ]; then
         dirSRC="$target$rlt/changes"
 		: > /tmp/incfilter.log
-		for folder in $FOLDERS; do echo "+ /$folder/" >> /tmp/incfilter.log ; done #echo "+ /$folder/***" >> /tmp/incfilter.log
+		for folder in $FOLDERS; do echo "+ /$folder/" >> /tmp/incfilter.log ; done
 		for fld in $EXCLUDE; do if [[ "${fld:0:1}" == "/" ]]; then fld="${fld#/}" ; else fld="*${fld}*" ; fi ; echo "- /$fld/" >> /tmp/incfilter.log ; done
 		echo "- /*" >> /tmp/incfilter.log
     else
@@ -642,26 +634,29 @@ if [ "$rlt" != "" ]; then
 else # Graphics mode
 	if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
     if [ "$d2drive" == "true" ] && [ "$d2dmdl" == "true" ]; then
+		test -d $thetgt/tmp && { mkdir $thetgt/tmp$$; tmp=$thetgt/tmp$$; } || { mkdir $thetgt/tmp; tmp=$thetgt/tmp; }
+		test -d $thetgt/mtmp && mtmp=$thetgt/mtmp$$ || mtmp=$thetgt/mtmp
 		green "Staging xzm to local hdd on d2dmdl..."
     	for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
     fi
     SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`
 	line=43 #Bootloader
 	pth="/boot/syslinux/porteus.cfg"
+
+ 	# Avoid confusion we initially stored rlt and can reference it. so use rltt
 	[[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; } && [[ "$bootdvc" != "" ]] && thetgt=$bootdvc
-    test -e "$thetgt/boot/syslinux/porteus.cfg" && rlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on ln?  ## Notes returns the value grep 'extramod=[^ ]*')
-    epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g')
+    test -e "$thetgt$pth" && rltt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on ln?  ## Notes returns the value grep 'extramod=[^ ]*')
+    epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g')   # <-----
 
-    if [ "$rlt" != "" ]; then
-        if [[ ! "${rlt}" == *$BASEDIR"/"$emfld* ]]; then
+    if [ "$rltt" != "" ]; then   # <-----
+        if [[ ! "${rltt}" == *$BASEDIR"/"$emfld* ]]; then
 
-            test -d "$target$em" || mkdir -p "$target$em"
+            test -d "$target$em" || mkdir -p "$target$em"   # <---- what if target is  ""
 			[[ -n "$grubln" ]] && test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak
-            #append to start of boot loader
-            sed -i "s|\(extramod=\)\([^ ]*\)|\1${epath};\2|" "$thetgt$pth"
+            sed -i "s|\(extramod=\)\([^ ]*\)|\1${epath};\2|" "$thetgt$pth" #append to start of boot loader
             loadermsg
 
-            IFS=';' read -ra parts <<< "${rlt}"
+            IFS=';' read -ra parts <<< "${rltt}"
             unset IFS
             u=""
 
@@ -700,7 +695,8 @@ else # Graphics mode
         fi
     else
 		cmd="sed -i \"0,/APPEND/ s|\\(APPEND\\)|\\1 extramod=${epath}|\" \"$thetgt$pth\""
-		if [ -n "$grubln" ]; then test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak ; cmd="sed -i \"${line}s/\\\$/ extramod=${epath}/\" \"$thetgt$pth\"" ; fi
+		if [ -n "$grubln" ]; then test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak ; cmd="sed -i \"${line}s|\\\$| extramod=$epath/|\" \"$thetgt$pth\"" ; fi
+        echo "$cmd"
 		test -e "$thetgt$pth" && bash -c "$cmd" || echo "Using other bootloader append ${target}${em} to it with extramod="
 		# 	test -e "$thetgt$pth" && { sed -i "0,/APPEND/ s|\(APPEND\)|\1 extramod=${epath}|" "$thetgt$pth"; loadermsg; } || echo "Using other bootloader append ${target}${em} to it with extramod="
 		#	test -e "$thetgt$pth" && sed -i "${line}s/\$/ extramod=${epath}/" "$thetgt$pth"; loadermsg || echo "Using other bootloader append ${target}${em} to it with extramod="
@@ -711,7 +707,7 @@ else # Graphics mode
         echo A changes .xzm was detected but nothing was done.
         cyan "${MODULENM}${SERIAL}_uid_$$.xzm already exists" && { sleep 5; exit 0; }
     else
-        test -d "$target$em" || mkdir "$target$em"
+        test -d "$target$em" || mkdir "$target$em"+
         touch "$target$em/._test1" 2>/dev/null
         cyan "testing filesystem on ${target} for posix compatibility"
         ln -s "$target$em"/._test1 "$target$em"/._test2 2>/dev/null && chmod +x "$target$em"/._test1 2>/dev/null && [ -x "$target$em"/._test1 ] && chmod -x "$target$em"/._test1 2>/dev/null && [ ! -x "$target$em"/._test1 ] && rm -f "$target$em"/._test1 "$target$em"/._test2
@@ -809,6 +805,6 @@ else # Graphics mode
 fi
 mount -o remount,udba=none /
 rm $exclfiles
-rm /tmp/incfilter.log
+test -e /tmp/incfilter.log && rm /tmp/incfilter.log
 rm -rf $tmp
 sleep 5 && exit
