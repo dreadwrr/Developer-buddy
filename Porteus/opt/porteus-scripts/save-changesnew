@@ -35,7 +35,7 @@ if [ -z "$thetgt" ]; then thetgt=$BASEDIR; fi     # <----- ie   /mnt/sda3   some
 
 
 #CHANGABLE					# As changes exit uses changes-commit turn backup on to save a backup /changes.bak/
-BACKUP="true"				# Turn on backup feature of Developer buddy 3.0 to hdd on/off           this will run after changes-commit
+BACKUP="false"				# Turn on backup feature of Developer buddy 3.0 to hdd on/off           this will run after changes-commit
 
 d2drive="true"                 # default is false   for systems with low memory save directly to drive
                                         # default is save to memory for staging purposes and convenience of modifying
@@ -115,7 +115,7 @@ linkedSTATE="true"             #This is precendence for changes:EXIT only on gra
 keepLINKEDMRGED="false"  # default is false so delete the old ones after merging if they are not in sync with each other
                                            # it automatically renames the old one to .bak. ****
 # Non linked state options
-mrgMODULES="true"           # Automatically merge changes modules if over limit value
+mrgMODULES="false"           # Automatically merge changes modules if over limit value
                                         #change this to automatically merge changes.xzm modules  ( applies to Graphics mode)
                                         # see $BASEDIR/extramod for mergemodule script to merge changes modules
 
@@ -194,7 +194,7 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 	sync
 	mount -o remount,udba=notify /
 	
-	if [ "$d2drive" == "false" ] || { [ "$d2ddrive" == "true" ] && [ "$d2dmdl" == "false" ]; } ; then
+	if [ "$d2drive" == "false" ] || { [ "$d2drive" == "true" ] && [ "$d2dmdl" == "false" ]; } ; then
 		mkdir $tmp
     	green "Staging... "
 	else
@@ -214,7 +214,7 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 			insertmenu $thetgt$pth
 		fi
 	fi	
-	test -e "$thetgt/boot/syslinux/porteus.cfg" && rlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on ln?  ## Notes returns the value grep 'extramod=[^ ]*')
+	test -e "$thetgt$pth" && rlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on ln?  ## Notes returns the value grep 'extramod=[^ ]*')
 	epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g')
 
 
@@ -619,7 +619,6 @@ if [[ "$ans" = "" ]]; then
 			for folder in $IFOLDERS; do echo "+ /$folder/" >> /tmp/incfilter.log ; done #echo "+ /$folder/***" >> /tmp/incfilter.log
 			for fld in $EXCLUDE; do if [[ "${fld:0:1}" == "/" ]]; then fld="${fld#/}" ; else fld="*${fld}*" ; fi ; echo "- /$fld/" >> /tmp/incfilter.log ; done
 			echo "- /*" >> /tmp/incfilter.log
-			echo $EXCLUDE
 		fi
 
 		if [ "$rlt" != "" ]; then
