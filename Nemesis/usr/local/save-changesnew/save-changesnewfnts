@@ -8,23 +8,29 @@ dycmb() {
 }
 #Generate exclude directories changes-commit
 exldir() {
-	read -ra arr <<< "$EXCLUDE"
-	> $1
-	for item in "${arr[@]}"; do
-		if [[ "${item:0:1}" == "/" ]]; then
-		    echo ".${item}" >> $1
-		else
-		    echo $item >> $1
-		fi
-	done
-	grep ^!/ $CHNEXIT_CONF | fixdir > $EXCL
-	if [ -s "$EXCL" ]; then
-		cat $EXCL | fixexcl > $EXCLUDED
-		sed -i 's|^|/|' $EXCLUDED
-		EXCLUDE="$EXCLUDE $(tr '\n' ' ' < $EXCLUDED | sed 's/ *$//')"
-		sed -i 's|^/|./|' $EXCLUDED # for rsync ./var/lib
-		grep -Fvxf $1 $EXCLUDED >> $UPDATE; test -s $UPDATE && cat $UPDATE >> $1
-	fi
+#FS=$'\n' read -ra arr <<< "$EXCLUDE"
+> $1
+#for item in "${arr[@]}"; do
+#	if [[ "${item:0:1}" == "/" ]]; then
+#		echo ".${item}" >> $1
+#	else
+#		echo $item >> $1
+#	fi
+#done
+grep ^!/ $CHNEXIT_CONF | fixdir > $EXCL
+if [ -s "$EXCL" ]; then
+	#cat $EXCL | fixexcl > $EXCLUDED
+	fixexcl < $EXCL > $EXCLUDED
+	#sed -i 's|\.||' $EXCLUDED
+	sed -i 's|^|/|' $EXCLUDED
+	while IFS= read -r line; do [[ -z "$line" ]] && continue ; if ! [[ " $EXCLUDE " =~ " $line " ]]; then EXCLUDE="$EXCLUDE $line" ; fi ; done < $EXCLUDED
+	unset IFS
+	#EXCLUDE="$EXCLUDE $(tr '\n' ' ' < $EXCLUDED | sed 's/ *$//')"
+	#sed -i 's|^/||' $EXCLUDED
+	> $EXCLUDED
+	for fld in $EXCLUDE; do if [[ $fld != /* ]]; then fld="*${fld}*"; else fld="${fld#/}" ; fi ; printf "%s\n" $fld ; done >> $EXCLUDED
+	grep -Fvxf $trsyncexl $EXCLUDED >> $UPDATE; test -s $UPDATE && cat $UPDATE >> $1
+fi
 }
 #generate log file
 dlog() {
@@ -43,7 +49,7 @@ dlog() {
 			else
 			  e="$fp" ; p=""
 			fi
-			sed "/$p$e/d" "${target}${rlt}${MODULENM}.bak.log"
+			sed -i "/$p$e/d" "${target}${rlt}${MODULENM}.bak.log"
 		done
     else
         find "$dirSRC" -type f -printf '%P\n' >> "${target}${rlt}${MODULENM}.bak.log"
@@ -53,13 +59,21 @@ dlog() {
 glog() {
 local k
 local p
-b=$( sed -nE 's/.original count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
+if [ -f ${target}${rlt}${MODULENM}.bak.log ]; then
+	b=$( sed -nE 's/.original count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
+	c=$( sed -nE 's/.total count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
+	k=$( sed -nE 's/.*original size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
+fi
 : "${b:-0}"
-c=$( sed -nE 's/.total count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
-: "${c:-0}" #if c is not there set it to 0
+: "${c:-0}"
 c=$(( c + b ))
-k=$( sed -nE 's/.*original size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
 : "${k:=Unkown}"
+#if [ "$k" == "Unkown" ]; then
+#    p=$( sed -nE 's/.*new size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
+#fi
+#: "${p:=Unkown}"
+#if [ "$p" == "Unkown" ]; then
+# do we go back and check the actual changes for size??
 p=$osize
 if [ "$1" == "true" ]; then > "${target}${rlt}${MODULENM}.bak.log" ; fi
 dlog
@@ -68,7 +82,6 @@ echo "new size(source)=$p" >> "${target}${rlt}${MODULENM}.bak.log"
 if (( c != 0 )); then
     echo "original count=$c" >> "${target}${rlt}${MODULENM}.bak.log"
 fi
-
 echo  "END ORIGINAL FILES $(date +"%m-%d-%y_%R")" >> "${target}${rlt}${MODULENM}.bak.log"
 nLOG="true"
 }

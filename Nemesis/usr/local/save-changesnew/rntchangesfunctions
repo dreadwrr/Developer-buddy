@@ -50,6 +50,7 @@ local lt=$atmp/patterns.txt
 local fl=/usr/local/save-changesnew/filter
 test -f $2 || echo "Entry,Hits" >> $2
 sed -n '/^[[:space:]]*#/!s|sed -i '\''/\(.*\)/d'\''.*|\1|p' "$fl" > $lt
+cp $lt /home/guest/aris
 while IFS= read -r pattern; do
     k=$( echo "$pattern" | sed -e 's/\\//g' -e "s|'\"\${2}\"'|$USR|g")
     x=$( grep -Fc -- "$k" $1)
@@ -241,8 +242,6 @@ else
 	if [ -z "$1" ]; then
 		printf 'NOTA-FI-LE 77:77:77 "%s"\n' "$y" >> "$tout"
 		printf 'Nosuchfile,,%s\n' "$y" >> "$COMPLETE"
-	elif [ "$1" == "arry" ] && [ "$2" == "ctime" ]; then
-		ffile+=("NOTA-FI-LE 77:77:77 \"$y\"")
 	else
 		nsf+=("Nosuchfile,,$y")
 	fi
@@ -275,7 +274,7 @@ else
 	if [ -z "$1" ]; then
 		printf 'NOTA-FI-LE 77:77:77 "%s"\n' "$y" >> "$SORTCOMPLETE"
 		printf 'Nosuchfile,,%s\n' "$y" >> "$COMPLETE"
-	elif [ "$1" == "arry" ]; then
+	else
 		nsf+=("Nosuchfile,,$y")
 	fi
 fi

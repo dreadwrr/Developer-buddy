@@ -112,7 +112,9 @@ if [ -s $TMPCOMPLETE ]; then
 		declare -a nsf
 		searcharr $xdata "ctime"
 	elif [ "$mMODE" == "mc" ]; then
-		xargs -0 -n8 -P4 /usr/local/save-changesnew/searchfiles "$atmp" "$checkSUM" < $xdata
+		x=$(tr -cd '\0' < $RECENTNUL | wc -c) ; y=8
+		if (( x > 100 )); then y=16 ; fi
+		xargs -0 -n"$y" -P4 /usr/local/save-changesnew/searchfiles "$atmp" "$checkSUM" < $xdata
 		if compgen -G "$atmp/searchfiles1_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles1_*_tmp.log > $tout; fi
 		if compgen -G "$atmp/searchfiles2_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles2_*_tmp.log > $COMPLETE; fi
 	else
@@ -277,6 +279,9 @@ if [ -s $SORTCOMPLETE ] ; then
 				fi
 			else
 
+		        if ! gpg --list-keys | grep -q $email; then
+		            generatekey
+	            fi
 				python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $pydbpst $rout $tfile $checkSUM $cdiag $email $mMODE $ANALYTICSECT
 				ret=$?
 				if [ "$ret" -ne 0 ]; then
