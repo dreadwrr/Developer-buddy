@@ -1,111 +1,245 @@
 #!/bin/bash
 # save-changesnew functions to move options further up the script             08/14/2025
-#
-# Function for creating a original format log with new master list and original size
-# get new size and put in new log. Called twice once for resuming from a pause
-# or exceeding log size in log delete preference. For Graphics changes mode
-# General inc exl logfile structure d2d or no
 dycmb() {
-    TFLD="$(for x in $FOLDERS; do test -e "$ch/$x" && echo "$x"; done)"
-    FOLDERS="$TFLD" ; TFLD=""
-    [[ -n "$IFOLDERS" ]] && TFLD="$(for x in $(echo "$IFOLDERS"); do [[ ! " $FOLDERS " == *" $x "* ]] && test -e "$ch/$x" && echo "$x" ; done)" # Dynamically build with changes-exit conf
-    [[ -n "$TFLD" ]] && { IFOLDERS="$TFLD" ; FOLDERS=$IFOLDERS; } # combine
+TFLD="$(for x in $FOLDERS; do test -e "$ch/$x" && echo "$x"; done)"
+FOLDERS="$TFLD" ; TFLD=""
+[[ -n "$IFOLDERS" ]] && TFLD="$(for x in $(echo "$IFOLDERS"); do [[ ! " $FOLDERS " == *" $x "* ]] && test -e "$ch/$x" && echo "$x" ; done)"
+[[ -n "$TFLD" ]] && { IFOLDERS="$TFLD" ; FOLDERS=$IFOLDERS; }
 
 }
-#Generate exclude directories changes-commit
 exldir() {
-	read -ra arr <<< "$EXCLUDE"
-	> $1
-	for item in "${arr[@]}"; do
-		if [[ "${item:0:1}" == "/" ]]; then #if ! grep -Fxq "./$item" $exlfiles; then ;fi
-		    echo ".${item}" >> $1 # So rsync can work with it
-		else
-		    echo $item >> $1 # Exclude by pattern anywhere in subdirs
-		fi
-	done          # Good done
-
-	# Folders to exclude: argument for `egrep'           reparse conf
-	grep ^!/ $CHNEXIT_CONF | fixdir > $EXCL
-
-	# Process exclusions from changes exit conf
-	if [ -s "$EXCL" ]; then    # Include into a exclusions
-		cat $EXCL | fixexcl > $EXCLUDED  # Temporary holding var/lib     ^^ to no ^^ and converts regex back to std
-
-		#sed -i 's|^[^/]|\//&|' $EXCLUDED #  If it doesnt start with  /   add     /
-		sed -i 's|^|/|' $EXCLUDED # for rsync ./var/lib
-		EXCLUDE="$EXCLUDE $(tr '\n' ' ' < $EXCLUDED | sed 's/ *$//')"    # Duplicates dont matter as not using mksquashfs
-		#UPDATE="$(for x in $EXCLUDED; do if [[ " $EXCLUDE " != *" $x "* ]];  # Dynamically build with changes-exit conf  EXCLUDE  var
-		#[[ -n "$UPDATE" ]] && EXCLUDE="$EXCLUDE $UPDATE"     # combine
-		sed -i 's|^/|./|' $EXCLUDED # for rsync ./var/lib
-		#sed -i 's|^|.|' $EXCLUDED # for rsync ./var/lib
-		grep -Fvxf $1 $EXCLUDED >> $UPDATE; test -s $UPDATE && cat $UPDATE >> $1 # only those that are unique to $EXCLUDED appended from changes-exit conf if [[ " $EXCLUDE " != *" $x "* ]]; then echo "$x"; fi
-	fi
+#IFS=$'\n' read -ra arr <<< "$EXCLUDE"
+> $1
+#for item in "${arr[@]}"; do
+#	if [[ "${item:0:1}" == "/" ]]; then
+#		echo ".${item}" >> $1
+#	else
+#		echo $item >> $1
+#	fi
+#done
+grep ^!/ $CHNEXIT_CONF | fixdir > $EXCL
+if [ -s "$EXCL" ]; then
+	#cat $EXCL | fixexcl > $EXCLUDED
+	fixexcl < $EXCL > $EXCLUDED
+	#sed -i 's|\.||' $EXCLUDED
+	sed -i 's|^|/|' $EXCLUDED
+	while IFS= read -r line; do [[ -z "$line" ]] && continue ; if ! [[ " $EXCLUDE " =~ " $line " ]]; then EXCLUDE="$EXCLUDE $line" ; fi ; done < $EXCLUDED
+	unset IFS
+	#EXCLUDE="$EXCLUDE $(tr '\n' ' ' < $EXCLUDED | sed 's/ *$//')"
+	#sed -i 's|^/||' $EXCLUDED
+	> $EXCLUDED
+	for fld in $EXCLUDE; do if [[ $fld != /* ]]; then fld="*${fld}*"; else fld="${fld#/}" ; fi ; printf "%s\n" $fld ; done >> $EXCLUDED
+	grep -Fvxf $trsyncexl $EXCLUDED >> $UPDATE; test -s $UPDATE && cat $UPDATE >> $1
+fi
 }
-#dyn exclude d2d
 dlog() {
-	if [ "$d2drive" == "true" ]; then  # generate log file
-       for fld in $FOLDERS; do
-            fp="$dirSRC/$fld"
-            if [ -d "$fp" ]; then
-                find "$fp" -type f -printf '%P\n' | sed "s|^|/$fld/|" >> "${target}${rlt}${MODULENM}.bak.log"
-            fi
-        done
-        for fld in $EXCLUDE; do
-            fp="$dirSRC/$fld"
-			if [[ "${fp:0:1}" == "/" ]]; then
-			  e=$(sed 's/[&/\]/\\&/g' <<< "$fp" )
-				p="^"
-			else
-			  e="$fp" ; p=""
-			fi
-			sed "/$p$e/d" "${target}${rlt}${MODULENM}.bak.log"
-		done #if [ -d "$full_path" ]; then find "$full_path" -type f -printf '%P\n' | sed "s|^|/$fld/|" >> "${target}${rlt}${MODULENM}.bak.log"  fi
-    else
-        find "$dirSRC" -type f -printf '%P\n' >> "${target}${rlt}${MODULENM}.bak.log"
-    fi
-    echo >> "${target}${rlt}${MODULENM}.bak.log"
+if [ "$d2drive" == "true" ]; then
+    for fld in $FOLDERS; do
+        fp="$dirSRC/$fld"
+        if [ -d "$fp" ]; then
+            find "$fp" -type f -printf '%P\n' | sed "s|^|/$fld/|" >> "${target}${rlt}${MODULENM}.bak.log"
+        fi
+    done
+    for fld in $EXCLUDE; do
+        fp="$dirSRC/$fld"
+		if [[ "${fp:0:1}" == "/" ]]; then
+			e=$(sed 's/[&/\]/\\&/g' <<< "$fp" )
+			p="^"
+		else
+			e="$fp" ; p=""
+		fi
+		sed -i "/$p$e/d" "${target}${rlt}${MODULENM}.bak.log"
+	done
+else
+    find "$dirSRC" -type f -printf '%P\n' >> "${target}${rlt}${MODULENM}.bak.log"
+fi
+echo >> "${target}${rlt}${MODULENM}.bak.log"
 }
 glog() {
 local k
 local p
-        ### grab the original byte count before its erased ###
+if [ -f ${target}${rlt}${MODULENM}.bak.log ]; then
+	b=$( sed -nE 's/.original count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n1)
+	c=$( sed -nE 's/.total count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n1)
+	k=$( sed -nE 's/.*original size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n1)
+fi
+: "${b:-0}"
+: "${c:-0}"
+c=$(( c + b ))
+: "${k:=Unkown}"
+#if [ "$k" == "Unkown" ]; then
+#    p=$( sed -nE 's/.*new size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
+#fi
+#: "${p:=Unkown}"
+#if [ "$p" == "Unkown" ]; then
+# do we go back and check the actual changes for size??
+p=$osize
+if [ "$1" == "true" ]; then > "${target}${rlt}${MODULENM}.bak.log" ; fi
+dlog
+echo "original size(source)=$k" >> "${target}${rlt}${MODULENM}.bak.log"
+echo "new size(source)=$p" >> "${target}${rlt}${MODULENM}.bak.log"
+if (( c != 0 )); then
+    echo "original count=$c" >> "${target}${rlt}${MODULENM}.bak.log"
+fi
+echo  "END ORIGINAL FILES $(date +"%m-%d-%y_%R")" >> "${target}${rlt}${MODULENM}.bak.log"
+nLOG="true"
+}
+createlmdl () {
+local instm="$1"
+    if [ "$instm" != "nolmdl" ]; then
 
-        b=$( sed -nE 's/.original count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log) # the current saved bytes over time
-        : "${b:-0}" #if c is not there set it to 0        c=$( sed -nE 's/.total count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log) # the current saved bytes over time
-        c=$( sed -nE 's/.total count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log) # the current saved bytes over time
-        : "${c:-0}" #if c is not there set it to 0
-        c=$(( c + b ))
+        mkdir $mtmp
 
-        ###                                                                     ###
+        for mods in "$target$em/"*_uid_L*.xzm; do
+            if [ "$fname" == "" ]; then fname="$mods"; fi
+            if ! xzm2dir $mods $mtmp; then
+                mount -o remount,udba=none /
+                red "Error processing ${instm}"  >&2
+                cyan "Everything preserved. Check script"
+                exit 1
+            fi
+        done
+	    IFS="
+	    "
+        cd $ch || { mount -o remount,udba=none /; exit; }
+        for y in $(find $FOLDERS -name ".wh.*"); do
 
-        #first get the original from the log file  ****
-        k=$( sed -nE 's/.*original size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
-        : "${k:=Unkown}"
-        #if [ "$k" == "Unkown" ]; then
-        #    p=$( sed -nE 's/.*new size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
-        #fi
-        #: "${p:=Unkown}"
-        #if [ "$p" == "Unkown" ]; then
-        # do we go back and check the actual changes for size??
-        p=$osize # actual original size (could have changed from the original as we are resuming
-		if [ "$1" == "true" ]; then > "${target}${rlt}${MODULENM}.bak.log" ; fi # If called on logSIZE and delete pref we got the previous data
-        # we need to make one
-        # generate log file
-		dlog # check d2d
+			f="${y//.wh./}"
+		      test -e "$mtmp/$f" && rm -rf "${mtmp:?}/$f";
+		      test -e "$INAME/*/$f" || { echo "$y" | fixwh | fixsqh >> $QEXCL; echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }
 
-        echo "original size(source)=$k" >> "${target}${rlt}${MODULENM}.bak.log"
-        echo "new size(source)=$p" >> "${target}${rlt}${MODULENM}.bak.log"
-        if (( c != 0 )); then
-            echo "original count=$c" >> "${target}${rlt}${MODULENM}.bak.log" # insert the original byte count for analytic purposes only if we have it
+        done
+
+		grep -Fvxf $exclfiles $EXCL | fixexcl >> $UPDATE; test -s $UPDATE && cat $UPDATE >> $exclfiles
+
+	    test -s "$EXCL" && { find $FOLDERS -type d | egrep -vf $EXCL || find $FOLDERS -type d; } > $SFOLDERS
+
+        for y in $(find $mtmp -name ".wh.*"); do
+            f="$(echo "$y" | sed -e "s^$mtmp^^g" -e 's^\.wh\.^^g')"
+            test -e "$f" && rm "$y";
+        done
+
+        find $mtmp -name ".wh.*" -exec rm -r {} \;
+
+        test -e $tmp/home/$USR/Downloads/$LOGFILE && rm $tmp/home/$USR/Downloads/$LOGFILE
+        test -s "$exclfiles" && { rsync -av --exclude-from=$exclfiles --exclude '\.wh\.*' $tmp/ $mtmp; } > $UPDATE || rsync -av --exclude '\.wh\.*' $tmp/ $mtmp > $UPDATE
+
+	    BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
+	    echo $BRAND >> $UPDATE
+
+        if [ "$linkedLOGPRF" == "full" ]; then
+            cat $UPDATE >> $LOGDIR/$LOGFILE
+            cp $LOGDIR/$LOGFILE $mtmp/home/$USR/Downloads/$LOGFILE
+        elif [ "$linkedLOGPRF" == "incr" ]; then
+	        cp "$UPDATE" $mtmp/home/$USR/Downloads/$LOGFILE
+	        cp "$UPDATE" home/$USR/Downloads/$LOGFILE
+        else
+	        cp "$UPDATE" home/$USR/Downloads/$LOGFILE
         fi
 
-        echo  "END ORIGINAL FILES $(date +"%m-%d-%y_%R")" >> "${target}${rlt}${MODULENM}.bak.log"
+        cd $tmp || exit
+        unset IFS
+    fi
 
-        # at this point we are making a new backup because we are resuming and have no idea the original format
-        # and we cant rebuilt the exact original format so we have to generate one based on the current state
-        nLOG="true"
+    if [ "$ssbn" == "" ]; then
+        if [ "$validrlt" == "false" ]; then
+             cyan "mfile byte match failed generating new serial no."
+        else
+            cyan "no msr file. creating new one and new serial."
+        fi
+        ssbn=$(rand_alpha)$$$(printf "%02d" $((RANDOM % 100)))
+    fi
+    if [ "$rlt" == "true" ]; then
+        if [ "$validrlt" == "false" ]; then
+            c=${fname%.xzm}".bak"
+            mv $target$em"/"$fname $target$em"/"$c
+        else
+            green "Matched.. In link state"
+            if [ "$keepLINKEDMRGED" == "false" ]; then
+                rm $target$em"/"$fname
+            else
+                c=${fname%.xzm}".bak"
+                mv $target$em"/"$fname $target$em"/"$c
+            fi
+        fi
+    elif [ "$rlt" == "" ] && [ "$instm" != "nolmdl" ]; then
+        c=${fname%.xzm}".bak"
+        mv "$fname" $c
+    fi
+
+    SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`
+
+    rname="${MODULENM}${SERIAL}_uid_L${ssbn}.xzm"
+
+    if [ "$instm" != "nolmdl" ]; then
+        test -s $QEXCL && { mksquashfs $mtmp "$target$em$rname" -comp $cmode -ef $exclfiles -ef $QEXCL; } || mksquashfs $mtmp "$target$em$rname" -comp $cmode -ef $exclfiles
+    else
+        find $tmp -name ".wh.*" -exec rm -r {} \;
+        if ! mksquashfs $tmp "$target$em$rname" -comp $cmode -ef $exclfiles; then
+            mount -o remount,udba=none /
+            red "Error making the new module in ${instm}: ${rname}" >&2
+            cyan "Everything preserved.  Check the script"
+            exit 1
+        fi
+    fi
+    if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print $end - $start}") ; fi
+	if [ "$ROLLBCK" == "true" ]; then
+		if [ -d "${target}${em}/archive/_uid_L" ]; then
+			r=$(find "${target}${em}/archive/_uid_L" -maxdepth 1 -type f -name '*.bak' 2>/dev/null | wc -l)
+			if [ "$r" -ge "$archLMT" ]; then
+				for mods in ${target}${em}/archive/_uid_L/*_uid_L*.bak; do
+					rm -f $mods
+					test -f $mods.txt && rm $mods.txt
+					break
+				done
+			fi
+		else
+			mkdir -p "${target}${em}/archive/_uid_L"
+		fi
+		cp "$target$em$rname" "${target}${em}/archive/_uid_L${rname}.bak"
+		if [ "$ROLLSUMRY" == "true" ]; then
+			find "$tmp" -type f -printf '%P\n' >> "${target}${em}/archive/_uid_L${rname}.bak.txt"
+			echo >> "${target}${em}/archive/_uid_L${rname}.bak.txt"
+		    BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
+    		echo $BRAND >> "${target}${em}/archive/_uid_L${rname}.bak.txt"
+		fi
+	fi
+
+    xsize=$( du -sb "$target$em$rname" | cut -f1)
+    fname="${mdlnm}${SERIAL}_uid_L${ssbn}.xzm"
+    if [ "$rlt" == "true" ]; then
+        sed -i "s/bytes:.*/bytes:${xsize}/" $msr
+        sed -i "s/file name:.*/file name:${fname}/" $msr
+    else
+        echo "bytes:"$xsize > $msr
+        echo "file name:${fname}" >> $msr
+        echo >> $msr
+    fi
+    cd $tmp || exit
+    rm -rf $mtmp
 }
-# random serial generating function
+insertmenu() {
+cat > /tmp/block.txt << 'EOF'
+LABEL GRAPHICAL changes 
+MENU LABEL Graphics changes
+KERNEL /boot/syslinux/vmlinuz
+INITRD /boot/syslinux/initrd.xz
+APPEND
+TEXT HELP
+    Run Porteus the best way we can.
+    Try to autoconfigure graphics
+    card and use the maximum allowed
+    resolution. If booting from a
+    non-posix (FAT/NTFS) drive,
+    see the Saving Changes Help
+    below for how to save changes.
+ENDTEXT
+							
+EOF
+
+sed -i "38r /tmp/block.txt" $1
+rm /tmp/block.txt
+}
 rand_alpha() { letters=( {A..Z} {a..z} ); echo -n "${letters[RANDOM % 52]}${letters[RANDOM % 52]}" ; }
 loadermsg() { green "Updated bootloader in /syslinux/"; cyan "if you use a different loader use cheatcode extramod=${target}${em} include changes modules" ; }
 # Fix folder names and make `egrep' interpret wildcards

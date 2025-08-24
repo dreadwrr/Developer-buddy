@@ -89,9 +89,8 @@ Passphrase: $p
 %commit
 %echo done
 EOF
-       		if which gpg2 > /dev/null 2>&1; then
+       	if which gpg2 > /dev/null 2>&1; then
         	gpg2 --batch --pinentry-mode loopback --passphrase "$p" --generate-key /tmp/keyparams.conf
-        	echo made
         else
         	gpg --batch --pinentry-mode loopback --passphrase "$p" --generate-key /tmp/keyparams.conf
         fi

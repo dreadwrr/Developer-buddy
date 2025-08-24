@@ -285,7 +285,15 @@ if [ -s $SORTCOMPLETE ] ; then
 					fi
 				fi
 			else
-
+				if which gpg2 > /dev/null 2>&1; then
+					if ! gpg2 --list-keys | grep -q $email; then
+						generatekey
+					fi
+				else
+					if ! gpg --list-keys | grep -q $email; then
+						generatekey
+					fi
+				fi
 				python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $pydbpst $rout $tfile $checkSUM $cdiag $email $mMODE $ANALYTICSECT
 				ret=$?
 				if [ "$ret" -ne 0 ]; then
