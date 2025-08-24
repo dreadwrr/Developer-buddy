@@ -30,7 +30,7 @@ get_colors
 # CHANGEABLE       New to version 3
 
 
-export backend="database" # default normal    bash 2 gpg and queries text based stable tested
+export backend="default" # default normal    bash 2 gpg and queries text based stable tested
 											# database   binary database faster queries 1 gpg and python (easier ha)
 
 export email="john.doe@email.com" # default for asymmetrical gpg auth for STATPST
@@ -59,7 +59,7 @@ export mMODE="mem"  # normal default. robust less prone to failure
 								   		# mc      turbo mode run the search in parallel or multiple cores.
 
 
-export ANALYTICS="false" # store recent searches in /tmp       default false
+export ANALYTICS="true" # store recent searches in /tmp       default false
                                         # gives hybrid analysis in diff file more files to compare no overhead as only checks modified
                                         # makes more sense to work off of /tmp than to decrypt everytime
                                         # for that reason you can choose /tmp or STATPST or both and recentchanges query
@@ -72,7 +72,7 @@ export ANALYTICS="false" # store recent searches in /tmp       default false
                                         # not as secure but still owned by root in /tmp but its temporary anyway and can be turned off
 
 
-export STATPST="true" # persistent storage searches encrypted in /usr/local/save-changesnew for recentchanges query see logSIZE / logCT
+export STATPST="false" # persistent storage searches encrypted in /usr/local/save-changesnew for recentchanges query see logSIZE / logCT
                                     # Only overhead is gpg compression set compression to off. At large size speeds can increase by as much as 50%.
                                     # if you prefer security turn ANALYTICS false and use this
 
@@ -117,7 +117,7 @@ if [ `whoami` != "root" ]; then #if [[ $(whoami) != "root" ]]; su -c "$0"; exit 
 	#if [ "$XDG_SESSION_TYPE" = "wayland" ]; then/root/somefile\\\"quote.txt
 		su - -c "/opt/porteus-scripts/recentchanges $argone '$argtwo' $argthree '$PWD' $argf"
 	#else
-	#	sudo -k
+	#	sudo -k                   #gpg 1.4 and agent 2.1.11
 	#	exec sudo "$0" $argone "$argtwo" $argthree "$PWD"
 	#fi
     exit
@@ -125,9 +125,17 @@ fi
 # Handle rnt inverse switching
 arge=()
 for item in "$@"; do if [ "$item" != "inv" ]; then arge+=("$item") ; else arge+=("") ; argf="filtered" ; fi ;done
-
 p=${#arge[@]}
 while (( p < 5 )); do arge+="" ; ((p++)) ; done
+
+# gpg 1.4.23 and gpg-agent 2.1.11 
+#if ! gpg-connect-agent /bye >/dev/null 2>&1; then        ## change for working with gpg 1.4 and agent 2.1.11  uncomment 851 for pid
+#    green "Starting gpg-agent..."
+#    eval "$(gpg-agent --daemon)"
+#    #AGENT_PID=$(pgrep -u root -n gpg-agent)
+#    export GPG_TTY=$(tty)
+#	export GPG_AGENT_INFO=/root/.gnupg/S.gpg-agent:0:1
+#fi
 
 # Handle root call
 THETIME="${arge[1]}"
@@ -569,7 +577,7 @@ if [ -s $SORTCOMPLETE ]; then
 					fi
 				fi
 
-				processha
+				processha $5
 
 			fi
 		fi

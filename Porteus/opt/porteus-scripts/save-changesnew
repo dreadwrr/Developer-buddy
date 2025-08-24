@@ -93,7 +93,7 @@ logSPRF="delete"           # When log size limit reached what to do default dele
                             #
                             # stop      dont log anymore
 
-mdllmt=2                             # Auto Graphics mode module merging default 7
+mdllmt=3                             # Auto Graphics mode module merging default 7
                                                 # when reached will automatically merge if mrgMODULES is set to true below
                                                 # see mrgMODULES boolean
 linkedLOGPRF="incr"          # default incr  new log of only changes keeps log size down
@@ -152,7 +152,7 @@ ROLLBCK="false"                       # backup module after merged to be able to
  			 							# A module that has been merged is saved and moved to /archive/
 										# takes up more space
 ROLLSUMRY="false"           # default false    Include file manifest for archives
-archLMT=2                        # how many unique roll backs to keep  both _uid_ and _uid_L seperately
+archLMT=4                        # how many unique roll backs to keep  both _uid_ and _uid_L seperately
 # END CHANGABLE
 
 # V3 core rsync backup on save-changesnew                 See   line  323    for original changes commit script
@@ -178,7 +178,6 @@ LOGDIR=/home/$USR/Downloads										;	LOGFILE="save.sfiles.tmp"
 SVFILES=$MNAME/home/$USR/Downloads/save.sfiles.tmp				;	EXFILES=/tmp/save.exfiles.tmp   #holds excluded file list for rsync non regex
 #LOG
 #NEW END
-
 # Graphics Not changes=EXIT:/ mode  <---
 rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
 if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
@@ -248,6 +247,7 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 		        fi
 		        if [ "$u" == "true" ]; then
 					test -d $part"/archive" && mv $part"/archive" "${target}${em}"
+					test -e $part"/lscheck" && mv $part"/lscheck" 
 		            test -e $part"/mergemodules" && rm $part"/mergemodules"
 		            test -e $part"/createlmodule" && rm $part"/createmodule"
 		            test -e $part"/renameLbak" && rm $part"/renameLbak"
@@ -266,10 +266,8 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 		fi
 	else
 		cmd="sed -i \"0,/APPEND/ s|\\(APPEND\\)|\\1 extramod=${epath}|\" \"$thetgt$pth\""
-		if [ -n "$grubln" ]; then test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak ; cmd="sed -i \"${line}s/\\\$/ extramod=${epath}/\" \"$thetgt$pth\"" ; fi
+		if [ -n "$grubln" ]; then test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak ; cmd="sed -i \"${line}s|\\\$| extramod=$epath/|\" \"$thetgt$pth\"" ; fi
 		test -e "$thetgt$pth" && bash -c "$cmd" || echo "Using other bootloader append ${target}${em} to it with extramod="
-		# 	test -e "$thetgt$pth" && { sed -i "0,/APPEND/ s|\(APPEND\)|\1 extramod=${epath}|" "$thetgt$pth"; loadermsg; } || echo "Using other bootloader append ${target}${em} to it with extramod="
-		#	test -e "$thetgt$pth" && sed -i "${line}s/\$/ extramod=${epath}/" "$thetgt$pth"; loadermsg || echo "Using other bootloader append ${target}${em} to it with extramod="
 	fi # END Bootloader
 
 	if [ -s "${target}${em}${MODULENM}${SERIAL}_uid_$$.xzm" ]; then
@@ -349,9 +347,8 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 			mksquashfs $tmp "$target$em$rname" -comp $cmode -ef $exclfiles
 		fi
 		chown $USR $target$em$rname
-		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then
-			printf "Saving took %.3f seconds.\n" "$el"
-		fi
+		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then printf "Saving took %.3f seconds.\n" "$el" ; fi
+
 		cyan "Your changes have been saved. in ${target}${em}/"
 		cyan $rname
 		test -e $EXCL && rm $EXCL; test -e $EXFILES && rm $EXFILES
@@ -372,7 +369,6 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 			cd $pst
 		fi
 	fi
-
 	mount -o remount,udba=none /
 	rm $exclfiles
 	#rm /tmp/incfilter.log
@@ -413,7 +409,6 @@ if [[ "$1" != "6" ]]; then
 	# Folders to save: argument for `find' & check that they $changesexist.
 	FOLDERS="$(grep ^/ $CHNEXIT_CONF | sed s/.//)"
     dycmb
-
 
 	# Folders to exclude: argument for `egrep'
 	grep ^!/ $CHNEXIT_CONF | fixdir > $EXCL  #  has a ^ for egrep
@@ -594,20 +589,16 @@ if [[ "$ans" = "" ]]; then
 		MODULENM="${chxzm%.xzm}"
 		mdlnm="${MODULENM#/}"
 		emfld="${em#/}"
+		if [ ! -e $target ]; then echo "Target does not exist" && exit 0 ; fi
 
-		if [ ! -e $target ]; then
-		    echo "Target does not exist" && exit 0
-		fi
 		rlt=$(cat /proc/cmdline | sed -n 's/.*changes=EXIT:\([^ ]*\).*/\1/p')
-		thetgt=$target
 		[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt}
 		[[ "$rlt" == *"$target"* ]] && { rlt=${rlt%/} && target=""; }
 		
 		test -e $target$rlt && if [ "$rlt" != "" ]; then osize=$( du -sb "${target}${rlt}${MODULENM}/" | tail -n1 | awk '{print $1}'); fi # original size
 
-		if [ "$LOGGING" == "false" ] && [ "$ANALYTICS" == "true" ]; then
-		    echo analystics requires logging to be true. && exit 0
-		fi
+		if [ "$LOGGING" == "false" ] && [ "$ANALYTICS" == "true" ]; then echo analystics requires logging to be true. && exit 0 ; fi
+
 		mkdir $tmp
 		if [ "$d2drive" == "false" ]; then
 			: > /tmp/incfilter.log
@@ -616,15 +607,12 @@ if [[ "$ans" = "" ]]; then
 		else 
 			green "Direct to drive saving"
 			: > /tmp/incfilter.log
-			for folder in $IFOLDERS; do echo "+ /$folder/" >> /tmp/incfilter.log ; done #echo "+ /$folder/***" >> /tmp/incfilter.log
+			for folder in $IFOLDERS; do echo "+ /$folder/" >> /tmp/incfilter.log ; done
 			for fld in $EXCLUDE; do if [[ "${fld:0:1}" == "/" ]]; then fld="${fld#/}" ; else fld="*${fld}*" ; fi ; echo "- /$fld/" >> /tmp/incfilter.log ; done
 			echo "- /*" >> /tmp/incfilter.log
 		fi
-
 		if [ "$rlt" != "" ]; then
-		    if [ "$rlt" == "/" ]; then
-		        rlt=""
-		    fi
+		    if [ "$rlt" == "/" ]; then rlt="" ; fi
     		if [ "$d2drive" == "true" ]; then
         		dirSRC="$target$rlt/changes"
     		else
@@ -918,8 +906,8 @@ if [[ "$ans" = "" ]]; then
 				else
 					dlog
 					if [ "$LOGGING" == "true" ]; then
-							echo "original size(source)=$osize" >> "${target}${rlt}${MODULENM}.bak.log"
-							echo "END ORIGINAL FILES" >> "${target}${rlt}${MODULENM}.bak.log"
+						echo "original size(source)=$osize" >> "${target}${rlt}${MODULENM}.bak.log"
+						echo "END ORIGINAL FILES" >> "${target}${rlt}${MODULENM}.bak.log"
 		        	fi
 				fi
 				if [ "$LOGGING" == "false" ]; then
