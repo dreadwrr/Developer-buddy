@@ -35,7 +35,7 @@ if [ -z "$thetgt" ]; then thetgt=$BASEDIR; fi     # <----- ie   /mnt/sda3   some
 
 
 #CHANGABLE					# As changes exit uses changes-commit turn backup on to save a backup /changes.bak/
-BACKUP="false"				# Turn on backup feature of Developer buddy 3.0 to hdd on/off           this will run after changes-commit
+BACKUP="true"				# Turn on backup feature of Developer buddy 3.0 to hdd on/off           this will run after changes-commit
 
 d2drive="true"                 # default is false   for systems with low memory save directly to drive
                                         # default is save to memory for staging purposes and convenience of modifying
@@ -93,7 +93,7 @@ logSPRF="delete"           # When log size limit reached what to do default dele
                             #
                             # stop      dont log anymore
 
-mdllmt=3                             # Auto Graphics mode module merging default 7
+mdllmt=2                             # Auto Graphics mode module merging default 7
                                                 # when reached will automatically merge if mrgMODULES is set to true below
                                                 # see mrgMODULES boolean
 linkedLOGPRF="incr"          # default incr  new log of only changes keeps log size down
@@ -152,20 +152,20 @@ ROLLBCK="false"                       # backup module after merged to be able to
  			 							# A module that has been merged is saved and moved to /archive/
 										# takes up more space
 ROLLSUMRY="false"           # default false    Include file manifest for archives
-archLMT=4                        # how many unique roll backs to keep  both _uid_ and _uid_L seperately
+archLMT=2                        # how many unique roll backs to keep  both _uid_ and _uid_L seperately
 # END CHANGABLE
 
 # V3 core rsync backup on save-changesnew                 See   line  323    for original changes commit script
 #VARS
-mtmp=/tmp/mtmp$$                    							;			tmp=/tmp/tmp$$                     #temporary directory  leave set
-ch=/mnt/live/memory/changes 									;			trsyncexl=/usr/local/save-changesnew/excld.ini  #  rsync exclude Cache     cache2/*    ect     see for details
-UPDATE=/tmp/save.update.tmp										;			SFOLDERS=/tmp/save.sfolders.tmp
-exclfiles=/tmp/exfiles.log										;			oMF=/tmp/flog.log	#original module name list used for merging
-QEXCL=/tmp/squashexfiles.log									;			EXCLUDED=/tmp/save.excluded.tmp
-mbyte=1048576													;			osize=0   # the original size of changes folder to be captured before moving things to /tmp
+mtmp=/tmp/mtmp$$                    							;	tmp=/tmp/tmp$$                     #temporary directory  leave set
+ch=/mnt/live/memory/changes 									;	trsyncexl=/usr/local/save-changesnew/excld.ini  #  rsync exclude Cache     cache2/*    ect     see for details
+UPDATE=/tmp/save.update.tmp										;	SFOLDERS=/tmp/save.sfolders.tmp
+exclfiles=/tmp/exfiles.log										;	oMF=/tmp/flog.log	#original module name list used for merging
+QEXCL=/tmp/squashexfiles.log									;	EXCLUDED=/tmp/save.excluded.tmp
+mbyte=1048576													;	osize=0   # the original size of changes folder to be captured before moving things to /tmp
 USR=$theUSER
-rname=""														;			adtCMD=""	
-sentinal=""														;			MODULENM=""
+rname=""														;	adtCMD=""	
+sentinal=""														;	MODULENM=""
 #booleans
 rlt=""
 
@@ -182,7 +182,6 @@ SVFILES=$MNAME/home/$USR/Downloads/save.sfiles.tmp				;	EXFILES=/tmp/save.exfile
 # Graphics Not changes=EXIT:/ mode  <---
 rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
 if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
-
 	if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
 	IFOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e /mnt/live/memory/changes/"$x" && echo "$x"; done)"
 	dycmb
@@ -191,24 +190,17 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 	mdlnm="${MODULENM#/}"
 	emfld="${em#/}"
 	
-	rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
-	[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt}
-	[[ "$rlt" == *"$target"* ]] && rlt=${rlt%/} && target=""
-	if [ "$rlt" != "" ]; then osize=$( du -sb "${target}${rlt}${MODULENM}/" | cut -f1); fi # original size
-	
 	exldir $exclfiles
 	sync
 	mount -o remount,udba=notify /
 	
-	if [ "$d2drive" == "false" ]; then
+	if [ "$d2drive" == "false" ] || { [ "$d2ddrive" == "true" ] && [ "$d2dmdl" == "false" ]; } ; then
 		mkdir $tmp
     	green "Staging... "
 	else
-		if [ "$d2dmdl" == "true" ]; then
-			green "Direct to drive saving"
-			test -d $thetgt/tmp && { mkdir $thetgt/tmp$$; tmp=$thetgt/tmp$$; } || { mkdir $thetgt/tmp; tmp=$thetgt/tmp; }
-			test -d $thetgt/mtmp && mtmp=$thetgt/mtmp$$ || mtmp=$thetgt/mtmp
-		fi
+		green "Direct to drive saving on d2dmdl"
+		test -d $thetgt/tmp && { mkdir $thetgt/tmp$$; tmp=$thetgt/tmp$$; } || { mkdir $thetgt/tmp; tmp=$thetgt/tmp; }
+		test -d $thetgt/mtmp && mtmp=$thetgt/mtmp$$ || mtmp=$thetgt/mtmp
 	fi
    for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
 
@@ -365,7 +357,7 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 		test -e $EXCL && rm $EXCL; test -e $EXFILES && rm $EXFILES
 
 		if [ "$mrgMODULES" == "true" ] && [ "$linkedSTATE" == "false" ]; then
-		cd $target$em
+			cd $target$em
 		    r=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' | wc -l)
 		    if (( r > mdllmt)); then
 		        green "Merging changes modules..."
@@ -377,7 +369,7 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 		        fi
 		        cyan "Modules merged."
 		    fi
-		cd $pst
+			cd $pst
 		fi
 	fi
 
@@ -627,6 +619,7 @@ if [[ "$ans" = "" ]]; then
 			for folder in $IFOLDERS; do echo "+ /$folder/" >> /tmp/incfilter.log ; done #echo "+ /$folder/***" >> /tmp/incfilter.log
 			for fld in $EXCLUDE; do if [[ "${fld:0:1}" == "/" ]]; then fld="${fld#/}" ; else fld="*${fld}*" ; fi ; echo "- /$fld/" >> /tmp/incfilter.log ; done
 			echo "- /*" >> /tmp/incfilter.log
+			echo $EXCLUDE
 		fi
 
 		if [ "$rlt" != "" ]; then
