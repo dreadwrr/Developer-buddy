@@ -27,7 +27,7 @@ get_colors
 # CHANGEABLE       New to version 3
 
 
-export backend="database" 	# default normal    bash 2 gpg and queries text based stable tested
+export backend="default" 	# default normal    bash 2 gpg and queries text based stable tested
 											# database   binary database faster queries 1 gpg and python (easier ha)
 
 export email="john.doe@email.com" # default for asymmetrical gpg auth for STATPST
@@ -51,7 +51,7 @@ export tmpSRHS=7 # Default 7 store most recent searches in /tmp try 30 and then 
 
 
 
-export mMODE="normal"  # normal default. robust less prone to failure
+export mMODE="mem"  # normal default. robust less prone to failure
 								  		# mem    balanced store search in arrays less i/o
 								   		# mc      turbo mode run the search in parallel or multiple cores.
 
@@ -517,6 +517,10 @@ if [ -s $SORTCOMPLETE ]; then
 
 			# Database Hybrid analysis, statpst and encrypt
 			else
+
+		        if ! gpg --list-keys | grep -q $email; then
+		            generatekey
+	            fi
 
 				python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $pydbpst $rout $tfile $checkSUM $cdiag $email $mMODE $ANALYTICSECT # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
 				ret=$?

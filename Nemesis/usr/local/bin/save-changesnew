@@ -10,8 +10,8 @@ thetgt="$1" ; if [ "$thetgt" == "" ]; then thetgt=$BASEDIR; fi     # <----- for 
 if  ! id $2 >/dev/null 2>&1; then echo "user:" ${2} "not found"; exit 0 ; fi # quick user check we test the target directory $1 after VARS
 if ! grep -iq "Artix" /etc/os-release; then echo "Wrong version of developer buddy. Please use porteus version." && exit 0 ; fi
 # CHANGABLE
-grubln=""                                     # default null.  to automatically update grub for graphics extramod to boot with changes
-bootdvc=""		                              # default null.  if booting from another harddrive for bootloader   ie   /mnt/sdc1   porteus bootloader        or      where grub2 is installed  example /mnt/nvme0n1p8
+grubln=""                                     # default null.  Point to Line number linux /boot/syslinux/vmlinuz from=/dev/nvme0n1p4 root= ...   to automatically update grub for graphics extramod to boot with changes
+bootdvc=""		                              # default null. Point to the line number linux /boot/syslinux/vmlinuz from=/dev/nvme0n1p4 root=UUID=... to automatically update grub for graphics extramod to boot with changes
 
 target=$thetgt                               # change this to specify the location of porteus install this passed from root call where porteus is installed via $BASEDIR
                                                 # examples      "/mnt/sdx"   ie /mnt/sda3
@@ -20,23 +20,28 @@ target=$thetgt                               # change this to specify the locati
 
 #Folders to include from changes      adjust if wanted            set to include changes-exit default folders
 FOLDERS="bin etc home lib lib64 opt root sbin usr var"
+
 #Folders to exclude from changes
 EXCLUDE="/var/run /var/tmp share/Trash"   #default changes-exit configuration
                                             # keep original format  /var/run    is the base directory var
                                             # seperate with space            anything else other than / will be a pattern *****  ie share/Trash
+
 #Folders to exclude from changes                                         already set to exclude changes-exit default folders
 # If you want to exclude directories see Line 153, 191 for Graphics changes mode and 307 for Graphics mode
 
 chxzm="/changes.xzm"            #Module  name  change this if you want to customize the name
                                                 # retain leading / and ensure it ends in .xzm
                                                #avoid trailing / and any spaces
+
 em="/extramod"                      #change this to save a different folder       the extramod dirtory
                                                 # retain leading /
                                                # avoid trailing /
+
 cmode="gzip"                            # default nothing. uses gzip compression level balanced
                                            # xz        best compression
                                            # zstd     faster bootup
                                             # lzo      faster bootup
+
 logSIZE=35                             # Log size limit default 35 MB
                                             # Will keep the original contents from when the changes.bak folder was made
                                             # if limit is exceeded. Just clears out old changes to make a new log file
@@ -74,6 +79,7 @@ linkedSTATE="true"             #This is precendence for changes:EXIT only on gra
                                            # ect.
 keepLINKEDMRGED="false"  # default is false so delete the old ones after merging if they are not in sync with each other
                                            # it automatically renames the old one to .bak. ****
+
 # Non linked state options
 mrgMODULES="true"           # Automatically merge changes modules if over limit value
                                         #change this to automatically merge changes.xzm modules  ( applies to Graphics mode)
@@ -81,13 +87,15 @@ mrgMODULES="true"           # Automatically merge changes modules if over limit 
 
 keepMRGED="false"       # default is false so delete the old ones after merging
 # End Non linked state options
-d2drive="true"                 # default is false   for systems with low memory save directly to drive
+
+d2drive="false"                 # default is false   for systems with low memory save directly to drive
                                         # default is save to memory for staging purposes and convenience of modifying
                                         # ect more versatle and efficient (less writes on hd)
                                         # but systems with low memory may want to use this to avoid any potential
                                         # exceedence
 
 d2dmdl="false"					# default false  use harddrive for temp dir for modules
+
 # Terminal output / feedback
 FEEDBACK="false"                # default false     New version 3 feature
                                             # show more verbose feedback from rsync ect in terminal while saving
@@ -105,7 +113,10 @@ ANALYTICS="true"            # logging must be set to true       default true    
                                         # it will list the contents of the ORIGINAL backup, the contents of the current backup
                                         # and list the file differences as well. Then rsync will continue to input changes.
                                         # you also get total MB saved if you had manually backed up the changes folder ect
+
+ANALYTICSECT="true"		# disable metric saving time. ect.
 # End Terminal output
+
 # Backup mode for Graphics modules
 ROLLBCK="false"				# backup module after merged to be able to "rollback" by loading any single module
  			 							# A module that has been merged is saved and moved to /archive/
@@ -240,7 +251,7 @@ local instm="$1" # so we can see where its called from
             exit 1
         fi
     fi
-
+	 if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print $end - $start}") ; fi
 	if [ "$ROLLBCK" == "true" ]; then
 		if [ -d "${target}${em}/archive/_uid_L" ]; then
 			r=$(find "${target}${em}/archive/_uid_L" -maxdepth 1 -type f -name '*.bak' 2>/dev/null | wc -l)
@@ -292,9 +303,10 @@ if [ "$rlt" != "" ]; then osize=$( du -sb "${target}${rlt}${MODULENM}/" | cut -f
 exldir $exclfiles
 sync
 mount -o remount,udba=notify /
-if [ "$d2drive" == "false" ] || { [ "$d2drive" == "true" ] && [ "$d2dmdl" == "false" ] && [ -z "$rlt" ]; }; then
+
+if [ "$d2drive" == "false" ] || { [ "$d2drive" == "true" ] && [ "$d2dmdl" == "false" ] && [ -z "$rlt" ]; } ; then # Not d2d or graphics d2dmdl
+	mkdir $tmp
     : > /tmp/incfilter.log
-    mkdir $tmp
     green "Staging... "
 	for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
 else
@@ -303,12 +315,6 @@ else
 		test -d $thetgt/tmp && { mkdir $thetgt/tmp$$; tmp=$thetgt/tmp$$; } || { mkdir $thetgt/tmp; tmp=$thetgt/tmp; }
 		test -d $thetgt/mtmp && mtmp=$thetgt/mtmp$$ || mtmp=$thetgt/mtmp
 	fi
-    : > /tmp/incfilter.log
-    for folder in $FOLDERS; do
-        echo "+ $folder/" >> /tmp/incfilter.log
-        #echo "+ $folder/***" >> /tmp/incfilter.log
-    done
-    echo "- /*" >> /tmp/incfilter.log
 fi
 
 if [ "$rlt" != "" ]; then
@@ -317,6 +323,10 @@ if [ "$rlt" != "" ]; then
     fi
     if [ "$d2drive" == "true" ]; then
         dirSRC="$target$rlt/changes"
+		: > /tmp/incfilter.log
+		for folder in $FOLDERS; do echo "+ /$folder/" >> /tmp/incfilter.log ; done #echo "+ /$folder/***" >> /tmp/incfilter.log
+		for fld in $EXCLUDE; do if [[ "${fld:0:1}" == "/" ]]; then fld="${fld#/}" ; else fld="*${fld}*" ; fi ; echo "- /$fld/" >> /tmp/incfilter.log ; done
+		echo "- /*" >> /tmp/incfilter.log
     else
         dirSRC=$tmp
     fi
@@ -427,7 +437,7 @@ if [ "$rlt" != "" ]; then
                     else
 
                         if ! head -n 1 "${target}${rlt}${MODULENM&> /dev/null}.bak.log" | grep -q 'PAUSED'; then
-                            if head -n 1 "${target}${rlt}${MODULENM}.bak.log" | grep -q 'STOP'; then
+                            if head -n 1 "${target}${rlt}${MODULENM}.bak.log" | grep -q ' if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print $end - $start}") ; fiSTOP'; then
                                 sed -i '1{/STOP/ s/^/PAUSED/}' "${target}${rlt}${MODULENM}.bak.log"
                             else
                                   sed -i '1i PAUSED' "${target}${rlt}${MODULENM}.bak.log"
@@ -483,7 +493,7 @@ if [ "$rlt" != "" ]; then
                 fi
             fi
 			exc=$?
-            if [ $exc -eq 1 ]; then
+            if [ $exc -eq 1 ]; then if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print $end - $start}") ; fi
 		        mount -o remount,udba=none /
 		        red "rsync failed — check log at ${target}${rlt}${MODULENM}.bak.log"
 		        if [ "$nLOG" != "" ]; then
@@ -511,11 +521,11 @@ if [ "$rlt" != "" ]; then
                 sed -n '/Number of files/,$p' $UPDATE >> "${target}${rlt}${MODULENM}.bak.log"
             fi
         fi
-
+		end=$(date +%s.%N)
         cyan "Changes backup has been updated."
 
         if [ "$ANALYTICS" == "true" ]; then
-			ossize=$(tac ${target}${rlt}${MODULENM}.bak.log | sed -nE 's/.*original size\(source\)=([0-9.]+).*/\1/p' | head -n 1)
+			ossize=$( sed -nE 's/.*original size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n 1)
             if [ "$ossize" == "" ]; then
                 oput="Unkown"
             else
@@ -524,7 +534,7 @@ if [ "$rlt" != "" ]; then
 
             csize=$(du -sb "${target}${rlt}${MODULENM}.bak/" | cut -f1)
             nsize=$osize
-            c=$( sed -nE 's/.*total count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log) # the current saved bytes for the current backup
+            c=$( sed -nE 's/.*total count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n 1)
             c="${c:-0}"
 
             if [ "$adtCMD" != "" ]; then
@@ -540,7 +550,7 @@ if [ "$rlt" != "" ]; then
             r=$(( c + z ))  # our new count
             grep -q "total count=" "${target}${rlt}${MODULENM}.bak.log" && sed -i "s/total count=[0-9]\+/total count=$r/" ${target}${rlt}${MODULENM}.bak.log || sed -i "/END ORIGINAL FILES/ i\total count=$r" "${target}${rlt}${MODULENM}.bak.log"
 
-            c=$( sed -nE 's/.*original count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
+            c=$( sed -nE 's/.*original count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n 1)
             c="${c:-0}"
             if (( c != 0 )); then
                 cyan " Since the original backup was first made sent" $(( ( c + z ) / mbyte )) "MB worth of data"
@@ -567,9 +577,8 @@ if [ "$rlt" != "" ]; then
                 echo
                 cyan "You saved $(( (nsize - csize) / mbyte )) MB by generating this backup."
             fi
-            end=$(date +%s.%N)
-            el=$(awk "BEGIN {print $end - $start}")
-            printf "Saving took %.3f seconds.\n" "$el"
+            el=$(awk "BEGIN {print $end - $start}") 
+            if [ "$ANALYTICSECT" == "true" ] ; then printf "Saving took %.3f seconds.\n" "$el" ; fi
             if [ "$sentinal" == "true" ]; then
                 rm $UPDATE
                 echo -e "\nYou are seeing this message as you have most likely deleted an entire directory on the source."
@@ -578,14 +587,23 @@ if [ "$rlt" != "" ]; then
             fi
         fi
     else
+		if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
+		mkdir ${target}${rlt}${MODULENM}.bak
+
+		if [ -f "${target}${rlt}${MODULENM}.bak.log" ]; then
+			glog "true"
+		else
+			dlog
+			if [ "$LOGGING" == "true" ]; then
+					echo "original size(source)=$osize" >> "${target}${rlt}${MODULENM}.bak.log"
+					echo "END ORIGINAL FILES" >> "${target}${rlt}${MODULENM}.bak.log"
+        	fi
+		fi
+		if [ "$LOGGING" == "false" ]; then
+			test -f "${target}${rlt}${MODULENM}.bak.log" && rm "${target}${rlt}${MODULENM}.bak.log"
+		fi
+
         cyan "Creating new backup this may take a few minutes."
-        if [ $LOGGING == "true" ]; then # generate log file
-            dlog
-            echo "original size(source)=$osize" >> "${target}${rlt}${MODULENM}.bak.log"
-            echo "END ORIGINAL FILES" >> "${target}${rlt}${MODULENM}.bak.log"
-        else
-            test -f "${target}${rlt}${MODULENM}.bak.log" && rm "${target}${rlt}${MODULENM}.bak.log"
-        fi
 
         if [ "$FEEDBACK" != "true" ]; then
             rsync -aH --stats --filter="merge /tmp/incfilter.log" --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" >> "${target}${rlt}${MODULENM}.bak.log" 2>&1
@@ -604,14 +622,15 @@ if [ "$rlt" != "" ]; then
 			cyan "Some files have vanished. Check for excluding cache files"
 			sed -i '/some files vanished/d' "${target}${rlt}${MODULENM}.bak.log"
 		fi
-
+		end=$(date +%s.%N)
         cyan "Your changes backup has been created! in ${target}${rlt}/"
         cyan "${MODULENM}.bak/"
 
         if [ "$ANALYTICS" == "true" ]; then
+			if [ "$ANALYTICSECT" == "true" ] ; then el=$(awk "BEGIN {print $end - $start}") ; printf "Saving took %.3f seconds.\n" "$el" ; echo ; fi
             csize=$( du -sb "${target}${rlt}${MODULENM}.bak/" | cut -f1)
             tsize=$(( osize - csize ))
-            z=$( grep "Total bytes sent:" "${target}${rlt}${MODULENM}.bak.log" | sed -E 's/[^0-9]*([0-9,]+).*/\1/' | tr -d ',')
+            z=$( grep "Total bytes sent:" "${target}${rlt}${MODULENM}.bak.log" | tail -n 1 | sed -E 's/[^0-9]*([0-9,]+).*/\1/' | tr -d ',')
             sed -i "/END ORIGINAL FILES/ i\total count=$z" "${target}${rlt}${MODULENM}.bak.log" #insert the total byte count
             green "You have sent $(( z / mbyte )) MB worth of data so far to the ${target}${rlt}${MODULENM}.bak/ backup"
             cyan "You saved $(( tsize / mbyte )) MB by creating this backup"
@@ -621,23 +640,23 @@ if [ "$rlt" != "" ]; then
 	cd $pst
 
 else # Graphics mode
+	if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
     if [ "$d2drive" == "true" ] && [ "$d2dmdl" == "true" ]; then
+		green "Staging xzm to local hdd on d2dmdl..."
     	for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
     fi
     SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`
 	line=43 #Bootloader
 	pth="/boot/syslinux/porteus.cfg"
 	[[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; } && [[ "$bootdvc" != "" ]] && thetgt=$bootdvc
-	[[ -n "$grubln" ]] && test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak
     test -e "$thetgt/boot/syslinux/porteus.cfg" && rlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on ln?  ## Notes returns the value grep 'extramod=[^ ]*')
-
     epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g')
 
     if [ "$rlt" != "" ]; then
         if [[ ! "${rlt}" == *$BASEDIR"/"$emfld* ]]; then
 
             test -d "$target$em" || mkdir -p "$target$em"
-
+			[[ -n "$grubln" ]] && test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak
             #append to start of boot loader
             sed -i "s|\(extramod=\)\([^ ]*\)|\1${epath};\2|" "$thetgt$pth"
             loadermsg
@@ -681,7 +700,7 @@ else # Graphics mode
         fi
     else
 		cmd="sed -i \"0,/APPEND/ s|\\(APPEND\\)|\\1 extramod=${epath}|\" \"$thetgt$pth\""
-		if [ -n "$grubln" ]; then cmd="sed -i \"${line}s/\\\$/ extramod=${epath}/\" \"$thetgt$pth\"" ; fi
+		if [ -n "$grubln" ]; then test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak ; cmd="sed -i \"${line}s/\\\$/ extramod=${epath}/\" \"$thetgt$pth\"" ; fi
 		test -e "$thetgt$pth" && bash -c "$cmd" || echo "Using other bootloader append ${target}${em} to it with extramod="
 		# 	test -e "$thetgt$pth" && { sed -i "0,/APPEND/ s|\(APPEND\)|\1 extramod=${epath}|" "$thetgt$pth"; loadermsg; } || echo "Using other bootloader append ${target}${em} to it with extramod="
 		#	test -e "$thetgt$pth" && sed -i "${line}s/\$/ extramod=${epath}/" "$thetgt$pth"; loadermsg || echo "Using other bootloader append ${target}${em} to it with extramod="
@@ -764,6 +783,9 @@ else # Graphics mode
 			mksquashfs $tmp "$target$em$rname" -comp $cmode -ef $exclfiles
         fi
         chown $USR $target$em$rname
+		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then
+			printf "Saving took %.3f seconds.\n" "$el"
+		fi
         cyan "Your changes have been saved. in ${target}${em}/"
         cyan $rname
         test -e $EXCL && rm $EXCL; test -e $EXFILES && rm $EXFILES
