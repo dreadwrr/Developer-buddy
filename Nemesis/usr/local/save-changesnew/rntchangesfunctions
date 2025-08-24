@@ -72,7 +72,6 @@ unset IFS
 rm $lt
 }
 generatekey() {
-        echo pwd $PWD
         read -sp "Enter passphrase for new GPG key: " p
         echo
 cat > /tmp/keyparams.conf <<EOF
@@ -183,7 +182,7 @@ hanly(){
 		hablk
 	fi
 	rm $2
-    processha "$@"
+    processha "$3"
 }
 processha() {
     if [ -s $rout ]; then
@@ -207,7 +206,6 @@ processha() {
 				rm /tmp/cerr  ; sts="true"
 			fi
 			if [ -n "$cores" ] && [ "$sts" != "" ]; then echo "Detected $cc CPU cores."; fi
-			#awk '{ print "\033[31m *** Checksum of file \033[0m" $0 "\033[31m altered without a modified time\033[0m" }'
         fi
 	fi
 }

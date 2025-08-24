@@ -294,7 +294,7 @@ if [ -s $SORTCOMPLETE ] ; then
 					fi
 				fi
 
-				processha
+				processha $5
 
 			fi
 		fi
