@@ -13,15 +13,12 @@ local strt=0
 local ABSTRING=""
 local BCSTRING=""
 local CDSTRING=""
-
 BASEDIR=$( cat $LOGFILE | uniq -c | sort -sr | head -n 1 | awk '{print $2}')
 DEPTH=$( echo "${BASEDIR}" | awk -F '/' '{print NF-1}')
 FCOUNT=$( grep -c "${BASEDIR}" $LOGFILE)
 p=0
 z=$( insetdirectory)
-
 if [ "$z" != "" ]; then
-
 	if (( z = DEPTH)); then
     	strt=$z
     else
@@ -30,17 +27,12 @@ if [ "$z" != "" ]; then
 else
     strt=2
 fi
-
 for ((i=strt; i<=DEPTH; i++))
 do
-
 	IDIR=$( echo "${BASEDIR}" | cut -d '/' -f 1-$i)
-
 	y=$( grep -c "^${IDIR}" $LOGFILE)
-
 	if (( y >= p )); then
 		p=$y
-
 		CDSTRING=$IDIR
 	else
 		break
@@ -51,12 +43,10 @@ echo "${BASEDIR}"
 }
 #iis system directory and return the root directory
 insetdirectory() {
-
 local result
 local newdir
 local d
 local template=()
-
 template+=("/home/$USR/Downloads/")
 template+=("/home/$USR/Pictures/")
 template+=("/home/$USR/Desktop/")
@@ -88,7 +78,6 @@ template+=("/var/opt/")
 template+=("/var/run/")
 template+=("/var/tmp/")
 template+=("/var/")
-
 for element in "${template[@]}"; do
     result=$( echo "$BASEDIR" | grep -o "^$element")
     if [ "$result" != "" ]; then
@@ -147,6 +136,5 @@ echo -e $ST" Start" >> $2
 echo -e $FN" Finish" >> $2
 echo -e $srcE" Compile time" >> $2
 echo "${ENDTM}"
-
 }
 getrnd() { local tokenID=$RANDOM; rndNO="${tokenID:0:3}"; echo $rndNO; }

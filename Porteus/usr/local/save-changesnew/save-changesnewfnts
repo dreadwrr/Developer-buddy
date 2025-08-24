@@ -5,28 +5,15 @@ TFLD="$(for x in $FOLDERS; do test -e "$ch/$x" && echo "$x"; done)"
 FOLDERS="$TFLD" ; TFLD=""
 [[ -n "$IFOLDERS" ]] && TFLD="$(for x in $(echo "$IFOLDERS"); do [[ ! " $FOLDERS " == *" $x "* ]] && test -e "$ch/$x" && echo "$x" ; done)"
 [[ -n "$TFLD" ]] && { IFOLDERS="$TFLD" ; FOLDERS=$IFOLDERS; }
-
 }
 exldir() {
-#IFS=$'\n' read -ra arr <<< "$EXCLUDE"
 > $1
-#for item in "${arr[@]}"; do
-#	if [[ "${item:0:1}" == "/" ]]; then
-#		echo ".${item}" >> $1
-#	else
-#		echo $item >> $1
-#	fi
-#done
 grep ^!/ $CHNEXIT_CONF | fixdir > $EXCL
 if [ -s "$EXCL" ]; then
-	#cat $EXCL | fixexcl > $EXCLUDED
 	fixexcl < $EXCL > $EXCLUDED
-	#sed -i 's|\.||' $EXCLUDED
 	sed -i 's|^|/|' $EXCLUDED
 	while IFS= read -r line; do [[ -z "$line" ]] && continue ; if ! [[ " $EXCLUDE " =~ " $line " ]]; then EXCLUDE="$EXCLUDE $line" ; fi ; done < $EXCLUDED
 	unset IFS
-	#EXCLUDE="$EXCLUDE $(tr '\n' ' ' < $EXCLUDED | sed 's/ *$//')"
-	#sed -i 's|^/||' $EXCLUDED
 	> $EXCLUDED
 	for fld in $EXCLUDE; do if [[ $fld != /* ]]; then fld="*${fld}*"; else fld="${fld#/}" ; fi ; printf "%s\n" $fld ; done >> $EXCLUDED
 	grep -Fvxf $trsyncexl $EXCLUDED >> $UPDATE; test -s $UPDATE && cat $UPDATE >> $1
@@ -122,7 +109,7 @@ local instm="$1"
         find $mtmp -name ".wh.*" -exec rm -r {} \;
 
         test -e $tmp/home/$USR/Downloads/$LOGFILE && rm $tmp/home/$USR/Downloads/$LOGFILE
-        test -s "$exclfiles" && { rsync -av --exclude-from=$exclfiles --exclude '\.wh\.*' $tmp/ $mtmp; } > $UPDATE || rsync -av --exclude '\.wh\.*' $tmp/ $mtmp > $UPDATE
+        test -s "$exclfiles" && { rsync -aHv --exclude-from=$exclfiles --exclude '\.wh\.*' $tmp/ $mtmp; } > $UPDATE || rsync -aHv --exclude '\.wh\.*' $tmp/ $mtmp > $UPDATE
 
 	    BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
 	    echo $BRAND >> $UPDATE

@@ -112,8 +112,14 @@ storeenc() {
 shopt -s expand_aliases
 local c
 if [ "$STATPST" == "true" ]; then
-	if ! gpg --list-keys | grep -q $email; then
-		generatekey
+	if which gpg2 > /dev/null 2>&1; then
+		if ! gpg2 --list-keys | grep -q $email; then
+			generatekey
+		fi
+	else
+		if ! gpg --list-keys | grep -q $email; then
+			generatekey
+		fi
 	fi
     if grep -m 1 -q '^Modified,' $1; then  msg=" stats"; else msg=" log"; fi
     if [ -s "$2" ]; then
@@ -242,7 +248,7 @@ hanly(){
 		hablk
 	fi
 	rm $2
-    processha "$@"
+    processha "$3"
 }
 processha() {
     if [ -s $rout ]; then
@@ -266,7 +272,6 @@ processha() {
        			rm /tmp/cerr ; sts="true"
        		fi
 			if [ -n "$cores" ] && [ "$sts" != "" ]; then echo "Detected $cc CPU cores."; fi
-			#awk '{ print "\033[31m *** Checksum of file \033[0m" $0 "\033[31m altered without a modified time\033[0m" }'
         fi
 	fi
 }
