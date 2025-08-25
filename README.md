@@ -1,8 +1,8 @@
-# Developer-buddy                                       08/20/2025
+# Developer-buddy                                       08/242025
 
 ![Logo](https://i.imgur.com/QVWc23x.jpeg)
 
-
+Brought _uid_L for porteus graphics mode! for non changes=EXIT:/ users.
 
 
 
