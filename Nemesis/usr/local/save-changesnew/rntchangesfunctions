@@ -2,7 +2,7 @@
 #   Developer buddy 3.0 core                                               08/14/2025
 postop() {
 if [ "$POSTOP" == "true" ]; then
-	while IFS= read -r x; do x=$(unescf "$x") ; printf '%s\0' "$x"; done < $1 >> $xdata
+	while IFS= read -r x; do x="$(unescf "$x")" ; printf '%s\0' "$x"; done < $1 >> $xdata
     if [ -f $USRDIR/doctrine.tsv ]; then
         sed -i 's/^export POSTOP="true"/export POSTOP="false"/' $2
     else
@@ -181,7 +181,7 @@ hanly(){
 		hablk
 	fi
 	rm $2
-    processha "$3"
+    processha "$@"
 }
 processha() {
 invr="$3" ; [[ -z "$invr" ]] && invr="$1"
@@ -208,7 +208,7 @@ if [ -s $rout ]; then
 fi
 }
 cblk() {
-y="$(escapef "$x")"
+y="$(escf "$x")"
 if [ -e "$x" ] && [ -f "$x" ]; then
 	stat_output=$(stat -c "%Y %X %Z %i" "$x")
 	read -r mtime atime itime i <<< "$stat_output"
@@ -244,7 +244,7 @@ else
 fi
 }
 sblk() {
-y="$(escapef "$x")"
+y="$(escf "$x")"
 if [ -e "$x" ] && [ -f "$x" ]; then
    	stat_out=$(stat -c "%Y %X %i" "$x")
 	read -r f atime i <<<"$stat_out"
@@ -289,16 +289,14 @@ clearlogs() {
     )
 for suffix in "${suffixes[@]}"; do rm -f "${MODULENAME/#\//}$suffix"* 2>/dev/null ; done
 }
-escapef() {
-local i="$1"
-local o
-o="${i//$'\n'/\\n}" ; o="${o//\\/\\\\}" ; o="${o//\"/\\\"}" ; o="${o//$/\\\$}"
+escf() {
+local o="$1"
+o="${o//\\/\\\\}" ; o="${o//$'\n'/\\n}"; o="${o//\"/\\\"}" ; o="${o//$/\\\$}"
 printf '%s' "$o"
 }
 unescf() {
-local t="$1"
-local k
-k="${t//$'\\n'/$'\n'}" ; k="${k//\\\\/\\}" ; k="${k//\\\"/\"}" ; k="${k//\\\$/\$}"
+local k="$1"
+k="${k//\\n/$'\n'}" ; k="${k//\\\"/\"}" ; k="${k//\\\$/\$}" ; k="${k//\\\\/\\}" 
 printf '%s' "$k"
 }
 stealth() {
@@ -327,7 +325,7 @@ hablk() {
 while IFS= read -r p || [ -n "$p" ]; do
 	found_line=""
 	cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")
-	y="$( escapef "$cFILE")"
+	y=$cFILE
 	current_ln="${p//\"$y\"/}"
 	current_ln="$(echo "$current_ln" | xargs  -d '\n')"
 	read -r f1 f2 f3 f4 f5 f6 f7 <<< "$current_ln"
@@ -339,7 +337,7 @@ while IFS= read -r p || [ -n "$p" ]; do
 			original_ln="${sline//\"$y\"/}"
 			original_ln="$(echo "$original_ln" | xargs -d '\n')"
 			read -r of1 of2 of3 of4 of5 of6 of7 <<< "$original_ln"
-			cFILE="$(unescf "$cFILE")"
+			cFILE="$( unescf "$cFILE")"
 			oin="$of3"
 			if [ -n "$oin" ] && [ "$oin" -ge 0 ] 2>/dev/null; then
 				omt="$of1 $of2"

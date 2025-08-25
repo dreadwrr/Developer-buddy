@@ -58,9 +58,17 @@ sed -i '/\.xsession/d' $1 $3
 #Inclusions from script
 # $USR passed from recentchanges argument chaning into root  $3
 # we dont want  USER/.config
-sed -i '/\/home\/'"${2}"'\/\.config/d' $1 $3
-sed -i '/\/home\/'"${2}"'\/Downloads\/rntfiles/d' $1 $3
+sed -i '/\/home\/'"${2}"'\/\.config\/xSys/d' $1 $3
+sed -i '/\/home\/'"${2}"'\/\.config\/Custom/d' $1 $3
+sed -i '/\/home\/'"${2}"'\/\.config\/xCustom/d' $1 $3
 
+
+
+sed -i '/\/home\/'"${2}"'\/Downloads\/rntfiles/d' $1 $3
+sed -i '/\/usr\/local\/save-changesnew\/logs\.gpg/d' $1 $3
+sed -i '/\/usr\/local\/save-changesnew\/recent\.gpg/d' $1 $3
+sed -i '/\/usr\/local\/save-changesnew\/stats\.gpg/d' $1 $3
+sed -i '/\/usr\/local\/save-changesnew\/flth\.csv/d' $1 $3
 
 # we dont want   root .auth90
 sed -i '/\/root\/\.auth/d' $1 $3
