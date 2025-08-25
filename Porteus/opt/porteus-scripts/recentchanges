@@ -48,6 +48,11 @@ export logPRF="del" # del delete and stop    what to do on max logSIZE
 
 export compLVL=200  # default 200mb to disable compression on logpst size
 
+cmode="gzip"                   # default nothing. uses gzip compression level balanced. This is for recentchanges .xzm and SRC tag
+                                           # xz        best compression
+                                           # zstd     faster bootup
+                                            # lzo      faster bootup
+
 export tmpSRHS=7 # Default 7 store most recent searches in /tmp try 30 and then nrun recentchanges query with STATPST false
                                 # for hybrid analysis in diff file
                                  # also queries ie recentchanges query stats
@@ -178,7 +183,7 @@ FOLDERLOG=$tmp/save.totalfolders.tmp				;		SORTCOMPLETE=$tmp/list_complete_sorte
 #Version 3
 dr=/usr/local/save-changesnew						;       logpst=$dr/logs.gpg
 flth=$dr/flth.csv									;       statpst=$dr/stats.gpg
-atmp=/tmp/atmp$$									;		pydbpst=/usr/local/save-changesnew/recent.gpg
+atmp=/tmp/atmp$$
 rout=$atmp/routput.tmp								;		pydb=/usr/local/save-changesnew/recent.db
 toutnul=$atmp/toutputnul.tmp						;       slog=/tmp/scr # feedback
 tout=$atmp/toutput.tmp 								;		xdata=$atmp/logs_stats.log # dcryp log file
@@ -258,15 +263,15 @@ eval "$fc" 2> /dev/null | tee $RECENTNUL > /dev/null 2> /dev/null
 eval "$fca" 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null
 if [ "$checkSUM" == "true" ]; then cyan "Running checksum. Please wait..."; fi
 if [ "$ANALYTICSECT" == "true" ]; then end=$(date +%s.%N) ; if [ "$checkSUM" == "true" ]; then cstart=$(date +%s.%N) ; fi ; fi
-while IFS= read -r -d '' f; do f="${f//$'\n'/\\n}" ; echo "$f" ; done < $RECENTNUL >> $RECENT
-while IFS= read -r -d '' f; do f="${f//$'\n'/\\n}" ; echo "$f"	; done < $toutnul >> $tout
+while IFS= read -r -d '' f; do f="$( escf "$f")" ; echo "$f" ; done < $RECENTNUL >> $RECENT
+while IFS= read -r -d '' f; do  f="$( escf "$f")" ; echo "$f"	; done < $toutnul >> $tout
 if [ "$FEEDBACK" == "true" ]; then cat $tout ; cat $RECENT; fi
 if [ -s $tout ]; then grep -Fxv -f $RECENT $tout > $TMPCOMPLETE; fi
 > $tout
 
 #pacman and slaptget Loops
 if [ -s $TMPCOMPLETE ]; then
-	while IFS= read -r x; do x="${x//$'\\n'/\n}"; printf '%s\0' "$x"; done < $TMPCOMPLETE >> $xdata
+	while IFS= read -r x; do  x="$( unescf "$x")"; printf '%s\0' "$x"; done < $TMPCOMPLETE >> $xdata
 	if [ "$mMODE" == "normal" ]; then
 		xargs -0 /usr/local/save-changesnew/searchfiles $atmp $tout $COMPLETE $checkSUM < $xdata
 	elif [ "$mMODE" == "mem" ]; then
@@ -318,15 +323,15 @@ if [ -s $SORTCOMPLETE ]; then
 fi
 /usr/local/save-changesnew/filter $RECENT $USR
 > $tout
-while IFS= read -r x; do x="$(unescf "$x")" ; printf '%s\0' "$x"; done < $RECENT >> $tout
-while IFS= read -r -d '' x; do if cp -a --parents "$x" "$tmp$workdir" > /dev/null 2>> $xdata; then printf '%s %s\n' "$x" "success" >> $UPDATE; else echo "Failed to copy: $x" >&2; echo "ERROR: $x" >> $UPDATE; fi; done < $tout
+while IFS= read -r x; do printf '%s\0' "$x"; done < $RECENT >> $tout
+while IFS= read -r -d '' x; do y="$(unescf "$x")" ; if cp -a --parents "$y" "$tmp$workdir" > /dev/null 2>> $xdata; then printf '%s %s\n' "$x" "success" >> $UPDATE; else echo "Failed to copy: $x" >&2; echo "ERROR: $x" >> $UPDATE; fi; done < $tout
 unset IFS
 if [ -s $xdata ]; then echo > $UPDATE ; cat $xdata $UPDATE; fi
 test -e $xdata && rm $xdata
 echo $BRAND >> $UPDATE
 find $tmp$workdir -not -type d -print0 > $SVFILES
 >$tout
-while IFS= read -r -d '' x; do x="$(escapef "$x")" ; echo "$x" ; done < $SVFILES >> $tout
+while IFS= read -r -d '' x; do x="$( escf "$x")"; echo "$x" ; done < $SVFILES >> $tout
 mv $tout $SVFILES
 sed -i -e "s|$tmp$workdir||g" $SVFILES
 cat $SVFILES | sed -e 's![^/]*$!!g' > $SVFOLDERS
@@ -354,22 +359,30 @@ if [ "$SRCDIR" == "SRC" ]; then
         cat $TMPOPT  | grep -Fvf $RECENTAPP > $TMPCOMPLETE
 	    cd $tmp$workdir || exit
 	    srcpath="${rlt#?}"
-        y=$( wc -l < $RECENTAPP)
-        x=0
-		while IFS= read -r -d '' f ; do f="$(escapef "$f")" ; grep -Fq -- "$f" $RECENTAPP && x=$(( x + 1 )) || { approval="false"; arrreject+=("$f"); } ; done < <(find "${srcpath}" \( -type f -o -type l \) -print0)
+ 		> $xdata
+		echo rlttt is $rlt
 		r=$( find "${rlt}" -type f | wc -l)  # system count
+		s=$(grep -n 'MDY' "/tmp/${appname}_xdata" | head -n 1 | cut -d: -f1)
+		if [[ -n "$s" ]]; then s=$(( s - 1 )) ; else s=0 ; fi
+		x=0 # transfer count
+		y=$( wc -l < $RECENTAPP) # What actually made it into /tmp	
+		while IFS= read -r -d '' f ; do echo "$f" >> $xdata ;  x=$(( x + 1 )) ; done < <(find "${srcpath}" \( -type f -o -type l \) -print0)  # Our system files is what we should be comparing		
 		{ echo Root:"${rlt}" ; echo "File count: "$x "of ${y}" ; echo "System count: "$r ; echo ; echo ; } >> "/tmp/${appname}_xdata"   
-		if [ "$approval" == "true" ]; then
-			{ echo "Status: Complete. Files verified " ; echo ; } >> "/tmp/${appname}_xdata"
+		if (( x < y )); then 
+			sort -o $xdata $xdata
+			sort $RECENT > $xdata2
+			comm -23 $xdata1 $xdata2 > $tout
+			{ echo ; echo "Transfer: File transfer failed. " ; echo ; echo "Following file(s) were not transfered:" ; cat $tout ;} >> "/tmp/${appname}_xdata"
+		elif (( x == y)); then
+			{ echo "Transfer: File transfer verified " ; echo ; } >> "/tmp/${appname}_xdata"
 		else
-			{ echo ; echo "Status: Missed base directory. Confirm files or use recentchanges for rntfiles.xzm" ; echo ; echo "Following file(s) do not belong" ; } >> "/tmp/${appname}_xdata"
-            for element in "${arrreject[@]}"; do echo "$element" >> "/tmp/${appname}_xdata"; done
+			{ echo "SRC mode failed. use recentchanges to package application." ; } >> "/tmp/${appname}_xdata"
 		fi
-		{ echo ; echo ; } >> "/tmp/${appname}_xdata"
+		if (( r > s )); then echo "Status: Possibly missed base directory. Confirm files or use recentchanges for rntfiles.xzm." >> "/tmp/${appname}_xdata" ; fi
         echo $BRAND >> $RECENTAPP
-        if [ -s $TMPCOMPLETE ]; then { echo "Items filterout from filtered files."; echo ; cat $TMPCOMPLETE; }  >> "/tmp/${appname}_xdata" ; else echo "No items filtered out from filter."  >>"/tmp/${appname}_xdata" ; fi
+        if [ -s $TMPCOMPLETE ]; then { echo ; echo "Items filterout from filtered files."; echo ; cat $TMPCOMPLETE; }  >> "/tmp/${appname}_xdata" ; else echo "No items filtered out from filter."  >>"/tmp/${appname}_xdata" ; fi
         find "$tmp$workdir$rlt" -type f -print0 > $TMPCOMPLETE
-        while IFS= read -r -d '' f; do f="$(escapef "$f")" ; arrfiles=("${arrfiles[@]}" "${f##*/}"); done < $TMPCOMPLETE
+        while IFS= read -r -d '' f; do  f="$( escf "$f")" ; arrfiles=("${arrfiles[@]}" "${f##*/}"); done < $TMPCOMPLETE
         x=${#arrfiles[@]}
         y=0
         echo ""

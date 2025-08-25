@@ -564,17 +564,15 @@ if [[ "$ans" = "" ]]; then
 			FOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e /mnt/live/memory/changes/"$x" && echo "$x"; done)"
             dycmb
 
-		else # normal execution of this script
-			#rm $EXCL     isnt used as not using egrep -vf
-			#rm $UPDATE     This is available as a tmp file
-			rm $SFOLDERS
-			#rm $EXFILES  # We need to reuse this as its already done
-			> $exclfiles
-			> $UPDATE
-			test -e $EXCLUDED && rm $EXCLUDED
+		#else # normal execution of this script
 
 		fi
-		
+		#rm $EXCL     isnt used as not using egrep -vf
+		#rm $UPDATE     This is available as a tmp file
+		#rm $EXFILES  # We need to reuse this as its already done
+		test -e $SFOLDERS && rm $SFOLDERS 
+		test -e $EXCLUDED && rm $EXCLUDED
+		> $UPDATE ; > $exclfiles
 		exldir $exclfiles
 
 		if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
