@@ -360,7 +360,6 @@ if [ "$SRCDIR" == "SRC" ]; then
 	    cd $tmp$workdir || exit
 	    srcpath="${rlt#?}"
  		> $xdata
-		echo rlttt is $rlt
 		r=$( find "${rlt}" -type f | wc -l)  # system count
 		s=$(grep -n 'MDY' "/tmp/${appname}_xdata" | head -n 1 | cut -d: -f1)
 		if [[ -n "$s" ]]; then s=$(( s - 1 )) ; else s=0 ; fi
@@ -369,10 +368,12 @@ if [ "$SRCDIR" == "SRC" ]; then
 		while IFS= read -r -d '' f ; do echo "$f" >> $xdata ;  x=$(( x + 1 )) ; done < <(find "${srcpath}" \( -type f -o -type l \) -print0)  # Our system files is what we should be comparing		
 		{ echo Root:"${rlt}" ; echo "File count: "$x "of ${y}" ; echo "System count: "$r ; echo ; echo ; } >> "/tmp/${appname}_xdata"   
 		if (( x < y )); then 
-			sort -o $xdata $xdata
-			sort $RECENT > $xdata2
-			comm -23 $xdata1 $xdata2 > $tout
-			{ echo ; echo "Transfer: File transfer failed. " ; echo ; echo "Following file(s) were not transfered:" ; cat $tout ;} >> "/tmp/${appname}_xdata"
+			if [ -s "$xdata" ] && [ -s "$RECENT" ]; then
+				sort -o $xdata $xdata
+				sort $RECENT > $xdata2
+				comm -23 $xdata1 $xdata2 > $tout
+				{ echo ; echo "Transfer: File transfer failed. " ; echo ; echo "Following file(s) were not transfered:" ; cat $tout ;} >> "/tmp/${appname}_xdata"
+			fi
 		elif (( x == y)); then
 			{ echo "Transfer: File transfer verified " ; echo ; } >> "/tmp/${appname}_xdata"
 		else
@@ -482,7 +483,7 @@ if [ -s $SORTCOMPLETE ]; then
 			cDATE=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') #Cut out irrelevant files
             awk -v tme="$cDATE" '$0 >= tme' "$difffile" > $TMPCOMPLETE
 	        echo "          " >> "${difffile}"
-            while IFS="" read -r p || [ -n "$p" ]; do cFILE="$( echo "$p" | cut -d " " -f3-)" ; cFILE=$( escapef "$cFILE") ; grep -Fqs "$cFILE" $SORTCOMPLETE && { echo "Modified" "$p" >> $ABSENT; echo "Modified" "$p" >> $rout; } || { echo "Deleted " "$p" >> $ABSENT; echo "Deleted" "$p" >> $rout; } ;  done < $TMPCOMPLETE
+            while IFS="" read -r p || [ -n "$p" ]; do cFILE="$( echo "$p" | cut -d " " -f3-)" ; grep -Fqs "$cFILE" $SORTCOMPLETE && { echo "Modified" "$p" >> $ABSENT; echo "Modified" "$p" >> $rout; } || { echo "Deleted " "$p" >> $ABSENT; echo "Deleted" "$p" >> $rout; } ;  done < $TMPCOMPLETE
 	        test -f $ABSENT  && { echo Applicable to your search ; cat $ABSENT ; } >> "${difffile}" || { diffrlt="false" ; echo "None of above is applicable to search. It is the previous search."; } >> "${difffile}"
         else
             samerlt="true"
