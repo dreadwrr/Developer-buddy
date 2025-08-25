@@ -128,6 +128,7 @@ while (( p < 5 )); do arge+="" ; ((p++)) ; done
 THETIME="${arge[1]}"
 USR="${arge[2]}"
 passdir="${arge[3]}"
+if [ -z "$argf" ]; then argf="bnk"; fi
 export DISPLAY=:0 # for tkl and root xed featherpad
 export XAUTHORITY=/home/$USR/.Xauthority
 
@@ -145,7 +146,6 @@ if [ "${arge[0]}" == "compile" ]; then
    	exit
 elif [ "${arge[0]}" == "search" ]; then
    	test -d "${passdir}" || { echo  "not a valid directory. usage recentchanges search time."; exit 1; }
-	if [ -z "$argf" ]; then argf="bnk"; fi
    	source /usr/local/save-changesnew/recentchangessearch.sh "${arge[0]}" "$THETIME" $USR "$passdir" $argf "$0"
    	exit
 elif [ "${arge[0]}" == "query" ]; then
@@ -224,9 +224,7 @@ if [ -s $TMPCOMPLETE ]; then
 	if [ "$mMODE" == "normal" ]; then
 		xargs -0 /usr/local/save-changesnew/searchfiles $atmp $tout $COMPLETE $checkSUM < $xdata
 	elif [ "$mMODE" == "mem" ]; then
-		declare -a xfile
-		declare -a ffile
-		declare -a nsf
+		declare -a xfile ; declare -a ffile ; declare -a nsf
 		searcharr $xdata "arry"
 	elif [ "$mMODE" == "mc" ]; then
 		x=$(tr -cd '\0' < $xdata | wc -c) ; y=8
@@ -314,23 +312,14 @@ if [ "$SRCDIR" == "SRC" ]; then
         x=0
 		while IFS= read -r -d '' f ; do f="$(escapef "$f")" ; grep -Fq -- "$f" $RECENTAPP && x=$(( x + 1 )) || { approval="false"; arrreject+=("$f"); } ; done < <(find "${srcpath}" \( -type f -o -type l \) -print0)
 		r=$( find "${rlt}" -type f | wc -l)  # system count
-		echo Root:"${rlt}" >> "/tmp/${appname}_xdata"
-		echo "File count: "$x "of ${y}" >> "/tmp/${appname}_xdata"
-		echo "System count: "$r >> "/tmp/${appname}_xdata"
-		echo >> "/tmp/${appname}_xdata"
-		echo >> "/tmp/${appname}_xdata"
+		{ echo Root:"${rlt}" ; echo "File count: "$x "of ${y}" ; echo "System count: "$r ; echo ; echo ; } >> "/tmp/${appname}_xdata"                      
 		if [ "$approval" == "true" ]; then
-			echo "Status: Complete. Files verified " >> "/tmp/${appname}_xdata"
-			echo >> "/tmp/${appname}_xdata"
+			{ echo "Status: Complete. Files verified " ; echo ; } >> "/tmp/${appname}_xdata"
 		else
-			echo >> "/tmp/${appname}_xdata"
-			echo "Status: Missed base directory. Confirm files or use recentchanges for rntfiles.xzm" >> "/tmp/${appname}_xdata"
-			echo >> "/tmp/${appname}_xdata"
-			echo "Following file(s) do not belong" >> "/tmp/${appname}_xdata"
+			{ echo ; echo "Status: Missed base directory. Confirm files or use recentchanges for rntfiles.xzm" ; echo ; echo "Following file(s) do not belong" ; } >> "/tmp/${appname}_xdata"
             for element in "${arrreject[@]}"; do echo "$element" >> "/tmp/${appname}_xdata"; done
 		fi
-		echo >> "/tmp/${appname}_xdata"
-		echo >> "/tmp/${appname}_xdata"
+		{ echo ; echo ; } >> "/tmp/${appname}_xdata"
         echo $BRAND >> $RECENTAPP
         if [ -s $TMPCOMPLETE ]; then { echo "Items filterout from filtered files."; echo ; cat $TMPCOMPLETE; }  >> "/tmp/${appname}_xdata" ; else echo "No items filtered out from filter."  >>"/tmp/${appname}_xdata" ; fi
         find "$tmp$workdir$rlt" -type f -print0 > $TMPCOMPLETE
@@ -510,9 +499,7 @@ if [ -s $SORTCOMPLETE ]; then
 			# Database Hybrid analysis, statpst and encrypt
 			else
 
-		        if ! gpg --list-keys | grep -q $email; then
-		            generatekey
-	            fi
+		        if ! gpg --list-keys | grep -q $email; then generatekey ; fi
 
 				python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $pydbpst $rout $tfile $checkSUM $cdiag $email $mMODE $ANALYTICSECT # Add Nosuchfile we cant ensure no duplicates just add to the count for marking the file
 				ret=$?
@@ -526,7 +513,7 @@ if [ -s $SORTCOMPLETE ]; then
 					fi
 				fi
 
-				processha $5
+				processha $argf
 
 			fi
 		fi

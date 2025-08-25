@@ -146,12 +146,8 @@ sentinal=""
 mbyte=1048576														;			osize=0   # the original size of changes folder to be captured before moving things to /tmp
 #booleans
 rlt=""
-if [ "$LOGGING" == "false" ] && [ "$ANALYTICS" == "true" ]; then
-    echo analystics requires logging to be true. && exit 0
-fi
-if [ ! -e $target ]; then #If user changed the target and doesnt exist
-    echo "Target does not exist" && exit 0
-fi
+if [ "$LOGGING" == "false" ] && [ "$ANALYTICS" == "true" ]; then echo analystics requires logging to be true. && exit 0 ; fi
+if [ ! -e $target ]; then echo "Target does not exist" && exit 0 ; fi
 # used to create one l module from another simple function that is called in different conditions in the script saves lines
 createlmdl () {
 local instm="$1" # so we can see where its called from
@@ -579,9 +575,9 @@ if [ "$rlt" != "" ]; then
             fi
         fi
     else
+
 		if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
 		mkdir ${target}${rlt}${MODULENM}.bak
-
 		if [ -f "${target}${rlt}${MODULENM}.bak.log" ]; then
 			glog "true"
 		else
@@ -591,10 +587,8 @@ if [ "$rlt" != "" ]; then
 					echo "END ORIGINAL FILES" >> "${target}${rlt}${MODULENM}.bak.log"
         	fi
 		fi
-		if [ "$LOGGING" == "false" ]; then
-			test -f "${target}${rlt}${MODULENM}.bak.log" && rm "${target}${rlt}${MODULENM}.bak.log"
-		fi
-
+		if [ "$LOGGING" == "false" ]; then test -f "${target}${rlt}${MODULENM}.bak.log" && rm "${target}${rlt}${MODULENM}.bak.log" ; fi
+			
         cyan "Creating new backup this may take a few minutes."
 
         if [ "$FEEDBACK" != "true" ]; then
@@ -648,35 +642,27 @@ else # Graphics mode
     test -e "$thetgt$pth" && rltt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on ln?  ## Notes returns the value grep 'extramod=[^ ]*')
     epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g')   # <-----
 
-    if [ "$rltt" != "" ]; then   # <-----
+    if [ "$rltt" != "" ]; then  
         if [[ ! "${rltt}" == *$BASEDIR"/"$emfld* ]]; then
-
-            test -d "$target$em" || mkdir -p "$target$em"   # <---- what if target is  ""
+            test -d "$target$em" || mkdir -p "$target$em"
 			[[ -n "$grubln" ]] && test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak
             sed -i "s|\(extramod=\)\([^ ]*\)|\1${epath};\2|" "$thetgt$pth" #append to start of boot loader
             loadermsg
-
             IFS=';' read -ra parts <<< "${rltt}"
             unset IFS
             u=""
-
             for part in "${parts[@]}"; do
                 erlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*')
                 testfile="${part}/.writetest_${$}"
-
                 if touch "$testfile" 2>/dev/null; then
                     rm -f "$testfile"
-
-                    for file in "${part}"/*_uid_*.xzm; do
-                        [ -e "$file" ] || continue
-                        mv "$file" "${target}${em}"
-                        u="true"
-                    done
+                    for file in "${part}"/*_uid_*; do [ -e "$file" ] || continue ; mv "$file" "${target}${em}" ; u="true" ; done
                 else
                     echo "$part was not writable some previous changes modules with _uid_ could not be moved"
                 fi
                 if [ "$u" == "true" ]; then
 					test -d $part"/archive" && mv $part"/archive" "${target}${em}"
+					test -e $part"/lscheck" && mv $part"/lscheck" "${target}${em}"
                     test -e $part"/mergemodules" && rm $part"/mergemodules"
                     test -e $part"/createlmodule" && rm $part"/createmodule"
                     test -e $part"/renameLbak" && rm $part"/renameLbak"
@@ -696,7 +682,6 @@ else # Graphics mode
     else
 		cmd="sed -i \"0,/APPEND/ s|\\(APPEND\\)|\\1 extramod=${epath}|\" \"$thetgt$pth\""
 		if [ -n "$grubln" ]; then test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak ; cmd="sed -i \"${line}s|\\\$| extramod=$epath/|\" \"$thetgt$pth\"" ; fi
-        echo "$cmd"
 		test -e "$thetgt$pth" && bash -c "$cmd" || echo "Using other bootloader append ${target}${em} to it with extramod="
 		# 	test -e "$thetgt$pth" && { sed -i "0,/APPEND/ s|\(APPEND\)|\1 extramod=${epath}|" "$thetgt$pth"; loadermsg; } || echo "Using other bootloader append ${target}${em} to it with extramod="
 		#	test -e "$thetgt$pth" && sed -i "${line}s/\$/ extramod=${epath}/" "$thetgt$pth"; loadermsg || echo "Using other bootloader append ${target}${em} to it with extramod="
@@ -730,12 +715,9 @@ else # Graphics mode
             f=$(find "$target$em" -maxdepth 1 -type f -name '*_uid_L*.xzm' | wc -l)
             if [ "$f" -gt 1 ]; then
                 echo "Cannot have more than one _uid_L\.\*\.xzm file" && exit 0
-            # Good to go
-            elif [ "$f" -eq 1 ]; then
+            elif [ "$f" -eq 1 ]; then  # Good to go
                 cd $tmp
-                : > $EXCL; : > $EXFILES
-
-                rlt=""
+                : > $EXCL; : > $EXFILES ; rlt=""
 
                 if [ -e $msr ]; then
                     content=$(awk -v RS= '{gsub(/\n+$/, "", $0); print $0}' "$msr")
