@@ -50,7 +50,6 @@ local lt=$atmp/patterns.txt
 local fl=/usr/local/save-changesnew/filter
 test -f $2 || echo "Entry,Hits" >> $2
 sed -n '/^[[:space:]]*#/!s|sed -i '\''/\(.*\)/d'\''.*|\1|p' "$fl" > $lt
-cp $lt /home/guest/aris
 while IFS= read -r pattern; do
     k=$( echo "$pattern" | sed -e 's/\\//g' -e "s|'\"\${2}\"'|$USR|g")
     x=$( grep -Fc -- "$k" $1)
@@ -185,29 +184,28 @@ hanly(){
     processha "$3"
 }
 processha() {
-    if [ -s $rout ]; then
-        if [ -s $tfile ]; then
-            { echo ; echo "Hybrid analysis" ; echo ; } >> "$difffile"
-			sort -o $tfile $tfile
-			if [ -s $ABSENT ]; then sort -o $ABSENT $ABSENT; comm -23 $tfile $ABSENT > $TMPCOMPLETE ; else cat $tfile > $TMPCOMPLETE ; fi
-			if [ "$flsrh" == "true" ] || [ "$3" == "filtered" ]; then
-			     if ! { [ "$flsrh" == "true" ] && [ "$3" == "filtered" ]; } ; then
-				 /usr/local/save-changesnew/filter $TMPCOMPLETE $USR
-			     fi
-			fi
-			if [ "$flsrh" == "true" ]; then
-				cDATE=$( head -n1 $TMPOPT | awk '{print $1 " " $2}')
-				awk -v tme="$cDATE" '$0 >= tme' "$TMPCOMPLETE" > $TMPOUTPUT
-				cp $TMPOUTPUT $TMPCOMPLETE
-			fi
-			awk '{printf "%-10s %-25s %-60s\n", $1, $2" "$3, $4}' $TMPCOMPLETE >> "$difffile"
-       		if [ "$csm" != "" ] && [ -s "/tmp/cerr" ]; then 
-				while IFS= read -r file; do red "*** Checksum of file ${file} altered without a modified time" ; done < /tmp/cerr 
-				rm /tmp/cerr  ; sts="true"
-			fi
-			if [ -n "$cores" ] && [ "$sts" != "" ]; then echo "Detected $cc CPU cores."; fi
-        fi
-	fi
+invr="$3" ; [[ -z "$invr" ]] && invr="$1"
+if [ -s $rout ]; then
+    if [ -s $tfile ]; then
+        { echo ; echo "Hybrid analysis" ; echo ; } >> "$difffile"
+		sort -o $tfile $tfile
+		if [ -s $ABSENT ]; then sort -o $ABSENT $ABSENT; comm -23 $tfile $ABSENT > $TMPCOMPLETE ; else cat $tfile > $TMPCOMPLETE ; fi
+		if [ "$flsrh" == "true" ] || [ "$invr" == "filtered" ]; then
+			if ! { [ "$flsrh" == "true" ] && [ "$invr" == "filtered" ]; } ; then /usr/local/save-changesnew/filter $TMPCOMPLETE $USR ; fi
+		fi
+		if [ "$flsrh" == "true" ]; then
+			cDATE=$( head -n1 $TMPOPT | awk '{print $1 " " $2}')
+			awk -v tme="$cDATE" '$0 >= tme' "$TMPCOMPLETE" > $TMPOUTPUT
+			cp $TMPOUTPUT $TMPCOMPLETE
+		fi
+		awk '{printf "%-10s %-25s %-60s\n", $1, $2" "$3, $4}' $TMPCOMPLETE >> "$difffile"
+   		if [ "$csm" != "" ] && [ -s "/tmp/cerr" ]; then 
+			while IFS= read -r file; do red "*** Checksum of file ${file} altered without a modified time" ; done < /tmp/cerr 
+			rm /tmp/cerr  ; sts="true"
+		fi
+		if [ -n "$cores" ] && [ "$sts" != "" ]; then echo "Detected $cc CPU cores."; fi
+    fi
+fi
 }
 cblk() {
 y="$(escapef "$x")"

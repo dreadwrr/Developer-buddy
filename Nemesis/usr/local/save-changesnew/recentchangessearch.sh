@@ -107,9 +107,7 @@ if [ -s $TMPCOMPLETE ]; then
 	if [ "$mMODE" == "normal" ]; then
 		xargs -0 /usr/local/save-changesnew/searchfiles $atmp $tout $COMPLETE $checkSUM < $xdata
 	elif [ "$mMODE" == "mem" ]; then
-		declare -a xfile
-		declare -a ffile
-		declare -a nsf
+		declare -a xfile ; declare -a ffile ; declare -a nsf
 		searcharr $xdata "ctime"
 	elif [ "$mMODE" == "mc" ]; then
 		x=$(tr -cd '\0' < $RECENTNUL | wc -c) ; y=8
@@ -152,7 +150,6 @@ if [ -s $SORTCOMPLETE ]; then
 		PRD=$(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S')
 		grep -v 'NOTA-FI-LE 77:77:77' "$SORTCOMPLETE" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' > $tout ; mv $tout $SORTCOMPLETE
 	fi
-	cp $SORTCOMPLETE /home/guest/Ariz
 	if [ "$flsrh" == "true" ]; then grep -v 'NOTA-FI-LE 77:77:77' "$SORTCOMPLETE" > $tout ; mv $tout $SORTCOMPLETE ; fi
 	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE
 	awk '{print $1, $2}' $SORTCOMPLETE > $tout
@@ -279,9 +276,8 @@ if [ -s $SORTCOMPLETE ] ; then
 				fi
 			else
 
-		        if ! gpg --list-keys | grep -q $email; then
-		            generatekey
-	            fi
+		        if ! gpg --list-keys | grep -q $email; then generatekey ; fi
+
 				python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $pydbpst $rout $tfile $checkSUM $cdiag $email $mMODE $ANALYTICSECT
 				ret=$?
 				if [ "$ret" -ne 0 ]; then
