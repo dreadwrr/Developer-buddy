@@ -179,16 +179,16 @@ SVFILES=$MNAME/home/$USR/Downloads/save.sfiles.tmp				;	EXFILES=/tmp/save.exfile
 #LOG
 #NEW END
 # Graphics Not changes=EXIT:/ mode  <---
+MODULENM="${chxzm%.xzm}"
+mdlnm="${MODULENM#/}"
+emfld="${em#/}"
 rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
 if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 	if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
 	IFOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e /mnt/live/memory/changes/"$x" && echo "$x"; done)"
 	dycmb
 	msr=${target}${em}"/lscheck"
-	MODULENM="${chxzm%.xzm}"
-	mdlnm="${MODULENM#/}"
-	emfld="${em#/}"
-	
+
 	exldir $exclfiles
 	sync
 	mount -o remount,udba=notify /
@@ -237,17 +237,13 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 		        if touch "$testfile" 2>/dev/null; then
 		            rm -f "$testfile"
 
-		            for file in "${part}"/*_uid_*.xzm; do
-		                [ -e "$file" ] || continue
-		                mv "$file" "${target}${em}"
-		                u="true"
-		            done
+		            for file in "${part}"/*_uid_*; do [ -e "$file" ] || continue ; mv "$file" "${target}${em}" ; u="true" ; done
 		        else
 		            echo "$part was not writable some previous changes modules with _uid_ could not be moved"
 		        fi
 		        if [ "$u" == "true" ]; then
 					test -d $part"/archive" && mv $part"/archive" "${target}${em}"
-					test -e $part"/lscheck" && mv $part"/lscheck" 
+					test -e $part"/lscheck" && mv $part"/lscheck" "${target}${em}"
 		            test -e $part"/mergemodules" && rm $part"/mergemodules"
 		            test -e $part"/createlmodule" && rm $part"/createmodule"
 		            test -e $part"/renameLbak" && rm $part"/renameLbak"
@@ -301,10 +297,7 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 		    # Good to go
 		    elif [ "$f" -eq 1 ]; then
 		        cd $tmp
-		        : > $EXCL; : > $EXFILES
-
-		        rlt=""
-
+		        : > $EXCL; : > $EXFILES ;  rlt=""
 		        if [ -e $msr ]; then
 		            content=$(awk -v RS= '{gsub(/\n+$/, "", $0); print $0}' "$msr")
 		            k=$( echo "$content" | sed -n 's/.*bytes:[[:space:]]*\([0-9]\+\).*/\1/p')
@@ -585,10 +578,6 @@ if [[ "$ans" = "" ]]; then
 		exldir $exclfiles
 
 		if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
-
-		MODULENM="${chxzm%.xzm}"
-		mdlnm="${MODULENM#/}"
-		emfld="${em#/}"
 		if [ ! -e $target ]; then echo "Target does not exist" && exit 0 ; fi
 
 		rlt=$(cat /proc/cmdline | sed -n 's/.*changes=EXIT:\([^ ]*\).*/\1/p')
