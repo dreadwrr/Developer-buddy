@@ -1,0 +1,82 @@
+#!/bin/bash
+
+get_vrn(){
+if [ "$1" = "-v" ]; then
+   echo "version 3.0"
+   echo
+   echo "recentchanges aka Developer buddy"
+   echo
+   exit
+
+elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
+   echo "version 3.0"
+   echo
+   echo "recentchanges aka Developer buddy"
+   echo
+   echo "Makes an xzm of all changes 5 minutes or newer. A manifest will be included as well as a pull transfer"
+   echo "log. These will be sent to   /tmp    as   rntchanges.xzm  ect"
+   echo
+   echo "Useful if you compiled a program you can ie specify recent changes 5 to pull all new files 5 seconds"
+   echo "or newer"
+   echo
+   echo "Modes available Search and Compile.  See bottom after usage how to use modes"
+   echo
+   echo
+   echo "recentchanges s         where s is time in seconds"
+   echo
+   echo -e "usage:    recentchanges \t\t grab all files 5 minutes or new		these will include system search as well"
+   echo -e "usage:    recentchanges 30	\t grab all files 30 seconds or newer"
+   echo
+   echo
+   echo "Modes"
+   echo
+   echo "Search        for just a system search"
+   echo
+   echo -e "recentchanges search \t\t search for files 5 minutes or netmpw"
+   echo -e "recentchanges search 30 \t search for files 30 seconds or newer"
+   echo
+   echo "Search for files newer than a file or directory "
+   echo
+   echo "recentchanges search /home/guest/myfile.txt    search for files newer than myfile "
+   echo "recentchanges search myfile.txt                                                   "
+   echo "recentchanges search /home/guest/My\ Directory\ two/with\ spaces/   ... newer than directory"
+   echo
+   echo
+   echo "SRC                                                            "
+   echo
+   echo -e "recentchanges SRC \t\t  Target a root directory. Useful if you compiled an application."
+   echo     "                                                              "
+   echo     " examples: "
+   echo     " recentchanges 60 SRC"
+   echo     " recentchanges SRC 180"
+   echo "																	"
+   echo "																	"
+   echo " This feature will package an application with a cuztomized name into an .xzm              "
+   echo " It allows to focus the search and exclude even files that made it past the filter."
+   echo " This was the main intent of the concept of recentchanges and everything is fully automatic "
+   echo
+   echo " Note: when using this feature ensure that you know there is a parent directory with files in it "
+   echo " as well its most useful within a definite peroid of time. The fact that a large amount of files went "
+   echo " to one directory allow this to be possible. If for some reason it doesnt work use recentchanges to make rntfiles.xzm "
+   echo
+   echo	"Compile 															"
+   echo
+   echo -e "recentchanges compile \t\t Dynamically build a filter profile - Deepscan or standard search "
+   echo "																	"
+   echo "                                       							"
+   echo " profiles will be stored in  /home"$USR"/.config/save-changesnew   "
+   echo "         							                                "
+   echo "    Deepscan 300 seconds including delta of 60 backwards           "
+   echo "    Standard 90 second search                                      "
+   echo "    display time or not                                            "
+   echo "																	"
+   echo "																	"
+   echo "Inverse search with Symlink"
+   echo
+   echo -e "rnt \t\t search for filtered files 5 minutes or netmpw"
+   echo -e "rnt 30 \t search for filtered files 30 seconds or newer"
+   echo -e "rnt myfile.txt      search for unfiltered files newer than myfile "
+   exit
+fi
+exit 1
+}

@@ -314,7 +314,6 @@ if [ "$SRCDIR" == "SRC" ]; then
 	    cd $tmp$workdir || exit
 	    srcpath="${rlt#?}"
 		> $xdata
-		echo rlttt is $rlt
 		r=$( find "${rlt}" -type f | wc -l)  # system count
 		s=$(grep -n 'MDY' "/tmp/${appname}_xdata" | head -n 1 | cut -d: -f1)
 		if [[ -n "$s" ]]; then s=$(( s - 1 )) ; else s=0 ; fi
@@ -323,10 +322,12 @@ if [ "$SRCDIR" == "SRC" ]; then
 		while IFS= read -r -d '' f ; do echo "$f" >> $xdata ;  x=$(( x + 1 )) ; done < <(find "${srcpath}" \( -type f -o -type l \) -print0)  # Our system files is what we should be comparing		
 		{ echo Root:"${rlt}" ; echo "File count: "$x "of ${y}" ; echo "System count: "$r ; echo ; echo ; } >> "/tmp/${appname}_xdata"   
 		if (( x < y )); then 
-			sort -o $xdata $xdata
-			sort $RECENT > $xdata2
-			comm -23 $xdata1 $xdata2 > $tout
-			{ echo ; echo "Transfer: File transfer failed. " ; echo ; echo "Following file(s) were not transfered:" ; cat $tout ;} >> "/tmp/${appname}_xdata"
+			if [ -s "$xdata" ] && [ -s "$RECENT" ]; then
+				sort -o $xdata $xdata
+				sort $RECENT > $xdata2
+				comm -23 $xdata1 $xdata2 > $tout
+				{ echo ; echo "Transfer: File transfer failed. " ; echo ; echo "Following file(s) were not transfered:" ; cat $tout ;} >> "/tmp/${appname}_xdata"
+			fi
 		elif (( x == y)); then
 			{ echo "Transfer: File transfer verified " ; echo ; } >> "/tmp/${appname}_xdata"
 		else

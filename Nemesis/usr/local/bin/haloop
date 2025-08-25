@@ -1,0 +1,10 @@
+#!/bin/bash
+. /usr/local/save-changesnew/rntchangesfunctions
+atmp="$1"
+SORTCOMPLETE="$2"
+ofile="$3"
+checkSUM="$4"
+rout="$atmp/haloop1_${RANDOM}$$_tmp.log"
+tfile="$atmp/haloop2_${RANDOM}$$_tmp.log"
+mapfile -t ref_lines < "$ofile"
+hablk

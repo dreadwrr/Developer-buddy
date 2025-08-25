@@ -1,0 +1,93 @@
+#!/bin/bash
+# save-changesnew functions to move options further up the script             08/14/2025
+dycmb() {
+    TFLD="$(for x in $FOLDERS; do test -e "$ch/$x" && echo "$x"; done)"
+    FOLDERS="$TFLD" ; TFLD=""
+    [[ -n "$IFOLDERS" ]] && TFLD="$(for x in $(echo "$IFOLDERS" | tr ' ' '\n' | awk '!seen[$0]++'); do [[ ! " $FOLDERS " == *" $x "* ]] && echo "$x" ; done)" # Dynamically build with changes-exit conf
+    [[ -n "$TFLD" ]] && { FOLDERS="$FOLDERS $TFLD" ; IFOLDERS=$FOLDERS ; } # combine
+}
+#Generate exclude directories changes-commit
+exldir() {
+#FS=$'\n' read -ra arr <<< "$EXCLUDE"
+> $1
+#for item in "${arr[@]}"; do
+#	if [[ "${item:0:1}" == "/" ]]; then
+#		echo ".${item}" >> $1
+#	else
+#		echo $item >> $1
+#	fi
+#done
+grep ^!/ $CHNEXIT_CONF | fixdir > $EXCL
+if [ -s "$EXCL" ]; then
+	#cat $EXCL | fixexcl > $EXCLUDED
+	fixexcl < $EXCL > $EXCLUDED
+	#sed -i 's|\.||' $EXCLUDED
+	sed -i 's|^|/|' $EXCLUDED
+	while IFS= read -r line; do [[ -z "$line" ]] && continue ; if ! [[ " $EXCLUDE " =~ " $line " ]]; then EXCLUDE="$EXCLUDE $line" ; fi ; done < $EXCLUDED
+	unset IFS
+	#EXCLUDE="$EXCLUDE $(tr '\n' ' ' < $EXCLUDED | sed 's/ *$//')"
+	#sed -i 's|^/||' $EXCLUDED
+	> $EXCLUDED
+	for fld in $EXCLUDE; do if [[ $fld != /* ]]; then fld="*${fld}*"; else fld="${fld#/}" ; fi ; printf "%s\n" $fld ; done >> $EXCLUDED
+	grep -Fvxf $trsyncexl $EXCLUDED >> $UPDATE; test -s $UPDATE && cat $UPDATE >> $1
+fi
+}
+#generate log file
+dlog() {
+	if [ "$d2drive" == "true" ]; then
+       for fld in $FOLDERS; do
+            fp="$dirSRC/$fld"
+            if [ -d "$fp" ]; then
+                find "$fp" -type f -printf '%P\n' | sed "s|^|/$fld/|" >> "${target}${rlt}${MODULENM}.bak.log"
+            fi
+        done
+        for fld in $EXCLUDE; do
+            fp="$dirSRC/$fld"
+			if [[ "${fp:0:1}" == "/" ]]; then
+			  e=$(sed 's/[&/\]/\\&/g' <<< "$fp" )
+				p="^"
+			else
+			  e="$fp" ; p=""
+			fi
+			sed -i "/$p$e/d" "${target}${rlt}${MODULENM}.bak.log"
+		done
+    else
+        find "$dirSRC" -type f -printf '%P\n' >> "${target}${rlt}${MODULENM}.bak.log"
+    fi
+    echo >> "${target}${rlt}${MODULENM}.bak.log"
+}
+glog() {
+local k
+local p
+if [ -f ${target}${rlt}${MODULENM}.bak.log ]; then
+	b=$( sed -nE 's/.original count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
+	c=$( sed -nE 's/.total count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
+	k=$( sed -nE 's/.*original size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
+fi
+: "${b:-0}"
+: "${c:-0}"
+c=$(( c + b ))
+: "${k:=Unkown}"
+#if [ "$k" == "Unkown" ]; then
+#    p=$( sed -nE 's/.*new size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
+#fi
+#: "${p:=Unkown}"
+#if [ "$p" == "Unkown" ]; then
+# do we go back and check the actual changes for size??
+p=$osize
+if [ "$1" == "true" ]; then > "${target}${rlt}${MODULENM}.bak.log" ; fi
+dlog
+echo "original size(source)=$k" >> "${target}${rlt}${MODULENM}.bak.log"
+echo "new size(source)=$p" >> "${target}${rlt}${MODULENM}.bak.log"
+if (( c != 0 )); then
+    echo "original count=$c" >> "${target}${rlt}${MODULENM}.bak.log"
+fi
+echo  "END ORIGINAL FILES $(date +"%m-%d-%y_%R")" >> "${target}${rlt}${MODULENM}.bak.log"
+nLOG="true"
+}
+rand_alpha() { letters=( {A..Z} {a..z} ); echo -n "${letters[RANDOM % 52]}${letters[RANDOM % 52]}" ; }
+loadermsg() { green "Updated bootloader in /syslinux/"; cyan "if you use a different loader use cheatcode extramod=${target}${em} include changes modules" ; }
+fixdir() { sed -e 's_\._\\._g' -e 's_?_._g' -e 's_*_.*_g' -e 's@..@^@'; }
+fixsqh() {  sed -e 's|^/||'; }
+fixwh() { sed -e '/^\^/!s@^@^@' -e 's_\._\\._g' -e 's_?_\\?_g' -e 's_+_\\+_g' -e 's_*_\\*_g' -e 's_\$_\\$_g' -e 's_\[_\\[_g' -e 's_(_\\(_g' -e 's_\&_\\&_g' -e 's_\(^.\)\^\(.*\)_\1\\^\2_'; } # Translating
+fixexcl() { sed -e 's/^\^//'; }
