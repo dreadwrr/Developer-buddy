@@ -277,7 +277,7 @@ if [ -s $rout ]; then
 fi
 }
 cblk() {
-y="$(escapef "$x")"
+y="$(escf "$x")"
 if [ -e "$x" ] && [ -f "$x" ]; then
 	stat_output=$(stat -c "%Y %X %Z %i" "$x")
 	read -r mtime atime itime i <<< "$stat_output"
@@ -315,7 +315,7 @@ else
 fi
 }
 sblk() {
-y="$(escapef "$x")"
+y="$(escf "$x")"
 if [ -e "$x" ] && [ -f "$x" ]; then
    	stat_out=$(stat -c "%Y %X %i" "$x")
 	read -r f atime i <<<"$stat_out"
@@ -360,16 +360,14 @@ clearlogs() {
     )
 for suffix in "${suffixes[@]}"; do rm -f "${MODULENAME/#\//}$suffix"* 2>/dev/null ; done
 }
-escapef() {
-local i="$1"
-local o
-o="${i//$'\n'/\\n}" ; o="${o//\\/\\\\}" ; o="${o//\"/\\\"}" ; o="${o//$/\\\$}"
+escf() {
+local o="$1"
+o="${o//\\/\\\\}" ; o="${o//$'\n'/\\n}"; o="${o//\"/\\\"}" ; o="${o//$/\\\$}"
 printf '%s' "$o"
 }
 unescf() {
-local t="$1"
-local k
-k="${t//$'\\n'/$'\n'}" ; k="${k//\\\\/\\}" ; k="${k//\\\"/\"}" ; k="${k//\\\$/\$}"
+local k="$1"
+k="${k//\\n/$'\n'}" ; k="${k//\\\"/\"}" ; k="${k//\\\$/\$}" ; k="${k//\\\\/\\}" 
 printf '%s' "$k"
 }
 stealth() {
