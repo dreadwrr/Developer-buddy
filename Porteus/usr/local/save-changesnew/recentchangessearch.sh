@@ -57,15 +57,11 @@ fi
 if [ "$2" != "noarguser" ] && [ "$2" != "" ]; then # If a desired time is specified we will search for that  (in seconds)
 	if [ "$2" -ge 0 ] 2>/dev/null; then # is it a number
         argone=$2 #What the user passed
-
 	 	p=60       # divider
 	 	# is it a number
-
-
     	argone=$2  #What the user passed
         tmn=$( echo "scale=2; $argone /$p" | bc)
 		if [ $(( $argone % $p )) -eq 0 ]; then tmn=$(( $argone / $p )); fi
-
 		cyan "searching for files $2 seconds old or newer"
     else
         argone=".txt"
@@ -116,9 +112,7 @@ if [ -s $TMPCOMPLETE ]; then
 	if [ "$mMODE" == "normal" ]; then
 		xargs -0 /usr/local/save-changesnew/searchfiles $atmp $tout $COMPLETE $checkSUM < $xdata
 	elif [ "$mMODE" == "mem" ]; then
-		declare -a xfile
-		declare -a ffile
-		declare -a nsf
+		declare -a xfile ; declare -a ffile ; declare -a nsf
 		searcharr $xdata "ctime"
 	elif [ "$mMODE" == "mc" ]; then
 		xargs -0 -n8 -P4 /usr/local/save-changesnew/searchfiles "$atmp" "$checkSUM" < $xdata
@@ -159,7 +153,6 @@ if [ -s $SORTCOMPLETE ]; then
 		PRD=$(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S')
 		grep -v 'NOTA-FI-LE 77:77:77' "$SORTCOMPLETE" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' > $tout ; mv $tout $SORTCOMPLETE
 	fi
-	cp $SORTCOMPLETE /home/guest/Ariz
 	if [ "$flsrh" == "true" ]; then grep -v 'NOTA-FI-LE 77:77:77' "$SORTCOMPLETE" > $tout ; mv $tout $SORTCOMPLETE ; fi
 	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE
 	awk '{print $1, $2}' $SORTCOMPLETE > $tout
