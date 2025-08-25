@@ -169,9 +169,9 @@ local instm="$1" # so we can see where its called from
         cd $ch || { mount -o remount,udba=none /; exit; }
         for y in $(find $FOLDERS -name ".wh.*"); do
 
-	    f="${y//.wh./}"
-          test -e "$mtmp/$f" && rm -rf "${mtmp:?}/$f";
-          test -e "$INAME/*/$f" || { echo "$y" | fixwh | fixsqh >> $QEXCL; echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }
+			f="${y//.wh./}"
+			test -e "$mtmp/$f" && rm -rf "${mtmp:?}/$f";
+			test -e "$INAME/*/$f" || { echo "$y" | fixwh | fixsqh >> $QEXCL; echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }
 
         done
 
@@ -640,7 +640,7 @@ else # Graphics mode
  	# Avoid confusion we initially stored rlt and can reference it. so use rltt
 	[[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; } && [[ "$bootdvc" != "" ]] && thetgt=$bootdvc
     test -e "$thetgt$pth" && rltt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on ln?  ## Notes returns the value grep 'extramod=[^ ]*')
-    epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g')   # <-----
+    epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g')
 
     if [ "$rltt" != "" ]; then  
         if [[ ! "${rltt}" == *$BASEDIR"/"$emfld* ]]; then
@@ -683,8 +683,6 @@ else # Graphics mode
 		cmd="sed -i \"0,/APPEND/ s|\\(APPEND\\)|\\1 extramod=${epath}|\" \"$thetgt$pth\""
 		if [ -n "$grubln" ]; then test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak ; cmd="sed -i \"${line}s|\\\$| extramod=$epath/|\" \"$thetgt$pth\"" ; fi
 		test -e "$thetgt$pth" && bash -c "$cmd" || echo "Using other bootloader append ${target}${em} to it with extramod="
-		# 	test -e "$thetgt$pth" && { sed -i "0,/APPEND/ s|\(APPEND\)|\1 extramod=${epath}|" "$thetgt$pth"; loadermsg; } || echo "Using other bootloader append ${target}${em} to it with extramod="
-		#	test -e "$thetgt$pth" && sed -i "${line}s/\$/ extramod=${epath}/" "$thetgt$pth"; loadermsg || echo "Using other bootloader append ${target}${em} to it with extramod="
     fi # END Bootloader
 
     if [ -s "${target}${em}${MODULENM}${SERIAL}_uid_$$.xzm" ]; then
