@@ -325,7 +325,7 @@ hablk() {
 while IFS= read -r p || [ -n "$p" ]; do
 	found_line=""
 	cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")
-	y=$cFILE
+	y="$cFILE"
 	current_ln="${p//\"$y\"/}"
 	current_ln="$(echo "$current_ln" | xargs  -d '\n')"
 	read -r f1 f2 f3 f4 f5 f6 f7 <<< "$current_ln"

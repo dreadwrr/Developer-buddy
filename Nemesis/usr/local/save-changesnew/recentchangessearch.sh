@@ -110,7 +110,7 @@ if [ -s $TMPCOMPLETE ]; then
 		declare -a xfile ; declare -a ffile ; declare -a nsf
 		searcharr $xdata "ctime"
 	elif [ "$mMODE" == "mc" ]; then
-		x=$(tr -cd '\0' < $RECENTNUL | wc -c) ; y=8
+		x=$(tr -cd '\0' < $xdata | wc -c) ; y=8
 		if (( x > 100 )); then y=16 ; fi
 		xargs -0 -n"$y" -P4 /usr/local/save-changesnew/searchfiles "$atmp" "$checkSUM" < $xdata
 		if compgen -G "$atmp/searchfiles1_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles1_*_tmp.log > $tout; fi
