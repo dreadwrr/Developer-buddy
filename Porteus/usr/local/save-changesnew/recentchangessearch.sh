@@ -103,12 +103,12 @@ if [ "$ANALYTICSECT" == "true" ]; then
 	fi
 fi
 >$tout
-while IFS= read -r -d '' f; do f="${f//$'\n'/\\n}" ; echo "$f" ; done < $FEEDFILE >> $xdata
-while IFS= read -r -d '' f; do f="${f//$'\n'/\\n}" ; echo "$f" ; done < $toutnul >> $tout
+while IFS= read -r -d '' f; do f="$( escf "$f")" ; echo "$f" ; done < $FEEDFILE >> $xdata
+while IFS= read -r -d '' f; do f="$( escf "$f")" ; echo "$f" ; done < $toutnul >> $tout
 if [ "$FEEDBACK" == "true" ]; then cat $tout; cat $xdata; fi
 if [ -s $tout ]; then grep -Fxv -f $xdata $tout > $TMPCOMPLETE; >$tout; fi
 if [ -s $TMPCOMPLETE ]; then
-	while IFS= read -r x; do x="${x//$'\\n'/\n}" ; printf '%s\0' "$x"; done < $TMPCOMPLETE > $xdata
+	while IFS= read -r x; do x="$( unescf "$x")" ; printf '%s\0' "$x"; done < $TMPCOMPLETE > $xdata
 	if [ "$mMODE" == "normal" ]; then
 		xargs -0 /usr/local/save-changesnew/searchfiles $atmp $tout $COMPLETE $checkSUM < $xdata
 	elif [ "$mMODE" == "mem" ]; then
@@ -208,7 +208,7 @@ if [ -s $SORTCOMPLETE ] ; then
     	CDATE=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')
         if [ "$flsrh" == "false" ]; then awk -v tme="$CDATE" '$0 >= tme' "$difffile" > $TMPCOMPLETE ; else cat "${difffile}" > $TMPCOMPLETE; fi
     	echo >> "${difffile}"
-    	while IFS="" read -r p || [ -n "$p" ]; do cFILE="$( echo "$p" | cut -d " " -f3-)" ; cFILE="$( escapef "$cFILE")" ; grep -Fqs "$cFILE" $SORTCOMPLETE && { echo "Modified" "$p" >> $ABSENT; echo "Modified" "$p" >> $rout; } || { echo "Deleted " "$p" >> $ABSENT; echo "Deleted" "$p" >> $rout; } ; done < $TMPCOMPLETE
+    	while IFS="" read -r p || [ -n "$p" ]; do cFILE="$( echo "$p" | cut -d " " -f3-)" ; grep -Fqs "$cFILE" $SORTCOMPLETE && { echo "Modified" "$p" >> $ABSENT; echo "Modified" "$p" >> $rout; } || { echo "Deleted " "$p" >> $ABSENT; echo "Deleted" "$p" >> $rout; } ; done < $TMPCOMPLETE
 		test -f $ABSENT  && { echo Applicable to your search ; cat $ABSENT ; } >> "${difffile}" || { echo "None of above is applicable to search. It is the previous search"; } >> "${difffile}"
     else
         test -e "${difffile}" && rm "${difffile}"
