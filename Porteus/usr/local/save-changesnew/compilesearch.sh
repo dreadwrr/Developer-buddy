@@ -42,7 +42,7 @@ UPDATE=$tmp/save.transferlog.tmp					;   moduleDIR=/CustomFilter$$
 chxzm=/rntfiles.xzm									;	CONFIGDIR=/.config/save-changesnew
 INSTRU="/xCustomFilterInstructions"					;	PRFLFLT=$tmp/list_sedfilters.txt
 xMODE=$1
-SNDRYDIR="true"									;	BASEDIR="false"
+SNDRYDIR="true"										;	BASEDIR="false"
 SYSCHG="false"										;	FLTCHG="false"
 inputTIME="false"									;	inputSCAN="false"
 inputSED="true"										;	validRLT="false"
