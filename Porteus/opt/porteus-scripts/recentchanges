@@ -180,16 +180,18 @@ COMPLETE=$tmp/list_complete.txt						;		RECENTNUL=$tmp/list_recentchanges_filter
 TMPCOMPLETE=$tmp/tmp_complete.txt					;		RSYNCEXCL=$tmp/list_filesexclude.txt
 TMPOPT=$tmp/tmp_holding	                            ;		REJECTLOG=$tmp/list_rejectsrc.txt
 FOLDERLOG=$tmp/save.totalfolders.tmp				;		SORTCOMPLETE=$tmp/list_complete_sorted.txt
-#Version 3
-dr=/usr/local/save-changesnew						;       logpst=$dr/logs.gpg
-flth=$dr/flth.csv									;       statpst=$dr/stats.gpg
-atmp=/tmp/atmp$$
-rout=$atmp/routput.tmp								;		pydb=/usr/local/save-changesnew/recent.db
-toutnul=$atmp/toutputnul.tmp						;       slog=/tmp/scr # feedback
-tout=$atmp/toutput.tmp 								;		xdata=$atmp/logs_stats.log # dcryp log file
-USRDIR=/home/$USR/Downloads							;		xdata2=$atmp/logs.log.log # ..
+#Version 3					     
+dr=/usr/local/save-changesnew						;		flth=$dr/flth.csv									      
+atmp=/tmp/atmp$$									;		rout=$atmp/routput.tmp
+pydb=/usr/local/save-changesnew/recent.db			;		tout=$atmp/toutput.tmp 
+slog=/tmp/scr										;		toutnul=$atmp/toutputnul.tmp	
+xdata=$atmp/logs_stat.log							;		xdata2=$atmp/logs.log.log
+data=$atmp/logs_stats.log							;		USRDIR=/home/$USR/Downloads							
+
+
+						
 THETIME="${arge[0]}" # shift for this script
-SRCDIR=""  											;		dbc="false"
+SRCDIR=""  											
 diffrlt="false"										;		pstc="false"
 nodiff="false"										;       samerlt="false"
 syschg="false"										;		validrlt="false"
@@ -198,29 +200,6 @@ mkdir $tmp #create directories
 mkdir $tmp$workdir
 mkdir $atmp
 if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi #if [ "$ANALYTICS" == "true" ]; then
-if [ "$STATPST" == "true" ]; then # pst check
-    if [ -f $logpst ]; then
-        sz=$( stat -c %s "$logpst")
-        if [ $(( sz / 1048576 )) -gt $logSIZE ]; then
-            if [ "$logPRF" == "del" ]; then
-               : > $logpst
-            elif [ "$logPRF" == "stop" ]; then
-                cyan "persist log saving stopped on size limit"
-            fi
-            STATPST="false"
-            if [ "$logPRF" == "rfh" ]; then
-                rm $logpst
-                STATPST="true"
-            fi
-		elif [ $(( sz / 1048576 )) -ge $compLVL ]; then
-			nc="true" #disable compression
-        elif [ $sz -eq 0 ]; then
-            cyan "$logpst is 0 bytes. to resume persistent logging delete file"
-            STATPST="false"
-        fi
-    fi
-fi
-if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
 if [ "$1" == "" ]; then THETIME="noarguser" ; fi # root call
 [ "$THETIME" == "SRC" ] &&{ SRCDIR=$THETIME; THETIME="${2:-noarguser}"; } # Handle argument redirection as if we moved this script to another subscript it wouldnt be user friendly
 [ "$2" == "SRC" ] && SRCDIR=$2 || { [ "$2" == "SEARCH" ] || [ "$2" == "search" ]; } && echo "The SRC tag is for recentchanges only" && exit
@@ -323,8 +302,8 @@ if [ -s $SORTCOMPLETE ]; then
 fi
 /usr/local/save-changesnew/filter $RECENT $USR
 > $tout
-while IFS= read -r x; do printf '%s\0' "$x"; done < $RECENT >> $tout
-while IFS= read -r -d '' x; do y="$(unescf "$x")" ; if cp -a --parents "$y" "$tmp$workdir" > /dev/null 2>> $xdata; then printf '%s %s\n' "$x" "success" >> $UPDATE; else echo "Failed to copy: $x" >&2; echo "ERROR: $x" >> $UPDATE; fi; done < $tout
+while IFS= read -r x; do  x="$( unescf "$x")" ; printf '%s\0' "$x"; done < $RECENT >> $tout
+while IFS= read -r -d '' x; do if cp -a --parents "$x" "$tmp$workdir" > /dev/null 2>> $xdata; then printf '%s %s\n' "$x" "success" >> $UPDATE; else echo "Failed to copy: $x" >&2; echo "ERROR: $x" >> $UPDATE; fi; done < $tout
 unset IFS
 if [ -s $xdata ]; then echo > $UPDATE ; cat $xdata $UPDATE; fi
 test -e $xdata && rm $xdata
@@ -347,9 +326,10 @@ if [ "$SRCDIR" == "SRC" ]; then
     if [ "$rlt" != "" ]; then
         cat $SVFILES | grep "${rlt}" > $RECENTAPP
         cat $SVFILES | grep -v "${rlt}" > $RSYNCEXCL
-        while IFS= read -r p || [ -n "$p" ]; do p="$(unescf "$p")" ; rm -- "$tmp$workdir$p" ; done < $RSYNCEXCL
-		find $tmp$workdir -type d -empty -delete
-        mksquashfs $tmp$workdir "/tmp/${appname}.xzm"
+        #while IFS= read -r p || [ -n "$p" ]; do p="$(unescf "$p")" ; rm -- "$tmp$workdir$p" ; done < $RSYNCEXCL      Oldway just remove the files But we may want the files to do something else with
+		find $tmp$workdir -type d -empty -delete 
+		while IFS= read -r p || [ -n "$p" ]; do  p="$( unescf "$p")" ; p="${p#/}" ; echo "$p" >> $xdata ; done < $RSYNCEXCL # This is for our SRC files after finding root
+        test -s $xdata && mksquashfs $tmp$workdir "/tmp/${appname}.xzm" -comp $cmode -ef $xdata || { [[ ! -s "$xdata" ]] && mksquashfs $tmp$workdir "/tmp/${appname}.xzm" -comp $cmode ; }
         cp $RECENTAPP "/tmp/${appname}_xdata"
         echo $BRAND >> "/tmp/${appname}_xdata"
         sort -o $RECENTAPP $RECENTAPP
@@ -359,7 +339,7 @@ if [ "$SRCDIR" == "SRC" ]; then
         cat $TMPOPT  | grep -Fvf $RECENTAPP > $TMPCOMPLETE
 	    cd $tmp$workdir || exit
 	    srcpath="${rlt#?}"
- 		> $xdata
+		> $xdata
 		r=$( find "${rlt}" -type f | wc -l)  # system count
 		s=$(grep -n 'MDY' "/tmp/${appname}_xdata" | head -n 1 | cut -d: -f1)
 		if [[ -n "$s" ]]; then s=$(( s - 1 )) ; else s=0 ; fi
@@ -445,7 +425,7 @@ if [ -z "$k" ]; then
     mv $LCLMODULENAME"xSystemchanges"* "/tmp"$moduledir 2> /dev/null ; mv $LCLMODULENAME"xSystemDiffFromLastSearch"* "/tmp"$moduledir 2> /dev/null
     test -e  "/tmp"$MODULENAME"ItemsFilteredout" && rm  "/tmp"$MODULENAME"ItemsFilteredout"
     if [ "$SRCDIR" != "SRC" ]; then # rntfiles.xzm
-	    mksquashfs $tmp$workdir "/tmp"$chxzm
+	    mksquashfs $tmp$workdir "/tmp"$chxzm -comp $cmode
 	    cp $SVFILES "/tmp"$chxzmnm
 	    cp $UPDATE  "/tmp"$MODULENAME"Transferlog"
         if [ "$validrlt" == "true" ]; then
