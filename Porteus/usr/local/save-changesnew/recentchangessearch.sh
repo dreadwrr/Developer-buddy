@@ -12,23 +12,22 @@ USR=$3
 if [ "$USR" == "" ]; then echo please call from recentchanges; exit; fi
 if [ "$4" == "" ]; then echo "incorrect usage please call from recentchanges"; exit 1; fi
 if [ "$1" != "search" ]; then echo exiting not a search && exit; fi
-work=work$$												   	;		tmp=/tmp/work$$
+work=work$$												    ;		tmp=/tmp/work$$
 FLBRAND=`date +"MDY_%m-%d-%y-TIME_%R_%S"|tr ':' '_'`		;		ABSENT=$tmp/absent.txt
 BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`				;		chxzm=/rntfiles.xzm
 USRDIR=/home/$USR/Downloads									;		RECENT=$tmp/list_recentchanges_filtered.txt
 UPDATE=$tmp/save.transferlog.tmp		    				; 		RECENTNUL=$tmp/list_recentchanges_filterednul.txt
-COMPLETE=$tmp/list_complete.txt							   	; 		SORTCOMPLETE=$tmp/list_complete_sorted.txt
+COMPLETE=$tmp/list_complete.txt							    ; 		SORTCOMPLETE=$tmp/list_complete_sorted.txt
 COMPLETENUL=$tmp/list_completenul.txt						;		atmp=/tmp/atmp$$
-TMPCOMPLETE=$tmp/tmp_complete.txt							;		dr=/usr/local/save-changesnew
-TMPOUTPUT=$tmp/list_tmp_sorted.txt							; 		rout=$atmp/routput.tmp
-flth=$dr/flth.csv						       				;       tout=$atmp/toutput.tmp
-toutnul=$atmp/toutputnul.tmp								;     	xdata=$atmp/logs_stat.log
-TMPOPT=$tmp/tmp_holding										;       xdata2=$atmp/logs_log.log
-slog=/tmp/scr												;     	pydb=/usr/local/save-changesnew/recent.db
-pytmp=$atmp/pytmp.tmp 										;     	pydbpst=/usr/local/save-changesnew/recent.gpg
-validrlt="false"										   	;		nodiff="false"
-pstc="false"												;		flsrh="false"
-diffrlt="false"
+TMPCOMPLETE=$tmp/tmp_complete.txt							;		tout=$atmp/toutput.tmp
+TMPOUTPUT=$tmp/list_tmp_sorted.txt						    ; 		toutnul=$atmp/toutputnul.tmp
+flth=/usr/local/save-changesnew/flth.csv					;      	xdata=$atmp/logs_stat.log
+slog=/tmp/scr												;     	xdata2=$atmp/logs_log.log
+TMPOPT=$tmp/tmp_holding										;		pytmp=$atmp/pytmp.tmp
+rout=$atmp/routput.tmp
+diffrlt="false"											    ;		nodiff="false"
+validrlt="false"										    ;		flsrh="false"
+pstc="false"
 mkdir $tmp
 mkdir $atmp
 if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
@@ -115,7 +114,9 @@ if [ -s $TMPCOMPLETE ]; then
 		declare -a xfile ; declare -a ffile ; declare -a nsf
 		searcharr $xdata "ctime"
 	elif [ "$mMODE" == "mc" ]; then
-		xargs -0 -n8 -P4 /usr/local/save-changesnew/searchfiles "$atmp" "$checkSUM" < $xdata
+		x=$(tr -cd '\0' < $xdata | wc -c) ; y=8
+		if (( x > 100 )); then y=16 ; fi
+		xargs -0 -n"$y" -P4 /usr/local/save-changesnew/searchfiles "$atmp" "$checkSUM" < $xdata
 		if compgen -G "$atmp/searchfiles1_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles1_*_tmp.log > $tout; fi
 		if compgen -G "$atmp/searchfiles2_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles2_*_tmp.log > $COMPLETE; fi
 	else
