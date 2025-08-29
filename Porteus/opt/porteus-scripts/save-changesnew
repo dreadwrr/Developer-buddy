@@ -338,6 +338,7 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 		else # End linked
 		    rname="${MODULENM}${SERIAL}_uid_${$}.xzm"
 			mksquashfs $tmp "$target$em$rname" -comp $cmode -ef $exclfiles
+			if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print $end - $start}") ; fi
 		fi
 		chown $USR $target$em$rname
 		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then printf "Saving took %.3f seconds.\n" "$el" ; fi
