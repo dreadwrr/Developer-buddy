@@ -2,21 +2,8 @@
 # Merge changes modules _uid_xxxx to _uid_Lxxxx with deletions applied                          07/18/2025
 . /usr/share/porteus/porteus-functions
 get_colors
+. /usr/local/save-changesnew/save-changesnewfnts
 if [[ $(whoami) != "root" ]]; then echo Please run script as root; exit; fi
-rand_alpha() {
-  letters=( {A..Z} {a..z} )
-  echo -n "${letters[RANDOM % 52]}${letters[RANDOM % 52]}"
-}
-fixsqh() {  sed -e 's|^/||'; }
-#VARS
-tmp=/mnt/live/tmp/etmp$$         ; mtmp=/mnt/live/tmp/ntmp$$
-ch=/mnt/live/memory/changes     ; INAME=/mnt/live/memory/images
-msr="${PWD}/lscheck"
-
-# Any files to exclude                      #  only if we have to escape for regex
-EXCL=/tmp/squashexfiles.log        ;  EXFILES=/tmp/squashregex
-oMF=/tmp/flog.log               #original module name list used for removing or renaming after merging
-
 # CHANGABLE
 MODULENM="changes"        # the new name of merged .xzms
 
@@ -24,13 +11,14 @@ cmode="gzip"                            # default nothing. uses gzip compression
                                            # xz        best compression
                                            # zstd     faster bootup
                                             # lzo      faster bootup
-
 # CHANGABLE BOOLEANS
-
 keepMRGED="true"       # default is normally false but we want to rename all .xzms to .bak anyway
                                         # in this script regardless of preference
-
 # END CHANGABLE
+tmp=/mnt/live/tmp/etmp$$		; mtmp=/mnt/live/tmp/ntmp$$
+ch=/mnt/live/memory/changes	; INAME=/mnt/live/memory/images
+EXCL=/tmp/squashexfiles.log		;  	EXFILES=/tmp/squashregex
+msr="${PWD}/lscheck"				;	oMF=/tmp/flog.log 
 pst=$PWD
 f=$( ls -l ${PWD}${em} | grep -c '.*_uid_L.*.xzm')
 if [ "$f" -gt 1 ]; then
@@ -50,7 +38,7 @@ if [ "$r" -gt 0 ]; then
 
         if mountpoint -q $dest; then echo "Error: $dest already mounted. Everything preserved."; exit 1; fi
         if [ ! -f "$mods" ]; then echo "Error: Module file $mods. Check the script and try again"; exit 1; fi
-        mount -o loop $mods $dest      #mount changes
+        mount -o loop $mods $dest
 
         IFS="
         "

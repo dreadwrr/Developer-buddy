@@ -2,14 +2,10 @@
 #     recentchanges general functions    validprogram       gettime                                                                07/4/2025
 #This function returns the root directory or null if it is in  /  of system
 validprogram() {
-local LOGFILE=$1
-local FCOUNT=0
-local BASEDIR=""
-local DEPTH=0
-local y=0
-local p=0
-local z=""
-local strt=0
+local LOGFILE=$1	; local FCOUNT=0
+local BASEDIR=""	; local DEPTH=0
+local y=0				; local p=0
+local z=""				; local strt=0
 local ABSTRING=""
 local BCSTRING=""
 local CDSTRING=""
@@ -87,54 +83,35 @@ for element in "${template[@]}"; do
     else
         echo ""
     fi
-
 done
 }
 gettime() {
-local SRTTIME
-local FINTIME
-local s
-local f
-local ENDTM
-local RANGE
-local PRD
-local ST
+local SRTTIME	;	local FINTIME
+local s				;	local f
+local ENDTM		;	local RANGE
+local PRD			;	local ST
 local FN
 SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')
 s=$( echo $(date -d "$SRTTIME" "+%s"))
-
 RANGE=$(( s + argone ))
 if [ "$THETIME" == "noarguser" ]; then
 	RANGE=$(( s + 300 ))
 fi
 PRD=$(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S')
-
 FINTIME=$( awk -F" " -v tme="$PRD" '$0 < tme' $SORTCOMPLETE | sort -sr | head -n 1 | awk -F ' ' '{print $1 " " $2}')
 f=$(date -d "$FINTIME" "+%s")
 DIFFTIME=$(( f - s ))
 ENDTM=$(date -d "@$DIFFTIME" -u +'%H:%M:%S')
-
-FN=$( tail -n1 $1 | awk '{print $2}')
-f=$(date -d "$FN" "+%s")
-ST=$( head -n1 $1 | awk '{print $2}')
-sSRC=$( date -d "$ST" "+%s")
+FN=$( tail -n1 $1 | awk '{print $2}') ; f=$(date -d "$FN" "+%s")
+ST=$( head -n1 $1 | awk '{print $2}') ; sSRC=$( date -d "$ST" "+%s")
 eSRC=$(( f - sSRC ))
 srcE=$(date -d "@$eSRC" -u +'%H:%M:%S')
-if [ "$DIFFTIME" == "0" ]; then
-	ENDTM=$ENDTM" file(s) created at: "$SRTTIME
-fi
-echo >> $2
-echo >> $2
-if [ "$THETIME" == "noarguser" ]; then
-	echo "Specified: "$argone "minutes" >> $2
-else
-	echo "Specified: "$argone "seconds" >> $2
-fi
-echo >> $2
-echo "Batch analysis and stats:" >> $2
+if [ "$DIFFTIME" == "0" ]; then ENDTM=$ENDTM" file(s) created at: "$SRTTIME ; fi
+{ echo ; echo ; }>> $2
+if [ "$THETIME" == "noarguser" ]; then echo "Specified: "$argone "minutes" >> $2 ; else echo "Specified: "$argone "seconds" >> $2 ; fi
+{ echo ; echo "Batch analysis and stats:"; } >> $2
 echo -e $ST" Start" >> $2
 echo -e $FN" Finish" >> $2
 echo -e $srcE" Compile time" >> $2
 echo "${ENDTM}"
 }
-getrnd() { local tokenID=$RANDOM; rndNO="${tokenID:0:3}"; echo $rndNO; }

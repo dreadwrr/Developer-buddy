@@ -241,3 +241,5 @@ fixwh() { sed -e '/^\^/!s@^@^@' -e 's_\._\\._g' -e 's_?_\\?_g' -e 's_+_\\+_g' -e
 # Fix EXCL to work with rsync exclusion file
 fixexcl() { sed -e 's/^\^//'; } # change note remove leading ^ if present
 #fixexcl() {  sed -e 's|\^||g' -e 's| |\\ |g' -e 's|]|\\]|g' -e 's|)|\\)|g'; } Original
+fixcmp() { sed -e 's_|_\\|_g' -e 's_ _\\ _g' -e 's_\._\\\._g' -e 's_\]_\\]_g' -e 's_\[_\\[_g' -e 's_(_\\(_g' -e 's_)_\\)_g' ; } # -e 's_\/_\\\/_g' 
+fixOT() { sed -e 's_?_\\?_g'  -e 's_\^_\\^_g' -e 's_+_\\+_g' -e 's_*_\\*_g' -e 's_\$_\\$_g'  -e 's_\&_\\&_g' ; }

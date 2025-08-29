@@ -1,9 +1,6 @@
 #!/bin/bash
 . /usr/local/save-changesnew/rntchangesfunctions
-atmp="$1"
-SORTCOMPLETE="$2"
-COMPLETE="$3"
-checkSUM="$4"
+atmp="$1" ; SORTCOMPLETE="$2" ; COMPLETE="$3" ; checkSUM="$4"
 if [ "$2" == "true" ] || [ "$2" == "false" ]; then
 	SORTCOMPLETE="${atmp}/mainloop1_${RANDOM}$$_tmp.log"
 	COMPLETE="${atmp}/mainloop2_${RANDOM}$$_tmp.log"
@@ -12,7 +9,4 @@ if [ "$2" == "true" ] || [ "$2" == "false" ]; then
 else
 	shift 4
 fi
-files=("$@")
-for x in "${files[@]}"; do
-	sblk
-done
+files=("$@") ; for x in "${files[@]}"; do sblk ; done

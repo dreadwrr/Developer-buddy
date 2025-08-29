@@ -11,17 +11,12 @@ outputTFILE="false"            # show the report in /tmp?
 outputPSTFILE="false"       # .   .               /home/guest/Downloads
 genPSTTFILE="false"           # Run heuristics on PST and include in the report?
 # End CHANGABLE
-dr=/usr/local/save-changesnew
-logpst=$dr/logs.gpg
-statpst=$dr/stats.gpg
-flth=$dr/flth.csv
-rtmp=/tmp/rtmp$$
-xdata=$rtmp/logs_decrypted.log
-trc=/tmp/rc
+rtmp=/tmp/rtmp$$							;	trc=/tmp/rc
+xdata=$rtmp/logs_decrypted.log	;	report=/query_$timestamp
+dr=/usr/local/save-changesnew		;	TOPT=$rtmp/tmpfile.log
+logpst=$dr/logs.gpg						;	output_file=$rtmp/output.log
+statpst=$dr/stats.gpg					;	flth=$dr/flth.csv
 timestamp=$(date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_')
-report=/query_$timestamp
-TOPT=$rtmp/tmpfile.log
-output_file=$rtmp/output.log
 mkdir $rtmp
 if [ "$STATPST" == "true" ]; then
     if [ -s $logpst ]; then
@@ -31,6 +26,7 @@ if [ "$STATPST" == "true" ]; then
 			sed -i '/NOTA-FI-LE 77:77:77/d' $xdata
 			cd /home/$2/Downloads || exit
 			rm query_MDY* > /dev/null 2>&1
+			srhc=$(grep -c '^[[:space:]]*$' $xdata) ; (( srhc++ )) ; echo "Searches: $srhc"
 			{
             green "Logs archive"
 			cyan "Top 3(1) directories(dir)"
@@ -63,14 +59,12 @@ if [ "$STATPST" == "true" ]; then
 			else
 				echo "$dirs" | head -n 1
 			fi
-            echo
-            cyan "Most common extensions"
-            echo
+            echo ; cyan "Most common extensions" ; echo
             ext $xdata
 			green "Please wait..."
             cyan "Search statistics:"
 			aat $xdata
-            echo "Searches: $(grep -c '^[[:space:]]*$' $xdata)"
+			srhc=$(grep -c '^[[:space:]]*$' $xdata) ; (( srhc++ )) ; echo "Searches: $srhc"
 			hr $xdata
 			asz $xdata
 			echo
@@ -84,11 +78,9 @@ if [ "$STATPST" == "true" ]; then
             if [ -s $statpst ]; then
                 cyan "Pulling from stats archive"
                 if gpg -d -o $xdata $statpst; then
-					#cp $xdata /tmp/statdebut
+					cp $xdata /tmp/statdebut
 					{
-                    green "Stats gpg"
-                    echo
-					cyan "Most Modified"
+                     green "Stats gpg" ; echo ; cyan "Most Modified"
 					awk -F',' '
 					{
 						# Get the action from the first field
@@ -117,8 +109,7 @@ if [ "$STATPST" == "true" ]; then
 						}
 					}
 					' "$xdata" | sort -rn | head -5
-				echo
-				cyan "Top 5 deleted files"
+				echo ; cyan "Top 5 deleted files"	
 				awk -F',' '
 				{
 				  action = $1
@@ -141,8 +132,7 @@ if [ "$STATPST" == "true" ]; then
 				  }
 				}
 				' "$xdata" | sort -k1,1nr | head -5
-				echo
-				cyan "Top 7 Most replaced"
+				echo ; cyan "Top 7 Most replaced"
 				awk -F',' '
 				{
 					# Clean and check action field
@@ -171,8 +161,7 @@ if [ "$STATPST" == "true" ]; then
 					}
 				}
 				' "$xdata" | sort -rn | head -7
-				echo
-				cyan "Top overwritten files top 3"
+				echo ; cyan "Top overwritten files top 3"	
 				awk -F',' '
 				{
 					# Extract and clean the action field
@@ -249,22 +238,16 @@ if [ "$STATPST" == "true" ]; then
         fi
     fi
 fi
-
 ofile=$rtmp/tmpinfo
 if [ -d $trc ] && [ "$STATPST" == "false" ]; then
     fs=$(find $trc -maxdepth 1 -type f | wc -l)
     if (( fs > 0 )); then
         x=0
-        for file in $trc/*; do
-            ((x++))
-            cat "$file" >> $ofile
-            if [[ $x -lt $fs ]]; then echo >> $ofile; fi
-        done
-		# Init
+        for file in $trc/*; do ((x++)) ; cat "$file" >> $ofile ;  if [[ $x -lt $fs ]]; then echo >> $ofile; fi ; done
 		sed -i '/NOTA-FI-LE 77:77:77/d' $ofile
 		cd /tmp || exit
 		rm query_MDY* > /dev/null 2>&1
-        #Heuristic session?
+		srhc=$( sed -n '/^[[:space:]]*$/p' $ofile | wc -l) ; (( srhc++ ))
 		(
         echo "Top 5 files created"
 		awk '
@@ -272,18 +255,13 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then
 			match($0, /"([^"]+)"/, arr)
 			if (arr[1] != "") print arr[1]
 		}' "$ofile" | sort | uniq -c | sort -nr | head -n 5
-        echo
-		#read -r -p "any key continue..."
-		echo
-        echo "Initiating recursive checks..."
+        echo ; echo ; echo "Initiating recursive checks..."
 		aat $ofile
 		hr $ofile
 		asz $ofile
 		read -r -p "any key continue..."
-		echo #read -r -p "any key continue..." k
-		x=$( sed -n '/^[[:space:]]*$/p' $ofile | wc -l) #Average hour
-		if [ $x -eq 0 ]; then x=1; fi
-		echo "Searches: ${x}"
+		srhc=$( sed -n '/^[[:space:]]*$/p' $ofile | wc -l) ; (( srhc++ ))
+		echo ; echo "Searches: $srhc"
 		awk '
 		{
 			date = $1
@@ -357,8 +335,7 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then
 			printf "(%s)\n", half
 		}
 		' $ofile
-		echo
-		echo "Detecting deleted files if overlap"
+		echo ; echo "Detecting deleted files if overlap"
 		(cat "$ofile"; echo) | awk -v RS="" -v OFILE="$ofile" '
 		function toNumTimestamp(date, time) {
     		gsub(/[-:]/, "", date)
@@ -437,8 +414,7 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then
     		# fflush()
 		}
 		'
-        echo #read -r -p "any key continue..."
-		echo "Type" # Heuristic session?
+        echo ; echo "Type" 
 		awk -v RS="" '
 		function to_epoch(ts,    cmd, epoch) {
 		  cmd = "date -d \"" ts "\" +%s"
@@ -492,11 +468,9 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then
 		  delete files
 		}
 		' "$ofile"
-        echo
-        cyan "Most common extensions"
+        echo ;  cyan "Most common extensions"
         ext $ofile
-        echo
-		echo "Detecting replaced files by inode (awk generated)"
+        echo ; echo "Detecting replaced files by inode (awk generated)"
 		awk -v RS="" -v max=7 '
 		function process_snapshot(snapshot,   i, lines, path, inode, m, rest, ino_match) {
   		n = split(snapshot, lines, "\n")
@@ -536,24 +510,22 @@ if [ -d $trc ] && [ "$STATPST" == "false" ]; then
     		print "No results"
   		}
 		}
-		' "$ofile" | sort -rn | head -7
+		' "$ofile" | sort -rn
         ) 2>&1 | tee "$output_file"
         rm $ofile
     fi
 fi
-if [ -s $flth ]; then #filter hits
+if [ -s $flth ]; then
 	(
-
     echo
     cyan "Accessing filter"
     green "Filter"
     cat $flth
 	) 2>&1 | tee -a $output_file
-
-	if [ "$outputTFILE" = "true" ]  && [ "$STATPST" == "false" ] && [ -d $trc ]; then
-		test -e $output_file && green "Report in /tmp"
-		cp $output_file /tmp$report
-	fi
+	if [ "$outputTFILE" = "true" ]  && [ "$STATPST" == "false" ] && [ -d $trc ]; then test -e $output_file && green "Report in /tmp" ; cp $output_file /tmp$report ; fi
+	z="Cache items can be cleared with cache clear script /usr/local/save-changesnew/"
+	[[ "$ANALYTICS" == "true" ]] && (( srhc % 5 == 0 )) && echo "$z"
+	[[ "$STATPST" == "true" ]] && (( srhc % 50 == 0 )) && echo "$z"
 	if [ "$outputPSTFILE" == "true" ] && [ "$STATPST" == "true" ]  && [ "$genPSTTFILE" == "true" ] && [ -s $logpst ]; then
 		green "Report in /Downloads along with heuristics"
 		cp $output_file /home/$2/Downloads$report

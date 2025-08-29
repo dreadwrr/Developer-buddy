@@ -1,13 +1,11 @@
 #!/bin/bash
-
 get_vrn(){
 if [ "$1" = "-v" ]; then
-   echo "version 3.0 Porteus"
+   echo "version 3.0"
    echo
    echo "recentchanges aka Developer buddy"
    echo
    exit
-
 elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    echo "version 3.0"
    echo

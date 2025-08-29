@@ -1,6 +1,21 @@
 #!/bin/bash
 #   Developer buddy 3.0 core                                               08/11/2025
 #   saving in tmp, filter hits, encrypt decrypt and hanly
+sbwr() {
+webb=(
+    'mozilla'
+	'.mozilla'
+	#'google-chrome'
+    "$LCLMODULENAME"
+# other
+)
+}
+get_colors(){
+txtyellow=${txtbld}$(tput setaf 3)
+txtblue=${txtbld}$(tput setaf 4)
+function yellow() { echo -e $txtyellow "$1" $rst; }
+function blue(){ echo $txtblue "$1" $rst; }
+}
 postop() {
 if [ "$POSTOP" == "true" ]; then
 	while IFS= read -r x; do x="$(unescf "$x")" ; printf '%s\0' "$x"; done < $1 >> $xdata
@@ -230,66 +245,251 @@ else # all version with  GPG 2.0
 fi
 }
 hanly(){
-	local csm=""
-	local cores=""
-	>$tfile ; y=8
+	local csm="" ; local cores=""
+	declare -a collisions=()
+	>$tfile 			; y=8
 	if [ "$mMODE" == "mc" ]; then
 		cores=$( nproc 2>/dev/null || echo 1)
 		max_jobs=$cores
 		if (( max_jobs > 16 )); then max_jobs=16; fi
 		x=$(wc -l < "$SORTCOMPLETE")
 		if (( x > 100 )); then y=20; fi
-		split -l $y --numeric-suffixes=1 "$SORTCOMPLETE" "$atmp/sortchunk_"
-		find "$atmp" -type f -name 'sortchunk_*' -print0 | sort -z | xargs -0 -P"$max_jobs" -I{} /usr/local/save-changesnew/haloop "$atmp" "{}" "$2" "$checkSUM"
+		split -l $y --numeric-suffixes=1 --suffix-length=4 "$SORTCOMPLETE" "$atmp/sortchunk_"
+		find "$atmp" -type f -name 'sortchunk_*' -print0 | sort -z | xargs -0 -P"$max_jobs" -I{} /usr/local/save-changesnew/haloop $atmp "{}" $2 $checkSUM $cdiag
 		if compgen -G $atmp/haloop1_*_tmp.log > /dev/null; then cat "$atmp"/haloop1_*_tmp.log >> $rout; fi
 		if compgen -G $atmp/haloop2_*_tmp.log > /dev/null; then cat "$atmp"/haloop2_*_tmp.log >> $tfile; fi
 	else
-		mapfile -t ref_lines < "$2"
-		hablk
+		# mapfile -t ref_lines < "$2"
+		declare -A ref_map 
+		while read -r p; do key=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p") ; current_ln="${p//\"$key\"/}" ; current_ln="$(echo "$current_ln" | xargs  -d '\n')" ; ref_map["$key"]="$current_ln" ; done < $2
+		hablk "A"
 	fi
 	rm $2
     processha "$@"
 }
+collision() {
+local label="$1"
+local chksum="$2"
+local filesize="$3"
+local type=$4
+local arr
+#if [ "$type" == "A" ]; then arr="!ref_map[@]" ; else arr="ref_lines[@]" ; fi
+if [ "$type" == "A" ]; then arr=("${!ref_map[@]}") ; else arr=("${ref_lines[@]}") ; fi
+#for line in "${arr}"; do
+for line in "${arr[@]}"; do
+	if [ "$type" != "A" ]; then 
+		cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$line")
+#        cFILE="${line#\"}"
+#        cFILE="${cFILE%\"}"
+		parsed="${line//\"$CFILE\"/}"       
+		parsed="$(echo "$parsed" | xargs -d '\n')"  # line
+	else
+		cFILE="${line}"
+		parsed="${ref_map[$line]}"
+	fi
+	read -r of1 of2 of3 of4 of5 of6 of7 <<< "$parsed"
+	record_c="$of6"
+	os="$of7"
+	if [[ "$cFILE" == "$label" && "$record_c" != "None" && "$os" != "None" ]]; then
+		 if [[ "$filesize" != "$os" ]] && [[ "$chksum" == "$record_c" ]]; then collisions+=("COLLISION: $label vs $cFILE | Checksum: $chksum | Sizes: $filesize != $os") ; csm="true" ; fi
+	fi
+done
+}
+stealth() {
+local file="$1" 		
+local label="$2"		
+local cksum="$3"
+local current_size="$4"
+local original_size="$5"
+local lcl="$6"			
+local delta 					
+local abs_delta
+if [ -f "$file" ] && [ -n "$current_size" ] && [ "$current_size" != "None" ] && [ -n "$original_size" ]; then
+	if [ "$label" != "/usr/local/save-changesnew/flth.csv" ]; then
+		delta=$(( current_size - original_size ))
+		abs_delta=${delta#-}
+		if [ "$original_size" == "$current_size" ] && [ "$lcl" != "eql" ]; then
+			echo "Warning file ${label} same filesize different checksum. Contents changed." >> /tmp/cerr ; csm="true"
+		elif [ "$abs_delta" -le 12  ] && [ "$abs_delta" -ne 0 ]; then
+			msg="Checksum indicates a change in ${label}. Size changed slightly — possible stealth edit."
+			if [ "$cdiag" == "true" ]; then
+				 echo "$msg ($original_size → $current_size)." >> /tmp/scr
+			else
+				 echo "$msg" >> /tmp/scr 
+			fi
+		fi
+	fi
+	if [ "$cdiag" == "true" ]  && [ "$lcl" != "eql" ]; then collision "$label" $cksum $current_size $7 ; fi
+fi
+}
+hablk() {
+while IFS= read -r p || [[ -n "$p" ]]; do
+	found_line=""
+    cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")
+    #cFILE="${p#\"}"
+    #cFILE="${cFILE%\"}"
+	y=$cFILE
+	current_ln="${p//\"$y\"/}"
+	current_ln="$(echo "$current_ln" | xargs  -d '\n')"
+	read -r f1 f2 f3 f4 f5 f6 f7 f8 <<< "$current_ln"
+	in="$f3"
+	if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then
+		if [ "$1" == "A" ]; then found_line="${ref_map[$y]}" ; else for line in "${ref_lines[@]}"; do if [[ "$line" == *"$y"* ]]; then found_line="$line" ; fi ; done ; fi
+		if [ -n "$found_line" ]; then
+			original_ln="$found_line"
+			if [ "$1" != "A" ]; then original_ln="${found_line//\"$y\"/}" ; original_ln="$(echo "$original_ln" | xargs -d '\n')" ; fi
+			read -r of1 of2 of3 of4 of5 of6 of7 of8 <<< "$original_ln"
+			cFILE="$( unescf "$cFILE")"
+			oin="$of3"
+			if [ -n "$oin" ] && [ "$oin" -ge 0 ] 2>/dev/null; then
+				omt="$of1 $of2" ; oat="$of4 $of5" ; org="$of6"
+				t=$(date -d "$oat" +%s 2>/dev/null) ; k=$(date -d "$cat" +%s 2>/dev/null)
+				dt="$f1 $f2" ; cat="$f4 $f5" ; cs="$f6"
+				if [ "$checkSUM" == "true" ]; then os="$of7" ; csze="$f7" ; oct="$of8" ; ct="$f8" ; fs='' ; [ -n "$t" ] && [ -n "$k" ] && [ -n "$org" ] && [ -n "$cs" ] && [ "$cs" != "None" ] && [ -n "$org" ] || continue ; fi
+				if [ "$dt" == "$omt" ]; then
+					if [ "$checkSUM" == "true" ]; then
+						if [ -f "$cFILE" ]; then
+							if [ "$org" != "$cs" ]; then
+								a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
+								a_mod=$(stat --format=%Y "$cFILE" 2>/dev/null)
+								afrm=$(date -d "@$a_mod" +"%Y-%m-%d %H:%M:%S" 2>/dev/null)
+								fs=$(stat --format=%s "$cFILE" 2> /dev/null)
+								if [ -n "$afrm" ] && [ -n "$a_checksum" ]; then
+									if [ "$afrm" == "$dt" ]; then
+										if [ "$a_checksum" != "$cs" ]; then
+											if date -d "$cat" >/dev/null 2>&1; then 
+												echo "Suspect $dt $y"| tee -a "$rout" "/tmp/cerr" >> "$tfile"; csm="true"
+											fi
+										else
+											if [ -n "$ct" ] && [ "$ct" != "$oct" ]; then
+												echo "Metadata $dt $y" | tee -a $rout >> $tfile
+											fi
+										fi
+									else
+										if [ "$a_checksum" != "$cs" ] && [ "$cdiag" == "true" ]; then
+											echo "File changed during the search. ${y} at ${afrm}. Size was $os, now $fs." >> /tmp/scr
+										elif [ "$a_checksum" != "$cs" ]; then
+											echo "File changed during search ${y}. File likely changed. system cache item." >> /tmp/scr
+										fi
+										stealth "$cFILE" "$y" $cs $fs $csze "regular" $1
+									fi
+								fi
+							fi
+						fi
+					fi
+				else
+					if [ "$checkSUM" == "true" ]; then
+						if (( oin != in )); then
+							if [ "$org" == "$cs" ]; then
+								echo "Overwrite $dt $y" | tee -a $rout >> $tfile
+								stealth "$cFILE" "$y" $cs $csze $os "eql" $1
+							else
+								echo "Replaced $dt $y" | tee -a $rout >> $tfile
+								stealth "$cFILE" "$y" $cs $csze $os "regular" $1
+							fi
+						else
+							if [ "$org" != "$cs" ]; then
+								echo "Modified $dt $y" | tee -a $rout  >> $tfile
+								stealth "$cFILE" "$y" $cs $os $csze "regular" $1
+							else
+								echo "Touched $dt $y" | tee -a $rout >> $tfile
+							fi
+						fi
+					else
+						if (( oin != in )); then
+							echo "Replaced $dt $y" | tee -a $rout >> $tfile
+						else
+							echo "Modified $dt $y" | tee -a $rout >> $tfile
+						fi
+					fi
+				fi
+			fi
+		fi
+	fi
+done < $SORTCOMPLETE
+if [ "$csm" == "true" ]; then 
+	if (( ${#collisions[@]} > 0 )); then for entry in "${collisions[@]}"; do echo "$entry"  >> /tmp/cerr ; done ; fi
+fi
+}
+filteroutput() {
+local filtername="$2"
+local critical="$3"
+local pricolor="$4"
+local seccolor="$5"
+local type="$6"
+local flg="false"
+sbwr
+while IFS= read -r file; do 
+	ck=""
+	if [[ "$file" == "$filtername"* ]]; then
+        if [ "$supbrwr" == "true" ]; then
+		    for item in "${webb[@]}"; do if [[ "$file" =~ $item ]]; then ck="true" ; break ; fi ; done
+        fi
+	 	[[ -z "$ck" && "$supress" == "false" && "$flg" == "false" ]] && $pricolor "$file $6"
+	else
+		[[ "$critical" != "no" ]] && if [[ "$file" == "$critical"* ]]; then $seccolor "$file $6 Critical" ; flg="true" ; fi
+		[[ "$critical" == "no" ]] && $seccolor "$file $6"
+	fi
+done < $1
+}
 processha() {
-invr="$3" ; [[ -z "$invr" ]] && invr="$1"
+local invr="$3" ; [[ -z "$invr" ]] && invr="$1"
 if [ -s $rout ]; then
     if [ -s $tfile ]; then
         { echo ; echo "Hybrid analysis" ; echo ; } >> "$difffile"
 		sort -o $tfile $tfile
-		if [ -s $ABSENT ]; then sort -o $ABSENT $ABSENT; comm -23 $tfile $ABSENT > $TMPCOMPLETE ; else cat $tfile > $TMPCOMPLETE ; fi
+		if [ -s $ABSENT ]; then sort -o $ABSENT $ABSENT; comm -23 $tfile $ABSENT > $TMPCOMPLETE ; else sort -k2,2 -k3,3 -o $TMPCOMPLETE $tfile ; fi
 		if [ "$flsrh" == "true" ] || [ "$invr" == "filtered" ]; then
-			 if ! { [ "$flsrh" == "true" ] && [ "$invr" == "filtered" ]; } ; then
-			 /usr/local/save-changesnew/filter $TMPCOMPLETE $USR
-			 fi
+			if ! { [ "$flsrh" == "true" ] && [ "$invr" == "filtered" ]; } ; then /usr/local/save-changesnew/filter $TMPCOMPLETE $USR ; fi
 		fi
 		if [ "$flsrh" == "true" ]; then
 			cDATE=$( head -n1 $TMPOPT | awk '{print $1 " " $2}')
 			awk -v tme="$cDATE" '$0 >= tme' "$TMPCOMPLETE" > $TMPOUTPUT
 			cp $TMPOUTPUT $TMPCOMPLETE
 		fi
-		awk '{printf "%-10s %-25s %-60s\n", $1, $2" "$3, $4}' $TMPCOMPLETE >> "$difffile"
-   		if [ "$csm" != "" ] && [ -s "/tmp/cerr" ]; then 
-   			while IFS= read -r file; do red "*** Checksum of file ${file} altered without a modified time" ; done < /tmp/cerr 
-   			rm /tmp/cerr ; sts="true"
-   		fi
-		if [ -n "$cores" ] && [ "$sts" != "" ]; then echo "Detected $cc CPU cores."; fi
+		awk '{printf "%-10s\t %-19s %-60s\n", $1, $2" "$3, $4}' $TMPCOMPLETE >> "$difffile"
+		get_colors
+   		if [ -s "/tmp/cerr" ]; then 
+            if [ "$supbrwr" == "true" ]; then # inclusions
+                sbwr
+                grep "Suspect\|COLLISION" /tmp/cerr > $TMPCOMPLETE
+                for item in "${webb[@]}"; do sed -i "\|$item|d" /tmp/cerr ; done
+                [[ -s $TMPCOMPLETE ]] && cat $TMPCOMPLETE >> /tmp/cerr
+                sort -u -o /tmp/cerr /tmp/cerr 
+            fi
+			filteroutput "/tmp/cerr" "Warning" "Suspect" "yellow" "red" "elevated"
+			if [[ -z "$csum" ]]; then csum="true" ; fi
+		fi
+		if [ -n "$cores" ] && [ "$csum" == "" ]; then echo "Detected $cc CPU cores."; fi
     fi
 fi
 }
 cblk() {
-y="$(escf "$x")"
+local y="$(escf "$x")"
+local sl=""
 if [ -e "$x" ] && [ -f "$x" ]; then
-	stat_output=$(stat -c "%Y %X %Z %i" "$x")
-	read -r mtime atime itime i <<< "$stat_output"
+	stat_output=$(stat -c "%Y %X %Z %i %U %g %A" "$x")
+	read -r mtime atime itime i onr gr pmr<<< "$stat_output"
 	ct=$(date -d "@$itime" +"%Y-%m-%d %H:%M:%S")
 	at=$(date -d "@$atime" +"%Y-%m-%d %H:%M:%S")
 	if [ -n "$ct" ]; then
 		if (( itime > mtime )); then
 			if [ "$checkSUM" == "true" ]; then
-				csum=$(md5sum "$x")
-				csum=${csum%% *}
-				fs=$(stat --format=%s "$x")
+				if [ "$backend" == "database" ]; then
+					[[ -L "$x" ]] && sl="y"
+			 		wnr=${onr:-None} ; grp=${gr:-None} ; pmn=${pmr:-None} ; sl=${sl:-None}
+					cam="y"
+				fi
+				csum=$(md5sum "$x" 2> /dev/null) ; csum=${csum%% *} ; csum=${csum:-None} 
+				ct=${ct:-None}
+				fs=$(stat --format=%s "$x" 2> /dev/null) ; fs=${fs:-None}
 				adtcmd="$csum $fs"
+				if [ "$backend" == "database" ]; then 
+
+					adtcmd+=" $sl" ; adtcmd+=" $wnr" ; adtcmd+=" $grp" ; adtcmd+=" $pmn" ; adtcmd+=" $ct" && adtcmd+=" $cam"
+				else
+					adtcmd+=" $ct"
+				fi
 			else
 				adtcmd=""
 			fi
@@ -297,7 +497,7 @@ if [ -e "$x" ] && [ -f "$x" ]; then
 				output="$ct \"$y\" $i $at $adtcmd"
 				if [ -z "$1" ]; then
 					printf '%s\n' "$output" >> "$tout"
-				elif [ "$1" == "arry" ]; then
+				else
 					xfile+=("$output")
 				fi
 			fi
@@ -307,26 +507,36 @@ else
 	if [ -z "$1" ]; then
 		printf 'NOTA-FI-LE 77:77:77 "%s"\n' "$y" >> "$tout"
 		printf 'Nosuchfile,,%s\n' "$y" >> "$COMPLETE"
-	elif [ "$1" == "arry" ] && [ "$2" == "ctime" ]; then
-		nsf+=("Nosuchfile,,$y")
 	else
-		ffile+=("NOTA-FI-LE 77:77:77 \"$y\"")
+		nsf+=("Nosuchfile,,$y")
 	fi
 fi
 }
 sblk() {
-y="$(escf "$x")"
+local y="$(escf "$x")"
+local sl=""
 if [ -e "$x" ] && [ -f "$x" ]; then
-   	stat_out=$(stat -c "%Y %X %i" "$x")
-	read -r f atime i <<<"$stat_out"
+   	stat_out=$(stat -c "%Y %X %i %U %g %A %Z " "$x")
+	read -r f atime i onr gr pmr itime <<<"$stat_out"
 	mt=$(date -d "@$f" +"%Y-%m-%d %H:%M:%S")
+	ct=$(date -d "@$itime" +"%Y-%m-%d %H:%M:%S")
 	ats=$(date -d "@$atime" +"%Y-%m-%d %H:%M:%S")
 	if [ -n "$mt" ]; then
 		if [ "$checkSUM" == "true" ]; then
-			csum=$(md5sum "$x")
-			csum=${csum%% *}
-			fs=$(stat --format=%s "$x")
+			if [ "$backend" == "database" ]; then
+				[[ -L "$x" ]] && sl="y"
+				wnr=${onr:-None} ; grp=${gr:-None} ; pmn=${pmr:-None}  ; sl=${sl:-None}
+				cam="None"
+			fi
+			csum=$(md5sum "$x" 2> /dev/null) ; csum=${csum%% *} ; csum=${csum:-None}
+			ct=${ct:-None}
+			fs=$(stat --format=%s "$x" 2> /dev/null) ; fs=${fs:-None} 
 			adtcmd="$csum $fs"
+			if [ "$backend" == "database" ]; then 
+				adtcmd+=" $sl" ; adtcmd+=" $wnr" ; adtcmd+=" $grp" ; adtcmd+=" $pmn" ; adtcmd+=" $ct" && adtcmd+=" $cam"
+			else
+				adtcmd+=" $ct"
+			fi
 	    else
 	        adtcmd=""
 	    fi
@@ -341,7 +551,7 @@ else
 	if [ -z "$1" ]; then
 		printf 'NOTA-FI-LE 77:77:77 "%s"\n' "$y" >> "$SORTCOMPLETE"
 		printf 'Nosuchfile,,%s\n' "$y" >> "$COMPLETE"
-	elif [ "$1" == "arry" ]; then
+	else
 		nsf+=("Nosuchfile,,$y")
 	fi
 fi
@@ -356,9 +566,20 @@ clearlogs() {
         "xSystemchanges"
         "xSystemTmp"
         "xNewerThan"
-        "xDiffFromLast_"
+        "xDiffFromLast"
     )
 for suffix in "${suffixes[@]}"; do rm -f "${MODULENAME/#\//}$suffix"* 2>/dev/null ; done
+}
+hsearch() {
+r=$(find . -type f -path "*${MODULENAME}_MDY*/*" | wc -l)
+if (( r >= 1 )); then
+	for folder in $(ls -d /tmp"${MODULENAME}"_MDY* | sort -r); do # most recent folder
+		for file in $folder$MODULENAME"xSystemchanges${argone}"*; do
+		    test -f $file && { OLDSORTED=$file ; nodiff="true"; break; }
+		done
+		[[ -n "$OLDSORTED" ]] && break
+	done
+fi
 }
 escf() {
 local o="$1"
@@ -370,123 +591,197 @@ local k="$1"
 k="${k//\\n/$'\n'}" ; k="${k//\\\"/\"}" ; k="${k//\\\$/\$}" ; k="${k//\\\\/\\}" 
 printf '%s' "$k"
 }
-stealth() {
-local file="$1"
-local original_size="$2"
-local current_size="$3"
-local label="$4"  # \n \\n
-local diag="$5"
-if [ -f "$file" ] && [ "$diag" == "true" ]; then
-	local a_mod
-	local afrm
-	a_mod=$(stat --format=%Y "$file")
-	afrm=$(date -d "@$a_mod" +"%Y-%m-%d %H:%M:%S")
-	if [ -n "$original_size" ] && [ -n "$current_size" ] && [ -n "$afrm" ]; then
-		local delta=$(( current_size - original_size ))
-		local abs_delta=${delta#-}
-		if [ "$abs_delta" -le 3  ] && [ "$abs_delta" -ne 0 ]; then
-			echo "Checksum indicates a change in ${label}. Size changed slightly — possible stealth edit. ($original_size → $current_size)." >> /tmp/scr
-		elif [ "$abs_delta" -ne 0 ] && [ "$diag" == "csum" ]; then
-			echo "File collision ${label}. Same modified date and checksum. Either md5 is too weak or file was edited and matches exact checksum." >> /tmp/cerr
+backend() {
+ofile=$atmp/tmpinfo ; tfile=$atmp/tmpd
+if [ -d /tmp/rc ] && [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then
+    for file in /tmp/rc/*; do
+        cat $file >> $ofile  2> /dev/null
+    done
+    if [ -s $ofile ]; then
+        sort -u -o $ofile $ofile
+		hanly $SORTCOMPLETE $ofile $5
+		ret=$?
+		if [ "$ret" -gt 0 ]; then
+			echo "failure in ANALYTICS hanly subprocess"
 		fi
-	fi
+    fi
 fi
-}
-hablk() {
-while IFS= read -r p || [ -n "$p" ]; do
-	found_line=""
-	cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")
-	y="$cFILE"
-	current_ln="${p//\"$y\"/}"
-	current_ln="$(echo "$current_ln" | xargs  -d '\n')"
-	read -r f1 f2 f3 f4 f5 f6 f7 <<< "$current_ln"
-	in="$f3"
-	if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then
-		for line in "${ref_lines[@]}"; do if [[ "$line" == *"$y"* ]]; then found_line="$line" ; fi ; done
-		if [ -n "$found_line" ]; then
-			sline="$found_line"
-			original_ln="${sline//\"$y\"/}"
-			original_ln="$(echo "$original_ln" | xargs -d '\n')"
-			read -r of1 of2 of3 of4 of5 of6 of7 <<< "$original_ln"
-			cFILE="$(unescf "$cFILE")"
-			oin="$of3"
-			if [ -n "$oin" ] && [ "$oin" -ge 0 ] 2>/dev/null; then
-				omt="$of1 $of2"
-				oat="$of4 $of5"
-				org="$of6"
-				t=$(date -d "$oat" +%s 2>/dev/null)
-				dt="$f1 $f2"
-				cat="$f4 $f5"
-				cs="$f6"
-				k=$(date -d "$cat" +%s 2>/dev/null)
-				if [ "$dt" == "$omt" ]; then
-					if [ "$checkSUM" == "true" ]; then
-						if [ -n "$t" ] && [ -n "$k" ]; then
-							if [ -n "$org" ] && [ -n "$cs" ] && [ -f "$cFILE" ]; then
-								os="$of7"
-								csze="$f7"
-								if [ -n "$csze" ]; then
-									if [ "$org" != "$cs" ]; then
-										a_checksum=$(md5sum "$cFILE" | awk '{print $1}')
-										a_mod=$(stat --format=%Y "$cFILE")
-										afrm=$(date -d "@$a_mod" +"%Y-%m-%d %H:%M:%S")
-										if [ -n "$os" ] && [ -n "$afrm" ]; then
-											if [ "$afrm" == "$dt" ]; then
-												echo "Csumc $dt $y"| tee -a "$rout" "/tmp/cerr" >> "$tfile"; csm="true"
-											else
-												if [ "$a_checksum" != "$cs" ] && [ "$cdiag" == "true" ]; then
-													echo "File changed during the search. ${y} at ${afrm}. Size was $os, now $fs. " >> /tmp/scr
-												elif [ "$a_checksum" != "$cs" ]; then
-													echo "File changed during search ${y}. File likely changed. system cache item." >> /tmp/scr
-												fi
-											fi
-										fi
-									else
-										stealth "$cFILE" $os $csze "$y" $cdiag "csum"
-									fi
-								fi
-							fi
+if [ "$STATPST" == "true" ]; then
+	if [ "$ANALYTICS" == "false" ]; then
+		if [ "$backend" == "default" ]; then
+			if [ -s $logpst ]; then
+				if decrypt $xdata2 $logpst; then
+					awk 'NF' $xdata2 > $ofile
+					 if [ -s $ofile ]; then
+						sort -u -o $ofile $ofile
+						hanly $SORTCOMPLETE $ofile $5
+						ret=$?
+						if [ "$ret" -ne 0 ]; then
+							echo "failure in STATPST hanyl subprocess"
 						fi
 					fi
+					pstc="true"
 				else
-					if (( oin != in )); then
-						if [ "$checkSUM" == "true" ]; then
-							if [ -n "$t" ] && [ -n "$k" ]; then
-								if [ -n "$org" ] && [ -n "$cs" ]; then
-									if [ "$org" == "$cs" ]; then
-										echo "Overwrt $dt $y" | tee -a $rout >> $tfile
-									else
-										os="$of7"
-										csze="$f7"
-										if [ -n "$csze" ]; then stealth "$cFILE" $os $csze "$y" $cdiag ;fi
-										echo "Replaced $dt $y" | tee -a $rout >> $tfile
-									fi
-								fi
-							fi
+					echo "Failed to decrypt log file in hanly for STATPST. log file ${logpst}"
+				fi
+			else
+				pstc="true"
+			fi
+			if [ "$pstc" == "true" ]; then
+				imsg="$(storeenc $SORTCOMPLETE $logpst "dcr")"
+				ret=$?
+				if [ "$ret" -ne 0 ]; then
+					echo "$imsg"
+				else
+					if [ "$imsg" -ge 0 ] 2>/dev/null; then
+						if (( imsg % 10 == 0 )); then  cyan "$imsg searches in gpg log"; fi
+					elif [ "$imsg" != "" ]; then
+						green "Persistent search log file created."
+					fi
+				fi
+				if [ -s $rout ]; then
+					sort -u -o $rout $rout
+					sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2",\3/' $rout
+					if [ -s $COMPLETE ]; then cat $COMPLETE >> $rout; fi
+					if [ "$pstc" == "true" ]; then
+						imsg="$(storeenc $rout $statpst)"
+						ret=$?
+						if [ "$ret" -ne 0 ]; then
+							echo "$imsg"
 						else
-							echo "Replaced $dt $y" | tee -a $rout >> $tfile
-						fi
-					else
-						if [ "$checkSUM" == "true" ]; then
-							if [ -n "$t" ] && [ -n "$k" ]; then
-								if [ -n "$org" ] && [ -n "$cs" ]; then
-									if [ "$org" != "$cs" ]; then
-										os="$of7"
-										csze="$f7"
-										if [ -n "$csze" ]; then stealth "$cFILE" $os $csze "$y" $cdiag ;fi
-										echo "Modified $dt $y" | tee -a $rout  >> $tfile
-									else
-										echo "Touched $dt $y" | tee -a $rout >> $tfile
-									fi
-								fi
-							fi
-						else
-							echo "Modified $dt $y" | tee -a $rout >> $tfile
+							if [ "$imsg" != "" ]; then green "Persistent stats file created."; imsg=""; fi
 						fi
 					fi
 				fi
 			fi
+		else
+	        if ! gpg --list-keys | grep -q $email; then generatekey ; fi	
+			python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $pydbpst $rout $tfile $checkSUM $cdiag $email $mMODE $ANALYTICSECT $updatehlinks
+			ret=$?
+			if [ "$ret" -ne 0 ]; then
+				if [ "$ret" -eq 2 ] || [ "$ret" -eq 3 ]; then
+					echo "Problem with GPG refer to instructions on setting up pinentry ect. Database preserved."
+				elif [ "$ret" -eq 4 ]; then
+					echo "Problem with database in psysrg.py"
+				else
+					echo "Pstsrg.py failed. exitcode ${ret}"
+				fi
+			fi
+			processha $argf
 		fi
 	fi
-done < $SORTCOMPLETE
+fi
+[[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && [[ "$ANALYTICSECT" == "true" ]] && [[ "$backend" == "false" ]] && green "Hybrid analysis on"
+if [[ "$csum" != "true" && -s $slog && "$supress" == "true" ]]; then
+	{ echo; echo "cdiag"; echo ; cat $slog; } >> "$difffile"
+elif [[ "$csum" != "true" && -s $slog && "$supress" == "false" ]]; then
+	filteroutput $slog "Checksum" "no" "blue" "yellow" "Scr"
+	{ echo; echo "cdiag"; echo ; cat $slog; } >> "$difffile" 
+elif [[ "$csum" == "true" ]]; then
+	{ echo; echo "cdiag alert"; echo ; cat /tmp/cerr ; } >> "$difffile"
+	rm /tmp/cerr
+fi
+test -f $slog && rm $slog ; test -f $rout && rm $rout
+}
+ulink() {
+local fld=12
+sbwr
+green "Updating hardlinks"
+#for item in "${webb[@]}"; do if [[ "$cFILE" =~ $item ]]; then continue ; fi ; done
+if [ "$checkSUM" == "false" ]; then fld=3 ; fi
+while IFS= read -r p || [[ -n "$p" ]]; do 
+	cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p") ; cFILE="$( unescf "$cFILE")"
+    #cFILE="${p#\"}" ;  cFILE="${cFILE%\"}" ; 
+	inode=$(echo "$p" | rev | cut -d ' ' -f"$fld" | rev) 
+    if [ "$supbrwr" == "true" ]; then
+        for item in "${webb[@]}"; do if [[ "$cFILE" =~ $item ]]; then continue ; fi ; done
+    fi
+	if [ "$inode" != "None" ]; then
+		x=$(find /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var -xdev -inum $inode ! -name "$(basename "$cFILE")" 2>/dev/null | wc -l)
+		if (( x == 0 || x == 1 )); then x="None" ; fi
+		echo "$x" 
+	fi
+done < $1 >> $2                        
+paste -d' ' $1 $tout > $TMPOPT ; mv $TMPOPT $SORTCOMPLETE
+}
+ctimeloop() {
+if [ "$checkSUM" == "true" ]; then cyan "Running checksum."; fi
+if [ "$ANALYTICSECT" == "true" ]; then end=$(date +%s.%N) ; if [ "$checkSUM" == "true" ]; then cstart=$(date +%s.%N) ; fi ; fi
+while IFS= read -r -d '' f; do f="$( escf "$f")" ; echo "$f" ; done < $1 >> $2
+while IFS= read -r -d '' f; do f="$( escf "$f")" ; echo "$f" ; done < $toutnul >> $tout
+if [ "$FEEDBACK" == "true" ]; then cat $tout; cat $2; fi
+if [ -s $tout ]; then grep -Fxv -f $2 $tout > $TMPCOMPLETE; >$tout; fi
+>$tout
+if [ -s $TMPCOMPLETE ]; then
+	while IFS= read -r x; do x="$( unescf "$x")" ; printf '%s\0' "$x"; done < $TMPCOMPLETE > $xdata
+	if [ "$mMODE" == "normal" ]; then
+		xargs -0 /usr/local/save-changesnew/searchfiles $atmp $tout $COMPLETE $checkSUM < $xdata
+	elif [ "$mMODE" == "mem" ]; then
+		declare -a xfile ; declare -a ffile ; declare -a nsf
+		searcharr $xdata "ctime"
+	elif [ "$mMODE" == "mc" ]; then
+		x=$(tr -cd '\0' < $xdata | wc -c) ; y=8
+		if (( x > 100 )); then y=16 ; fi
+		xargs -0 -n"$y" -P4 /usr/local/save-changesnew/searchfiles "$atmp" "$checkSUM" < $xdata
+		if compgen -G "$atmp/searchfiles1_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles1_*_tmp.log > $tout; fi
+		if compgen -G "$atmp/searchfiles2_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles2_*_tmp.log > $COMPLETE; fi
+	else
+		echo incorrect mMODE && exit
+	fi
+	rm $xdata
+fi
+}
+renmmdl() {
+local oMF=/tmp/flog.log
+local drt=$2
+if [ "$drt" == "" ]; then
+    src=".bak"
+    dst=".xzm"
+elif [ "$drt" == "-r" ]; then
+    src=".xzm"
+    dst=".bak"
+else
+    echo invalid flag && exit
+fi
+r=$(ls -1 | grep ".*${1}.*${src}" | grep -v "$1" | wc -l)
+if [ "$r" -gt 0 ]; then
+    for mods in ${PWD}"/"*$1*$src; do
+        [[ "$1" == "_uid_" ]] && [[ "$mods" == *"_uid_L"* ]] && continue
+        fname=${mods%"$src"}$dst
+        test -e $fname && { red Filename conflict $fname already exists.; test -e $omf && rm $omf; exit 0; } || echo $mods >> $oMF
+    done
+    while IFS= read -r ofile; do
+        [[ -z "$ofile" || "$ofile" == \#* ]] && continue
+        fname=${ofile%"$src"}$dst
+        mv "$ofile" "$fname"
+    done < "$oMF"
+    rm $oMF
+else
+    cyan "no .bak $1"
+fi
+}
+intst() {
+if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
+if [ "$STATPST" == "true" ]; then
+    if [ -f $logpst ]; then
+        sz=$( stat -c %s "$logpst")
+        if [ $(( sz / 1048576 )) -gt $logSIZE ]; then
+            if [ "$logPRF" == "del" ]; then
+               : > $logpst
+            elif [ "$logPRF" == "stop" ]; then
+                cyan "persist log saving stopped on size limit"
+            fi
+            STATPST="false"
+            if [ "$logPRF" == "rfh" ]; then
+                rm $logpst
+                STATPST="true"
+            fi
+		elif [ $(( sz / 1048576 )) -ge $compLVL ]; then
+			nc="true"
+        elif [ $sz -eq 0 ]; then
+            cyan "$logpst is 0 bytes. to resume persistent logging delete file"
+            STATPST="false"
+        fi
+    fi
+fi
 }

@@ -114,7 +114,6 @@ awk '{
 
     print ext
 }' $1 | sort | uniq -c | sort -nr | head -3
-
 echo
 }
 #Avg hour top or bottom of hour? time? of entire logs or statpst
@@ -276,8 +275,7 @@ function process_session(block, snum,    lines, n, i, parts, timestamp, times, g
   }
 }
 ' "$1"
-echo
-echo "Most Replaced by inode (awk generated)"
+echo ; echo "Most Replaced by inode (awk generated)"
 awk -v RS="" -v max=7 '
 function process_snapshot(snapshot,   i, lines, path, inode, rest, ino_match, n, fields, filepath) {
   n = split(snapshot, lines, "\n")
@@ -329,5 +327,4 @@ END {
   }
 }
 ' "$1" | sort -rn | head -7
-
 } >> $2 2>&1
