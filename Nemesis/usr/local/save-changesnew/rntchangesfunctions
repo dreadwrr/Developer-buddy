@@ -4,7 +4,6 @@ sbwr() {
 webb=(
     'mozilla'
 	'.mozilla'
-	#'google-chrome'
     "$LCLMODULENAME"
 # other
 )
@@ -323,7 +322,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 						else
 							if [ "$org" != "$cs" ]; then
 								echo "Modified $dt $y" | tee -a $rout  >> $tfile
-								stealth "$cFILE" "$y" $cs $os $csze "regular" $1
+								stealth "$cFILE" "$y" $cs $csze $os "regular" $1
 							else
 								echo "Touched $dt $y" | tee -a $rout >> $tfile
 							fi
