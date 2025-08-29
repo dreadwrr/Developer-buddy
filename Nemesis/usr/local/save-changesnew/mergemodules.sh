@@ -5,10 +5,8 @@
 get_colors
 if [[ $(whoami) != "root" ]]; then echo Please run script as root; exit; fi
 #VARS
-tmp=/mnt/live/tmp/atmp$$
-elog=/tmp/error.log
-oMF=/tmp/flog.log               #original module name list used for merging
-
+tmp=/mnt/live/tmp/atmp$$ ; elog=/tmp/error.log
+oMF=/tmp/flog.log              
 # CHANGABLE
 MODULENM="changes"        # the new name of merged .xzms
 
@@ -16,13 +14,10 @@ cmode="gzip"                            # default nothing. uses gzip compression
                                            # xz        best compression
                                            # zstd     faster bootup
                                             # lzo      faster bootup
-
 # CHANGABLE BOOLEANS
-
 keepMRGED="true"       # default is delete the old ones after merging
-
-if [ "$1" != "" ]; then keepMRGED="$1"; fi
 # END CHANGABLE
+if [ "$1" != "" ]; then keepMRGED="$1"; fi
 pst=$PWD
 r=$( ls -l | grep -c '.*_uid_.*.xzm')
 if [ "$r" -gt 1 ]; then

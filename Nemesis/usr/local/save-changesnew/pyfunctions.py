@@ -18,25 +18,27 @@ def getcount (curs):
             AND (filesize IS NULL OR filesize = '')
       ''')
       count = curs.fetchone()
-      value=count[0]
-      return value
+      return count[0]
 def parse_line(line):
-      quoted_match = re.search(r'"((?:[^"\\]|\\.)*)"', line)
-      if not quoted_match:
-            return None
-      raw_filepath = quoted_match.group(1)
-      try:
-            filepath = codecs.decode(raw_filepath.encode(), 'unicode_escape')
-            #print(f"Decoded filepath: {filepath}")
-      except UnicodeDecodeError as e:
-            #print(f"Error decoding filepath: {e}")
-            return None
-      line_without_file = line.replace(quoted_match.group(0), '').strip()
-      other_fields = line_without_file.split()
-      if len(other_fields) < 5:
-            return None  # Not enough fields
-      timestamp1 = other_fields[0] + ' ' + other_fields[1]
-      inode = other_fields[2]
-      timestamp2 = other_fields[3] + ' ' + other_fields[4]
-      rest = other_fields[5:]
-      return [timestamp1, filepath, inode, timestamp2] + rest
+    quoted_match = re.search(r'"((?:[^"\\]|\\.)*)"', line)
+    if not quoted_match:
+        return None
+    raw_filepath = quoted_match.group(1)
+    try:
+        filepath = codecs.decode(raw_filepath.encode(), 'unicode_escape')
+    except UnicodeDecodeError:
+        filepath = raw_filepath  # Fallback to raw path if decoding fails
+
+    # Remove quoted path 
+    line_without_file = line.replace(quoted_match.group(0), '').strip()
+    other_fields = line_without_file.split()
+
+    if len(other_fields) < 5:
+        return None  # Not enough fields
+
+    timestamp1 = other_fields[0] + ' ' + other_fields[1]
+    inode = other_fields[2]
+    timestamp2 = other_fields[3] + ' ' + other_fields[4]
+    rest = other_fields[5:]
+
+    return [timestamp1, filepath, inode, timestamp2] + rest

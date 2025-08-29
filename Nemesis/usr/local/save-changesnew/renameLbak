@@ -1,33 +1,7 @@
-#!/bin/bash
-# simple script to rename all _uid_L*.bak to _uid_L*.xzm                            July 17, 2025
-# We rename them in batches so no filename conflicts are checked first.  -r to reverse .xzm to .bak
+#!/bin/bash    
+# We rename them in batches so no filename conflicts are checked first.  -r to reverse .xzm to .bak July 17, 2025
 . /usr/share/porteus/porteus-functions
 get_colors
+. /usr/local/save-changesnew/rntchangesfunctions
 if [[ $(whoami) != "root" ]]; then echo Please run script as root; exit; fi
-oMF=/tmp/flog.log
-drt=$1
-if [ "$drt" == "" ]; then
-    src=".bak"
-    dst=".xzm"
-elif [ "$drt" == "-r" ]; then
-    src=".xzm"
-    dst=".bak"
-else
-    echo invalid flag && exit
-fi
-
-f=$( ls -l $PWD | grep -c ".*_uid_L.*${src}")
-if [ "$f" -gt 0 ]; then
-    for mods in ${PWD}"/"*_uid_L*$src; do
-        fname=${mods%"$src"}$dst
-        test -e $fname && { red Filename conflict $fname already exists.; test -e $omf && rm $omf; exit 0; } || echo $mods >> $oMF
-    done
-    while IFS= read -r ofile; do
-        [[ -z "$ofile" || "$ofile" == \#* ]] && continue
-        fname=${ofile%"$src"}$dst
-        mv "$ofile" "$fname"
-    done < "$oMF"
-    rm $oMF
-else
-    cyan "no .bak _uid_L"
-fi
+renmmdl "_uid_L" $1

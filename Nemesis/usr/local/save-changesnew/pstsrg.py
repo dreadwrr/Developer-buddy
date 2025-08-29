@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       8/14/2025
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       8/28/2025
 import pyfunctions
 import os
 import sqlite3
@@ -19,7 +19,6 @@ def encr(database, opt, email, md):
             "-o", opt,
             database
         ], check=True)
-        #print(f"File encrypted: {output_path}")
         if md:
             os.remove(database)
         return True
@@ -44,8 +43,6 @@ def decr(src, opt):
       else:
             print('no .gpg file')
             return False
-
-# initialize a db
 def create_db(database):
       print('Initializing database...')
       conn = sqlite3.connect(database)
@@ -59,6 +56,13 @@ def create_db(database):
                   accesstime TEXT,
                   checksum TEXT,
                   filesize TEXT,
+                  symlink TEXT,
+                  owner TEXT,
+                  `group` TEXT,
+                  permissions TEXT,
+                  changetime TEXT,
+                  casmod TEXT,
+                  hardlinks TEXT,
                   UNIQUE(timestamp, filename)
             )
       ''')
@@ -73,21 +77,23 @@ def create_db(database):
       ''')
       conn.commit()
       return (conn)
-# Log insert
+# Log 
 def insert(log, conn, c):
       global count
       count = getcount(c) #First count the number of blank rows
+
       c.executemany('''
-            INSERT OR IGNORE INTO logs (timestamp, filename, inode, accesstime, checksum, filesize)
-            VALUES (Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?))
+            INSERT OR IGNORE INTO logs (timestamp, filename, inode, accesstime, checksum, filesize, symlink, owner, `group`, permissions, changetime, casmod, hardlinks)
+            VALUES (Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?))
       ''', log)
-      blank_row = (None, None, None, None, None, None)  # Blank values for each column in 'logs' table
+
+      blank_row = (None, None, None, None, None, None, None, None, None, None, None, None,None,)  # Blank values for each column in 'logs' table
       c.execute('''
-            INSERT INTO logs (timestamp, filename, inode, accesstime, checksum, filesize)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO logs (timestamp, filename, inode, accesstime, checksum, filesize, symlink, owner, `group`, permissions, changetime, casmod, hardlinks)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ? ,? ,? ,? ,? ,?)
       ''', blank_row)
       conn.commit()
-# Stats insert
+# Stats 
 def insert_if_not_exists(action, timestamp, filename, conn, c):
       timestamp = timestamp or None
       c.execute('''
@@ -100,101 +106,92 @@ def main():
       xdata=sys.argv[1] # data source
       dbtarget=sys.argv[2]  # the target
       rout=sys.argv[3]  # tmp holds action
-      tfile=sys.argv[4] # tmp file
+      tfile=sys.argv[4] # tmp file                  if parsed and inf:               
       checksum=sys.argv[5] # important
       cdiag=sys.argv[6] # setting
       email=sys.argv[7]
       turbo=sys.argv[8]
-      ANALYTICSECT=[9]
-
+      ANALYTICSECT=sys.argv[9]
+      hlinks=sys.argv[10]
       logs = []
       stats = []
       parsed = []
       csm=False # from bash nothing flagged yet
       dbe=False
-      goahead=True
+      goahead=True                
       conn=None
-
       root, ext = os.path.splitext(dbtarget)
       dbopt=root + ".db" # generic output database
-
       if os.path.isfile(dbtarget):
-
             sts=decr(dbtarget, dbopt)
-
             if not sts:
-
                   print('Find out why db not decrypting or delete it to make a new one')
                   return 2
 
       else:
-
             conn = create_db(dbopt)
             print(f'{pyfunctions.GREEN}Persistent database created.{pyfunctions.RESET}')
             goahead=False
 
-      if not conn:
+      if not conn:                
             conn = sqlite3.connect(dbopt)
 
       with conn:
             c = conn.cursor()
 
-            #SORTCOMPLETE
-            with open(xdata, 'r') as file:
+            with open(xdata, 'r') as file: #SORTCOMPLETE
 
                   for line in file:
                         inputln = parse_line(line)
-
                         if not inputln:
                               continue
-
                         if not inputln[1].strip():
-                              continue
-
-                        timestamp = inputln[0].strip() if inputln[0] else None
-                        filename = inputln[1].strip() if inputln[1] else None
-                        inode = inputln[2].strip() if inputln[2] else None
-                        accesstime = inputln[3].strip() if inputln[3] else None
-                        checksum = inputln[4].strip() if len(inputln) > 4 and inputln[4] else None
-                        filesize = inputln[5].strip() if len(inputln) > 5 and inputln[5] else None
-
-                        parsed.append((timestamp, filename, inode, accesstime, checksum, filesize))
+                               continue
+                        timestamp = inputln[0] if inputln[0] else ''
+                        filename = inputln[1] if inputln[1] else ''
+                        inode = inputln[2] if inputln[2] else ''
+                        accesstime = inputln[3] if inputln[3] else ''
+                        checks = inputln[4] if len(inputln) > 4 and inputln[4] else ''
+                        filesize = inputln[5] if len(inputln) > 5 and inputln[5] else None
+                        if checksum == 'true':
+                            sym = inputln[6]  if inputln[6] else ''
+                            onr = inputln[7]  if len(inputln) > 7  and inputln[7]  else ''
+                            gpp = inputln[8]  if len(inputln) > 8  and inputln[8]  else ''
+                            pmr = inputln[9]  if len(inputln) > 9  and inputln[9]  else ''
+                            itime = (inputln[10] + ' ' + inputln[11]) if len(inputln) > 11 and inputln[10] and inputln[11] else ''
+                            cam = inputln[12] if len(inputln) > 12 and inputln[12] else ''
+                            hardlink_count=inputln[13] if len(inputln) > 13 and inputln[13] else ''
+                        else:
+                            sym = ''
+                            onr = ''
+                            gpp = ''
+                            pmr = ''
+                            itime = ''
+                            cam = ''
+                            hardlink_count=checks
+                            checks=''
+                        parsed.append((timestamp, filename, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, itime, cam, hardlink_count))
 
             if parsed:
                   if goahead: # Skip first pass ect.
 
-                        #Hybrid analysis
-                        try:
-
+                        try: #Hybrid analysis
                               csm=hanly(rout, tfile, parsed, checksum, cdiag, c)
 
-                              if  csm:
+                        except Exception as e:  # Catch any exception and store it in 'e'
+                              print(f"hanlydb failed to process: {e}", file=sys.stderr)  # Print the error message
 
-                                    with open("/tmp/cerr", "r") as f:
-
-                                          for line in f:
-                                                print(f'{pyfunctions.RED}*** Checksum of file altered without a modified time {line}', end='')
-
-                                    os.remove("/tmp/cerr")
-
-                              else:
-
-                                    if  turbo == 'mc':
-                                          x=os.cpu_count()
-
-                                          if x:
-                                                print(f'Detected {x} CPU cores.')
-
-                                    if ANALYTICSECT:
-                                          print(f'{pyfunctions.GREEN}Hybrid analysis on{pyfunctions.RESET}')
-                        except:
-                              print('hanlydb failed to process', file=sys.stderr)
-
-            # Log
-            try:
+                        if not csm:
+                              if  turbo == 'mc':
+                                    x=os.cpu_count()
+                                    if x:
+                                          print(f'Detected {x} CPU cores.')
+                              if ANALYTICSECT:
+                                    print(f'{pyfunctions.GREEN}Hybrid analysis on{pyfunctions.RESET}')
+            
+            try: # Log
 
                   if parsed:
-
                         insert(parsed, conn, c)
                         if count % 10 == 0:
                               print(f'{count + 1} searches in gpg database')
@@ -203,19 +200,15 @@ def main():
                   print('log db failed insert', e)
                   dbe=True
 
-            # Stats
-            if os.path.isfile(rout):
+            if os.path.isfile(rout): # Stats
 
                   try:
 
                         with open(rout, 'r', newline='') as record:
-
                               for line in record:
                                     parts = line.split(maxsplit=3)
                                     if len(parts) < 4:
                                           continue
-
-
                                     action = parts[0]
                                     date = parts[1]
                                     time = parts[2]
@@ -223,13 +216,11 @@ def main():
                                     filename = fp.strip()
 
                                     if filename:
-
                                           stats.append((action, date + ' ' + time, filename))
 
                         if stats:
 
                               for record in stats:
-
                                     action = record[0]
                                     timestamp = record[1]
                                     fp = record[2]
@@ -240,13 +231,10 @@ def main():
                         print('stats db failed to insert', e)
                         dbe=True
 
-            # Encrypt if o.k.
-            if not dbe:
-
+            if not dbe: # Encrypt if o.k.
                   try:
-
                         sts=encr(dbopt, dbtarget, email, True)
-                        if not sts:
+                        if not sts:		
                               print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}  before running again.')
 
                   except Exception as e:
@@ -254,7 +242,7 @@ def main():
                         return 3
 
                   return 0
-
+            
             else:
                   return 4
 

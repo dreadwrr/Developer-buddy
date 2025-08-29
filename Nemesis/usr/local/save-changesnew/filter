@@ -4,8 +4,6 @@
 #
 #	Notes: Nemesis 25.04
 #
-#  Full modularity only one filter needed for version 3       used to be a copy in compilesearch.sh you used to have to update as well
-# $1 first file $2 user $3 second file
 
 ## Base var exclusions
 
@@ -58,14 +56,14 @@ sed -i '/\.xsession/d' $1 $3
 #Inclusions from script
 # $USR passed from recentchanges argument chaning into root  $3
 # we dont want  USER/.config
-
 sed -i '/\/home\/'"${2}"'\/\.config/d' $1 $3
 #sed -i '/\/home\/'"${2}"'\/\.config\/save-changesnew/d' $1 $3
-sed -i '/\/home\/'"${2}"'\/Downloads\/rntfiles/d' $1 $3
+#sed -i '/\/home\/'"${2}"'\/Downloads\/rntfiles/d' $1 $3
 sed -i '/\/usr\/local\/save-changesnew\/logs\.gpg/d' $1 $3
 sed -i '/\/usr\/local\/save-changesnew\/recent\.gpg/d' $1 $3
 sed -i '/\/usr\/local\/save-changesnew\/stats\.gpg/d' $1 $3
 sed -i '/\/usr\/local\/save-changesnew\/flth\.csv/d' $1 $3
+
 
 # we dont want   root .auth90
 sed -i '/\/root\/\.auth/d' $1 $3
