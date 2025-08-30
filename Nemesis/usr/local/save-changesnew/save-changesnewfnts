@@ -20,7 +20,7 @@ exldir() {
 grep ^!/ $CHNEXIT_CONF | fixdir > $EXCL
 if [ -s "$EXCL" ]; then
 	#cat $EXCL | fixexcl > $EXCLUDED
-	fixexcl < $EXCL > $EXCLUDED
+	fixsqh < $EXCL > $EXCLUDED
 	#sed -i 's|\.||' $EXCLUDED
 	sed -i 's|^|/|' $EXCLUDED
 	while IFS= read -r line; do [[ -z "$line" ]] && continue ; if ! [[ " $EXCLUDE " =~ " $line " ]]; then EXCLUDE="$EXCLUDE $line" ; fi ; done < $EXCLUDED
