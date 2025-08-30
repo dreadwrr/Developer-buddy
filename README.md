@@ -93,6 +93,10 @@ Then take those files and make an .xzm. It will be placed in   /tmp  along with 
 
    Save Changes New            Porteus                              (The .xzm creating is not in this version as porteus has changes=EXIT:/ and I am sticking to the design philosophy is do one thing and do it well   )
 
+
+![Alt text](https://i.imgur.com/QVWc23x.jpeg)
+
+
 In addition to the RSync backup it saves your changes with rsync in porteus.       /mnt/live/memory/changes ---->   /mnt/sdx/changes    -----> /mnt/sdx/changes.bak
 
  rsync backup to /changes.bak minimal writes as the backup would already be in place. Files are logged and its accurate
