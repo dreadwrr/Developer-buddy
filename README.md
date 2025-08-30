@@ -3,6 +3,7 @@
 
 ![Logo](https://i.imgur.com/sbZa1r3.png)
 
+![Alt text](https://i.imgur.com/tKW7UEe.png)
 
 Brought _uid_L for porteus graphics mode! for non changes=EXIT:/ users.
 
