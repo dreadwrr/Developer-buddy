@@ -131,11 +131,12 @@ archLMT=4						# how many unique roll backs to keep  both _uid_ and _uid_L seper
 tmp=/mnt/live/tmp/work$$											; 			mtmp=/tmp/mtmp$$
 ch=/mnt/live/memory/changes									;			INAME=/mnt/live/memory/images #system changes   and images    leave set
 SFOLDERS=/tmp/save.sfolders.tmp								;			trsyncexl=/usr/local/save-changesnew/excld.ini
-exclfiles=/tmp/exfiles.log											;			EXCL=/tmp/save.excl.tmp	 # for egrep regrex
+EXFILES=/tmp/exfiles.log											;			EXCL=/tmp/save.excl.tmp	 # for egrep regrex
 QEXCL=/tmp/squashexfiles.log									;			EXCLUDED=/tmp/save.excluded.tmp
-CHNEXIT_CONF=/etc/changes-exit.conf						;			EXFILES=/tmp/save.squashregex.tmp # regex
+CHNEXIT_CONF=/etc/changes-exit.conf						;			exclfiles=/tmp/save.squashregex.tmp  #spare mp
 UPDATE=/tmp/save.update.tmp									;			oMF=/tmp/flog.log	#original module name list used for merging
 USR=$theUSER															;			LOGDIR=/home/$USR/Downloads
+EXFILES=/tmp/save.exfiles.tmp # rsync mksqu
 LOGFILE="save.sfiles.tmp"														#; SVFILES=$MNAME/home/$USR/Downloads/save.sfiles.tmp            # wait until changes exit for nemesis #log file
 IFOLDERS=""																;			rname=""
 adtCMD=""																;			MODULENM=""
@@ -168,12 +169,12 @@ local instm="$1" # so we can see where its called from
 
 			f="${y//.wh./}"
 			test -e "$mtmp/$f" && rm -rf "${mtmp:?}/$f";
-			test -e "$INAME/*/$f" || { echo "$y" | fixwh | fixsqh >> $QEXCL; echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }
+			test -e "$INAME/*/$f" || { echo "$y" | fixsqh >> $QEXCL; echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }
 
         done
 
-		grep -Fvxf $exclfiles $EXCL | fixexcl >> $UPDATE; test -s $UPDATE && cat $UPDATE >> $exclfiles
 
+        test -s $EXCL && cat $EXCL | unfixwh | fixsqh > $exclfiles && grep -Fvxf $EXFILES $exclfiles > $UPDATE; test -s $UPDATE && cat $UPDATE >> $EXFILES
 	    test -s "$EXCL" && { find $FOLDERS -type d | egrep -vf $EXCL || find $FOLDERS -type d; } > $SFOLDERS
 
         for y in $(find $mtmp -name ".wh.*"); do
@@ -184,7 +185,7 @@ local instm="$1" # so we can see where its called from
         find $mtmp -name ".wh.*" -exec rm -r {} \;
 
         test -e $tmp/home/$USR/Downloads/$LOGFILE && rm $tmp/home/$USR/Downloads/$LOGFILE
-        test -s "$exclfiles" && { rsync -av --exclude-from=$exclfiles --exclude '\.wh\.*' $tmp/ $mtmp; } > $UPDATE || rsync -av --exclude '\.wh\.*' $tmp/ $mtmp > $UPDATE
+        test -s "$EXFILES" && { rsync -av --exclude-from=$EXFILES --exclude '\.wh\.*' $tmp/ $mtmp; } > $UPDATE || rsync -av --exclude '\.wh\.*' $tmp/ $mtmp > $UPDATE
 
 	    BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
 	    echo $BRAND >> $UPDATE
@@ -194,9 +195,9 @@ local instm="$1" # so we can see where its called from
             cp $LOGDIR/$LOGFILE $mtmp/home/$USR/Downloads/$LOGFILE
         elif [ "$linkedLOGPRF" == "incr" ]; then
 	        cp "$UPDATE" $mtmp/home/$USR/Downloads/$LOGFILE
-	        cp "$UPDATE" home/$USR/Downloads/$LOGFILE
+	        mv "$UPDATE" home/$USR/Downloads/$LOGFILE
         else
-	        cp "$UPDATE" home/$USR/Downloads/$LOGFILE
+	        mv "$UPDATE" home/$USR/Downloads/$LOGFILE
         fi
 
         cd $tmp || exit
@@ -234,10 +235,10 @@ local instm="$1" # so we can see where its called from
     rname="${MODULENM}${SERIAL}_uid_L${ssbn}.xzm"
 
     if [ "$instm" != "nolmdl" ]; then
-        test -s $QEXCL && { mksquashfs $mtmp "$target$em$rname" -comp $cmode -ef $exclfiles -ef $QEXCL; } || mksquashfs $mtmp "$target$em$rname" -comp $cmode -ef $exclfiles
+        test -s $QEXCL && { mksquashfs $mtmp "$target$em$rname" -comp $cmode -ef $EXFILES -ef $QEXCL; } || mksquashfs $mtmp "$target$em$rname" -comp $cmode -ef $EXFILES
     else
         find $tmp -name ".wh.*" -exec rm -r {} \;
-        if ! mksquashfs $tmp "$target$em$rname" -comp $cmode -ef $exclfiles; then
+        if ! mksquashfs $tmp "$target$em$rname" -comp $cmode -ef $EXFILES; then
             mount -o remount,udba=none /
             red "Error making the new module in ${instm}: ${rname}" >&2
             cyan "Everything preserved.  Check the script"
@@ -278,11 +279,11 @@ local instm="$1" # so we can see where its called from
         echo >> $msr
     fi
     cd $tmp || exit
-    rm -rf $mtmp
+    rm -rf $mtmp ; test -e $exclfiles && rm $exclfiles
 }
 if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
 IFOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e /mnt/live/memory/changes/"$x" && echo "$x"; done)"
-dycmb ; exldir $exclfiles
+dycmb ; exldir $EXFILES
 sync
 mount -o remount,udba=notify /
 msr=${target}${em}"/lscheck"
@@ -381,8 +382,8 @@ if [ "$rlt" != "" ]; then
                                     fi
                                 fi
 
-                                cp $UPDATE > "${target}${rlt}${MODULENM}.bak.log"
-                                rm $UPDATE
+                                mv $UPDATE "${target}${rlt}${MODULENM}.bak.log"
+                                
 
                             elif [ "$logSPRF" == "stop" ]; then
                                 adtCMD=""
@@ -433,9 +434,9 @@ if [ "$rlt" != "" ]; then
 
         if [ "$adtCMD" != "" ]; then
             if [ "$FEEDBACK" != "true" ]; then
-                rsync -aH --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" $adtCMD
+                rsync -aH --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" $adtCMD
             else
-				rsync -aHv --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
+				rsync -aHv --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
             fi
 			exc=$?
             if [ $exc -eq 1 ]; then
@@ -443,7 +444,7 @@ if [ "$rlt" != "" ]; then
 		        red "rsync failed — check log at ${target}${rlt}${MODULENM}.bak.log"
 		        if [ "$d2drive" == "false" ]; then
 		        	cyan "Files left in memory. Copy and paste the following to rsync again:"
-		        	echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/ --log-file=${target}${rlt}${MODULENM}.bak.log"
+		        	echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/ --log-file=${target}${rlt}${MODULENM}.bak.log"
 		        	if [ "$ANALYTICS" == "true" ]; then
 		        		echo "Then check the logfile for any errors.Then take the last two bytes sent and add it to total count=  at the top of the file if you want to keep exact track."
 		        		echo "Or"
@@ -462,16 +463,16 @@ if [ "$rlt" != "" ]; then
         else
             if [ "$nLOG" != "" ]; then
                 if [ "$FEEDBACK" != "true" ]; then
-                   rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > $UPDATE 2>&1
+                   rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > $UPDATE 2>&1
 
                 else
-                    rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" 2>&1 | tee $UPDATE
+                    rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" 2>&1 | tee $UPDATE
                 fi
             else
                 if [ "$FEEDBACK" != "true" ]; then
-                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > /dev/null
+                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > /dev/null
                 else
-                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/"
+                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/"
                 fi
             fi
 			exc=$?
@@ -481,13 +482,13 @@ if [ "$rlt" != "" ]; then
 		        if [ "$nLOG" != "" ]; then
 		        	if [ "$d2drive" == "false" ]; then
 		        		cyan "Files left in memory. Copy and paste the following to rsync again:"
-		            	echo "rsync -aH --stats --delete --filter=merge /tmp/incfilter.log --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/ --log-file=${target}${rlt}${MODULENM}.bak.log"
+		            	echo "rsync -aH --stats --delete --filter=merge /tmp/incfilter.log --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/ --log-file=${target}${rlt}${MODULENM}.bak.log"
 		        	fi
 		        	if [ "$ANALYTICS" == "true" ]; then
 		               echo "Then check the logfile for any errors. Add up all the bytes sent values and put total count=  at the top of the file before END ORIGINAL FILES.  if you want to keep exact track."
 		            fi
 		        else
-		        	echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/"
+		        	echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/"
 		        fi
 		        echo
 		        echo "Or failing that"
@@ -574,9 +575,9 @@ if [ "$rlt" != "" ]; then
         cyan "Creating new backup this may take a few minutes."
 
         if [ "$FEEDBACK" != "true" ]; then
-            rsync -aH --stats --filter="merge /tmp/incfilter.log" --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" >> "${target}${rlt}${MODULENM}.bak.log" 2>&1
+            rsync -aH --stats --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" >> "${target}${rlt}${MODULENM}.bak.log" 2>&1
         else
-			rsync -aHv --stats --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
+			rsync -aHv --stats --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
         fi
 		exc=$?
         if [ $exc -eq 1 ]; then
@@ -691,8 +692,7 @@ else # Graphics mode
             if [ "$f" -gt 1 ]; then
                 echo "Cannot have more than one _uid_L\.\*\.xzm file" && exit 0
             elif [ "$f" -eq 1 ]; then  # Good to go
-                cd $tmp
-                : > $EXCL; : > $EXFILES ; rlt=""
+                cd $tmp ; rlt=""
                 if [ -e $msr ]; then
                     content=$(awk -v RS= '{gsub(/\n+$/, "", $0); print $0}' "$msr")
                     k=$( echo "$content" | sed -n 's/.*bytes:[[:space:]]*\([0-9]\+\).*/\1/p')
@@ -727,15 +727,14 @@ else # Graphics mode
             fi
         else # End linked
             rname="${MODULENM}${SERIAL}_uid_${$}.xzm"
-			mksquashfs $tmp "$target$em$rname" -comp $cmode -ef $exclfiles
+			mksquashfs $tmp "$target$em$rname" -comp $cmode -ef $EXFILES
             if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print $end - $start}") ; fi
         fi
         chown $USR $target$em$rname
 		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then printf "Saving took %.3f seconds.\n" "$el" ; fi
         cyan "Your changes have been saved. in ${target}${em}/"
         cyan $rname
-        test -e $EXCL && rm $EXCL; test -e $EXFILES && rm $EXFILES
-
+        
         if [ "$mrgMODULES" == "true" ] && [ "$linkedSTATE" == "false" ]; then
         cd $target$em
             r=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' | wc -l)
@@ -749,6 +748,9 @@ else # Graphics mode
     fi
 fi
 mount -o remount,udba=none /
+test -e $EXCL && rm $EXCL
+test -e $UPDATE && rm $UPDATE
+#test -e $SFOLDERS && rm $SFOLDERS
 test -e /tmp/incfilter.log && rm /tmp/incfilter.log
-rm $exclfiles ; rm -rf $tmp ; sleep 5 && exit
+rm -rf $tmp ; sleep 5 && exit
 
