@@ -619,16 +619,20 @@ ulink() {
 local fld=12
 sbwr
 green "Updating hardlinks"
-#for item in "${webb[@]}"; do if [[ "$cFILE" =~ $item ]]; then continue ; fi ; done
 if [ "$checkSUM" == "false" ]; then fld=3 ; fi
 while IFS= read -r p || [[ -n "$p" ]]; do 
+    ck="false"
 	cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p") ; cFILE="$( unescf "$cFILE")"
     #cFILE="${p#\"}" ;  cFILE="${cFILE%\"}" ; 
 	inode=$(echo "$p" | rev | cut -d ' ' -f"$fld" | rev) 
     if [ "$supbrwr" == "true" ]; then
-        for item in "${webb[@]}"; do if [[ "$cFILE" =~ "$item" ]]; then [ -n "$item" ] && echo "None" ; continue ; fi ; done
+        for item in "${webb[@]}"; do if [[ "$cFILE" =~ "$item" ]]; then [ -n "$item" ] && echo "None" && ck="true"; break ; fi ; done
     fi
-	if [ "$inode" == "None" ]; then echo "None" ; else echo $inode ; fi
+	if [ "$inode" == "None" ] && [ "$ck" == "false" ]; then 
+        echo "None" 
+    elif [ "$ck" == "false" ]; then
+         echo $inode
+    fi
 done < $1 > $TMPOPT
 mapfile -t inodes_array < "$TMPOPT" ; declare -A inode_map
 while read -r inode; do inode_map["$inode"]=$((inode_map["$inode"] + 1)) ; done < <(find /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var -xdev -printf '%i\n' 2>/dev/null)
