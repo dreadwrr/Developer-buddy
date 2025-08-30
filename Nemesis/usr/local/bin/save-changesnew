@@ -620,7 +620,7 @@ else # Graphics mode
 	pth="/boot/syslinux/porteus.cfg"
 
  	# Avoid confusion we initially stored rlt and can reference it. so use rltt
-	[[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; } && [[ "$bootdvc" != "" ]] && thetgt=$bootdvc
+    [[ -n "$bootdvc" ]] && thetgt=$bootdvc && [[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; } 
     test -e "$thetgt$pth" && rltt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on ln?  ## Notes returns the value grep 'extramod=[^ ]*')
     epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g')
 

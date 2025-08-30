@@ -91,7 +91,7 @@ export FEEDBACK="false"  # include find output in terminal as well ie scrolling 
 
 
 ## Diagnostics
-export checkSUM="false"	# compare file checksums for slight changes
+export checkSUM="true"	# compare file checksums for slight changes
 										# slower useful if you want to check deeper level of stats
 export cdiag="true"       # Include stealth changes in diff file    a file was changed but has the same checksum and filesize subtle edit  ie cache items or string was changed
 
