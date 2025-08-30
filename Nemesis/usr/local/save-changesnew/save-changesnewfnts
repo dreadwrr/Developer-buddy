@@ -88,8 +88,8 @@ nLOG="true"
 rand_alpha() { letters=( {A..Z} {a..z} ); echo -n "${letters[RANDOM % 52]}${letters[RANDOM % 52]}" ; }
 loadermsg() { green "Updated bootloader in /syslinux/"; cyan "if you use a different loader use cheatcode extramod=${target}${em} include changes modules" ; }
 fixdir() { sed -e 's_\._\\._g' -e 's_?_._g' -e 's_*_.*_g' -e 's@..@^@'; }
-fixsqh() {  sed -e 's|^/||'; }
+fixsqh() {  sed -e 's|^/||' -e 's/^\^//' ; }
 fixwh() { sed -e '/^\^/!s@^@^@' -e 's_\._\\._g' -e 's_?_\\?_g' -e 's_+_\\+_g' -e 's_*_\\*_g' -e 's_\$_\\$_g' -e 's_\[_\\[_g' -e 's_(_\\(_g' -e 's_\&_\\&_g' -e 's_\(^.\)\^\(.*\)_\1\\^\2_'; } # Translating
-fixexcl() { sed -e 's/^\^//'; }
+unfixwh() { sed -e 's/\\//g' -e 's/\(^.\)\^\(.*\)/\1^\2/' ; }
 fixcmp() { sed -e 's_|_\\|_g' -e 's_ _\\ _g' -e 's_\._\\\._g' -e 's_\]_\\]_g' -e 's_\[_\\[_g' -e 's_(_\\(_g' -e 's_)_\\)_g' ; } # -e 's_\/_\\\/_g' 
 fixOT() { sed -e 's_?_\\?_g'  -e 's_\^_\\^_g' -e 's_+_\\+_g' -e 's_*_\\*_g' -e 's_\$_\\$_g'  -e 's_\&_\\&_g' ; }
