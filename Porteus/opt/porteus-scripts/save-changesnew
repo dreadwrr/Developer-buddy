@@ -158,24 +158,24 @@ archLMT=4                        # how many unique roll backs to keep  both _uid
 # V3 core rsync backup on save-changesnew                 See   line  323    for original changes commit script
 #VARS
 mtmp=/tmp/mtmp$$                    							;	tmp=/tmp/tmp$$                     #temporary directory  leave set
-ch=/mnt/live/memory/changes 									;	trsyncexl=/usr/local/save-changesnew/excld.ini  #  rsync exclude Cache     cache2/*    ect     see for details
-UPDATE=/tmp/save.update.tmp										;	SFOLDERS=/tmp/save.sfolders.tmp
+ch=/mnt/live/memory/changes 								;	trsyncexl=/usr/local/save-changesnew/excld.ini  #  rsync exclude Cache     cache2/*    ect     see for details
+UPDATE=/tmp/save.update.tmp								;	SFOLDERS=/tmp/save.sfolders.tmp
 exclfiles=/tmp/exfiles.log										;	oMF=/tmp/flog.log	#original module name list used for merging
-QEXCL=/tmp/squashexfiles.log									;	EXCLUDED=/tmp/save.excluded.tmp
+QEXCL=/tmp/squashexfiles.log								;	EXCLUDED=/tmp/save.excluded.tmp
 mbyte=1048576													;	osize=0   # the original size of changes folder to be captured before moving things to /tmp
 USR=$theUSER
-rname=""														;	adtCMD=""	
-sentinal=""														;	MODULENM=""
+rname=""														        ;	adtCMD=""	
+sentinal=""														    ;	MODULENM=""
 #booleans
 rlt=""
 
 ## Variables:
 DEST="$(cat /mnt/live/tmp/changes-exit >/dev/null 2>&1)"		; 	NAME="$(basename "${DEST:-}")"
-MNAME=/mnt/live/memory/images/changes   						; 	INAME=/mnt/live/memory/images
-CHNEXIT_CONF=/etc/changes-exit.conf     						; 	EXCL=/tmp/save.excl.tmp
-SFILES=/tmp/save.sfiles.tmp             						;	UPDATE=/tmp/save.update.tmp
-LOGDIR=/home/$USR/Downloads										;	LOGFILE="save.sfiles.tmp"
-SVFILES=$MNAME/home/$USR/Downloads/save.sfiles.tmp				;	EXFILES=/tmp/save.exfiles.tmp   #holds excluded file list for rsync non regex
+MNAME=/mnt/live/memory/images/changes							; 	INAME=/mnt/live/memory/images
+CHNEXIT_CONF=/etc/changes-exit.conf									; 	EXCL=/tmp/save.excl.tmp
+SFILES=/tmp/save.sfiles.tmp													;	UPDATE=/tmp/save.update.tmp
+LOGDIR=/home/$USR/Downloads											;	LOGFILE="save.sfiles.tmp"
+SVFILES=$MNAME/home/$USR/Downloads/save.sfiles.tmp		;	EXFILES=/tmp/save.exfiles.tmp   #holds excluded file list for rsync non regex
 #LOG
 #NEW END
 # Graphics Not changes=EXIT:/ mode  <---
@@ -206,13 +206,9 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 	SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`
 	line=43 #Bootloader
 	pth="/boot/syslinux/porteus.cfg"
-	[[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; } && [[ "$bootdvc" != "" ]] && thetgt=$bootdvc
-	if [[ -z "$grubln" ]]; then
-		rltt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'changes=\K[^ ]*')
-		if [[ -n "$rltt" ]]; then
-			insertmenu $thetgt$pth
-		fi
-	fi	
+    [[ -n "bootdvc" ]] && thetgt=$bootdvc && [[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; } 
+    [[ -z "$grubln" ]]; then && rltt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'changes=\K[^ ]*') && [[ -n "$rltt" ]] && insertmenu $thetgt$pth
+
 	test -e "$thetgt$pth" && rlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on ln?  ## Notes returns the value grep 'extramod=[^ ]*')
 	epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g')
 
