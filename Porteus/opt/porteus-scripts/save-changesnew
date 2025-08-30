@@ -206,7 +206,7 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 	SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`
 	line=43 #Bootloader
 	pth="/boot/syslinux/porteus.cfg"
-    [[ -n "bootdvc" ]] && thetgt=$bootdvc && [[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; } 
+    [[ -n "$bootdvc" ]] && thetgt=$bootdvc && [[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; } 
     [[ -z "$grubln" ]]; then && rltt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'changes=\K[^ ]*') && [[ -n "$rltt" ]] && insertmenu $thetgt$pth
 
 	test -e "$thetgt$pth" && rlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on ln?  ## Notes returns the value grep 'extramod=[^ ]*')
