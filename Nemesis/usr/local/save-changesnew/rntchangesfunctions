@@ -623,18 +623,28 @@ green "Updating hardlinks"
 if [ "$checkSUM" == "false" ]; then fld=3 ; fi
 while IFS= read -r p || [[ -n "$p" ]]; do 
 	cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p") ; cFILE="$( unescf "$cFILE")"
-    #cFILE="${p#\"}" ;  cFILE="${cFILE%\"}" 
+    #cFILE="${p#\"}" ;  cFILE="${cFILE%\"}" ; 
 	inode=$(echo "$p" | rev | cut -d ' ' -f"$fld" | rev) 
     if [ "$supbrwr" == "true" ]; then
-        for item in "${webb[@]}"; do if [[ "$cFILE" =~ $item ]]; then continue ; fi ; done
+        for item in "${webb[@]}"; do if [[ "$cFILE" =~ "$item" ]]; then [ -n "$item" ] && echo "None" ; continue ; fi ; done
     fi
-	if [ "$inode" != "None" ]; then
-		x=$(find /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var -xdev -inum $inode ! -name "$(basename "$cFILE")" 2>/dev/null | wc -l)
-		if (( x == 0 )); then x="None" ; fi
-		echo "$x" 
-	fi
-done < $1 >> $2                        
-paste -d' ' $1 $tout > $TMPOPT ; mv $TMPOPT $SORTCOMPLETE
+	if [ "$inode" == "None" ]; then echo "None" ; else echo $inode ; fi
+done < $1 > $TMPOPT
+mapfile -t inodes_array < "$TMPOPT" ; declare -A inode_map
+while read -r inode; do inode_map["$inode"]=$((inode_map["$inode"] + 1)) ; done < <(find /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var -xdev -printf '%i\n' 2>/dev/null)
+for inode in "${inodes_array[@]}"; do
+    if [ "$inode" = "None" ]; then
+        echo "None"
+    else
+        count=${inode_map["$inode"]}
+        if [ -z "$count" ] || [ "$count" -eq 0 ]; then
+            echo "None"
+        else
+            echo "$count"
+        fi
+    fi
+done > $TMPOPT
+paste -d' ' $1 $TMPOPT > $2 ; mv $2 $SORTCOMPLETE
 }
 ctimeloop() {
 if [ "$checkSUM" == "true" ]; then cyan "Running checksum."; fi
