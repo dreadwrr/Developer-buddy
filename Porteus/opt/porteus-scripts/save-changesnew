@@ -160,8 +160,8 @@ archLMT=4                        # how many unique roll backs to keep  both _uid
 mtmp=/tmp/mtmp$$                    							;	tmp=/tmp/tmp$$                     #temporary directory  leave set
 ch=/mnt/live/memory/changes 								;	trsyncexl=/usr/local/save-changesnew/excld.ini  #  rsync exclude Cache     cache2/*    ect     see for details
 UPDATE=/tmp/save.update.tmp								;	SFOLDERS=/tmp/save.sfolders.tmp
-exclfiles=/tmp/exfiles.log										;	oMF=/tmp/flog.log	#original module name list used for merging
-QEXCL=/tmp/squashexfiles.log								;	EXCLUDED=/tmp/save.excluded.tmp
+EXCLUDED=/tmp/save.excluded.tmp						;	oMF=/tmp/flog.log	#original module name list used for merging
+QEXCL=/tmp/squashexfiles.log								;	 exclfiles=/tmp/exfiles.log # spare tmp file
 mbyte=1048576													;	osize=0   # the original size of changes folder to be captured before moving things to /tmp
 USR=$theUSER
 rname=""														        ;	adtCMD=""	
@@ -188,11 +188,9 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 	IFOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e /mnt/live/memory/changes/"$x" && echo "$x"; done)"
 	dycmb
 	msr=${target}${em}"/lscheck"
-
-	exldir $exclfiles
+	exldir $EXFILES
 	sync
 	mount -o remount,udba=notify /
-	
 	if [ "$d2drive" == "false" ] || { [ "$d2drive" == "true" ] && [ "$d2dmdl" == "false" ]; } ; then
 		mkdir $tmp
     	green "Staging... "
@@ -207,7 +205,7 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 	line=43 #Bootloader
 	pth="/boot/syslinux/porteus.cfg"
     [[ -n "$bootdvc" ]] && thetgt=$bootdvc && [[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; } 
-    [[ -z "$grubln" ]]; then && rltt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'changes=\K[^ ]*') && [[ -n "$rltt" ]] && insertmenu $thetgt$pth
+    [[ -z "$grubln" ]] && rltt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'changes=\K[^ ]*') && [[ -n "$rltt" ]] && insertmenu $thetgt$pth
 
 	test -e "$thetgt$pth" && rlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on ln?  ## Notes returns the value grep 'extramod=[^ ]*')
 	epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g')
@@ -215,7 +213,7 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 
 	if [ "$rlt" != "" ]; then
 		if [[ ! "${rlt}" == *$BASEDIR"/"$emfld* ]]; then
-
+            
 		    test -d "$target$em" || mkdir -p "$target$em"
 			[[ -n "$grubln" ]] && test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak
 		    #append to start of boot loader
@@ -292,8 +290,7 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 		        echo "Cannot have more than one _uid_L\.\*\.xzm file" && exit 0
 		    # Good to go
 		    elif [ "$f" -eq 1 ]; then
-		        cd $tmp
-		        : > $EXCL; : > $EXFILES ;  rlt=""
+		        cd $tmp ; rlt=""
 		        if [ -e $msr ]; then
 		            content=$(awk -v RS= '{gsub(/\n+$/, "", $0); print $0}' "$msr")
 		            k=$( echo "$content" | sed -n 's/.*bytes:[[:space:]]*\([0-9]\+\).*/\1/p')
@@ -333,7 +330,7 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 
 		else # End linked
 		    rname="${MODULENM}${SERIAL}_uid_${$}.xzm"
-			mksquashfs $tmp "$target$em$rname" -comp $cmode -ef $exclfiles
+			mksquashfs $tmp "$target$em$rname" -comp $cmode -ef $EXFILES
 			if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print $end - $start}") ; fi
 		fi
 		chown $USR $target$em$rname
@@ -341,7 +338,6 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 
 		cyan "Your changes have been saved. in ${target}${em}/"
 		cyan $rname
-		test -e $EXCL && rm $EXCL; test -e $EXFILES && rm $EXFILES
 
 		if [ "$mrgMODULES" == "true" ] && [ "$linkedSTATE" == "false" ]; then
 			cd $target$em
@@ -360,8 +356,12 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 		fi
 	fi
 	mount -o remount,udba=none /
-	rm $exclfiles
-	#rm /tmp/incfilter.log
+    #test -e $QEXCL && rm $QEXCL
+    test -e $EXCL && rm $EXCL
+    #test -e $EXFILES && rm $EXFILES
+    test -e $UPDATE && rm $UPDATE
+    test -e $SFILES && rm $SFILES
+    # test -e $SFOLDERS && rm $SFOLDERS
 	rm -rf $tmp
 	rm -rf $mtmp
 	sleep 5 && exit
@@ -452,11 +452,13 @@ if [[ "$1" != "6" ]]; then
 		#  sed -i -e 's/\^//' -e 's|\\\.|.|g' -e 's|\]|\]\\|g' $EXCL
 		#
 		#> $EXFILES
-		#cat $EXCL | fixexcl > $EXCLUDED   Original 
+		#cat $EXCL | unfixwh | fixsqh > $EXCLUDED   Original 
 
 		# New 5.0
+       
 		exldir $EXFILES # generate exclude dirs
-
+        test -s $EXCL && cat $EXCL | unfixwh | fixsqh > $UPDATE && grep -Fvxf $EXFILES $UPDATE > $QEXCL ; test -s $QEXCL && cat $QEXCL >> $EXFILES && rm $QEXCL
+       
 
 		# The purpose of this routine is so we have a file with all folders to save and can use it verify with rsync log that rsync is working
 		# or captured all the directories
@@ -503,7 +505,7 @@ if [[ "$1" != "6" ]]; then
 		echo $BRAND >> $UPDATE
 
 		#Do include a log file in case still in session
-		cp "$UPDATE" "$MNAME$LOGDIR/$LOGFILE"
+		mv "$UPDATE" "$MNAME$LOGDIR/$LOGFILE"
 
 
 		# subroutine clean out any deleted files   a ..wh..  is a file you deleted and no longer exists
@@ -538,7 +540,12 @@ if [[ "$1" != "6" ]]; then
 
 		# Reset IFS to default
 		unset IFS
-
+        test -e $EXCLUDED && rm $EXCLUDED
+        if [[ "$BACKUP" != "true" ]]; then 
+            test -e $EXCL && rm $EXCL
+            #test -e $EXFILES && rm $EXFILES
+            #test -e $SFOLDERS && rm $SFOLDERS
+        fi
 		#	green "Session saved"       ORIGINAL commented out to work with changes
 		cyan "Your changes have been saved. and synced to your system"
 		cyan "updates changes to hdd $DEST"
@@ -555,23 +562,15 @@ fi
 if [[ "$3" == "yes" ]]; then ans=""; fi # called by changes-commit?
 if [[ "$ans" = "" ]]; then
 	if [[ "$BACKUP" == "true" ]]; then
-		if [[ "$1" == "6" ]]; then  
+		if [[ "$1" == "6" ]]; then # regen so independant
 			cyan "Backing up on shutdown..."
 			target=$4
 			FOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e /mnt/live/memory/changes/"$x" && echo "$x"; done)"
             dycmb
-
+            exldir $EXFILES
 		#else # normal execution of this script
-
 		fi
-		#rm $EXCL     isnt used as not using egrep -vf
-		#rm $UPDATE     This is available as a tmp file
-		#rm $EXFILES  # We need to reuse this as its already done
-		test -e $SFOLDERS && rm $SFOLDERS 
-		test -e $EXCLUDED && rm $EXCLUDED
-		> $UPDATE ; > $exclfiles
-		exldir $exclfiles
-
+        #rm $EXCL egrep and rsync exclude rm $exclfiles spare tmp rm $UPDATE This is available as a tmp file rm $EXFILES  # We need to reuse this as its already done
 		if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
 		if [ ! -e $target ]; then echo "Target does not exist" && exit 0 ; fi
 
@@ -684,8 +683,7 @@ if [[ "$ans" = "" ]]; then
 		                                    fi
 		                                fi
 
-		                                cp $UPDATE > "${target}${rlt}${MODULENM}.bak.log"
-		                                rm $UPDATE
+		                                mv $UPDATE "${target}${rlt}${MODULENM}.bak.log"
 		                            elif [ "$logSPRF" == "stop" ]; then
 		                                adtCMD=""
 		                                if [ "$ANALYTICS" == "true" ]; then
@@ -742,9 +740,9 @@ if [[ "$ans" = "" ]]; then
 		        if [ "$adtCMD" != "" ]; then
 
 		            if [ "$FEEDBACK" != "true" ]; then
-		               	rsync -aH --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" $adtCMD
+		               	rsync -aH --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" $adtCMD
 		            else
-		                rsync -aHv --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
+		                rsync -aHv --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
 		            fi
 					exc=$?
 				    if [ $exc -eq 1 ]; then
@@ -752,7 +750,7 @@ if [[ "$ans" = "" ]]; then
 						red "rsync failed — check log at ${target}${rlt}${MODULENM}.bak.log"
 						if [ "$d2drive" == "false" ]; then
 							cyan "Files left in memory. Copy and paste the following to rsync again:"
-							echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/ --log-file=${target}${rlt}${MODULENM}.bak.log"
+							echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/ --log-file=${target}${rlt}${MODULENM}.bak.log"
 							if [ "$ANALYTICS" == "true" ]; then
 								echo "Then check the logfile for any errors.Then take the last two bytes sent and add it to total count=  at the top of the file if you want to keep exact track."
 								echo "Or"
@@ -773,16 +771,16 @@ if [[ "$ans" = "" ]]; then
 		          
 		            if [ "$nLOG" != "" ]; then
 		                if [ "$FEEDBACK" != "true" ]; then
-		                    rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > $UPDATE 2>&1  # capture the log in a sentinal
+		                    rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > $UPDATE 2>&1  # capture the log in a sentinal
 		                else
-		                    rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" 2>&1 | tee $UPDATE
+		                    rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" 2>&1 | tee $UPDATE
 		                fi
 
 		            else
 		                if [ "$FEEDBACK" != "true" ]; then
-		                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > /dev/null
+		                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > /dev/null
 		                else
-		                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/"
+		                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/"
 		                fi
 		            fi
 					exc=$?
@@ -792,13 +790,13 @@ if [[ "$ans" = "" ]]; then
 						if [ "$nLOG" != "" ]; then
 							if [ "$d2drive" == "false" ]; then
 								cyan "Files left in memory. Copy and paste the following to rsync again:"
-						    	echo "rsync -aH --stats --delete --filter=merge /tmp/incfilter.log --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/ --log-file=${target}${rlt}${MODULENM}.bak.log"
+						    	echo "rsync -aH --stats --delete --filter=merge /tmp/incfilter.log --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/ --log-file=${target}${rlt}${MODULENM}.bak.log"
 							fi
 							if [ "$ANALYTICS" == "true" ]; then
 						       echo "Then check the logfile for any errors. Add up all the bytes sent values and put total count=  at the top of the file before END ORIGINAL FILES.  if you want to keep exact track."
 						    fi
 						else
-							echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/"
+							echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/"
 						fi
 
 						echo
@@ -902,9 +900,9 @@ if [[ "$ans" = "" ]]; then
 
 
 		        if [ "$FEEDBACK" != "true" ]; then
-		            rsync -aH --stats --filter="merge /tmp/incfilter.log" --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" >> "${target}${rlt}${MODULENM}.bak.log" 2>&1
+		            rsync -aH --stats --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" >> "${target}${rlt}${MODULENM}.bak.log" 2>&1
 		        else
-		            rsync -aHv --stats --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$exclfiles --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
+		            rsync -aHv --stats --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
 		        fi
 				exc=$?
 				if [ $exc -eq 1 ]; then
@@ -938,14 +936,15 @@ if [[ "$ans" = "" ]]; then
     	test -e $EXCLUDED && rm $EXCLUDED
 		rm -rf $tmp
 	fi
-	if [[ "$1" != "6" && "$3" != "yes" ]]; then
+	if [[ "$1" != "6" && "$3" != "yes" ]]; then # Remove not shuttingdown
 		# Remount aufs with 'udba=none' flag:
 		mount -o remount,udba=none /
-		#test -e $EXFILES && rm $EXFILES	# commit script
-		test -e $UPDATE && rm $UPDATE	# temporary holding
-		test -e /tmp/incfilter.log && rm /tmp/incfilter.log
-		rm $EXCL		# parsing rsync
-		#rm $exclfiles	# rsync exclusion list
+        test -e $EXCL && rm $EXCL # parsing rsync
+        #test -e $EXFILES && rm $EXFILES # commit script rsync exclusion list
+        test -e $SFILES && rm $SFILES
+        #test -e $SFOLDERS && rm $SFOLDERS
+        test -e $EXCLUDED && rm $EXCLUDED
+	    test -e /tmp/incfilter.log && rm /tmp/incfilter.log
 		#Remove /mnt/live/tmp/changes-exit if called from rc.6 (temporary for legacy initrd where cleanup still has changes=EXIT: routine)
 		[[ "$1" == "6" ]] && rm /mnt/live/tmp/changes-exit
 	fi
