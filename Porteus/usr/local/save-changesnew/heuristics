@@ -15,82 +15,34 @@ END {
     }
 }' "$1"
 }
-aat () {
+aat() {
 awk '
 {
-    # Match the timestamp fields (access date and time)
-    match($0, /"([^"]+)"/, arr)
+    match($0, /"([^"]+)"/)
     rest = substr($0, RSTART + RLENGTH)
-    n = split(rest, fields, " ")
-
-    access_date = fields[2]
-    access_time = fields[3]
-
-    # If the date and time format matches, process it
-    if (access_date ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/ && access_time ~ /^[0-9]{2}:[0-9]{2}:[0-9]{2}$/) {
-        datetime = access_date " " access_time
-        cmd = "date -d \"" datetime "\" +%s"
-        cmd | getline epoch
+    split(rest, f, " ")
+    if (f[2] ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/ && f[3] ~ /^[0-9]{2}:[0-9]{2}:[0-9]{2}$/) {
+        cmd = "date -d \"" f[2] " " f[3] "\" +%s"
+        cmd | getline e
         close(cmd)
-
-        if (epoch != "") {
-            # Store the first access time as the min and max
-            if (count == 0) {
-                first_epoch = epoch
-                last_epoch = epoch
-            } else {
-                # Find the min and max epoch
-                if (epoch < first_epoch) first_epoch = epoch
-                if (epoch > last_epoch) last_epoch = epoch
-            }
-
-            sum += epoch
-            count++
-        }
+        sum += e
+        count++
+        if (count == 1 || e < first) first = e
+        if (count == 1 || e > last)  last  = e
     }
 }
-
 END {
-    # Output the breakdown
-    print "Search breakdown"
-    printf "\033[36mAverage access time:\033[0m\n"
-
-    # Print the range of access times (first and last access)
     if (count > 0) {
-        # Comment out or delete the lines that print the earliest and latest access times
-        # print "Earliest access time (epoch): " first_epoch
-        # print "Latest access time (epoch): " last_epoch
-
-        # Now, filter the access times that are within the range
-        valid_count = 0
-        valid_sum = 0
-
-        # Re-process each line and only count those within the range
-        for (i = 1; i <= count; i++) {
-            if (epoch >= first_epoch && epoch <= last_epoch) {
-                valid_sum += epoch
-                valid_count++
-            }
-        }
-
-        # If we have valid times, calculate the average
-        if (valid_count > 0) {
-            avg = int(valid_sum / valid_count)
-            cmd = "date -d @" avg " \"+%Y-%m-%d %H:%M:%S\""
-            cmd | getline avg_date
-            close(cmd)
-
-            print "Filtered Average Date and Time: " avg_date
-        } else {
-            print "No valid access times found within range."
-        }
-
+        avg = int(sum/count)
+        cmd="date -d @" first " \"+%Y-%m-%d %H:%M:%S\""; cmd|getline fdate; close(cmd)
+        cmd="date -d @" last  " \"+%Y-%m-%d %H:%M:%S\""; cmd|getline ldate; close(cmd)
+        cmd="date -d @" avg   " \"+%Y-%m-%d %H:%M:%S\""; cmd|getline adate; close(cmd)
+        print "Earliest:", fdate, "\nLatest:  ", ldate, "\nAverage: ", adate
     } else {
         print "No valid access times found."
     }
 }
 ' "$1"
-echo
 }
 #most common file extension or if none then output none.
 ext() {
