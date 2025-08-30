@@ -698,7 +698,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
     fi
 	if [ "$inode" != "None" ]; then
 		x=$(find /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var -xdev -inum $inode ! -name "$(basename "$cFILE")" 2>/dev/null | wc -l)
-		if (( x == 0 || x == 1 )); then x="None" ; fi
+		if (( x == 0 )); then x="None" ; fi
 		echo "$x" 
 	fi
 done < $1 >> $2                        
