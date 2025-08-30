@@ -91,7 +91,7 @@ Then take those files and make an .xzm. It will be placed in   /tmp  along with 
    efficiently as it has minimals writes because you may already have a backup in place. <BR><BR><BR><BR>
 
 
-   Save Changes New            Porteus                              (The .xzm creating is not in this version as porteus has changes=EXIT:/ and I am sticking to the design philosophy is do one thing and do it well   )
+   Save Changes New            Porteus
 
 
 ![Alt text](https://i.imgur.com/QVWc23x.jpeg)
@@ -118,3 +118,5 @@ In addition to the RSync backup it saves your changes with rsync in porteus.    
  This is a proposed change to changes commit with directory method. All original lines are commented out to work with script
 
  working off of base save-changes scripts by
+
+ ![Alt text](https://i.imgur.com/4jOp3Ry.png) ![Alt text]https://i.imgur.com/3dXwKzW.png
