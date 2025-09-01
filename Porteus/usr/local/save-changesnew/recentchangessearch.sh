@@ -8,17 +8,17 @@ USR=$3
 if [ "$USR" == "" ]; then echo please call from recentchanges; exit; fi
 if [ "$4" == "" ]; then echo "incorrect usage please call from recentchanges"; exit 1; fi
 if [ "$1" != "search" ]; then echo exiting not a search && exit; fi
-work=work$$													;		atmp=/tmp/atmp$$
-tmp=/tmp/work$$												;		rout=$atmp/routput.tmp
-chxzm=/rntfiles.xzm											;		tout=$atmp/toutput.tmp
-USRDIR=/home/$USR/Downloads									;		toutnul=$atmp/toutputnul.tmp
-slog=/tmp/scr												;		xdata=$atmp/logs_stat.log
+work=work$$													        ;		atmp=/tmp/atmp$$
+tmp=/tmp/work$$												        ;		rout=$atmp/routput.tmp
+chxzm=/rntfiles.xzm											        ;		tout=$atmp/toutput.tmp
+USRDIR=/home/$USR/Downloads								;		toutnul=$atmp/toutputnul.tmp
+slog=/tmp/scr												            ;		xdata=$atmp/logs_stat.log
 UPDATE=$tmp/save.transferlog.tmp							;		xdata2=$atmp/logs_log.log
-ABSENT=$tmp/absent.txt										;		xdata3=$atmp/db_log.log
-RECENT=$tmp/list_recentchanges_filtered.txt					;		pytmp=$atmp/pytmp.tmp
-RECENTNUL=$tmp/list_recentchanges_filterednul.txt			;		COMPLETE=$tmp/list_complete.txt
-SORTCOMPLETE=$tmp/list_complete_sorted.txt					;		COMPLETENUL=$tmp/list_completenul.txt
-TMPOUTPUT=$tmp/list_tmp_sorted.txt							;		TMPCOMPLETE=$tmp/tmp_complete.txt
+ABSENT=$tmp/absent.txt										    ;		xdata3=$atmp/db_log.log
+RECENT=$tmp/list_recentchanges_filtered.txt				;		pytmp=$atmp/pytmp.tmp
+RECENTNUL=$tmp/list_recentchanges_filterednul.txt	;		COMPLETE=$tmp/list_complete.txt
+SORTCOMPLETE=$tmp/list_complete_sorted.txt			;		COMPLETENUL=$tmp/list_completenul.txt
+TMPOUTPUT=$tmp/list_tmp_sorted.txt						;		TMPCOMPLETE=$tmp/tmp_complete.txt
 TMPOPT=$tmp/tmp_holding										;		flth=/usr/local/save-changesnew/flth.csv
 OLDSORTED=""
 diffrlt="false" 											; 		nodiff="false"
