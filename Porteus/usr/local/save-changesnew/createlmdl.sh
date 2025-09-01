@@ -16,9 +16,9 @@ keepMRGED="true"       # default is normally false but we want to rename all .xz
                                         # in this script regardless of preference
 # END CHANGABLE
 tmp=/mnt/live/tmp/etmp$$		; mtmp=/mnt/live/tmp/ntmp$$
-ch=/mnt/live/memory/changes	; INAME=/mnt/live/memory/images
-EXCL=/tmp/squashexfiles.log		;  	EXFILES=/tmp/squashregex
-msr="${PWD}/lscheck"				;	oMF=/tmp/flog.log 
+ch=/mnt/live/memory/changes	    ; INAME=/mnt/live/memory/images
+EXCL=/tmp/squashexfiles.log		; EXFILES=/tmp/squashregex
+msr="${PWD}/lscheck"			; oMF=/tmp/flog.log 
 pst=$PWD
 f=$( ls -l ${PWD}${em} | grep -c '.*_uid_L.*.xzm')
 if [ "$f" -gt 1 ]; then
@@ -70,7 +70,7 @@ if [ "$r" -gt 0 ]; then
         rm -rf $dest
     done
 
-    cd $ch
+    cd $ch || exit
     find $mtmp -name ".wh.*" -printf '%P\0' | while IFS= read -r -d '' y; do
         f="${y#$mtmp}"
         f="${f//.wh./}"

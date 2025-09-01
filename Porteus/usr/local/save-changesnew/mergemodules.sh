@@ -3,6 +3,7 @@
 # only merges  *_uid_*.xzm  in $PWD and only deletes the old on successful completion.
 . /usr/share/porteus/porteus-functions
 get_colors
+. /usr/local/save-changesnew/save-changesnewfnts
 if [[ $(whoami) != "root" ]]; then echo Please run script as root; exit; fi
 #VARS
 tmp=/mnt/live/tmp/atmp$$ ; elog=/tmp/error.log

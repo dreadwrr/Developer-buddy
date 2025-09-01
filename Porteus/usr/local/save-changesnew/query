@@ -11,9 +11,9 @@ outputTFILE="false"            # show the report in /tmp?
 outputPSTFILE="false"       # .   .               /home/guest/Downloads
 genPSTTFILE="false"           # Run heuristics on PST and include in the report?
 # End CHANGABLE
-rtmp=/tmp/rtmp$$							;	trc=/tmp/rc
-xdata=$rtmp/logs_decrypted.log	;	report=/query_$timestamp
-dr=/usr/local/save-changesnew		;	TOPT=$rtmp/tmpfile.log
+rtmp=/tmp/rtmp$$						;	trc=/tmp/rc
+xdata=$rtmp/logs_decrypted.log			;	report=/query_$timestamp
+dr=/usr/local/save-changesnew			;	TOPT=$rtmp/tmpfile.log
 logpst=$dr/logs.gpg						;	output_file=$rtmp/output.log
 statpst=$dr/stats.gpg					;	flth=$dr/flth.csv
 timestamp=$(date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_')

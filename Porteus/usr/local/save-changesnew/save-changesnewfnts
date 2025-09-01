@@ -2,9 +2,9 @@
 # save-changesnew functions to move options further up the script             08/30/2025
 dycmb() {
 TFLD="$(for x in $IFOLDERS; do test -e "$ch/$x" && echo "$x"; done)"
-FOLDERS="$TFLD" ; TFLD=""
-[[ -n "$IFOLDERS" ]] && TFLD="$(for x in "$IFOLDERS"; do [[ ! " $FOLDERS " == *" $x "* ]] && test -e "$ch/$x" && echo "$x" ; done)"
-[[ -n "$TFLD" ]] && { IFOLDERS="$TFLD" ; FOLDERS="$FOLDERS $IFOLDERS" ; IFOLDERS=$FOLDERS ; }
+IFOLDERS="$TFLD" ; TFLD=""
+[[ -n "$IFOLDERS" ]] && TFLD="$(for x in $FOLDERS; do [[ ! " $IFOLDERS " == *" $x "* ]] && echo "$x" ; done)"
+[[ -n "$TFLD" ]] && { IFOLDERS="$IFOLDERS $TFLD" ; FOLDERS=$IFOLDERS ; }
 }
 exldir() {
 > $1
@@ -76,7 +76,7 @@ if [ "$autosave" == "true" ] ; then
     val="$0 6 \"$USR\" \"yes\" \"$target\""
     in=$( sed -n "104p" $chc | grep -o "Remount aufs with 'udba=none'")
 	r=$( realpath "$0")
-    if [ -n $ln ]; then 
+    if [[ -n "$ln" ]]; then 
         if ! grep -q "$r" $chc; then sed -i "104i $val" $chc ; fi
     else
         p=$( grep -Fn "$r" $chc | cut -d: -f1)
@@ -107,7 +107,7 @@ newxzm() {
 all=() ; keep=()
 while IFS= read -r d; do all+=("$(basename "$d")") ; done < <(find "$ch" -maxdepth 1 -mindepth 1 ) # all folders in changes
 while IFS= read -r l; do [[ -z "$l" ]] && continue ; if [[ "$l" == \** ]]; then echo "$l" ; fi ; done < $EXFILES > $SFILES # read patterns from $EXCLUDE ie *share/Trash*
-while IFS= read -r p; do [[ -z "$p" || "$p" =~ ^# ]] && continue ; find "$ch" -path "$ch/$p" -print | sed "s|^$ch/||" ; done < <(cat $trsyncexl $SFILES ) >> $EXFILES # search the wildcards for mksquashfs
+while IFS= read -r p; do [[ -z "$p" || "$p" =~ "^#" ]] && continue ; find "$ch" -path "$ch/$p" -print | sed "s|^$ch/||" ; done < <(cat $trsyncexl $SFILES ) >> $EXFILES # search the wildcards for mksquashfs
 for d in "${all[@]}"; do # generate all folders to exclude ( our list $FOLDERS anything not in it)
     fd="false"
     for f in $FOLDERS; do
@@ -119,11 +119,11 @@ for d in "${all[@]}"; do # generate all folders to exclude ( our list $FOLDERS a
     if [[ "$fd" == "false" ]]; then keep+=("$d") ; fi
 done
 printf "%s\n" "${keep[@]}" >> "$EXFILES"
-createxzm $1
+createxzm # try
 trlt=$?
-if [ "$trlt" -ne 0 ]; then 
-	echo "Files changed while saving copying to tmp..." ; mkdir $mtmp ; procxzm $1
-    if [ "$FEEDBACK" != "true" ]; then mksquashfs $ch "$target$em$rname" -comp $cmode -ef $EXFILES -ef $trsyncexl> /dev/null ; else mksquashfs $ch "$target$em$rname" -comp $cmode -ef $EXFILES -ef $trsyncexl ; fi
+if [ "$trlt" -ne 0 ]; then # or tmp
+	echo "Files changed while saving copying to tmp..." ; mkdir $mtmp ; procxzm $1 # $1 keep .wh.
+    if [ "$FEEDBACK" != "true" ]; then mksquashfs $ch "$target$em$rname" -comp $cmode -ef $EXFILES -ef $trsyncexl > /dev/null ; else mksquashfs $ch "$target$em$rname" -comp $cmode -ef $EXFILES -ef $trsyncexl ; fi
 else
     clog "$target$em$rname" $UPDATE ; brnd $UPDATE ; mv $UPDATE $LOGDIR/$LOGFILE # make list
 fi
@@ -132,12 +132,12 @@ if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print 
 # create _uid_ or _uid_L
 createxzm() {
 cm=(mksquashfs $ch "$target$em$rname" -comp $cmode -ef $EXFILES -ef $trsyncexl)
-cpt=$( "${cm[@]}" > /dev/null 2> >(grep "changed size while reading") ) # supress stat on .wh.
+cpt=$( "${cm[@]}" 2>&1 >/dev/null | grep "changed size while reading") # supress stat on .wh.
 if [[ -n "$cpt" ]]; then echo "$cpt" ; rm "$target$em$rname" && return 1 ; fi
 }
 run_cmd() { if [ "$FEEDBACK" != "true" ]; then "$@" >>"$UPDATE" 2>/dev/null ; else "$@" | tee -a "$UPDATE" ; fi ; } # see Merge
 procxzm() {
-cd $ch || { mount -o remount,udba=none /; exit; }
+adtcmd=() ; cd $ch || { mount -o remount,udba=none /; exit; }
 if [[ -z "$1" ]]; then
     adtcmd=(-e '*.wh.*') 
     IFS="
@@ -145,7 +145,7 @@ if [[ -z "$1" ]]; then
     for y in $(find $FOLDERS -name ".wh.*"); do
 	    f="${y//.wh./}"
         test -e "$mtmp/$f" && rm -rf "${mtmp:?}/$f";
-        test -e "$INAME/*/$f" || { echo "$y" | fixsqh >> $QEXCL; echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }
+        test -e "$INAME"/*/"$f" || { echo "$y" | fixsqh >> $QEXCL; echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }
     done
     cat $EXCL | unfixwh | fixsqh > $exclfiles   
     test -s $exclfiles && grep -Fvxf $EXFILES $exclfiles > $UPDATE && rm $exclfiles; test -s $UPDATE && cat $UPDATE >> $EXFILES && rm $UPDATE
@@ -157,8 +157,8 @@ if [[ -z "$1" ]]; then
     unset IFS
     find $mtmp -name ".wh.*" -exec rm -r {} \;
     find . -name ".wh.*" ! -name ".wh..*" -exec rm -r {} \;
-fi
-if [[ -s "$EXFILES" ]]; then  base_cmd=(rsync -aHv --exclude-from="$EXFILES" --exclude-from="$trsyncexl") ; else base_cmd=(rsync -aHv --exclude-from="$trsyncexl" ) ; fi #Merge
+fi  # Merge build the command and rsync
+if [[ -s "$EXFILES" ]]; then base_cmd=(rsync -aHv "${adtcmd[@]}" --exclude-from="$EXFILES" --exclude-from="$trsyncexl") ; else base_cmd=(rsync -aHv "${adtcmd[@]}"--exclude-from="$trsyncexl" ) ; fi
 for x in $FOLDERS; do run_cmd "${base_cmd[@]}" "${ch}/${x}/" "$mtmp/${x}/" ; done  
 trlt=$?
 if [ "$trlt" -ne 0 ]; then errmsg "$mtmp" "updating .xzm" ; fi 
@@ -184,7 +184,7 @@ local instm="$1"
     fi
     if [ "$ssbn" == "" ]; then
         if [ "$validrlt" == "false" ]; then cyan "mfile byte match failed generating new serial no." ; else cyan "no msr file. creating new one and new serial." ; fi
-        ssbn=$(rand_alpha)$$$(printf "%02d" $((RANDOM % 100)))
+        ssbn=$(rand_alpha)${$}$(printf "%02d" $((RANDOM % 100)))
     fi
     if [ "$rlt" == "true" ]; then
         if [ "$validrlt" == "false" ]; then
@@ -206,11 +206,10 @@ local instm="$1"
     SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'` ;  rname="${MODULENM}${SERIAL}_uid_L${ssbn}.xzm"
     if [ "$instm" != "nolmdl" ]; then
 		cmd=(mksquashfs $mtmp "$target$em$rname" -comp $cmode -e '*.wh.*' -ef $EXFILES -ef $trsyncexl)
-        [[ -s "$QEXCL" ]] && cmd+=(-ef "$QEXCL")
-		"${cmd[@]}" > /dev/null 2>&1    
+        [[ -s "$QEXCL" ]] && cmd+=(-ef "$QEXCL") ; "${cmd[@]}"
         if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print $end - $start}") ; fi
     else
-        newxzm
+        newxzm "_uid_L"
     fi
 	if [ "$ROLLBCK" == "true" ]; then
 		if [ -d "${target}${em}/archive/_uid_L" ]; then
