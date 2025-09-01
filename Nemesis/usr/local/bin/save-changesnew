@@ -5,11 +5,23 @@
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/save-changesnewfnts
-if [ `whoami` != "root" ]; then echo "Please enter your root password below" ; su - -c "/usr/local/bin/save-changesnew '${BASEDIR}' '${USER}' " ; exit ; else [ "$2" == "" ] && theUSER="guest" || theUSER=$2 ; fi
+if [ `whoami` != "root" ]; then echo "Please enter your root password below" ; su - -c "/usr/local/bin/save-changesnew '${BASEDIR}' '${USER}' $1 " ; exit ; else [ "$2" == "" ] && theUSER="guest" || theUSER=$2 ; fi
 thetgt="$1" ; if [ "$thetgt" == "" ]; then thetgt=$BASEDIR; fi     # <----- for autosaving change to "/mnt/sda"  ie   /mnt/sda3          /etc/rc.d/rc.local_shutdown
 if  ! id $2 >/dev/null 2>&1; then echo "user:" ${2} "not found"; exit 0 ; fi # quick user check we test the target directory $1 after VARS
 if ! grep -iq "Artix" /etc/os-release; then echo "Wrong version of developer buddy. Please use porteus version." && exit 0 ; fi
 # CHANGABLE
+autosave="true"                # changes=EXIT: only ie automatic append changes-commit to call this script if false sets .. to -x
+
+
+d2drive="true"                 # default is false   for systems with low memory save directly to drive
+                                        # default is save to memory for staging purposes and convenience of modifying
+                                        # ect more versatle and efficient (less writes on hd)
+                                        # but systems with low memory may want to use this to avoid any potential
+                                        # exceedence
+
+d2dmdl="false"					# default false  use harddrive for temp dir for modules
+mdldvc=""                        # default null. if not enough memory use this device.       ie /mnt/sda3
+
 grubln=""                                     # default null.  Point to Line number ie  linux /boot/syslinux/vmlinuz from=/dev/nvme0n1p4 root= ...   to automatically update grub for graphics extramod to boot with changes
 bootdvc=""		                              # default null. Point to the line number linux /boot/syslinux/vmlinuz from=/dev/nvme0n1p4 root=UUID=... to automatically update grub for graphics extramod to boot with changes
 
@@ -17,6 +29,7 @@ target=$thetgt                               # change this to specify the locati
                                                 # examples      "/mnt/sdx"   ie /mnt/sda3
                                                 #                   "/dev/sdx"
                                                # avoid trailing /
+
 
 #Folders to include from changes      adjust if wanted            set to include changes-exit default folders
 FOLDERS="bin etc home lib lib64 opt root sbin usr var"
@@ -57,7 +70,7 @@ logSPRF="delete"                         # When log size limit reached what to d
                                             #
                                             # stop      dont log anymore
 
-mdllmt=4                             # Auto Graphics mode module merging default 7
+mdllmt=5                             # Auto Graphics mode module merging default 7
                                                 # when reached will automatically merge if mrgMODULES is set to true below
                                                 # see mrgMODULES boolean
 
@@ -88,16 +101,12 @@ mrgMODULES="true"           # Automatically merge changes modules if over limit 
 keepMRGED="false"       # default is false so delete the old ones after merging
 # End Non linked state options
 
-d2drive="true"                 # default is false   for systems with low memory save directly to drive
-                                        # default is save to memory for staging purposes and convenience of modifying
-                                        # ect more versatle and efficient (less writes on hd)
-                                        # but systems with low memory may want to use this to avoid any potential
-                                        # exceedence
 
-d2dmdl="false"					# default false  use harddrive for temp dir for modules
+
+
 
 # Terminal output / feedback
-FEEDBACK="false"                # default false     New version 3 feature
+FEEDBACK="true"                # default false     New version 3 feature
                                             # show more verbose feedback from rsync ect in terminal while saving
 
 LOGGING="true"                  # default is true change if you dont want logging
@@ -133,185 +142,42 @@ ch=/mnt/live/memory/changes									;			INAME=/mnt/live/memory/images #system ch
 SFOLDERS=/tmp/save.sfolders.tmp								;			trsyncexl=/usr/local/save-changesnew/excld.ini
 EXFILES=/tmp/exfiles.log											;			EXCL=/tmp/save.excl.tmp	 # for egrep regrex
 QEXCL=/tmp/squashexfiles.log									;			EXCLUDED=/tmp/save.excluded.tmp
-CHNEXIT_CONF=/etc/changes-exit.conf						;			exclfiles=/tmp/save.squashregex.tmp  #spare mp
-UPDATE=/tmp/save.update.tmp									;			oMF=/tmp/flog.log	#original module name list used for merging
+EXFILES=/tmp/save.exfiles.tmp									;			exclfiles=/tmp/save.squashregex.tmp  #spare tmp
+UPDATE=/tmp/save.update.tmp									;			oMF=/tmp/flog.log
+CHNEXIT_CONF=/etc/changes-exit.conf						;			chc=/etc/rc.d/rc.local_shutdown
 USR=$theUSER															;			LOGDIR=/home/$USR/Downloads
-EXFILES=/tmp/save.exfiles.tmp # rsync mksqu
-LOGFILE="save.sfiles.tmp"														#; SVFILES=$MNAME/home/$USR/Downloads/save.sfiles.tmp            # wait until changes exit for nemesis #log file
+LOGFILE="save.sfiles.tmp"										#	;			SVFILES=$MNAME/home/$USR/Downloads/save.sfiles.tmp            # wait until changes exit for nemesis #log file
+mbyte=1048576														;			osize=0
 IFOLDERS=""																;			rname=""
 adtCMD=""																;			MODULENM=""
 sentinal=""
-mbyte=1048576														;			osize=0
 #booleans
 rlt=""
+autosave $3
 if [ "$LOGGING" == "false" ] && [ "$ANALYTICS" == "true" ]; then echo analystics requires logging to be true. && exit 0 ; fi
 if [ ! -e $target ]; then echo "Target does not exist" && exit 0 ; fi
-# used to create one l module from another simple function that is called in different conditions in the script saves lines
-createlmdl () {
-local instm="$1" # so we can see where its called from
-    if [ "$instm" != "nolmdl" ]; then
-
-        mkdir $mtmp
-
-        for mods in "$target$em/"*_uid_L*.xzm; do  # we know there in only one extract it so it wont iterate over the literal pattern
-            if [ "$fname" == "" ]; then fname="$mods"; fi
-            if ! xzm2dir $mods $mtmp; then     # extract it           # $target$em$mods
-                mount -o remount,udba=none /
-                red "Error processing ${instm}"  >&2
-                cyan "Everything preserved. Check script"
-                exit 1
-            fi
-        done
-	    IFS="
-	    "
-        cd $ch || { mount -o remount,udba=none /; exit; }
-        for y in $(find $FOLDERS -name ".wh.*"); do
-
-			f="${y//.wh./}"
-			test -e "$mtmp/$f" && rm -rf "${mtmp:?}/$f";
-			test -e "$INAME/*/$f" || { echo "$y" | fixsqh >> $QEXCL; echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }
-
-        done
-
-
-        test -s $EXCL && cat $EXCL | unfixwh | fixsqh > $exclfiles && grep -Fvxf $EXFILES $exclfiles > $UPDATE; test -s $UPDATE && cat $UPDATE >> $EXFILES
-	    test -s "$EXCL" && { find $FOLDERS -type d | egrep -vf $EXCL || find $FOLDERS -type d; } > $SFOLDERS
-
-        for y in $(find $mtmp -name ".wh.*"); do
-            f="$(echo "$y" | sed -e "s^$mtmp^^g" -e 's^\.wh\.^^g')"
-            test -e "$f" && rm "$y";
-        done
-
-        find $mtmp -name ".wh.*" -exec rm -r {} \;
-
-        test -e $tmp/home/$USR/Downloads/$LOGFILE && rm $tmp/home/$USR/Downloads/$LOGFILE
-        test -s "$EXFILES" && { rsync -av --exclude-from=$EXFILES --exclude '\.wh\.*' $tmp/ $mtmp; } > $UPDATE || rsync -av --exclude '\.wh\.*' $tmp/ $mtmp > $UPDATE
-
-	    BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
-	    echo $BRAND >> $UPDATE
-
-        if [ "$linkedLOGPRF" == "full" ]; then
-            cat $UPDATE >> $LOGDIR/$LOGFILE
-            cp $LOGDIR/$LOGFILE $mtmp/home/$USR/Downloads/$LOGFILE
-        elif [ "$linkedLOGPRF" == "incr" ]; then
-	        cp "$UPDATE" $mtmp/home/$USR/Downloads/$LOGFILE
-	        mv "$UPDATE" home/$USR/Downloads/$LOGFILE
-        else
-	        mv "$UPDATE" home/$USR/Downloads/$LOGFILE
-        fi
-
-        cd $tmp || exit
-        unset IFS
-    fi
-
-    if [ "$ssbn" == "" ]; then
-        if [ "$validrlt" == "false" ]; then
-             cyan "mfile byte match failed generating new serial no."
-        else
-            cyan "no msr file. creating new one and new serial."
-        fi
-        ssbn=$(rand_alpha)$$$(printf "%02d" $((RANDOM % 100)))
-    fi
-    if [ "$rlt" == "true" ]; then
-        if [ "$validrlt" == "false" ]; then
-            c=${fname%.xzm}".bak"
-            mv $target$em"/"$fname $target$em"/"$c
-        else
-            green "Matched.. In link state"
-            if [ "$keepLINKEDMRGED" == "false" ]; then
-                rm $target$em"/"$fname
-            else
-                c=${fname%.xzm}".bak"
-                mv $target$em"/"$fname $target$em"/"$c
-            fi
-        fi
-    elif [ "$rlt" == "" ] && [ "$instm" != "nolmdl" ]; then
-        c=${fname%.xzm}".bak"
-        mv "$fname" $c
-    fi
-
-    SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`
-
-    rname="${MODULENM}${SERIAL}_uid_L${ssbn}.xzm"
-
-    if [ "$instm" != "nolmdl" ]; then
-        test -s $QEXCL && { mksquashfs $mtmp "$target$em$rname" -comp $cmode -ef $EXFILES -ef $QEXCL; } || mksquashfs $mtmp "$target$em$rname" -comp $cmode -ef $EXFILES
-    else
-        find $tmp -name ".wh.*" -exec rm -r {} \;
-        if ! mksquashfs $tmp "$target$em$rname" -comp $cmode -ef $EXFILES; then
-            mount -o remount,udba=none /
-            red "Error making the new module in ${instm}: ${rname}" >&2
-            cyan "Everything preserved.  Check the script"
-            exit 1
-        fi
-    fi
-	 if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print $end - $start}") ; fi
-	if [ "$ROLLBCK" == "true" ]; then
-		if [ -d "${target}${em}/archive/_uid_L" ]; then
-			r=$(find "${target}${em}/archive/_uid_L" -maxdepth 1 -type f -name '*.bak' 2>/dev/null | wc -l)
-			if [ "$r" -ge "$archLMT" ]; then
-				for mods in ${target}${em}/archive/_uid_L/*_uid_L*.bak; do
-					rm -f $mods
-					test -f $mods.txt && rm $mods.txt
-					break
-				done
-			fi
-		else
-			mkdir -p "${target}${em}/archive/_uid_L"
-		fi
-		cp "$target$em$rname" "${target}${em}/archive/_uid_L${rname}.bak"
-		if [ "$ROLLSUMRY" == "true" ]; then
-			find "$tmp" -type f -printf '%P\n' >> "${target}${em}/archive/_uid_L${rname}.bak.txt"
-			echo >> "${target}${em}/archive/_uid_L${rname}.bak.txt"
-		    BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
-    		echo $BRAND >> "${target}${em}/archive/_uid_L${rname}.bak.txt"
-		fi
-	fi
-
-    xsize=$( du -sb "$target$em$rname" | cut -f1)
-    fname="${mdlnm}${SERIAL}_uid_L${ssbn}.xzm"
-    if [ "$rlt" == "true" ]; then
-        sed -i "s/bytes:.*/bytes:${xsize}/" $msr
-        sed -i "s/file name:.*/file name:${fname}/" $msr
-    else
-        echo "bytes:"$xsize > $msr
-        echo "file name:${fname}" >> $msr
-        echo >> $msr
-    fi
-    cd $tmp || exit
-    rm -rf $mtmp ; test -e $exclfiles && rm $exclfiles
-}
-if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
-IFOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e /mnt/live/memory/changes/"$x" && echo "$x"; done)"
-dycmb ; exldir $EXFILES
-sync
-mount -o remount,udba=notify /
 msr=${target}${em}"/lscheck"
+IFOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e /mnt/live/memory/changes/"$x" && echo "$x"; done)"
+dycmb ; exldir $EXFILES ; cyan "Syncing what's left in buffers" && sync
+if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
+mount -o remount,udba=notify /
 MODULENM="${chxzm%.xzm}" ; mdlnm="${MODULENM#/}" ; emfld="${em#/}"
 rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
-if [ "$d2drive" == "false" ] || { [ "$d2drive" == "true" ] && [ "$d2dmdl" == "false" ] && [ -z "$rlt" ]; } ; then # Not d2d or graphics d2dmdl
-	mkdir $tmp
-    : > /tmp/incfilter.log
-    green "Staging... "
-	for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
-else
-    green "Direct to drive saving"
-fi
+if [ "$d2drive" == "false" ] || { [ "$d2drive" == "true" ] && [ "$d2dmdl" == "false" ] ; } ; then green "Staging... " ; else green "Direct to drive saving" ; fi
 if [ "$rlt" != "" ]; then
-    if [ "$rlt" == "/" ]; then
-        rlt=""
-    fi
+    if [ "$rlt" == "/" ]; then rlt="" ; fi
 	[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt}
 	[[ "$rlt" == *"$target"* ]] && rlt=${rlt%/} && target=""
-	osize=$( du -sb "${target}${rlt}${MODULENM}/" | cut -f1) # original size
+	osize=$( du -sb "${target}${rlt}${MODULENM}/" | cut -f1)
+    : > /tmp/incfilter.log
     if [ "$d2drive" == "true" ]; then
         dirSRC="$target$rlt/changes"
-		: > /tmp/incfilter.log
 		for folder in $FOLDERS; do echo "+ /$folder/" >> /tmp/incfilter.log ; done
 		for fld in $EXCLUDE; do if [[ "${fld:0:1}" == "/" ]]; then fld="${fld#/}" ; else fld="*${fld}*" ; fi ; echo "- /$fld/" >> /tmp/incfilter.log ; done
 		echo "- /*" >> /tmp/incfilter.log
     else
-        dirSRC=$tmp
+		mkdir $tmp ; dirSRC=$tmp
+		for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
     fi
 	pst=$pwd ; cd $dirSRC
 
@@ -384,7 +250,6 @@ if [ "$rlt" != "" ]; then
 
                                 mv $UPDATE "${target}${rlt}${MODULENM}.bak.log"
                                 
-
                             elif [ "$logSPRF" == "stop" ]; then
                                 adtCMD=""
                                 if [ "$ANALYTICS" == "true" ]; then
@@ -402,8 +267,7 @@ if [ "$rlt" != "" ]; then
                 fi
             else
                 nsize=$osize
-                green "There was no logfile generating..." ; > "${target}${rlt}${MODULENM}.bak.log"
-				dlog
+                green "There was no logfile generating..." ; > "${target}${rlt}${MODULENM}.bak.log" ; dlog
                 { echo ;  echo "original size(source)=Unkown" ; echo "new size(source)=$nsize" ; echo  "END ORIGINAL FILES $(date +"%m-%d-%y_%R")"; } >> "${target}${rlt}${MODULENM}.bak.log"
 		        nLOG="true"
 			fi
@@ -509,11 +373,7 @@ if [ "$rlt" != "" ]; then
 
         if [ "$ANALYTICS" == "true" ]; then
 			ossize=$( sed -nE 's/.*original size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n 1)
-            if [ "$ossize" == "" ]; then
-                oput="Unkown"
-            else
-                oput="$(( ossize / mbyte )) MB"
-            fi
+            if [ "$ossize" == "" ]; then oput="Unkown" ; else oput="$(( ossize / mbyte )) MB" ; fi
 
             csize=$(du -sb "${target}${rlt}${MODULENM}.bak/" | cut -f1)
             nsize=$osize
@@ -538,7 +398,7 @@ if [ "$rlt" != "" ]; then
             if (( c != 0 )); then cyan " Since the original backup was first made sent" $(( ( c + z ) / mbyte )) "MB worth of data" ; fi
               
             if [ "$logSPRF" != "stop" ] && [ "$nLOG" == "true" ]; then
-                size=$( stat -c %s "${target}${rlt}${MODULENM}.bak.log")
+                size=$( stat -c %s "${target}${sfilesrlt}${MODULENM}.bak.log")
                 if (( size > logSIZE * mbyte )); then
                 red "New log file made is greater than the limit. adjust if needed to keep log data on next backup."
                 fi
@@ -571,7 +431,6 @@ if [ "$rlt" != "" ]; then
         	fi
 		fi
 		if [ "$LOGGING" == "false" ]; then test -f "${target}${rlt}${MODULENM}.bak.log" && rm "${target}${rlt}${MODULENM}.bak.log" ; fi
-			
         cyan "Creating new backup this may take a few minutes."
 
         if [ "$FEEDBACK" != "true" ]; then
@@ -592,9 +451,8 @@ if [ "$rlt" != "" ]; then
 			sed -i '/some files vanished/d' "${target}${rlt}${MODULENM}.bak.log"
 		fi
 		end=$(date +%s.%N)
-        cyan "Your changes backup has been created! in ${target}${rlt}/"
-        cyan "${MODULENM}.bak/"
-
+        cyan "Your changes backup has been created! in ${target}${rlt}/" ; cyan "${MODULENM}.bak/"
+        
         if [ "$ANALYTICS" == "true" ]; then
 			if [ "$ANALYTICSECT" == "true" ] ; then el=$(awk "BEGIN {print $end - $start}") ; printf "Saving took %.3f seconds.\n" "$el" ; echo ; fi
             csize=$( du -sb "${target}${rlt}${MODULENM}.bak/" | cut -f1)
@@ -607,33 +465,30 @@ if [ "$rlt" != "" ]; then
         echo
     fi
 	cd $pst
-
 else # Graphics mode
 	if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
     if [ "$d2drive" == "true" ] && [ "$d2dmdl" == "true" ]; then
-		test -d $thetgt/tmp && { mkdir $thetgt/tmp$$; tmp=$thetgt/tmp$$; } || { mkdir $thetgt/tmp; tmp=$thetgt/tmp; }
-		test -d $thetgt/mtmp && mtmp=$thetgt/mtmp$$ || mtmp=$thetgt/mtmp
+		if [ -z "$mdldvc" ]; then xtgt="$thetgt" ; else xtgt="$mdldvc" ; fi
+		#test -d $thetgt/tmp && { mkdir $thetgt/tmp$$; tmp=$thetgt/tmp$$; } || { mkdir $thetgt/tmp; tmp=$thetgt/tmp; }
+		test -d $xtgt/mtmp && mtmp=$xtgt/mtmp$$ || mtmp=$xtgt/mtmp
 		green "Staging xzm to local hdd on d2dmdl..."
-    	for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
+    	#for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
     fi
     SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`
 	line=43 #Bootloader
 	pth="/boot/syslinux/porteus.cfg"
-
- 	# Avoid confusion we initially stored rlt and can reference it. so use rltt
-    [[ -n "$bootdvc" ]] && thetgt=$bootdvc && [[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; } 
-    test -e "$thetgt$pth" && rltt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on ln?  ## Notes returns the value grep 'extramod=[^ ]*')
+ 	
+    [[ -n "$bootdvc" ]] && thetgt=$bootdvc && [[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; }  
+    test -e "$thetgt$pth" && rltt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Avoid confusion we initially stored rlt and can reference it. so use rltt
     epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g')
-
     if [ "$rltt" != "" ]; then  
         if [[ ! "${rltt}" == *$BASEDIR"/"$emfld* ]]; then
             test -d "$target$em" || mkdir -p "$target$em"
 			[[ -n "$grubln" ]] && test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak
-            sed -i "s|\(extramod=\)\([^ ]*\)|\1${epath};\2|" "$thetgt$pth" #append to start of boot loader
+            sed -i "s|\(extramod=\)\([^ ]*\)|\1${epath};\2|" "$thetgt$pth"
             loadermsg
             IFS=';' read -ra parts <<< "${rltt}"
-            unset IFS
-            u=""
+            unset IFS ; u=""
             for part in "${parts[@]}"; do
                 erlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*')
                 testfile="${part}/.writetest_${$}"
@@ -665,9 +520,7 @@ else # Graphics mode
     fi # END Bootloader
 
     if [ -s "${target}${em}${MODULENM}${SERIAL}_uid_$$.xzm" ]; then
-        echo
-        echo A changes .xzm was detected but nothing was done.
-        cyan "${MODULENM}${SERIAL}_uid_$$.xzm already exists" && { sleep 5; exit 0; }
+		echo ; echo A changes .xzm was detected but nothing was done. ; cyan "${MODULENM}${SERIAL}_uid_$$.xzm already exists" && { sleep 5; exit 0; }
     else
         test -d "$target$em" || mkdir "$target$em"+
         touch "$target$em/._test1" 2>/dev/null
@@ -692,7 +545,7 @@ else # Graphics mode
             if [ "$f" -gt 1 ]; then
                 echo "Cannot have more than one _uid_L\.\*\.xzm file" && exit 0
             elif [ "$f" -eq 1 ]; then  # Good to go
-                cd $tmp ; rlt=""
+                rlt=""
                 if [ -e $msr ]; then
                     content=$(awk -v RS= '{gsub(/\n+$/, "", $0); print $0}' "$msr")
                     k=$( echo "$content" | sed -n 's/.*bytes:[[:space:]]*\([0-9]\+\).*/\1/p')
@@ -707,16 +560,14 @@ else # Graphics mode
                                 else
                                     validrlt="false"
                                 fi
-                                fname=$p
-                                rlt="true"
+                                fname=$p ; rlt="true"
                             fi
                         fi
                     fi
                     if [ "$rlt" == "true" ]; then
                         createlmdl "msr"
                     else
-                        cyan "Bad msr file. making new serial no. the previous one will be renamed to .bak"
-                        createlmdl "badmsr"
+                        cyan "Bad msr file. making new serial no. the previous one will be renamed to .bak" ; createlmdl "badmsr" 
                     fi
                 else
                     createlmdl "nomsr"
@@ -726,24 +577,19 @@ else # Graphics mode
                 createlmdl "nolmdl"
             fi
         else # End linked
-            rname="${MODULENM}${SERIAL}_uid_${$}.xzm"
-			mksquashfs $tmp "$target$em$rname" -comp $cmode -ef $EXFILES
-            if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print $end - $start}") ; fi
+            rname="${MODULENM}${SERIAL}_uid_${$}.xzm" ; newxzm "uid"
         fi
         chown $USR $target$em$rname
 		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then printf "Saving took %.3f seconds.\n" "$el" ; fi
-        cyan "Your changes have been saved. in ${target}${em}/"
-        cyan $rname
-        
+        cyan "Your changes have been saved. in ${target}${em}/" ;  cyan $rname
         if [ "$mrgMODULES" == "true" ] && [ "$linkedSTATE" == "false" ]; then
-        cd $target$em
-            r=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' | wc -l)
+        	cd $target$em ; r=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' | wc -l)
             if (( r > mdllmt)); then
                 green "Merging changes modules..." ; sleep 5
                 if ! /usr/local/save-changesnew/mergemodules.sh $keepMRGED $ROLLBCK $ROLLSUMRY $archLMT; then red "There was problem auto merging. see /tmp/error.log" ; cyan "Everything preserved." ; fi
                 cyan "Modules merged."
             fi
-        cd $pst
+        	cd $pst
         fi
     fi
 fi
@@ -752,5 +598,5 @@ test -e $EXCL && rm $EXCL
 test -e $UPDATE && rm $UPDATE
 #test -e $SFOLDERS && rm $SFOLDERS
 test -e /tmp/incfilter.log && rm /tmp/incfilter.log
-rm -rf $tmp ; sleep 5 && exit
+test -e $tmp && rm -rf $tmp ; sleep 5 && exit
 
