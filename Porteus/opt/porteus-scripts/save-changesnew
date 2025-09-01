@@ -123,7 +123,7 @@ keepMRGED="false"       # default is false so delete the old ones after merging
 # End Non linked state options
 
 # Terminal output / feedback
-FEEDBACK="false"                # default false     New version 3 feature  scrolling terminal look
+FEEDBACK="true"                # default false     New version 3 feature  scrolling terminal look
                                             # show more verbose feedback from rsyncautosave ect in terminal while saving
 
 LOGGING="true"                  # default is true change if you dont want logging
@@ -155,24 +155,24 @@ ROLLSUMRY="false"           # default false    Include file manifest for archive
 archLMT=4                        # how many unique roll backs to keep  both _uid_ and _uid_L seperately
 # END CHANGABLE
 # V3 core rsync backup on save-changesnew                 See   line  419    for original changes commit script
-tmp=/tmp/tmp$$ 																	;	mtmp=/tmp/mtmp$$                    							                    
-ch=/mnt/live/memory/changes 												;	exclfiles=/tmp/exfiles.log # spare tmp file
-EXCLUDED=/tmp/save.excluded.tmp										;	UPDATE=/tmp/save.update.tmp 
-QEXCL=/tmp/squashexfiles.log												;	trsyncexl=/usr/local/save-changesnew/excld.ini  #  rsync exclude Cache     cache2/*    ect     see for details
-SFOLDERS=/tmp/save.sfolders.tmp											;	chc=/opt/porteus-scripts/changes-commit
-oMF=/tmp/flog.log																	;	USR=$theUSER   
-mbyte=1048576																	;	osize=0					
-rname=""																				;	adtCMD=""	
-sentinal=""																			;	MODULENM=""  
+tmp=/tmp/tmp$$ 												            	;	mtmp=/tmp/mtmp$$                    							                    
+ch=/mnt/live/memory/changes 								        	;	exclfiles=/tmp/exfiles.log # spare tmp file
+EXCLUDED=/tmp/save.excluded.tmp									;	UPDATE=/tmp/save.update.tmp 
+QEXCL=/tmp/squashexfiles.log											;	trsyncexl=/usr/local/save-changesnew/excld.ini  #  rsync exclude Cache     cache2/*    ect     see for details
+SFOLDERS=/tmp/save.sfolders.tmp										;	chc=/opt/porteus-scripts/changes-commit
+oMF=/tmp/flog.log																;	USR=$theUSER   
+mbyte=1048576																;	osize=0					
+rname=""																			;	adtCMD=""	
+sentinal=""																		;	MODULENM=""  
 #booleans
 rlt=""
 ## changes commit
-DEST="$(cat /mnt/live/tmp/changes-exit >/dev/null 2>&1)"		; 	NAME="$(basename "${DEST:-}")"
-MNAME=/mnt/live/memory/images/changes							; 	INAME=/mnt/live/memory/images
-CHNEXIT_CONF=/etc/changes-exit.conf									; 	EXCL=/tmp/save.excl.tmp
-SFILES=/tmp/save.sfiles.tmp													;	UPDATE=/tmp/save.update.tmp
-LOGDIR=/home/$USR/Downloads											;	LOGFILE="save.sfiles.tmp"
-SVFILES=$MNAME/home/$USR/Downloads/save.sfiles.tmp		;	EXFILES=/tmp/save.exfiles.tmp   #holds excluded file list for rsync non regex
+DEST=""																			; 	NAME=""
+MNAME=/mnt/live/memory/images/changes						; 	INAME=/mnt/live/memory/images
+CHNEXIT_CONF=/etc/changes-exit.conf								; 	EXCL=/tmp/save.excl.tmp
+SFILES=/tmp/save.sfiles.tmp												;	UPDATE=/tmp/save.update.tmp
+LOGDIR=/home/$USR/Downloads										;	LOGFILE="save.sfiles.tmp"
+SVFILES=$MNAME/home/$USR/Downloads/save.sfiles.tmp	;	EXFILES=/tmp/save.exfiles.tmp   #holds excluded file list for rsync non regex
 MODULENM="${chxzm%.xzm}" ; mdlnm="${MODULENM#/}" ; emfld="${em#/}"
 rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
 autosave
@@ -322,9 +322,11 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
     # test -e $SFOLDERS && rm $SFOLDERS
 	#test -d $tmp && rm -rf $tmp
 	test -d $mtmp && rm -rf $mtmp
-	[[ -z "$sts" ]] && sleep 5 && exit
+	[[ -z "$sts" ]] && sleep 5
+	exit
 fi
 test -f /mnt/live/tmp/changes-exit || { echo "'changes=EXIT:' cheatcode is not active - exiting..."; exit; }
+DEST="$(cat /mnt/live/tmp/changes-exit)"	; 	NAME="$(basename "${DEST:-}")"
 if [[ $(grep ".dat" /mnt/live/tmp/changes-exit 2>/dev/null) ]]; then
 	Dest="Save.dat file"
 else
@@ -394,8 +396,8 @@ if [[ "$1" != "6" ]]; then
 		for y in $(find $FOLDERS -name ".wh.*"); do
 		  f="$(echo $y | sed 's@\.wh\.@@g')"
 		  test -e "$MNAME/$f" && rm -rf "$MNAME/$f";
-		  test -e "$INAME/*/$f" || { echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$MNAME/$y" && rm -f "$MNAME/$y"; }
-			    #         ^   changed back to "$INAME/*/$f"       to prevent binary operator expected on empty sym link
+		  test -e "$INAME"/*/"$f" || { echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$MNAME/$y" && rm -f "$MNAME/$y"; }
+			    #         ^   changed from "$INAME/*/$f"       to prevent binary operator expected on empty sym link
 		done
 
 		#  We have  EXCL  regex and        EXFILES   non regex to work with
@@ -437,7 +439,7 @@ if [[ "$1" != "6" ]]; then
 
 		#Reject old log file in session
 		test -e home/$USR/Downloads/"$LOGFILE" && rm home/$USR/Downloads/"$LOGFILE"
-	    test -s "$EXFILES" && { rsync -aHv --exclude-from=$EXFILES --exclude '\.wh\.*' $FOLDERS $MNAME; } > $UPDATE || rsync -aHv --exclude '\.wh\.*' $FOLDERS $MNAME > $UPDATE
+	    [[ -s $EXFILES ]] && { rsync -aHv --exclude-from=$EXFILES --exclude '\.wh\.*' $FOLDERS $MNAME; } > $UPDATE || [[ ! -s $EXFILES ]] && rsync -aHv --exclude '\.wh\.*' $FOLDERS $MNAME > $UPDATE
 		end=$(date +%s.%N)     
 		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ] && [ "$BACKUP" == "false" ] ; then el=$(awk "BEGIN {print $end - $start}") ; printf "Saving took %.3f seconds.\n" "$el" ; fi
 
@@ -474,7 +476,7 @@ if [[ "$1" != "6" ]]; then
 
 		# Remove conflicting whiteouts
 		for y in $(find $MNAME -name ".wh.*"); do
-			f="$(echo $y | sed -e 's^$MNAME^^g' -e 's^\.wh\.^^g')";
+			f="$(echo $y | sed -e "s^$MNAME^^g" -e 's^\.wh\.^^g')";
 			test -e "$f" && rm "$y";
 		done
 

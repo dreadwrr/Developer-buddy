@@ -137,7 +137,7 @@ fi
 arge=()
 for item in "$@"; do if [ "$item" != "inv" ]; then arge+=("$item") ; else arge+=("") ; argf="filtered" ; fi ;done
 p=${#arge[@]}
-while (( p < 5 )); do arge+="" ; ((p++)) ; done
+while (( p < 5 )); do arge+=("") ; ((p++)) ; done
 # gpg 1.4.23 and gpg-agent 2.1.11 
 #if ! gpg-connect-agent /bye >/dev/null 2>&1; then        ## change for working with gpg 1.4 and agent 2.1.11  uncomment 851 for pid
 #    green "Starting gpg-agent..."
@@ -202,7 +202,7 @@ if [ "$THETIME" != "noarguser" ] && [ "$THETIME" != "" ]; then # If a desired ti
 	cyan "Grabbing files (filtered) and searching for total sys files $1 seconds old or newer"
     p=60
 	tmn=$( echo "scale=2; $argone /$p" | bc)
-	if [ $(( $argone % $p )) -eq 0 ]; then tmn=$(( $argone / $p )); fi
+	if [ $(( argone % p )) -eq 0 ]; then tmn=$(( argone / p )); fi
 else # Search the default time  5 minutes.
     cyan "Grabbing files (filtered) and searching for total sys files 5 minutes old or newer"
     argone="5" ; tmn="5"
@@ -233,9 +233,9 @@ if [ -s $SORTCOMPLETE ]; then
 	PRD=$SRTTIME
 	if declare -p xfile &>/dev/null && [ ${#xfile[@]} -gt 0 ]; then printf "%s\n" "${xfile[@]}" >> $SORTCOMPLETE; fi
 	if [ -s $tout ]; then grep -v 'NOTA-FI-LE 77:77:77' "$tout" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' > $TMPOPT ; cat $TMPOPT >> $SORTCOMPLETE ; fi
-	s=$( echo $(date -d "$SRTTIME" "+%s"))
+	s=$(date -d "$SRTTIME" "+%s")
 	if [ "$THETIME" == "noarguser" ]; then RANGE=$(( s + 300 )) ; else RANGE=$(( s + argone )) ; fi
-	PRD=$( echo $(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S')) # convert back to YYYY MM-DD HH:MM:SS
+	PRD=$(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S') # convert back to YYYY MM-DD HH:MM:SS
 	grep -v 'NOTA-FI-LE 77:77:77' "$SORTCOMPLETE" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' > $tout ; mv $tout $SORTCOMPLETE
 	syschg="true"; sort -u -o $SORTCOMPLETE $SORTCOMPLETE
 	if [ "$updatehlinks" == "true" ] && [ "$backend" == "database" ]; then ulink "$SORTCOMPLETE" "$tout" ; fi
@@ -291,7 +291,7 @@ if [ "$SRCDIR" == "SRC" ]; then
 		if (( x < y )); then  #Default
 			sort -o $xdata $xdata
 			sort $RECENT > $xdata2
-			comm -23 $xdata1 $xdata2 > $tout
+			comm -23 $xdata $xdata2 > $tout
 			{ echo ; echo "Transfer: File transfer failed. " ; echo ; echo "Following file(s) were not transfered:" ; cat $tout ;} >> "/tmp/${appname}_xdata"
 		elif (( x == y)); then
 			{ echo "Transfer: File transfer verified " ; echo ; } >> "/tmp/${appname}_xdata"
