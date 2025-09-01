@@ -7,7 +7,7 @@ get_colors
 . /usr/local/save-changesnew/save-changesnewfnts
 if [ `whoami` != "root" ]; then echo "Please enter your root password below" ; su - -c "/usr/local/bin/save-changesnew '${BASEDIR}' '${USER}' $1 " ; exit ; else [ "$2" == "" ] && theUSER="guest" || theUSER=$2 ; fi
 thetgt="$1" ; if [ "$thetgt" == "" ]; then thetgt=$BASEDIR; fi     # <----- for autosaving change to "/mnt/sda"  ie   /mnt/sda3          /etc/rc.d/rc.local_shutdown
-if  ! id $2 >/dev/null 2>&1; then echo "user:" ${2} "not found"; exit 0 ; fi # quick user check we test the target directory $1 after VARS
+if ! id $2 >/dev/null 2>&1; then echo "user:" ${2} "not found"; exit 0 ; fi # quick user check we test the target directory $1 after VARS
 if ! grep -iq "Artix" /etc/os-release; then echo "Wrong version of developer buddy. Please use porteus version." && exit 0 ; fi
 # CHANGABLE
 autosave="true"                # changes=EXIT: only ie automatic append changes-commit to call this script if false sets .. to -x
@@ -137,19 +137,19 @@ archLMT=4						# how many unique roll backs to keep  both _uid_ and _uid_L seper
 # End Backup mode
 # END CHANGABLE BOOLEANS
 # END CHANGABLE
-tmp=/mnt/live/tmp/work$$											; 			mtmp=/tmp/mtmp$$
+tmp=/mnt/live/tmp/work$$									; 			mtmp=/tmp/mtmp$$
 ch=/mnt/live/memory/changes									;			INAME=/mnt/live/memory/images #system changes   and images    leave set
 SFOLDERS=/tmp/save.sfolders.tmp								;			trsyncexl=/usr/local/save-changesnew/excld.ini
-EXFILES=/tmp/exfiles.log											;			EXCL=/tmp/save.excl.tmp	 # for egrep regrex
-QEXCL=/tmp/squashexfiles.log									;			EXCLUDED=/tmp/save.excluded.tmp
-EXFILES=/tmp/save.exfiles.tmp									;			exclfiles=/tmp/save.squashregex.tmp  #spare tmp
+EXFILES=/tmp/exfiles.log									;			EXCL=/tmp/save.excl.tmp	 # for egrep regrex
+QEXCL=/tmp/squashexfiles.log								;			EXCLUDED=/tmp/save.excluded.tmp
+EXFILES=/tmp/save.exfiles.tmp								;			exclfiles=/tmp/save.squashregex.tmp  #spare tmp
 UPDATE=/tmp/save.update.tmp									;			oMF=/tmp/flog.log
-CHNEXIT_CONF=/etc/changes-exit.conf						;			chc=/etc/rc.d/rc.local_shutdown
-USR=$theUSER															;			LOGDIR=/home/$USR/Downloads
-LOGFILE="save.sfiles.tmp"										#	;			SVFILES=$MNAME/home/$USR/Downloads/save.sfiles.tmp            # wait until changes exit for nemesis #log file
-mbyte=1048576														;			osize=0
-IFOLDERS=""																;			rname=""
-adtCMD=""																;			MODULENM=""
+CHNEXIT_CONF=/etc/changes-exit.conf							;			chc=/etc/rc.d/rc.local_shutdown
+USR=$theUSER												;			LOGDIR=/home/$USR/Downloads
+LOGFILE="save.sfiles.tmp"								#	;			SVFILES=$MNAME/home/$USR/Downloads/save.sfiles.tmp            # wait until changes exit for nemesis #log file
+mbyte=1048576												;			osize=0
+IFOLDERS=""													;			rname=""
+adtCMD=""													;			MODULENM=""
 sentinal=""
 #booleans
 rlt=""
@@ -285,7 +285,7 @@ if [ "$rlt" != "" ]; then
                     else
 
                         if ! head -n 1 "${target}${rlt}${MODULENM&> /dev/null}.bak.log" | grep -q 'PAUSED'; then
-                            if head -n 1 "${target}${rlt}${MODULENM}.bak.log" | grep -q ' if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print $end - $start}") ; fiSTOP'; then
+                            if head -n 1 "${target}${rlt}${MODULENM}.bak.log" | grep -q 'STOP'; then
                                 sed -i '1{/STOP/ s/^/PAUSED/}' "${target}${rlt}${MODULENM}.bak.log"
                             else
                                   sed -i '1i PAUSED' "${target}${rlt}${MODULENM}.bak.log"

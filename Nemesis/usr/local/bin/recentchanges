@@ -150,26 +150,26 @@ if [ "${arge[0]}" == "search" ]; then
 elif [ "${arge[0]}" == "query" ]; then
 	if [ "$backend" == "default" ]; then  /usr/local/save-changesnew/query "$THETIME" $USR "$passdir"; exit; else python3 /usr/local/save-changesnew/query.py $pydbpst $email $USR $pydbpst $logpst $statpst   ; exit; fi
 fi
-tmp=/tmp/work$$															;	work=work$$
-workdir=/myfiles															;	chxzm=/rntfiles.xzm
+tmp=/tmp/work$$													;	work=work$$
+workdir=/myfiles												;	chxzm=/rntfiles.xzm
 ABSENT=$tmp/tmp_absent.txt										;	SVFILES=$tmp/save.rncfilesmanifest.tmp 
 UPDATE=$tmp/save.transferlog.tmp								;	SVFOLDERS=$tmp/save.rncfoldersmanifest.tmp 
-RECENT=$tmp/list_recentchanges_filtered.txt					;	atmp=/tmp/atmp$$ 
-RECENTAPP=$tmp/list_recentapp_filtered.txt					;	xdata=$atmp/logs_stats.log # dcryp log file     
+RECENT=$tmp/list_recentchanges_filtered.txt					    ;	atmp=/tmp/atmp$$ 
+RECENTAPP=$tmp/list_recentapp_filtered.txt					    ;	xdata=$atmp/logs_stats.log # dcryp log file     
 COMPLETE=$tmp/list_complete.txt									;	xdata2=$atmp/logs.log.log  
-RECENTNUL=$tmp/list_recentchanges_filterednul.txt		;	tout=$atmp/toutput.tmp 
-TMPCOMPLETE=$tmp/tmp_complete.txt							;	toutnul=$atmp/toutputnul.tmp
+RECENTNUL=$tmp/list_recentchanges_filterednul.txt		        ;	tout=$atmp/toutput.tmp 
+TMPCOMPLETE=$tmp/tmp_complete.txt							    ;	toutnul=$atmp/toutputnul.tmp
 RSYNCEXCL=$tmp/list_filesexclude.txt							;	rout=$atmp/routput.tmp 
 TMPOPT=$tmp/tmp_holding											;	flth=/usr/local/save-changesnew/flth.csv
-REJECTLOG=$tmp/list_rejectsrc.txt									;	slog=/tmp/scr # feedback
-FOLDERLOG=$tmp/save.totalfolders.tmp						;	THETIME="${arge[0]}" # shift for this script
-SORTCOMPLETE=$tmp/list_complete_sorted.txt				;	USRDIR=/home/$USR/Downloads
+REJECTLOG=$tmp/list_rejectsrc.txt								;	slog=/tmp/scr # feedback
+FOLDERLOG=$tmp/save.totalfolders.tmp						    ;	THETIME="${arge[0]}" # shift for this script
+SORTCOMPLETE=$tmp/list_complete_sorted.txt				        ;	USRDIR=/home/$USR/Downloads
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 SRCDIR=""
-diffrlt="false"											            ;		pstc="false"
-nodiff="false"											            ;       samerlt="false"
-syschg="false"														;		validrlt="false"
+diffrlt="false"											        ;		pstc="false"
+nodiff="false"											        ;       samerlt="false"
+syschg="false"												    ;		validrlt="false"
 approval="true"
 mkdir $tmp
 mkdir $tmp$workdir
@@ -212,9 +212,9 @@ if [ -s $SORTCOMPLETE ]; then
 	PRD=$SRTTIME
 	if declare -p xfile &>/dev/null && [ ${#xfile[@]} -gt 0 ]; then printf "%s\n" "${xfile[@]}" >> $SORTCOMPLETE; fi
 	if [ -s $tout ]; then grep -v 'NOTA-FI-LE 77:77:77' "$tout" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' > $TMPOPT ; cat $TMPOPT >> $SORTCOMPLETE ; fi
-	s=$( echo $(date -d "$SRTTIME" "+%s"))
+	s=$(date -d "$SRTTIME" "+%s")
 	if [ "$THETIME" == "noarguser" ]; then RANGE=$(( s + 300 )) ; else RANGE=$(( s + argone )) ; fi
-	PRD=$( echo $(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S')) # convert back to YYYY MM-DD HH:MM:SS
+	PRD=$(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S') # convert back to YYYY MM-DD HH:MM:SS
 	grep -v 'NOTA-FI-LE 77:77:77' "$SORTCOMPLETE" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' > $tout ; mv $tout $SORTCOMPLETE
 	syschg="true"; sort -u -o $SORTCOMPLETE $SORTCOMPLETE
 	if [ "$updatehlinks" == "true" ] && [ "$backend" == "database" ]; then ulink "$SORTCOMPLETE" "$tout" ; fi
@@ -270,7 +270,7 @@ if [ "$SRCDIR" == "SRC" ]; then
 		if (( x < y )); then  #Default
 			sort -o $xdata $xdata
 			sort $RECENT > $xdata2
-			comm -23 $xdata1 $xdata2 > $tout
+			comm -23 $xdata $xdata2 > $tout
 			{ echo ; echo "Transfer: File transfer failed. " ; echo ; echo "Following file(s) were not transfered:" ; cat $tout ;} >> "/tmp/${appname}_xdata"
 		elif (( x == y)); then
 			{ echo "Transfer: File transfer verified " ; echo ; } >> "/tmp/${appname}_xdata"
