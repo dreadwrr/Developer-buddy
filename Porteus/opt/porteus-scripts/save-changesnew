@@ -1,11 +1,9 @@
 #!/bin/bash
-#                                               Developer Buddy v3.0  Rsync backup of changes folder  Porteus edition  08/11/2025
+#                                               Developer Buddy v3.0  Rsync backup of changes folder  Porteus edition  08/30/2025
 # rsync backup to /changes.bak minimal writes as the backup would already be in place. Files are logged and its accurate
 # to system specs with --delete. Added drive to drive while this is fast the preferable way is to not use drive to drive
 # as it freezes the file system at that point in time. But on shutdown that wait would be too long. So drive to drive provides
 # a way to save on that condition. So both options are available depending on preference.
-#
-# module rollback is a possibility for porteus and could bring that disabled a few options as porteus has changes:EXIT/
 #
 # Hard drive changes commit   Save files via directory method    Final version
 #
@@ -16,26 +14,26 @@
 # Result saves your changes to your Changes=EXIT:  folder
 #
 # This is a proposed change to changes commit with directory method. All original lines are commented out to work with script
-
 # working off of base save-changes scripts by
 # Author: fanthom <fanthom@porteus.org>
-#
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/save-changesnewfnts
-## Changes commit
 # Check if 'changes=EXIT' cheatcode is active and not run from rc.6:
 if [[ "$1" != "6" ]]; then if [[ $(whoami) != "root" ]]; then yellow "Please enter root's password below:" ; su - -c "/opt/porteus-scripts/save-changesnew $USER" ; exit ; fi ; fi
 if [[ "$1" == "6" ]]; then theUSER="$2" ; thetgt="$4" ; else theUSER="$1" ; if [ -z "$theUSER" ]; then theUSER="guest" ; fi ; fi # Handle actual root call
 if [ -z "$thetgt" ]; then thetgt=$BASEDIR; fi     # <----- ie   /mnt/sda3   some root environments are null 
 # Notes
-# Changes commit vars   line 173          this is the main script
-# developer buddy  vars         160           this runs after changes commit if BACKUP  true
+# Changes commit vars   line 170          this is the main script
+# developer buddy  vars         158         this runs after changes commit if BACKUP  true
 #
 
 
 #CHANGABLE					# As changes exit uses changes-commit turn backup on to save a backup /changes.bak/
+
 BACKUP="false"				# Turn on backup feature of Developer buddy 3.0 to hdd on/off           this will run after changes-commit
+autosave="true"                # changes=EXIT: only ie automatic append changes-commit to call this script if false sets .. to -x
+
 
 d2drive="true"                 # default is false   for systems with low memory save directly to drive
                                         # default is save to memory for staging purposes and convenience of modifying
@@ -44,7 +42,9 @@ d2drive="true"                 # default is false   for systems with low memory 
                                         # but systems with low memory may want to use this to avoid any potential
                                         # exceedence
 
-d2dmdl="false"					# default false  use harddrive for temp dir for modules Not changes exit
+d2dmdl="false"					# default false  use harddrive for temp dir for modules Not changes exit use target
+mdldvc=""                        # default null. if not enough memory use this device.       ie /mnt/sda3
+
 
 
 grubln=""                                     # default null. Point to the line number linux /boot/syslinux/vmlinuz from=/dev/nvme0n1p4 root=UUID=... to automatically update grub for graphics extramod to boot with changes
@@ -55,13 +55,13 @@ target=$thetgt                               # change this to specify the locati
                                                 #                   "/dev/sda1"
                                                # avoid trailing /
 
+
 #Folders to include from changes      adjust if wanted            set tsave-changesnewfntso include changes-exit default folders
 IFOLDERS="bin etc home lib lib64 opt root sbin usr var"
 #Folders to exclude from changes
 EXCLUDE="/var/run /var/tmp share/Trash"   #default changes-exit configuration
                                             # keep original format  /var/run    is the base directory var
                                             # seperate with space            anything else other than / will be a pattern *****
-
 
 
 #Folders to exclude from changes                                         already set to exclude changes-exit default folders
@@ -93,7 +93,7 @@ logSPRF="delete"           # When log size limit reached what to do default dele
                             #
                             # stop      dont log anymore
 
-mdllmt=3                             # Auto Graphics mode module merging default 7
+mdllmt=5                             # Auto Graphics mode module merging default 5
                                                 # when reached will automatically merge if mrgMODULES is set to true below
                                                 # see mrgMODULES boolean
 linkedLOGPRF="incr"          # default incr  new log of only changes keeps log size down
@@ -115,7 +115,7 @@ linkedSTATE="true"             #This is precendence for changes:EXIT only on gra
 keepLINKEDMRGED="false"  # default is false so delete the old ones after merging if they are not in sync with each other
                                            # it automatically renames the old one to .bak. ****
 # Non linked state options
-mrgMODULES="false"           # Automatically merge changes modules if over limit value
+mrgMODULES="true"           # Automatically merge changes modules if over limit value
                                         #change this to automatically merge changes.xzm modules  ( applies to Graphics mode)
                                         # see $BASEDIR/extramod for mergemodule script to merge changes modules
 
@@ -123,8 +123,8 @@ keepMRGED="false"       # default is false so delete the old ones after merging
 # End Non linked state options
 
 # Terminal output / feedback
-FEEDBACK="false"                # default false     New version 3 feature  scrolling terminal look
-                                            # show more verbose feedback from rsync ect in terminal while saving
+FEEDBACK="true"                # default false     New version 3 feature  scrolling terminal look
+                                            # show more verbose feedback from rsyncautosave ect in terminal while saving
 
 LOGGING="true"                  # default is true change if you dont want logging
 
@@ -154,83 +154,64 @@ ROLLBCK="false"                       # backup module after merged to be able to
 ROLLSUMRY="false"           # default false    Include file manifest for archives
 archLMT=4                        # how many unique roll backs to keep  both _uid_ and _uid_L seperately
 # END CHANGABLE
-
-# V3 core rsync backup on save-changesnew                 See   line  323    for original changes commit script
-#VARS
-mtmp=/tmp/mtmp$$                    							;	tmp=/tmp/tmp$$                     #temporary directory  leave set
-ch=/mnt/live/memory/changes 								;	trsyncexl=/usr/local/save-changesnew/excld.ini  #  rsync exclude Cache     cache2/*    ect     see for details
-UPDATE=/tmp/save.update.tmp								;	SFOLDERS=/tmp/save.sfolders.tmp
-EXCLUDED=/tmp/save.excluded.tmp						;	oMF=/tmp/flog.log	#original module name list used for merging
-QEXCL=/tmp/squashexfiles.log								;	 exclfiles=/tmp/exfiles.log # spare tmp file
-mbyte=1048576													;	osize=0   # the original size of changes folder to be captured before moving things to /tmp
-USR=$theUSER
-rname=""														        ;	adtCMD=""	
-sentinal=""														    ;	MODULENM=""
+# V3 core rsync backup on save-changesnew                 See   line  419    for original changes commit script
+tmp=/tmp/tmp$$ 																	;	mtmp=/tmp/mtmp$$                    							                    
+ch=/mnt/live/memory/changes 												;	exclfiles=/tmp/exfiles.log # spare tmp file
+EXCLUDED=/tmp/save.excluded.tmp										;	UPDATE=/tmp/save.update.tmp 
+QEXCL=/tmp/squashexfiles.log												;	trsyncexl=/usr/local/save-changesnew/excld.ini  #  rsync exclude Cache     cache2/*    ect     see for details
+SFOLDERS=/tmp/save.sfolders.tmp											;	chc=/opt/porteus-scripts/changes-commit
+oMF=/tmp/flog.log																	;	USR=$theUSER   
+mbyte=1048576																	;	osize=0					
+rname=""																				;	adtCMD=""	
+sentinal=""																			;	MODULENM=""  
 #booleans
 rlt=""
-
-## Variables:
+## changes commit
 DEST="$(cat /mnt/live/tmp/changes-exit >/dev/null 2>&1)"		; 	NAME="$(basename "${DEST:-}")"
 MNAME=/mnt/live/memory/images/changes							; 	INAME=/mnt/live/memory/images
 CHNEXIT_CONF=/etc/changes-exit.conf									; 	EXCL=/tmp/save.excl.tmp
 SFILES=/tmp/save.sfiles.tmp													;	UPDATE=/tmp/save.update.tmp
 LOGDIR=/home/$USR/Downloads											;	LOGFILE="save.sfiles.tmp"
 SVFILES=$MNAME/home/$USR/Downloads/save.sfiles.tmp		;	EXFILES=/tmp/save.exfiles.tmp   #holds excluded file list for rsync non regex
-#LOG
-#NEW END
-# Graphics Not changes=EXIT:/ mode  <---
-MODULENM="${chxzm%.xzm}"
-mdlnm="${MODULENM#/}"
-emfld="${em#/}"
+MODULENM="${chxzm%.xzm}" ; mdlnm="${MODULENM#/}" ; emfld="${em#/}"
 rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
+autosave
+# Graphics Not changes=EXIT:/ mode  <---
 if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
-	if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
-	IFOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e /mnt/live/memory/changes/"$x" && echo "$x"; done)"
-	dycmb
-	msr=${target}${em}"/lscheck"
-	exldir $EXFILES
-	sync
+    msr=${target}${em}"/lscheck"
+	FOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e $ch/"$x" && echo "$x"; done)"
+	dycmb ; exldir $EXFILES ; cyan "Syncing what's left in buffers" && sync
+    if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
 	mount -o remount,udba=notify /
 	if [ "$d2drive" == "false" ] || { [ "$d2drive" == "true" ] && [ "$d2dmdl" == "false" ]; } ; then
-		mkdir $tmp
+		#mkdir $tmp
     	green "Staging... "
 	else
 		green "Direct to drive saving on d2dmdl"
-		test -d $thetgt/tmp && { mkdir $thetgt/tmp$$; tmp=$thetgt/tmp$$; } || { mkdir $thetgt/tmp; tmp=$thetgt/tmp; }
-		test -d $thetgt/mtmp && mtmp=$thetgt/mtmp$$ || mtmp=$thetgt/mtmp
+        if [ -z "$mdldvc" ]; then xtgt="$thetgt" ; else xtgt="$mdldvc" ; fi
+		#test -d $thetgt/tmp && { mkdir $thetgt/tmp$$; tmp=$thetgt/tmp$$; } || { mkdir $thetgt/tmp; tmp=$thetgt/tmp; }
+		test -d $xtgt/mtmp && mtmp=$xtgt/mtmp$$ || mtmp=$xtgt/mtmp
+        # for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
 	fi
-   for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
-
 	SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`
-	line=43 #Bootloader
-	pth="/boot/syslinux/porteus.cfg"
+	line=43 ; pth="/boot/syslinux/porteus.cfg" #Bootloader
     [[ -n "$bootdvc" ]] && thetgt=$bootdvc && [[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; } 
     [[ -z "$grubln" ]] && rltt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'changes=\K[^ ]*') && [[ -n "$rltt" ]] && insertmenu $thetgt$pth
-
 	test -e "$thetgt$pth" && rlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on ln?  ## Notes returns the value grep 'extramod=[^ ]*')
 	epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g')
-
-
 	if [ "$rlt" != "" ]; then
 		if [[ ! "${rlt}" == *$BASEDIR"/"$emfld* ]]; then
-            
-		    test -d "$target$em" || mkdir -p "$target$em"
+		    test -d "$target$em" || mkdir -p "$target$em" #Bootloader
 			[[ -n "$grubln" ]] && test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak
-		    #append to start of boot loader
 		    sed -i "s|\(extramod=\)\([^ ]*\)|\1${epath};\2|" "$thetgt$pth"
 		    loadermsg
-
 		    IFS=';' read -ra parts <<< "${rlt}"
-		    unset IFS
-		    u=""
-
+		    unset IFS ; u=""
 		    for part in "${parts[@]}"; do
 		        erlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*')
 		        testfile="${part}/.writetest_${$}"
-
 		        if touch "$testfile" 2>/dev/null; then
 		            rm -f "$testfile"
-
 		            for file in "${part}"/*_uid_*; do [ -e "$file" ] || continue ; mv "$file" "${target}${em}" ; u="true" ; done
 		        else
 		            echo "$part was not writable some previous changes modules with _uid_ could not be moved"
@@ -259,11 +240,8 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 		if [ -n "$grubln" ]; then test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak ; cmd="sed -i \"${line}s|\\\$| extramod=$epath/|\" \"$thetgt$pth\"" ; fi
 		test -e "$thetgt$pth" && bash -c "$cmd" || echo "Using other bootloader append ${target}${em} to it with extramod="
 	fi # END Bootloader
-
 	if [ -s "${target}${em}${MODULENM}${SERIAL}_uid_$$.xzm" ]; then
-		echo
-		echo A changes .xzm was detected but nothing was done.
-		cyan "${MODULENM}${SERIAL}_uid_$$.xzm already exists" && { sleep 5; exit 0; }
+		echo ; echo A changes .xzm was detected but nothing was done. ; cyan "${MODULENM}${SERIAL}_uid_$$.xzm already exists" && { sleep 5; exit 0; }
 	else
 		test -d "$target$em" || mkdir "$target$em"
 		touch "$target$em/._test1" 2>/dev/null
@@ -278,19 +256,17 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 		r=$(find "$target$em" -maxdepth 1 -type f -name '*_uid_*.xzm' | wc -l)
 		if [ "$r" -eq 0 ]; then # if this is the first time running and there isnt a symlink to the merge script create it
 		    if [ ! -e "$target$em"/mergemodules ]; then ln -s /usr/local/save-changesnew/mergemodules.sh "$target$em"/mergemodules; fi
-			if [ ! -e "$target$em"/createlmodule ]; then ln -s /usr/local/save-changesnew/createlmdl.sh "$target$em"/createlmodule; fi
+			if [ ! -e "$target$em"/createlmodule ]; then ln -s /usr/lofind "$mtmp" -type f -name ".wh.*"cal/save-changesnew/createlmdl.sh "$target$em"/createlmodule; fi
 		    if [ ! -e "$target$em"/renamebak ]; then ln -s /usr/local/save-changesnew/renamebak "$target$em"/renamebak; fi
 		    if [ ! -e "$target$em"/renameLbak ]; then ln -s /usr/local/save-changesnew/renameLbak "$target$em"/renameLbak; fi
 		fi
 		pst=$PWD
 		if [ "$linkedSTATE" == "true" ]; then
-
 		    f=$(find "$target$em" -maxdepth 1 -type f -name '*_uid_L*.xzm' | wc -l)
 		    if [ "$f" -gt 1 ]; then
 		        echo "Cannot have more than one _uid_L\.\*\.xzm file" && exit 0
-		    # Good to go
 		    elif [ "$f" -eq 1 ]; then
-		        cd $tmp ; rlt=""
+		        rlt=""
 		        if [ -e $msr ]; then
 		            content=$(awk -v RS= '{gsub(/\n+$/, "", $0); print $0}' "$msr")
 		            k=$( echo "$content" | sed -n 's/.*bytes:[[:space:]]*\([0-9]\+\).*/\1/p')
@@ -298,58 +274,40 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
 		                p=$( echo "$content" | sed -n 's/^file name:[[:space:]]*\(.*\)/\1/p')
 		                if [ "$p" != "" ]; then
 		                    if [ -f $target$em"/"$p ]; then
-
 		                        c=$( du -sb "${target}${em}/${p}" | cut -f1)
-
 		                        if [ "$c" -eq "$k" ]; then
 		                            ssbn=$( echo $p | sed -n 's/.*_uid_L\(.*\)\.xzm$/\1/p')
 		                            if [ "$ssbn" == "" ]; then cyan "failed to parse ssbn in msr"; fi
 		                        else
 		                            validrlt="false"
 		                        fi
-		                        fname=$p
-		                        rlt="true"
-
+		                        fname=$p ; rlt="true"
 		                    fi
 		                fi
 		            fi
 		            if [ "$rlt" == "true" ]; then
 		                createlmdl "msr"
 		            else
-		                cyan "Bad msr file. making new serial no. the previous one will be renamed to .bak"
-		                createlmdl "badmsr"
+		                cyan "Bad msr file. making new serial no. the previous one will be renamed to .bak" ; createlmdl "badmsr"
 		            fi
 		        else
 		            createlmdl "nomsr"
 		        fi
 		        cd $pst
-
 		    elif [ "$f" -eq 0 ]; then
 		        createlmdl "nolmdl"
 		    fi
-
 		else # End linked
-		    rname="${MODULENM}${SERIAL}_uid_${$}.xzm"
-			mksquashfs $tmp "$target$em$rname" -comp $cmode -ef $EXFILES
-			if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print $end - $start}") ; fi
+		    rname="${MODULENM}${SERIAL}_uid_${$}.xzm" ; newxzm "uid"
 		fi
 		chown $USR $target$em$rname
 		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then printf "Saving took %.3f seconds.\n" "$el" ; fi
-
-		cyan "Your changes have been saved. in ${target}${em}/"
-		cyan $rname
-
+		cyan "Your changes have been saved. in ${target}${em}/" ; cyan $rname
 		if [ "$mrgMODULES" == "true" ] && [ "$linkedSTATE" == "false" ]; then
-			cd $target$em
-		    r=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' | wc -l)
+			cd $target$em ;  r=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' | wc -l)
 		    if (( r > mdllmt)); then
-		        green "Merging changes modules..."
-		        sleep 5
-
-		        if ! /usr/local/save-changesnew/mergemodules.sh $keepMRGED $ROLLBCK $ROLLSUMRY $archLMT; then
-		            red "There was problem auto merging. see /tmp/error.log"
-		            cyan "Everything preserved."
-		        fi
+		        green "Merging changes modules..." ; sts="true" ; sleep 5
+		        if ! /usr/local/save-changesnew/mergemodules.sh $keepMRGED $ROLLBCK $ROLLSUMRY $archLMT; then red "There was problem auto merging. see /tmp/error.log" ; cyan "Everything preserved." ; fi
 		        cyan "Modules merged."
 		    fi
 			cd $pst
@@ -362,18 +320,16 @@ if [[ -z "$rlt" ]] && [[ "$1" != "6" ]]; then
     test -e $UPDATE && rm $UPDATE
     test -e $SFILES && rm $SFILES
     # test -e $SFOLDERS && rm $SFOLDERS
-	rm -rf $tmp
-	rm -rf $mtmp
-	sleep 5 && exit
+	#test -d $tmp && rm -rf $tmp
+	test -d $mtmp && rm -rf $mtmp
+	[[ -z "$sts" ]] && sleep 5 && exit
 fi
-# Not in changes exit?
 test -f /mnt/live/tmp/changes-exit || { echo "'changes=EXIT:' cheatcode is not active - exiting..."; exit; }
 if [[ $(grep ".dat" /mnt/live/tmp/changes-exit 2>/dev/null) ]]; then
 	Dest="Save.dat file"
 else
 	Dest="Save folder partition"
 fi
-
 if [[ "$1" != "6" ]]; then
 	if [ "$ANALYTICS" == "true" ] && [ "$BACKUP" == "false" ]; then start=$(date +%s.%N); fi
 	if [[ $(grep ".dat" /mnt/live/tmp/changes-exit 2>/dev/null) ]]; then
@@ -397,9 +353,8 @@ if [[ "$1" != "6" ]]; then
 	fi
 
 	# Folders to save: argument for `find' & check that they $changesexist.
-	FOLDERS="$(grep ^/ $CHNEXIT_CONF | sed s/.//)"
-    dycmb
-
+    FOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e $ch/"$x" && echo "$x"; done)" ; dycmb
+    
 	# Folders to exclude: argument for `egrep'
 	grep ^!/ $CHNEXIT_CONF | fixdir > $EXCL  #  has a ^ for egrep
 
@@ -445,18 +400,10 @@ if [[ "$1" != "6" ]]; then
 
 		#  We have  EXCL  regex and        EXFILES   non regex to work with
 		#
-		#  This routine can clean up EXCL to work with rsync tested
-		#  works. The point of this version is to not have regex for
-		#  rsync so all changes are for that reason
-		#
-		#  sed -i -e 's/\^//' -e 's|\\\.|.|g' -e 's|\]|\]\\|g' $EXCL
-		#
 		#> $EXFILES
 		#cat $EXCL | unfixwh | fixsqh > $EXCLUDED   Original 
-
 		# New 5.0
-       
-		exldir $EXFILES # generate exclude dirs
+		exldir $EXFILES
         test -s $EXCL && cat $EXCL | unfixwh | fixsqh > $UPDATE && grep -Fvxf $EXFILES $UPDATE > $QEXCL ; test -s $QEXCL && cat $QEXCL >> $EXFILES && rm $QEXCL
        
 
@@ -475,16 +422,13 @@ if [[ "$1" != "6" ]]; then
 		# Copy new and modified files -- skip excluded whiteouts and folders
 		# { test -s "$EXCL" && find $FOLDERS -not -type d | egrep -vf $EXCL || find $FOLDERS -not -type d; } > $SFILES
 		#
-		#
 
-		#
 		#  This routine can clean up EXCL to work with rsync tested
 		#  works. The point of this version is to not have regex for
 		#  rsync so all changes are for that reason
 		#
 		#  sed -i -e 's/\^//' -e 's|\\\.|.|g' -e 's|\]|\]\\|g' $EXCL
 		#
-
 
 		#Send files to drive and exclude from list of what to exclude  ie folders files etc
 		#
@@ -516,9 +460,6 @@ if [[ "$1" != "6" ]]; then
 		#find $MNAME -name ".wh.*" -exec rm -r {} \;
 
 	#NEW END
-
-
-
 	# ORIGINAL commented out to work with changes
 
 		# Copy new and modified files -- skip excluded whiteouts and folders
@@ -530,7 +471,6 @@ if [[ "$1" != "6" ]]; then
 		   # cat $SFILES | xargs -I {} cp -aufv --parents {} $MNAME >> $UPDATE    #Can add instead of above
 
 	# ORIGINAL END
-
 
 		# Remove conflicting whiteouts
 		for y in $(find $MNAME -name ".wh.*"); do
@@ -557,52 +497,36 @@ if [[ "$1" != "6" ]]; then
 		yellow "Skipping."
 	fi
 fi
-
 ## Developer buddy 3 rsync backup on  changes=EXIT:/porteus    save-changesnew
-if [[ "$3" == "yes" ]]; then ans=""; fi # called by changes-commit?
+if [[ "$3" == "yes" ]]; then ans=""; fi
 if [[ "$ans" = "" ]]; then
 	if [[ "$BACKUP" == "true" ]]; then
 		if [[ "$1" == "6" ]]; then # regen so independant
-			cyan "Backing up on shutdown..."
-			target=$4
-			FOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e /mnt/live/memory/changes/"$x" && echo "$x"; done)"
-            dycmb
-            exldir $EXFILES
+			cyan "Backing up on shutdown..." ; target=$4
+			FOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e $ch/"$x" && echo "$x"; done)"
+            dycmb ; exldir $EXFILES
 		#else # normal execution of this script
 		fi
         #rm $EXCL egrep and rsync exclude rm $exclfiles spare tmp rm $UPDATE This is available as a tmp file rm $EXFILES  # We need to reuse this as its already done
 		if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
 		if [ ! -e $target ]; then echo "Target does not exist" && exit 0 ; fi
-
 		rlt=$(cat /proc/cmdline | sed -n 's/.*changes=EXIT:\([^ ]*\).*/\1/p')
 		[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt}
 		[[ "$rlt" == *"$target"* ]] && { rlt=${rlt%/} && target=""; }
-		
 		test -e $target$rlt && if [ "$rlt" != "" ]; then osize=$( du -sb "${target}${rlt}${MODULENM}/" | tail -n1 | awk '{print $1}'); fi # original size
-
 		if [ "$LOGGING" == "false" ] && [ "$ANALYTICS" == "true" ]; then echo analystics requires logging to be true. && exit 0 ; fi
-
-		mkdir $tmp
+		mkdir $tmp ; : > /tmp/incfilter.log
 		if [ "$d2drive" == "false" ]; then
-			: > /tmp/incfilter.log
-			green "Staging... "
-			for x in $IFOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
+			green "Staging... " ; for x in $IFOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
 		else 
-			green "Direct to drive saving"
-			: > /tmp/incfilter.log
-			for folder in $IFOLDERS; do echo "+ /$folder/" >> /tmp/incfilter.log ; done
+			green "Direct to drive saving" ; for folder in $IFOLDERS; do echo "+ /$folder/" >> /tmp/incfilter.log ; done
 			for fld in $EXCLUDE; do if [[ "${fld:0:1}" == "/" ]]; then fld="${fld#/}" ; else fld="*${fld}*" ; fi ; echo "- /$fld/" >> /tmp/incfilter.log ; done
 			echo "- /*" >> /tmp/incfilter.log
 		fi
 		if [ "$rlt" != "" ]; then
 		    if [ "$rlt" == "/" ]; then rlt="" ; fi
-    		if [ "$d2drive" == "true" ]; then
-        		dirSRC="$target$rlt/changes"
-    		else
-        		dirSRC=$tmp
-    		fi
-			pst=$PWD
-			cd $dirSRC
+    		if [ "$d2drive" == "true" ]; then dirSRC="$target$rlt/changes" ; else dirSRC=$tmp ; fi
+			pst=$PWD ; cd $dirSRC
 		    if [ -d "${target}${rlt}${MODULENM}.bak/" ]; then
 		        green "Updating existing backup..."
 		        if [ "$LOGGING" == "true" ]; then
@@ -761,14 +685,12 @@ if [[ "$ans" = "" ]]; then
 								echo "Add up the last bytes sent values and add to total count=  at the top of the file before END ORIGINAL FILES.  if you want to keep exact track."
 							fi
 						fi
-
 						exit 1
 					elif [ $exc -eq 24 ]; then
 						cyan "Some files have vanished. Check for excluding cache files"
 						sed -i '/some files vanished/d' "${target}${rlt}${MODULENM}.bak.log"
 					fi
-		        else
-		          
+		        else        
 		            if [ "$nLOG" != "" ]; then
 		                if [ "$FEEDBACK" != "true" ]; then
 		                    rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > $UPDATE 2>&1  # capture the log in a sentinal
@@ -798,11 +720,9 @@ if [[ "$ans" = "" ]]; then
 						else
 							echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/"
 						fi
-
 						echo
 						echo "Or failing that"
 						printf 'rsync -aHv "%s" newdirectory/\tto make a new backup\n' "${target}${rlt}${MODULENM}/"
-
 						exit 1
 				    elif [ $exc -eq 24 ]; then
 						cyan "Some files have vanished. Check for excluding cache files"
@@ -815,7 +735,6 @@ if [[ "$ans" = "" ]]; then
 		            fi
 		        fi
 				end=$(date +%s.%N)
-
 		        cyan "Changes backup has been updated."
 
 		        if [ "$ANALYTICS" == "true" ]; then
@@ -882,7 +801,6 @@ if [[ "$ans" = "" ]]; then
 		    else
 				if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
 				mkdir ${target}${rlt}${MODULENM}.bak
-
 				if [ -f "${target}${rlt}${MODULENM}.bak.log" ]; then
 					glog "true"
 				else
@@ -895,14 +813,12 @@ if [[ "$ans" = "" ]]; then
 				if [ "$LOGGING" == "false" ]; then
 					test -f "${target}${rlt}${MODULENM}.bak.log" && rm "${target}${rlt}${MODULENM}.bak.log"
 				fi
-
 		        cyan "Creating new backup this may take a few minutes."
-
 
 		        if [ "$FEEDBACK" != "true" ]; then
 		            rsync -aH --stats --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" >> "${target}${rlt}${MODULENM}.bak.log" 2>&1
 		        else
-		            rsync -aHv --stats --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
+		            rsync -aHv --stats --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
 		        fi
 				exc=$?
 				if [ $exc -eq 1 ]; then
@@ -933,8 +849,7 @@ if [[ "$ans" = "" ]]; then
 		    fi
 			cd $pst
 		fi
-    	test -e $EXCLUDED && rm $EXCLUDED
-		rm -rf $tmp
+    	test -e $EXCLUDED && rm $EXCLUDED ; rm -rf $tmp
 	fi
 	if [[ "$1" != "6" && "$3" != "yes" ]]; then # Remove not shuttingdown
 		# Remount aufs with 'udba=none' flag:
@@ -948,4 +863,4 @@ if [[ "$ans" = "" ]]; then
 		#Remove /mnt/live/tmp/changes-exit if called from rc.6 (temporary for legacy initrd where cleanup still has changes=EXIT: routine)
 		[[ "$1" == "6" ]] && rm /mnt/live/tmp/changes-exit
 	fi
-fi # yes answer
+fi
