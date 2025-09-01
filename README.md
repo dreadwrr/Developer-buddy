@@ -90,7 +90,7 @@ Then take those files and make an .xzm. It will be placed in   /tmp  along with 
    if youre in graphics mode your changes will persist if you run this script. It makes saving a one click step on the desktop. And if youre on any other mode it simply makes a backup of your changes very
    efficiently as it has minimals writes because you may already have a backup in place. <BR><BR><BR><BR>
 
-![Alt text](https://i.imgur.com/QVWc23x.jpeg)
+
 
    Save Changes New            Porteus
 
@@ -115,6 +115,6 @@ In addition to the RSync backup it saves your changes with rsync in porteus.    
  This is a proposed change to changes commit with directory method. All original lines are commented out to work with script
 
  working off of base save-changes scripts by
-
+![Alt text](https://i.imgur.com/QVWc23x.jpeg)
  ![Alt text](https://i.imgur.com/4jOp3Ry.png) ![Alt text](https://i.imgur.com/3dXwKzW.png)
  ![Alt text](https://i.imgur.com/iZQ1s7t.png)
