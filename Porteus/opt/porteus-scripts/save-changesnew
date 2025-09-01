@@ -123,7 +123,7 @@ keepMRGED="false"       # default is false so delete the old ones after merging
 # End Non linked state options
 
 # Terminal output / feedback
-FEEDBACK="true"                # default false     New version 3 feature  scrolling terminal look
+FEEDBACK="false"                # default false     New version 3 feature  scrolling terminal look
                                             # show more verbose feedback from rsyncautosave ect in terminal while saving
 
 LOGGING="true"                  # default is true change if you dont want logging
