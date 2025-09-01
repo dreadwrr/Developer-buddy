@@ -1,36 +1,25 @@
 #!/bin/bash
-# save-changesnew functions to move options further up the script             08/14/2025
+# save-changesnew functions to move options further up the script             08/31/2025
 dycmb() {
     TFLD="$(for x in $FOLDERS; do test -e "$ch/$x" && echo "$x"; done)"
     FOLDERS="$TFLD" ; TFLD=""
-    [[ -n "$IFOLDERS" ]] && TFLD="$(for x in $(echo "$IFOLDERS" | tr ' ' '\n' | awk '!seen[$0]++'); do [[ ! " $FOLDERS " == *" $x "* ]] && echo "$x" ; done)" # Dynamically build with changes-exit conf
-    [[ -n "$TFLD" ]] && { FOLDERS="$FOLDERS $TFLD" ; IFOLDERS=$FOLDERS ; } # combine
+	# | tr ' ' '\n' | awk '!seen[$0]++'
+    [[ -n "$IFOLDERS" ]] && TFLD="$(for x in $IFOLDERS; do [[ ! " $FOLDERS " == *" $x "* ]] && echo "$x" ; done)"
+    [[ -n "$TFLD" ]] && { IFOLDERS="$TFLD" ; FOLDERS="$FOLDERS $IFOLDERS" ; }
 }
 #Generate exclude directories changes-commit
 exldir() {
-#FS=$'\n' read -ra arr <<< "$EXCLUDE"
 > $1
-#for item in "${arr[@]}"; do
-#	if [[ "${item:0:1}" == "/" ]]; then
-#		echo ".${item}" >> $1
-#	else
-#		echo $item >> $1
-#	fi
-#done
 grep ^!/ $CHNEXIT_CONF | fixdir > $EXCL
 if [ -s "$EXCL" ]; then
-	#cat $EXCL | fixexcl > $EXCLUDED
 	fixsqh < $EXCL > $EXCLUDED
-	#sed -i 's|\.||' $EXCLUDED
 	sed -i 's|^|/|' $EXCLUDED
-	while IFS= read -r line; do [[ -z "$line" ]] && continue ; if ! [[ " $EXCLUDE " =~ " $line " ]]; then EXCLUDE="$EXCLUDE $line" ; fi ; done < $EXCLUDED
+	while IFS= read -r line; do [[ -z "$line" ]] && continue ; if [[ ! " $EXCLUDE " == *" $line "* ]]; then EXCLUDE="$EXCLUDE $line" ; fi ; done < $EXCLUDED
 	unset IFS
-	#EXCLUDE="$EXCLUDE $(tr '\n' ' ' < $EXCLUDED | sed 's/ *$//')"
-	#sed -i 's|^/||' $EXCLUDED
-	> $EXCLUDED
-	for fld in $EXCLUDE; do if [[ $fld != /* ]]; then fld="*${fld}*"; else fld="${fld#/}" ; fi ; printf "%s\n" $fld ; done >> $EXCLUDED
-	grep -Fvxf $trsyncexl $EXCLUDED >> $UPDATE; test -s $UPDATE && cat $UPDATE >> $1
 fi
+> $EXCLUDED
+for fld in $EXCLUDE; do if [[ $fld != /* ]]; then fld="*${fld}*"; else fld="${fld#/}" ; fi ; printf "%s\n" $fld ; done >> $EXCLUDED
+grep -Fvxf $trsyncexl $EXCLUDED > $UPDATE; test -s $UPDATE && cat $UPDATE >> $1 && rm $UPDATE
 }
 #generate log file
 dlog() {
@@ -84,6 +73,189 @@ if (( c != 0 )); then
 fi
 echo  "END ORIGINAL FILES $(date +"%m-%d-%y_%R")" >> "${target}${rlt}${MODULENM}.bak.log"
 nLOG="true"
+}
+autosave() {
+if [[ "$autosave" == "true" ]] && { [[ "$1" == "yes" ]] || [[ "$1" == "y" ]] ; } ; then
+	z=$( grep -Fm 1 "USR" $chc | awk -F'"' '{print $2}')
+	[[ -z "$z" ]] && sed -i "s/USR=.*/USR=\"$USR\"/g" $chc  
+	zz=$( grep -Fm 1 "target" $chc | awk -F'"' '{print $2}')
+	[[ -z "${zz}" ]] && sed -i "s|target=.*|target=\"$target\"|g" $chc   
+	#r=$( basename "$0") ; val="$r \"$target\" \"$USR\""
+	#if ! grep -q "$r" $chc; then 
+	#	sed -i "4i $val" $chc
+	#else
+	#p=$( grep -Fn "$r" $chc | cut -d: -f1) ; lnc=$( grep "$r" $chc | awk -F'"' '{print $2}')
+    #if [ "$lnc" == "" ]; then sed -i "${p}c $val" $chc ; fi # only once
+	#fi
+    [[ -x $chc ]] && chmod +x $chc
+else 
+    [[ ! -x $chc ]] && chmod -x $chc
+fi
+}
+brnd() { BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'` ; echo $BRAND >> $1 ; }
+errmsg() {
+mount -o remount,udba=none /
+if [ "$1" != "false" ]; then rm -rf "$1" ; fi
+red "Error making the new module in ${instm}: ${2}" >&2
+cyan "Everything preserved.  Check the script"
+exit 1
+}
+# print contents of new .xzm
+clog() { tmpdir=$(mktemp -d) && mount -o loop "$1" "$tmpdir" && find "$tmpdir" -type f -printf '%P\n' >> "$2" && umount "$tmpdir" && rmdir "$tmpdir" ; }
+# try the fast way. If file changes copy to mtmp to freeze fs
+newxzm() {
+all=() ; keep=()
+while IFS= read -r d; do all+=("$(basename "$d")") ; done < <(find "$ch" -maxdepth 1 -mindepth 1 ) # all folders in changes
+while IFS= read -r l; do [[ -z "$l" ]] && continue ; if [[ "$l" == \** ]]; then echo "$l" ; fi ; done < $EXFILES >> $exclfiles # read patterns from $EXCLUDE ie *share/Trash*
+while IFS= read -r p; do [[ -z "$p" || "$p" =~ ^# ]] && continue ; find "$ch" -path "$ch/$p" -print | sed "s|^$ch/||" ; done < <(cat $trsyncexl $exclfiles) >> $EXFILES # search the wildcards for mksquashfs
+for d in "${all[@]}"; do # generate all folders to exclude ( our list $FOLDERS anything not in it)
+    fd="false"
+    for f in $FOLDERS; do
+        if [[ "$d" == "$f" ]]; then
+            fd="true"
+            break
+        fi
+    done
+    if [[ "$fd" == "false" ]]; then keep+=("$d") ; fi
+done
+printf "%s\n" "${keep[@]}" >> "$EXFILES"
+createxzm $1
+trlt=$?
+if [ "$trlt" -ne 0 ]; then 
+	echo "Files changed while saving copying to tmp..." ; mkdir $mtmp ; procxzm $1
+    if [ "$FEEDBACK" != "true" ]; then mksquashfs $ch "$target$em$rname" -comp $cmode -ef $EXFILES -ef $trsyncexl> /dev/null ; else mksquashfs $ch "$target$em$rname" -comp $cmode -ef $EXFILES -ef $trsyncexl ; fi
+else
+    clog "$target$em$rname" $UPDATE ; brnd $UPDATE ; mv $UPDATE $LOGDIR/$LOGFILE # make list
+fi
+if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print $end - $start}") ; fi
+}
+# create _uid_ or _uid_L
+createxzm() {
+cm=(mksquashfs $ch "$target$em$rname" -comp $cmode -ef $EXFILES -ef $trsyncexl)
+cpt=$( "${cm[@]}" > /dev/null 2> >(grep "changed size while reading") ) # supress stat on .wh.
+if [[ -n "$cpt" ]]; then echo "$cpt" ; rm "$target$em$rname" && return 1 ; fi
+}
+run_cmd() { if [ "$FEEDBACK" != "true" ]; then "$@" >>"$UPDATE" 2>/dev/null ; else "$@" | tee -a "$UPDATE" ; fi ; } # see Merge
+procxzm() {
+cd $ch || { mount -o remount,udba=none /; exit; }
+if [[ -z "$1" ]]; then
+    adtcmd=(-e '*.wh.*') 
+    IFS="
+    "
+    for y in $(find $FOLDERS -name ".wh.*"); do
+	    f="${y//.wh./}"
+        test -e "$mtmp/$f" && rm -rf "${mtmp:?}/$f";
+        test -e "$INAME/*/$f" || { echo "$y" | fixsqh >> $QEXCL; echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }
+    done
+    cat $EXCL | unfixwh | fixsqh > $exclfiles   
+    test -s $exclfiles && grep -Fvxf $EXFILES $exclfiles > $UPDATE && rm $exclfiles; test -s $UPDATE && cat $UPDATE >> $EXFILES && rm $UPDATE
+    test -s "$EXCL" && { find $FOLDERS -type d | egrep -vf $EXCL || find $FOLDERS -type d; } > $SFOLDERS
+    for y in $(find $mtmp -name ".wh.*"); do
+        f="$(echo "$y" | sed -e "s^$mtmp^^g" -e 's^\.wh\.^^g')"
+        test -e "$f" && rm "$y";
+    done
+    unset IFS
+    find $mtmp -name ".wh.*" -exec rm -r {} \;
+    find . -name ".wh.*" ! -name ".wh..*" -exec rm -r {} \;
+fi
+if [[ -s "$EXFILES" ]]; then  base_cmd=(rsync -aHv --exclude-from="$EXFILES" --exclude-from="$trsyncexl") ; else base_cmd=(rsync -aHv --exclude-from="$trsyncexl" ) ; fi #Merge
+for x in $FOLDERS; do run_cmd "${base_cmd[@]}" "${ch}/${x}/" "$mtmp/${x}/" ; done  
+trlt=$?
+if [ "$trlt" -ne 0 ]; then errmsg "$mtmp" "updating .xzm" ; fi 
+# Remove if any new exclusions.
+if [[ -z "$1" ]]; then cd $mtmp || exit ; while IFS= read -r ex; do [ -n "$ex" ] || continue ; ex="${ex%/}"  ; if [[ "$ex" == */* ]]; then find "$mtmp" -mindepth 1 -path "$mtmp/$ex" -exec rm -rf -- {} + ; else find "$mtmp" -mindepth 1 -name "$ex" -exec rm -rf -- {} + ; fi done < <(cat "$trsyncexl" "$EXFILES") ; fi
+brnd $UPDATE
+if [ "$linkedLOGPRF" == "full" ]; then
+    cat $UPDATE >> $LOGDIR/$LOGFILE ; rm $UPDATE ; cp $LOGDIR/$LOGFILE $mtmp$LOGDIR/$LOGFILE
+elif [ "$linkedLOGPRF" == "incr" ]; then
+    mkdir -p "$mtmp$LOGDIR"
+	test -e $ch$LOGDIR/$LOGFILE && rm $ch$LOGDIR/$LOGFILE ; cp "$UPDATE" $mtmp$LOGDIR/$LOGFILE && mv "$UPDATE" $LOGDIR/$LOGFILE
+fi
+}
+# used to create one l module from another simple function that is called in different conditions in the script saves lines
+createlmdl () {
+local instm="$1"
+    if [ "$instm" != "nolmdl" ]; then
+        mkdir $mtmp
+        for mods in "$target$em/"*_uid_L*.xzm; do
+            if [ "$fname" == "" ]; then fname="$mods"; fi
+            if ! xzm2dir $mods $mtmp; then errmsg $mtmp "$fname" ; fi
+        done
+	    procxzm
+    fi
+    if [ "$ssbn" == "" ]; then
+        if [ "$validrlt" == "false" ]; then cyan "mfile byte match failed generating new serial no." ; else cyan "no msr file. creating new one and new serial." ; fi
+        ssbn=$(rand_alpha)$$$(printf "%02d" $((RANDOM % 100)))
+    fi
+    if [ "$rlt" == "true" ]; then
+        if [ "$validrlt" == "false" ]; then
+            c=${fname%.xzm}".bak"
+            mv $target$em"/"$fname $target$em"/"$c
+        else
+            green "Matched.. In link state"
+            if [ "$keepLINKEDMRGED" == "false" ]; then
+                rm $target$em"/"$fname
+            else
+                c=${fname%.xzm}".bak"
+                mv $target$em"/"$fname $target$em"/"$c
+            fi
+        fi
+    elif [ "$rlt" == "" ] && [ "$instm" != "nolmdl" ]; then
+        c=${fname%.xzm}".bak"
+        mv "$fname" $c
+    fi
+    SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'` ;  rname="${MODULENM}${SERIAL}_uid_L${ssbn}.xzm"
+    if [ "$instm" != "nolmdl" ]; then
+		cmd=(mksquashfs $mtmp "$target$em$rname" -comp $cmode -e '*.wh.*' -ef $EXFILES -ef $trsyncexl)
+        [[ -s "$QEXCL" ]] && cmd+=(-ef "$QEXCL")
+		"${cmd[@]}" > /dev/null 2>&1    
+        if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print $end - $start}") ; fi
+    else
+        newxzm
+    fi
+	if [ "$ROLLBCK" == "true" ]; then
+		if [ -d "${target}${em}/archive/_uid_L" ]; then
+			r=$(find "${target}${em}/archive/_uid_L" -maxdepth 1 -type f -name '*.bak' 2>/dev/null | wc -l)
+			if [ "$r" -ge "$archLMT" ]; then
+				for mods in ${target}${em}/archive/_uid_L/*_uid_L*.bak; do
+					rm -f $mods
+					test -f $mods.txt && rm $mods.txt
+					break
+				done
+			fi
+		else
+			mkdir -p "${target}${em}/archive/_uid_L"
+		fi
+		cp "$target$em$rname" "${target}${em}/archive/_uid_L${rname}.bak"
+		if [ "$ROLLSUMRY" == "true" ]; then
+			find "$mtmp" -type f -printf '%P\n' >> "${target}${em}/archive/_uid_L${rname}.bak.txt"
+			echo >> "${target}${em}/archive/_uid_L${rname}.bak.txt"
+		    BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
+    		echo $BRAND >> "${target}${em}/archive/_uid_L${rname}.bak.txt"
+		fi
+	fi
+    xsize=$( du -sb "$target$em$rname" | cut -f1)
+    fname="${mdlnm}${SERIAL}_uid_L${ssbn}.xzm"
+    if [ "$rlt" == "true" ]; then
+        sed -i "s/bytes:.*/bytes:${xsize}/" $msr
+        sed -i "s/file name:.*/file name:${fname}/" $msr
+    else
+        { echo "bytes:"$xsize ; echo "file name:${fname}" ; echo ; } > $msr
+    fi
+    cd $pst ; rm -rf $mtmp
+}
+renmmdl() {
+local oMF=/tmp/flog.log ; local drt=$2
+[[ -z "$drt" ]] && src=".bak" && dst=".xzm"
+[[ -n "$drt" ]] && [[ "$drt" == "-r" ]] && src=".xzm" && dst=".bak" || [[ -n "$drt" ]] && echo invalid flag && exit
+r=$(ls -1 | grep ".*${1}.*${src}" | grep -v "$dst" | wc -l)
+if [ "$r" -gt 0 ]; then
+    for mods in ${PWD}"/"*$1*$src; do [[ "$1" == "_uid_" ]] && [[ "$mods" == *"_uid_L"* ]] && continue ; fname=${mods%"$src"}$dst ; test -e $fname && { red Filename conflict $fname already exists. ; test -e $omf && rm $omf; exit 0; } ; echo $mods ; done >> $oMF
+    while IFS= read -r ofile; do  [[ -z "$ofile" || "$ofile" == \#* ]] && continue ; fname=${ofile%"$src"}$dst ; mv "$ofile" "$fname" ; done < "$oMF"
+    rm $oMF
+else
+    cyan "no ${src} $1"
+fi
 }
 rand_alpha() { letters=( {A..Z} {a..z} ); echo -n "${letters[RANDOM % 52]}${letters[RANDOM % 52]}" ; }
 loadermsg() { green "Updated bootloader in /syslinux/"; cyan "if you use a different loader use cheatcode extramod=${target}${em} include changes modules" ; }

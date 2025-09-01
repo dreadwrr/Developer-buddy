@@ -677,35 +677,6 @@ if [ -s $TMPCOMPLETE ]; then
 	rm $xdata
 fi
 }
-renmmdl() {
-local oMF=/tmp/flog.log
-local drt=$2
-if [ "$drt" == "" ]; then
-    src=".bak"
-    dst=".xzm"
-elif [ "$drt" == "-r" ]; then
-    src=".xzm"
-    dst=".bak"
-else
-    echo invalid flag && exit
-fi
-r=$(ls -1 | grep ".*${1}.*${src}" | grep -v "$1" | wc -l)
-if [ "$r" -gt 0 ]; then
-    for mods in ${PWD}"/"*$1*$src; do
-        [[ "$1" == "_uid_" ]] && [[ "$mods" == *"_uid_L"* ]] && continue
-        fname=${mods%"$src"}$dst
-        test -e $fname && { red Filename conflict $fname already exists.; test -e $omf && rm $omf; exit 0; } || echo $mods >> $oMF
-    done
-    while IFS= read -r ofile; do
-        [[ -z "$ofile" || "$ofile" == \#* ]] && continue
-        fname=${ofile%"$src"}$dst
-        mv "$ofile" "$fname"
-    done < "$oMF"
-    rm $oMF
-else
-    cyan "no .bak $1"
-fi
-}
 intst() {
 if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
 if [ "$STATPST" == "true" ]; then

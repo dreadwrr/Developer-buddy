@@ -82,22 +82,12 @@ if [ "$r" -gt 0 ]; then
     find . -name ".wh.*" -exec rm -r {} \;
 
     cd $pst
-
-    if [ "$keepMRGED" == "true" ]; then
-        while IFS= read -r ofile; do
-            [[ -z "$ofile" || "$ofile" == \#* ]] && continue
-                fname=${ofile%.xzm}".bak"
-                mv "$ofile" "$fname"
-        done < "$oMF"
-        unset IFS
-    fi
-
-    SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`
-
+	SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`
+    while IFS= read -r ofile; do [[ -z "$ofile" || "$ofile" == \#* ]] && continue ; fname="$( basename "${ofile%.xzm}").bak" ; mv "$ofile" "/tmp/$fname" ; done < "$oMF"
+	unset IFS
     ssbn=$(rand_alpha)
     rand2d=$(printf "%02d" $((RANDOM % 100)))
     rname="${MODULENM}${SERIAL}_uid_L${ssbn}${$}${rand2d}.xzm"
-
     mksquashfs $mtmp "${PWD}/${rname}" -comp $cmode -ef $EXCL
     if [ $? -ne 0 ]; then
         red "Error making the new module: ${rname}" >&2
@@ -108,14 +98,17 @@ if [ "$r" -gt 0 ]; then
         rm -rf $mtmp
         exit 1
     fi
-    if [ "$keepMRGED" == "false" ]; then
-        while IFS= read -r ofile; do
-            [[ -z "$ofile" || "$ofile" == \#* ]] && continue
-            test -f $ofile && rm $ofile
-        done < "$oMF"
-        unset IFS
-    fi
-
+    while IFS= read -r ofile; do
+        [[ -z "$ofile" || "$ofile" == \#* ]] && continue
+        fname="$( basename "${ofile%.xzm}").bak"
+		if [ "$keepMRGED" == "true" ]; then
+			cmd=(mv "/tmp/$fname" "$PWD")
+		else
+			cmd=(rm "/tmp/$fname")
+		fi
+        "${cmd[@]}"
+    done < "$oMF"
+	unset IFS
     xsize=$( du -sb "${PWD}/${rname}" | cut -f1)
     echo "bytes:"$xsize > $msr
     echo "file name:${rname}" >> $msr
