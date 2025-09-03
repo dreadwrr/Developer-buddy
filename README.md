@@ -5,6 +5,11 @@
 
 ![Alt text](https://i.imgur.com/tKW7UEe.png)
 
+Porteus changes=    backup will be made with save-changesnew
+changes=EXIT:/     save-changesnew backup. that will make the backup with appropriate isolateBACK interlock
+
+
+
 Brought _uid_L for porteus graphics mode! for non changes=EXIT:/ users.
 
 
