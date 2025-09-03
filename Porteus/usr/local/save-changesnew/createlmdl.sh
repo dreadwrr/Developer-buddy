@@ -16,9 +16,9 @@ keepMRGED="true"       # default is normally false but we want to rename all .xz
                                         # in this script regardless of preference
 # END CHANGABLE
 tmp=/mnt/live/tmp/etmp$$		; mtmp=/mnt/live/tmp/ntmp$$
-ch=/mnt/live/memory/changes	    ; INAME=/mnt/live/memory/images
-EXCL=/tmp/squashexfiles.log		; EXFILES=/tmp/squashregex
-msr="${PWD}/lscheck"			; oMF=/tmp/flog.log 
+ch=/mnt/live/memory/changes	; INAME=/mnt/live/memory/images
+#EXCL=/tmp/squashexfiles.log		; EXFILES=/tmp/squashregex
+msr="${PWD}/lscheck"				; oMF=/tmp/flog.log 
 pst=$PWD
 f=$( ls -l ${PWD}${em} | grep -c '.*_uid_L.*.xzm')
 if [ "$f" -gt 1 ]; then
@@ -27,62 +27,15 @@ fi
 r=$(ls -1 | grep '.*_uid_.*\.xzm' | grep -v '_uid_L' | wc -l)
 if [ "$r" -gt 0 ]; then
     mkdir $mtmp
-    > $EXCL ; > $EXFILES ; > $oMF
-    for mods in $PWD"/"*_uid_*.xzm; do
-
-        [[ "$mods" == *_uid_L* ]] && continue
-        echo $mods >> $oMF
-
-        dest="/mnt/loop-$(basename "$mods" .xzm)"
-        mkdir $dest
-
-        if mountpoint -q $dest; then echo "Error: $dest already mounted. Everything preserved."; exit 1; fi
-        if [ ! -f "$mods" ]; then echo "Error: Module file $mods. Check the script and try again"; exit 1; fi
-        mount -o loop $mods $dest
-
-        IFS="
-        "
-        cd $mtmp || exit
-        for y in $(find "${dest}/" -name ".wh.*"); do
-          f="$(echo $y | sed -e "s^${dest}/^^g" -e 's@\.wh\.@@g')"
-          test -e "$f" && rm -rf "$f";
-          test -e "$INAME/*/$f" || { echo "y" | fixsqh >> $EXCL; echo "$y" >> $EXFILES; test -e "$y" && rm -f "$y"; }
-        done
-        unset IFS
-
-        cp -aufv $dest/* $mtmp 2> >(tee /tmp/error.log >&2)
-        if [ $? -ne 0 ]; then
-            if grep -v '\.wh\.' /tmp/error.log > /dev/null; then
-                red "Error processing one of the modules ${mods}"
-                cyan "Everything preserved. Check the script and try again. check /tmp/error.log"
-                umount $dest
-                rm -rf $dest
-                rm $oMF
-                rm $EXCL
-                rm $EXFILES
-                rm -rf $mtmp
-                exit 1
-            else
-                cyan "White out file detected and processed"  >&2
-            fi
-        fi
-        umount $dest
-        rm -rf $dest
-    done
-
-    cd $ch || exit
-    find $mtmp -name ".wh.*" -printf '%P\0' | while IFS= read -r -d '' y; do
-        f="${y#$mtmp}"
-        f="${f//.wh./}"
-        test -e "$f" && rm "$y"
-    done
-    unset IFS
-
-    cd $mtmp
-    find . -name ".wh.*" -exec rm -r {} \;
-
-    cd $pst
-
+    > $oMF ; x=0
+    unpack $mtmp
+#    cd $ch || exit
+#    find $mtmp -name ".wh.*" -printf '%P\0' | while IFS= read -r -d '' y; do
+#        f="${y#$mtmp}"
+#        f="${f//.wh./}"
+#        test -e "$f" && rm "$y"
+#    done
+#    unset IFS
     if [ "$keepMRGED" == "true" ]; then
         while IFS= read -r ofile; do
             [[ -z "$ofile" || "$ofile" == \#* ]] && continue
@@ -91,20 +44,16 @@ if [ "$r" -gt 0 ]; then
         done < "$oMF"
         unset IFS
     fi
-
-    SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`
-
-    ssbn=$(rand_alpha)
+    SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'` ; ssbn=$(rand_alpha)
     rand2d=$(printf "%02d" $((RANDOM % 100)))
     rname="${MODULENM}${SERIAL}_uid_L${ssbn}${$}${rand2d}.xzm"
-
-    mksquashfs $mtmp "${PWD}/${rname}" -comp $cmode -ef $EXCL
+    mksquashfs $mtmp "${PWD}/${rname}" -comp $cmode
     if [ $? -ne 0 ]; then
         red "Error making the new module: ${rname}" >&2
         cyan "Everything preserved."
         rm $oMF
-        rm $EXCL
-        rm $EXFILES
+        #rm $EXCL
+        #rm $EXFILES
         rm -rf $mtmp
         exit 1
     fi
@@ -115,16 +64,14 @@ if [ "$r" -gt 0 ]; then
         done < "$oMF"
         unset IFS
     fi
-
     xsize=$( du -sb "${PWD}/${rname}" | cut -f1)
     echo "bytes:"$xsize > $msr
     echo "file name:${rname}" >> $msr
     echo >> $msr
-
     rm $oMF
-    rm $EXCL
-    rm $EXFILES
+    #rm $EXCL
+    #rm $EXFILES
     rm -rf $mtmp
-else
+elif [ "$r" -eq 0 ]; then
     cyan "No modules detected or could be in the wrong working directory." && exit 0
 fi
