@@ -25,8 +25,8 @@ get_colors
 [[ -z "$theUSER" ]] && theUSER="guest"
 [[ -z "$thetgt" ]] && thetgt=$BASEDIR     # <----- ie   /mnt/sda3   some root environments are null 
 # Notes
-# Changes commit vars   line 170          this is the main script
-# developer buddy  vars         158         this runs after changes commit if BACKUP  true
+# Changes commit vars   line 172          this is the main script
+# developer buddy  vars         160         this runs after changes commit if BACKUP  true
 #
 
 
@@ -95,7 +95,7 @@ logSPRF="delete"           # When log size limit reached what to do default dele
                             #
                             # stop      dont log anymore
 
-mdllmt=5                             # Auto Graphics mode module merging default 5
+mdllmt=2                             # Auto Graphics mode module merging default 5
                                                 # when reached will automatically merge if mrgMODULES is set to true below
                                                 # see mrgMODULES boolean
 linkedLOGPRF="incr"          # default incr  new log of only changes keeps log size down
@@ -220,7 +220,7 @@ if [[ "$1" != "6" ]]; then
     #initf
     
 	# Folders to exclude: argument for `egrep'
-	grep ^!/ $CHNEXIT_CONF | fixdir > $EXCL  #  has a ^ for egrep
+	#grep ^!/ $CHNEXIT_CONF | fixdir > $EXCL  #  has a ^ for egrep initf
 
 	# only run timeout on shutdown
 	if [[ "$1" = "6" ]]; then
@@ -300,20 +300,19 @@ if [[ "$1" != "6" ]]; then
 		#
 
 		#Reject old log file in session
-		test -e home/$USR/Downloads/"$LOGFILE" && rm home/$USR/Downloads/"$LOGFILE"
-	    [[ -s $EXFILES ]] && { rsync -aHv --exclude-from=$EXFILES --exclude '\.wh\.*' $FOLDERS $MNAME; } > $UPDATE || [[ ! -s $EXFILES ]] && rsync -aHv --exclude '\.wh\.*' $FOLDERS $MNAME > $UPDATE
+		test -e $ch$LOGDIR/$LOGFILE && rm $ch$LOGDIR/$LOGFILE
+        >$UPDATE
+	    [[ -s $EXFILES ]] && { rsync -aHv --exclude-from=$EXFILES --exclude '.wh.*' $FOLDERS $MNAME; } >> $UPDATE || { [[ ! -s $EXFILES ]] && rsync -aHv --exclude '.wh.*' $FOLDERS $MNAME ; } >> $UPDATE
 		end=$(date +%s.%N)     
 		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ] && [ "$BACKUP" == "false" ] ; then el=$(awk "BEGIN {print $end - $start}") ; printf "Saving took %.3f seconds.\n" "$el" ; fi
-
-		#Reject old log file   Depricated
-		#test -e "$MNAME$LOGDIR/$LOGFILE" && rm "$MNAME$LOGDIR/$LOGFILE"
 
 		#Create a log
 		BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
 		echo $BRAND >> $UPDATE
 
+        cp $UPDATE $LOGDIR/$LOGFILE
 		#Do include a log file in case still in session
-		mv "$UPDATE" "$MNAME$LOGDIR/$LOGFILE"
+		mv $UPDATE $MNAME$LOGDIR/$LOGFILE
 
 
 		# subroutine clean out any deleted files   a ..wh..  is a file you deleted and no longer exists
@@ -364,14 +363,13 @@ fi
 ## Developer buddy 3 rsync backup on  changes=EXIT:/porteus    save-changesnew
 if [[ "$3" == "yes" ]]; then ans=""; fi
 if [[ "$ans" = "" ]]; then
-	if [[ "$BACKUP" == "true" ]]; then
+	if [[ "$BACKUP" == "true" && "$isolateBACK" = "false" ]]; then
 		if [[ "$1" == "6" ]]; then # regen so independant
 			cyan "Backing up on shutdown..." ; target=$4
-			FOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e $ch/"$x" && echo "$x"; done)"
-            dycmb ; exldir $EXFILES ; backup ; exit
+			initf ; backup ; exit
 		#else # normal execution of this script
 		fi
-		[[ "$isolateBACK" = "false" ]] && backup
+		backup
 	fi
 	[[ "$1" != "6" ]] && cleanup # Remove not shuttingdown
 fi
