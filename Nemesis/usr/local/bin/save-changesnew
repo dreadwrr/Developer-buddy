@@ -5,9 +5,11 @@
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/save-changesnewfnts
-if [ `whoami` != "root" ]; then echo "Please enter your root password below" ; su - -c "/usr/local/bin/save-changesnew '${BASEDIR}' '${USER}' $1 " ; exit ; else [[ -z "$2" ]] && theUSER="guest" || theUSER=$2 ; fi
-[[ -n "$3" ]] && bck=$3 && thetgt=$1 || bck=$1  
-[[ -z "$thetgt" ]] && thetgt=$BASEDIR # <----- for autosaving change to "/mnt/sda"  ie   /mnt/sda3          /etc/rc.d/rc.local_shutdown
+if [ `whoami` != "root" ]; then echo "Please enter your root password below" ; su - -c "/usr/local/bin/save-changesnew '${BASEDIR}' '${USER}' $1 " ; exit ; else [[ -z "$2" ]] && theUSER="guest" || { theUSER=$2 ; thetgt=$1 ; } ; fi
+[[ -n "$3" ]] && bck=$3 && thetgt=$1 # <----- for autosaving change to "/mnt/sda"  ie   /mnt/sda3          /etc/rc.d/rc.local_shutdown
+[[ -z "$2" ]] && bck=$1 
+[[ -z "$thetgt" ]] && thetgt=$BASEDIR 
+
 if ! id $2 >/dev/null 2>&1; then echo "user:" ${2} "not found"; exit 0 ; fi # quick user check we test the target directory $1 after VARS
 if ! grep -iq "Artix" /etc/os-release; then echo "Wrong version of developer buddy. Please use porteus version." && exit 0 ; fi
 # CHANGABLE
@@ -71,7 +73,7 @@ logSPRF="delete"                         # When log size limit reached what to d
                                             #
                                             # stop      dont log anymore
 
-mdllmt=5                             # Auto Graphics mode module merging default 7
+mdllmt=2                             # Auto Graphics mode module merging default 7
                                                 # when reached will automatically merge if mrgMODULES is set to true below
                                                 # see mrgMODULES boolean
 
@@ -523,6 +525,7 @@ else # Graphics mode
     if [ -s "${target}${em}${MODULENM}${SERIAL}_uid_$$.xzm" ]; then
 		echo ; echo A changes .xzm was detected but nothing was done. ; cyan "${MODULENM}${SERIAL}_uid_$$.xzm already exists" && { sleep 5; exit 0; }
     else
+        echo "$target$em" is
         test -d "$target$em" || mkdir "$target$em"+
         touch "$target$em/._test1" 2>/dev/null
         cyan "testing filesystem on ${target} for posix compatibility"
