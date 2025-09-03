@@ -33,7 +33,7 @@ dlog() {
         for fld in $EXCLUDE; do
             fp="$dirSRC/$fld"
 			if [[ "${fp:0:1}" == "/" ]]; then
-			  e=$(sed 's/[&/\]/\\&/g' <<< "$fp" )
+			  	e=$(sed 's/[\/&\\]/\\&/g' <<< "$fp")
 				p="^"
 			else
 			  e="$fp" ; p=""
@@ -110,13 +110,8 @@ while IFS= read -r l; do [[ -z "$l" ]] && continue ; if [[ "$l" == \** ]]; then 
 while IFS= read -r p; do [[ -z "$p" || "$p" =~ "^#" ]] && continue ; find "$ch" -path "$ch/$p" -print | sed "s|^$ch/||" ; done < <(cat $trsyncexl $exclfiles ) >> $EXFILES # search the wildcards for mksquashfs
 for d in "${all[@]}"; do # generate all folders to exclude ( our list $FOLDERS anything not in it)
     fd="false"
-    for f in $FOLDERS; do
-        if [[ "$d" == "$f" ]]; then
-            fd="true"
-            break
-        fi
-    done
-    if [[ "$fd" == "false" ]]; then keep+=("$d") ; fi
+    for f in $FOLDERS; do if [[ "$d" == "$f" ]]; then fd="true" ; break ; fi ; done
+    [[ "$fd" == "false" ]] && keep+=("$d")
 done
 printf "%s\n" "${keep[@]}" >> "$EXFILES"
 createxzm $1 # try
@@ -266,9 +261,9 @@ for mods in $PWD"/"*_uid_*.xzm; do
     dest="/mnt/loop-$(basename "$mods" .xzm)"
     mkdir $dest
     if mountpoint -q $dest; then echo "Error: $dest already mounted. Everything preserved."; exit 1; fi
-   if [ ! -f "$mods" ]; then echo "Error: In wrong directory. '$mods' not found."; exit 1; fi
+   	if [ ! -f "$mods" ]; then echo "Error: In wrong directory. '$mods' not found."; exit 1; fi
     mount -o loop $mods $dest
-   find "${dest}/" -type f -name '.wh.*' -printf '%P\0' | while IFS= read -r -d '' file; do
+   	find "${dest}/" -type f -name '.wh.*' -printf '%P\0' | while IFS= read -r -d '' file; do
         k=$( echo "$file" | sed -e 's/^\.wh\.//')   # grabs the filename from the path strip the .wh. from start our file or directory name  -e 's@.*/@@' 
     #       p=$(echo "$k" | sed 's/^\.wh\.//')  # strip the .wh. from start our file or directory name
     #       p=$( echo "$file" | sed -E 's|(.*\/)\.wh\.|\1|') # same thing but with path in it 
