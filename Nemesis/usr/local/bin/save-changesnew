@@ -5,12 +5,13 @@
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/save-changesnewfnts
-if [ `whoami` != "root" ]; then echo "Please enter your root password below" ; su - -c "/usr/local/bin/save-changesnew '${BASEDIR}' '${USER}' $1 " ; exit ; else [ "$2" == "" ] && theUSER="guest" || theUSER=$2 ; fi
-thetgt="$1" ; if [ "$thetgt" == "" ]; then thetgt=$BASEDIR; fi     # <----- for autosaving change to "/mnt/sda"  ie   /mnt/sda3          /etc/rc.d/rc.local_shutdown
+if [ `whoami` != "root" ]; then echo "Please enter your root password below" ; su - -c "/usr/local/bin/save-changesnew '${BASEDIR}' '${USER}' $1 " ; exit ; else [[ -z "$2" ]] && theUSER="guest" || theUSER=$2 ; fi
+[[ -n "$3" ]] && bck=$3 && thetgt=$1 || bck=$1  
+[[ -z "$thetgt" ]] && thetgt=$BASEDIR # <----- for autosaving change to "/mnt/sda"  ie   /mnt/sda3          /etc/rc.d/rc.local_shutdown
 if ! id $2 >/dev/null 2>&1; then echo "user:" ${2} "not found"; exit 0 ; fi # quick user check we test the target directory $1 after VARS
 if ! grep -iq "Artix" /etc/os-release; then echo "Wrong version of developer buddy. Please use porteus version." && exit 0 ; fi
 # CHANGABLE
-autosave="true"                # changes=EXIT: only ie automatic append changes-commit to call this script if false sets .. to -x
+autobackup="true"                # changes=EXIT: only ie automatic append changes-commit to call this script if false sets .. to -x
 
 
 d2drive="true"                 # default is false   for systems with low memory save directly to drive
@@ -138,18 +139,18 @@ archLMT=4						# how many unique roll backs to keep  both _uid_ and _uid_L seper
 # END CHANGABLE BOOLEANS
 # END CHANGABLE
 tmp=/mnt/live/tmp/work$$									; 			mtmp=/tmp/mtmp$$
-ch=/mnt/live/memory/changes									;			INAME=/mnt/live/memory/images #system changes   and images    leave set
-SFOLDERS=/tmp/save.sfolders.tmp								;			trsyncexl=/usr/local/save-changesnew/excld.ini
+ch=/mnt/live/memory/changes							;			INAME=/mnt/live/memory/images #system changes   and images    leave set
+SFOLDERS=/tmp/save.sfolders.tmp						;			trsyncexl=/usr/local/save-changesnew/excld.ini
 EXFILES=/tmp/exfiles.log									;			EXCL=/tmp/save.excl.tmp	 # for egrep regrex
-QEXCL=/tmp/squashexfiles.log								;			EXCLUDED=/tmp/save.excluded.tmp
-EXFILES=/tmp/save.exfiles.tmp								;			exclfiles=/tmp/save.squashregex.tmp  #spare tmp
-UPDATE=/tmp/save.update.tmp									;			oMF=/tmp/flog.log
-CHNEXIT_CONF=/etc/changes-exit.conf							;			chc=/etc/rc.d/rc.local_shutdown
-USR=$theUSER												;			LOGDIR=/home/$USR/Downloads
+QEXCL=/tmp/squashexfiles.log							;			EXCLUDED=/tmp/save.excluded.tmp
+EXFILES=/tmp/save.exfiles.tmp							;			exclfiles=/tmp/save.squashregex.tmp  #spare tmp
+UPDATE=/tmp/save.update.tmp							;			oMF=/tmp/flog.log
+CHNEXIT_CONF=/etc/changes-exit.conf				;			chc=/etc/rc.d/rc.local_shutdown
+USR=$theUSER													;			LOGDIR=/home/$USR/Downloads
 LOGFILE="save.sfiles.tmp"								#	;			SVFILES=$MNAME/home/$USR/Downloads/save.sfiles.tmp            # wait until changes exit for nemesis #log file
 mbyte=1048576												;			osize=0
-IFOLDERS=""													;			rname=""
-adtCMD=""													;			MODULENM=""
+IFOLDERS=""														;			rname=""
+adtCMD=""														;			MODULENM=""
 sentinal=""
 #booleans
 rlt=""
@@ -157,7 +158,7 @@ autosave $3
 if [ "$LOGGING" == "false" ] && [ "$ANALYTICS" == "true" ]; then echo analystics requires logging to be true. && exit 0 ; fi
 if [ ! -e $target ]; then echo "Target does not exist" && exit 0 ; fi
 msr=${target}${em}"/lscheck"
-IFOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e /mnt/live/memory/changes/"$x" && echo "$x"; done)"
+IFOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e $ch"$x" && echo "$x"; done)"
 dycmb ; exldir $EXFILES ; cyan "Syncing what's left in buffers" && sync
 if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
 mount -o remount,udba=notify /
@@ -298,9 +299,9 @@ if [ "$rlt" != "" ]; then
 
         if [ "$adtCMD" != "" ]; then
             if [ "$FEEDBACK" != "true" ]; then
-                rsync -aH --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" $adtCMD
+                rsync -aH --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" $adtCMD
             else
-				rsync -aHv --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
+				rsync -aHv --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
             fi
 			exc=$?
             if [ $exc -eq 1 ]; then
@@ -308,7 +309,7 @@ if [ "$rlt" != "" ]; then
 		        red "rsync failed — check log at ${target}${rlt}${MODULENM}.bak.log"
 		        if [ "$d2drive" == "false" ]; then
 		        	cyan "Files left in memory. Copy and paste the following to rsync again:"
-		        	echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/ --log-file=${target}${rlt}${MODULENM}.bak.log"
+		        	echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/ --log-file=${target}${rlt}${MODULENM}.bak.log"
 		        	if [ "$ANALYTICS" == "true" ]; then
 		        		echo "Then check the logfile for any errors.Then take the last two bytes sent and add it to total count=  at the top of the file if you want to keep exact track."
 		        		echo "Or"
@@ -327,16 +328,16 @@ if [ "$rlt" != "" ]; then
         else
             if [ "$nLOG" != "" ]; then
                 if [ "$FEEDBACK" != "true" ]; then
-                   rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > $UPDATE 2>&1
+                   rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > $UPDATE 2>&1
 
                 else
-                    rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" 2>&1 | tee $UPDATE
+                    rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" 2>&1 | tee $UPDATE
                 fi
             else
                 if [ "$FEEDBACK" != "true" ]; then
-                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > /dev/null
+                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > /dev/null
                 else
-                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/"
+                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/"
                 fi
             fi
 			exc=$?
@@ -346,13 +347,13 @@ if [ "$rlt" != "" ]; then
 		        if [ "$nLOG" != "" ]; then
 		        	if [ "$d2drive" == "false" ]; then
 		        		cyan "Files left in memory. Copy and paste the following to rsync again:"
-		            	echo "rsync -aH --stats --delete --filter=merge /tmp/incfilter.log --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/ --log-file=${target}${rlt}${MODULENM}.bak.log"
+		            	echo "rsync -aH --stats --delete --filter=merge /tmp/incfilter.log --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/ --log-file=${target}${rlt}${MODULENM}.bak.log"
 		        	fi
 		        	if [ "$ANALYTICS" == "true" ]; then
 		               echo "Then check the logfile for any errors. Add up all the bytes sent values and put total count=  at the top of the file before END ORIGINAL FILES.  if you want to keep exact track."
 		            fi
 		        else
-		        	echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/"
+		        	echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/"
 		        fi
 		        echo
 		        echo "Or failing that"
@@ -434,9 +435,9 @@ if [ "$rlt" != "" ]; then
         cyan "Creating new backup this may take a few minutes."
 
         if [ "$FEEDBACK" != "true" ]; then
-            rsync -aH --stats --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" >> "${target}${rlt}${MODULENM}.bak.log" 2>&1
+            rsync -aH --stats --filter="merge /tmp/incfilter.log" --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" >> "${target}${rlt}${MODULENM}.bak.log" 2>&1
         else
-			rsync -aHv --stats --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
+			rsync -aHv --stats --delete --filter="merge /tmp/incfilter.log" --exclude '.wh.*' --delete-excluded --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
         fi
 		exc=$?
         if [ $exc -eq 1 ]; then
@@ -595,6 +596,7 @@ else # Graphics mode
 fi
 mount -o remount,udba=none /
 test -e $EXCL && rm $EXCL
+test -e $QEXCL && rm $QEXCL
 test -e $UPDATE && rm $UPDATE
 #test -e $SFOLDERS && rm $SFOLDERS
 test -e /tmp/incfilter.log && rm /tmp/incfilter.log
