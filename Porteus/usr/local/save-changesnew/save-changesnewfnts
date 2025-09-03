@@ -71,68 +71,48 @@ fi
 echo  "END ORIGINAL FILES $(date +"%m-%d-%y_%R")" >> "${target}${rlt}${MODULENM}.bak.log"
 nLOG="true"
 }
-autosave() {
-in=$( sed -n "104p" $chc | grep -o "Remount aufs with 'udba=none'") 
-if [ "$autobackup" == "true" ] ; then
-    val="$0 6 \"$USR\" \"yes\" \"$target\"" ; r=$( realpath "$0")
-	echo "$val"
-    if [[ -n "$in" ]]; then ! grep -q "$r" "$chc" && sed -i "104i $val" $chc ; else  p=$( grep -Fn "$r" $chc | cut -d: -f1) ; [[ -z "$p" ]] && sed -i "104c $val" $chc ; fi 
-    [[ ! -x $chc ]] && chmod +x $chc
-else
-	[[ -z "$in" ]] && sed -i '104d' $chc
-    #[[ -x $chc ]] && chmod -x $chc
-fi
-}
+autosave() { in=$( sed -n "104p" $chc | grep -o "Remount aufs with 'udba=none'") ; if [ "$autobackup" == "true" ] ; then val="$0 6 \"$USR\" \"yes\" \"$target\"" ; r=$( realpath "$0") ; [[ -n "$in" ]] && { ! grep -q "$r" "$chc" && sed -i "104i $val" $chc ; } || { p=$( grep -Fn "$r" $chc | cut -d: -f1) &&  [[ -z "$p" ]] && sed -i "104c $val" $chc ; } ; [[ ! -x $chc ]] && chmod +x $chc ; else [[ -z "$in" ]] && sed -i '104d' $chc ; fi ; }  #[[ -x $chc ]] && chmod -x $chc
 #else No need to autoupdate as target rarely changes
 #    lnc=$(grep "$0" $chc | awk -F'"' '{print $6}')
 #    if [ "$lnc" != "$target" ]; then
 #        sed -i "${p}c $0 6 \"$USR\" \"yes\" \"$target\"" $chc
 #    fi
 brnd() { BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'` ; echo $BRAND >> $1 ; }
-errmsg() {
-mount -o remount,udba=none /
-if [ "$1" != "false" ]; then rm -rf "$1" ; fi
-red "Error making the new module in ${instm}: ${2}" >&2
-cyan "Everything preserved.  Check the script"
-exit 1
-}
-# print contents of new .xzm
-clog() { tmpdir=$(mktemp -d) && mount -o loop "$1" "$tmpdir" && find "$tmpdir" -type f -printf '%P\n' >> "$2" && umount "$tmpdir" && rmdir "$tmpdir" ; }
-# try the fast way. If file changes copy to mtmp to freeze fs
+errmsg() { mount -o remount,udba=none / ; if [ "$1" != "false" ]; then rm -rf "$1" ; fi ; red "Error making the new module in ${instm}: ${2}" >&2 ; cyan "Everything preserved.  Check the script" ; exit 1 ; }
+clog() { tmpdir=$(mktemp -d) && mount -o loop "$1" "$tmpdir" && find "$tmpdir" -type f -printf '%P\n' >> "$2" && umount "$tmpdir" && rmdir "$tmpdir" ; } # print contents of new .xzm
+# try the fast way. If file changes copy to mtmp with procxzm
 newxzm() {
 all=() ; keep=()
 while IFS= read -r d; do all+=("$(basename "$d")") ; done < <(find "$ch" -maxdepth 1 -mindepth 1 ) # all folders in changes
 while IFS= read -r l; do [[ -z "$l" ]] && continue ; if [[ "$l" == \** ]]; then echo "$l" ; fi ; done < $EXFILES > $SFILES # read patterns from $EXCLUDE ie *share/Trash*
 while IFS= read -r p; do [[ -z "$p" || "$p" =~ "^#" ]] && continue ; find "$ch" -path "$ch/$p" -print | sed "s|^$ch/||" ; done < <(cat $trsyncexl $SFILES ) >> $EXFILES # search the wildcards for mksquashfs
-for d in "${all[@]}"; do # generate all folders to exclude ( our list $FOLDERS anything not in it)
-    fd="false"
-    for f in $FOLDERS; do if [[ "$d" == "$f" ]]; then fd="true" ; break ; fi ; done
-    [[ "$fd" == "false" ]] && keep+=("$d")
-done
+for d in "${all[@]}"; do fd="false" ; for f in $FOLDERS; do [[ "$d" == "$f" ]]  && fd="true" && break ; done ; [[ "$fd" == "false" ]] && keep+=("$d") ; done # generate all folders to exclude ( our list $FOLDERS anything not in it)
 printf "%s\n" "${keep[@]}" >> "$EXFILES"
-createxzm $1 # try
-trlt=$?
+createxzm
+trlt=$? # try
 if [ "$trlt" -ne 0 ]; then # or tmp
-	echo "Files changed while saving copying to tmp..." ; mkdir $mtmp ; procxzm $1 # $1 keep .wh.
-    if [ "$FEEDBACK" != "true" ]; then mksquashfs $ch "$target$em$rname" -comp $cmode -ef $EXFILES -ef $SFILES > /dev/null ; else mksquashfs $ch "$target$em$rname" -comp $cmode -ef $EXFILES -ef $SFILES ; fi
+    test -e "$target$em$rname" && rm "$target$em$rname"
+	echo "Files changed while saving copying to tmp..." ; mkdir $tmp ; mkdir $mtmp ; procxzm $1
+    find $ch -type f -printf '%P\0' | while IFS= read -r -d '' f; do echo "$f" ; done > $SFILES # We need to insert the .wh.* files
+    sed -i '/^\.wh\./d' $SFILES
+	base_cmd=(mksquashfs $ch $tmp$rname -comp $cmode -ef $SFILES) ; "${base_cmd[@]}" > /dev/null # only .wh.*
+	test -e $tmp$rname && xzm2dir $tmp$rname $mtmp 2> /dev/null && $tmp$rname # insert
+    test -e $SFILES && rm $SFILES 
+	base_cmd=(mksquashfs $mtmp "$target$em$rname" -comp $cmode)
+    if [ "$FEEDBACK" != "true" ]; then "${base_cmd[@]}" > /dev/null ; else "${base_cmd[@]}" ; fi
 else
     clog "$target$em$rname" $UPDATE ; brnd $UPDATE ; mv $UPDATE $LOGDIR/$LOGFILE # make list
 fi
 rm $SFILES
 if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print $end - $start}") ; fi
 }
-# create _uid_ or _uid_L
-createxzm() {
-if [ "$1" == "_uid_L" ]; then cat $trsyncexl > $SFILES ; else cat $trsyncexl | grep -v "*.wh..*" > $SFILES  ; fi # include .wh. and .wh.. for _uid_
-cm=(mksquashfs $ch "$target$em$rname" -comp $cmode -ef $EXFILES -ef $SFILES)
-cpt=$( "${cm[@]}" 2>&1 >/dev/null | grep "changed size while reading") # supress stat on .wh. for user
-if [[ -n "$cpt" ]]; then echo "$cpt" ; rm "$target$em$rname" && return 1 ; fi
-}
-run_cmd() { if [ "$FEEDBACK" != "true" ]; then "$@" >>"$UPDATE" 2>/dev/null ; else "$@" | tee -a "$UPDATE" ; fi ; } # see Merge
+createxzm() { cm=(mksquashfs $ch "$target$em$rname" -comp $cmode -ef $EXFILES) ; cpt=$( "${cm[@]}" 2>&1 | grep "changed size while reading" ) ; if [[ -n "$cpt" ]]; then echo "$cpt" ; rm "$target$em$rname" ; return 1 ; fi ; } 
+#supress stat on .wh. for user
+#if [ "$1" == "_uid_L" ]; then cat $trsyncexl > $SFILES ; else cat $trsyncexl | grep -v "*.wh..*" > $SFILES  ; fi # include .wh. and .wh.. for _uid_
+run_cmd() { if [ "$FEEDBACK" != "true" ]; then "$@" >>"$UPDATE" 2>/dev/null ; else "$@" | tee -a "$UPDATE" ; fi ; } # see Merge ln 130
 procxzm() {
-adtcmd=() ; cd $ch || { mount -o remount,udba=none /; exit; }
+adtcmd=(--exclude '.wh.*') ; cd $ch || { mount -o remount,udba=none /; exit; }
 if [[ -z "$1" ]]; then
-    adtcmd=(--exclude '.wh.*') 
     IFS="
     "
     for y in $(find $FOLDERS -name ".wh.*"); do
@@ -151,11 +131,12 @@ if [[ -z "$1" ]]; then
     find $mtmp -name ".wh.*" -exec rm -r {} \;
     #find . -name ".wh.*" ! -name ".wh..*" -exec rm -r {} \;
 fi  
-if [[ -s "$EXFILES" ]]; then base_cmd=(rsync -aHv "${adtcmd[@]}" --exclude-from="$EXFILES" --exclude-from="$trsyncexl") ; else base_cmd=(rsync -aHv "${adtcmd[@]}"--exclude-from="$trsyncexl" ) ; fi # Merge build the command and rsync
+base_cmd=(rsync -aHv "${adtcmd[@]}" --exclude-from=$trsyncexl)
+[[ -s "$EXFILES" ]] && base_cmd+=(--exclude-from=$EXFILES) # Merge build the command and rsync
 for x in $FOLDERS; do run_cmd "${base_cmd[@]}" "${ch}/${x}/" "$mtmp/${x}/" ; done  
 trlt=$?
-if [ "$trlt" -ne 0 ]; then errmsg "$mtmp" "updating .xzm" ; fi 
-# Remove if any new exclusions.
+[[ "$trlt" -ne 0 ]] && errmsg "$mtmp" "updating .xzm" 
+# Remove exclusions as there could be new ones
 if [[ -z "$1" ]]; then cd $mtmp || exit ; while IFS= read -r ex; do [ -n "$ex" ] || continue ; ex="${ex%/}"  ; if [[ "$ex" == */* ]]; then find "$mtmp" -mindepth 1 -path "$mtmp/$ex" -exec rm -rf -- {} + ; else find "$mtmp" -mindepth 1 -name "$ex" -exec rm -rf -- {} + ; fi done < <(cat "$trsyncexl" "$EXFILES") ; fi
 brnd $UPDATE
 if [ "$linkedLOGPRF" == "full" ]; then
@@ -169,10 +150,7 @@ createlmdl () {
 local instm="$1"
     if [ "$instm" != "nolmdl" ]; then
         mkdir $mtmp
-        for mods in "$target$em/"*_uid_L*.xzm; do
-            if [ "$fname" == "" ]; then fname="$mods"; fi
-            if ! xzm2dir $mods $mtmp; then errmsg $mtmp "$fname" ; fi
-        done
+        for mods in "$target$em/"*_uid_L*.xzm; do [[ "$fname" == "" ]] && fname="$mods" ; if ! xzm2dir $mods $mtmp; then errmsg $mtmp "$fname" ; fi ; done
 	    procxzm
     fi
     if [ "$ssbn" == "" ]; then
@@ -256,12 +234,11 @@ EOF
 
 sed -i "38r /tmp/block.txt" $1
 rm /tmp/block.txt
-}
-
+} #symlink 
 renmmdl() {
 local oMF=/tmp/flog.log ; local drt=$2
 [[ -z "$drt" ]] && src=".bak" && dst=".xzm"
-[[ -n "$drt" ]] && [[ "$drt" == "-r" ]] && src=".xzm" && dst=".bak" || [[ -n "$drt" ]] && echo invalid flag && exit
+[[ -n "$drt" ]] && [[ "$drt" == "-r" ]] && src=".xzm" && dst=".bak" || { [[ -n "$drt" ]] && echo invalid flag && exit ; }
 r=$(ls -1 | grep ".*${1}.*${src}" | grep -v "$dst" | wc -l)
 if [ "$r" -gt 0 ]; then
     for mods in ${PWD}"/"*$1*$src; do [[ "$1" == "_uid_" ]] && [[ "$mods" == *"_uid_L"* ]] && continue ; fname=${mods%"$src"}$dst ; test -e $fname && { red Filename conflict $fname already exists. ; test -e $omf && rm $omf; exit 0; } ; echo $mods ; done >> $oMF
@@ -279,15 +256,12 @@ for mods in $PWD"/"*_uid_*.xzm; do
     dest="/mnt/loop-$(basename "$mods" .xzm)"
     mkdir $dest
     if mountpoint -q $dest; then echo "Error: $dest already mounted. Everything preserved."; exit 1; fi
-   if [ ! -f "$mods" ]; then echo "Error: In wrong directory. '$mods' not found."; exit 1; fi
-    mount -o loop $mods $dest
-   find "${dest}/" -type f -name '.wh.*' -printf '%P\0' | while IFS= read -r -d '' file; do
-        k=$( echo "$file" | sed -e 's/^\.wh\.//')   # grabs the filename from the path strip the .wh. from start our file or directory name  -e 's@.*/@@' 
-    #       p=$(echo "$k" | sed 's/^\.wh\.//')  # strip the .wh. from start our file or directory name
-    #       p=$( echo "$file" | sed -E 's|(.*\/)\.wh\.|\1|') # same thing but with path in it 
-    #       x=$( stat -c '%Y' "$file") # get modified date of .wh. file
+	if [ ! -f "$mods" ]; then echo "Error: In wrong directory. '$mods' not found."; exit 1; fi
+	mount -o loop $mods $dest
+	find "${dest}/" -type f -name '.wh.*' -printf '%P\0' | while IFS= read -r -d '' file; do
+        k=$( echo "$file" | sed -e 's/^\.wh\.//')
+    #       p=$( echo "$file" | sed -E 's|(.*\/)\.wh\.|\1|') # keep path remove .wh.
         test -e "$k" && rm -rf "$k";
-		
         test -e "$INAME"/*/"$k" || test -e "$file" && rm -f "$file"  #  { echo "y" | fixsqh >> $EXCL; echo "$y" >> $EXFILES; test -e "$y" && rm -f "$y"; }
     done
     unset IFS
@@ -297,10 +271,7 @@ for mods in $PWD"/"*_uid_*.xzm; do
             red "Error processing one of the modules ${mods}"
             cyan "Everything preserved. Check the script and try again. check /tmp/error.log"
             umount $dest
-            rm -rf $dest
-            rm $oMF
-            rm -rf $1
-            exit 1
+            rm -rf $dest ; rm $oMF ; rm -rf $1 ; exit 1
         else
             cyan "White out file detected and processed"  >&2
         fi
@@ -328,7 +299,6 @@ else
 	for fld in $EXCLUDE; do if [[ "${fld:0:1}" == "/" ]]; then fld="${fld#/}" ; else fld="*${fld}*" ; fi ; echo "- /$fld/" >> /tmp/incfilter.log ; done
 	echo "- /*" >> /tmp/incfilter.log
 fi
-
 if [ "$rlt" != "" ]; then
     if [ "$rlt" == "/" ]; then rlt="" ; fi
 	if [ "$d2drive" == "true" ]; then dirSRC="$target$rlt/changes" ; else dirSRC=$tmp ; fi
@@ -814,7 +784,7 @@ test -e $EXCL && rm $EXCL
 test -e $UPDATE && rm $UPDATE
 test -e $SFILES && rm $SFILES
 # test -e $SFOLDERS && rm $SFOLDERS
-#test -d $tmp && rm -rf $tmp
+test -d $tmp && rm -rf $tmp
 test -d $mtmp && rm -rf $mtmp
 [[ -z "$sts" ]] && sleep 5
 exit

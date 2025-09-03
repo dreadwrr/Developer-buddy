@@ -33,9 +33,7 @@ if [ "$r" -gt 1 ]; then
         if [ "$1" != "" ]; then echo Error making new mdl: $mods >> $elog; fi
         red "Error making the new module: ${MODULENM}${SERIAL}_uid_$$.xzm" >&2
         cyan "Modules are in /tmp."
-        rm $oMF
-        rm -rf $tmp
-        exit 1
+        rm $oMF ; rm -rf $tmp ; exit 1
     fi
 	if [ "$2" == "true" ] && [ "$1" != "" ]; then
 		if [ -d archive/_uid_ ]; then
@@ -51,30 +49,15 @@ if [ "$r" -gt 1 ]; then
 			mkdir -p archive/_uid_
 		fi
 		cp ${MODULENM}${SERIAL}_uid_${$}${rand2d}.xzm archive/_uid_/${MODULENM}${SERIAL}_uid_${$}${rand2d}.bak
-		if [ "$3" == "true" ]; then
-			find "$tmp" -type f -printf '%P\n' >> archive/_uid_/${MODULENM}${SERIAL}_uid_${$}${rand2d}.bak.txt
-			echo >> archive/_uid_/${MODULENM}${SERIAL}_uid_${$}${rand2d}.bak.txt
-		    BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
-    		echo $BRAND >> archive/_uid_/${MODULENM}${SERIAL}_uid_${$}${rand2d}.bak.txt
-		fi
+		[[ "$3" == "true" ]] && BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'` && { find "$tmp" -type f -printf '%P\n' ; echo ; echo $BRAND ; } >> archive/_uid_/${MODULENM}${SERIAL}_uid_${$}${rand2d}.bak.txt
 	fi
-    while IFS= read -r ofile; do
-        [[ -z "$ofile" || "$ofile" == \#* ]] && continue
-        fname="$( basename "${ofile%.xzm}").bak"
-		if [ "$keepMRGED" == "true" ]; then
-			cmd=(mv "/tmp/$fname" "$PWD")
-		else
-			cmd=(rm "/tmp/$fname")
-		fi
-        "${cmd[@]}"
-    done < "$oMF"
+    while IFS= read -r ofile; do [[ -z "$ofile" || "$ofile" == \#* ]] && continue ; fname="$( basename "${ofile%.xzm}").bak" ; [[ "$keepMRGED" == "true" ]] && cmd=(mv "/tmp/$fname" "$PWD") || cmd=(rm "/tmp/$fname") ; "${cmd[@]}" ; done < "$oMF"
 	unset IFS
     rm $oMF
-elif [ "$r" -eq 0 ]; then
-    cyan "No modules detected or could be in the wrong working directory." && exit 0
+elif [[ "$r" -eq 0 ]]; then
+    cyan "No modules detected or could be in the wrong working directory." && exit 0 
 else
     cyan "Only 1 module. exiting" && exit 0
 fi
-test -e $elog && rm $elog
-test -d $tmp && rm -rf $tmp
+test -e $elog && rm $elog ; test -d $tmp && rm -rf $tmp
 exit
