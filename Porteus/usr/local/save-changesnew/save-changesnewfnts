@@ -72,12 +72,14 @@ echo  "END ORIGINAL FILES $(date +"%m-%d-%y_%R")" >> "${target}${rlt}${MODULENM}
 nLOG="true"
 }
 autosave() {
+in=$( sed -n "104p" $chc | grep -o "Remount aufs with 'udba=none'") 
 if [ "$autobackup" == "true" ] ; then
-    val="$0 6 \"$USR\" \"yes\" \"$target\"" ; in=$( sed -n "104p" $chc | grep -o "Remount aufs with 'udba=none'") ; r=$( realpath "$0")
+    val="$0 6 \"$USR\" \"yes\" \"$target\"" ; r=$( realpath "$0")
+	echo "$val"
     if [[ -n "$in" ]]; then ! grep -q "$r" "$chc" && sed -i "104i $val" $chc ; else  p=$( grep -Fn "$r" $chc | cut -d: -f1) ; [[ -z "$p" ]] && sed -i "104c $val" $chc ; fi 
     [[ ! -x $chc ]] && chmod +x $chc
 else
-	sed -i '104d' $chc
+	[[ -z "$in" ]] && sed -i '104d' $chc
     #[[ -x $chc ]] && chmod -x $chc
 fi
 }
