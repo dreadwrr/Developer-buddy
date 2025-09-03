@@ -30,7 +30,7 @@ if [ "$d2drive" == "true" ]; then
     for fld in $EXCLUDE; do
         fp="$dirSRC/$fld"
 		if [[ "${fp:0:1}" == "/" ]]; then
-			e=$(sed 's/[&/\]/\\&/g' <<< "$fp" )
+			e=$(sed 's/[\/&\\]/\\&/g' <<< "$fp")
 			p="^"
 		else
 			e="$fp" ; p=""
@@ -104,13 +104,8 @@ while IFS= read -r l; do [[ -z "$l" ]] && continue ; if [[ "$l" == \** ]]; then 
 while IFS= read -r p; do [[ -z "$p" || "$p" =~ "^#" ]] && continue ; find "$ch" -path "$ch/$p" -print | sed "s|^$ch/||" ; done < <(cat $trsyncexl $SFILES ) >> $EXFILES # search the wildcards for mksquashfs
 for d in "${all[@]}"; do # generate all folders to exclude ( our list $FOLDERS anything not in it)
     fd="false"
-    for f in $FOLDERS; do
-        if [[ "$d" == "$f" ]]; then
-            fd="true"
-            break
-        fi
-    done
-    if [[ "$fd" == "false" ]]; then keep+=("$d") ; fi
+    for f in $FOLDERS; do if [[ "$d" == "$f" ]]; then fd="true" ; break ; fi ; done
+    [[ "$fd" == "false" ]] && keep+=("$d")
 done
 printf "%s\n" "${keep[@]}" >> "$EXFILES"
 createxzm $1 # try
