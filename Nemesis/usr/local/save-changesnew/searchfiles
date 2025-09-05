@@ -1,7 +1,7 @@
 #!/bin/bash
 . /usr/local/save-changesnew/rntchangesfunctions
 atmp="$1" ; tout="$2" ; COMPLETE="$3" ; checkSUM="$4"
-if [ "$2" == "true" ]; then
+if [ "$2" == "true" ] || [ "$2" == "false" ]; then
 	tout="${atmp}/searchfiles1_$$_tmp.log"
 	COMPLETE="${atmp}/searchfiles2_$$_tmp.log"
 	checkSUM="$2"
