@@ -64,7 +64,7 @@ def collision(filename, checksum, filesize, cursor):
     ''', (filename, checksum, filesize))
     return cursor.fetchall()
 
-def stealth(filename, label, outputf, collision_message, checksum, current_size, original_size, cdiag, option, cursor):
+def stealth(filename, label, cer, scr, collision_message, checksum, current_size, original_size, cdiag, option, cursor):
 		
 	if current_size and original_size:
 
@@ -73,17 +73,17 @@ def stealth(filename, label, outputf, collision_message, checksum, current_size,
 			delta= abs(current_size - original_size)
 				
 			if original_size == current_size and option != 'eql':  # flag ***
-				print(f'Warning file {label} same filesize different checksum. Contents changed.', file=outputf)
+				print(f'Warning file {label} same filesize different checksum. Contents changed.', file=cer)
 				return True
 			
 			elif delta < 12 and delta != 0:  # stealth cng?
 				if label != '/usr/local/save-changesnew/flth.csv':
 					message=f'Checksum indicates a change in {label}. Size changed slightly — possible stealth edit.'
-					with open('/tmp/scr', 'a') as file8:
-						if cdiag == 'true':
-							print(f'{message} ({original_size} → {current_size}).', file=file8)
-						else:
-							print(f'{message}', file=file8)
+
+					if cdiag == 'true':
+						print(f'{message} ({original_size} → {current_size}).', file=scr)
+					else:
+						print(f'{message}', file=scr)
 
 			if cdiag == 'true' and option != 'eql':
 					ccheck=collision(label, checksum, current_size, cursor)
@@ -99,7 +99,7 @@ def hanly(rout, tfile, parsed, checksum, cdiag, cursor):
 	csm=False
 	collision_message=[]
 
-	with open(rout, 'a') as file, open(tfile, 'a') as file2, open('/tmp/cerr', 'a') as file3:
+	with open(rout, 'a') as file, open(tfile, 'a') as file2, open('/tmp/cerr', 'a') as file3, open('/tmp/scr', 'a') as file4:
 		for record in parsed:
 
 			label = record[1] # human readable
@@ -116,7 +116,7 @@ def hanly(rout, tfile, parsed, checksum, cdiag, cursor):
 					continue  
 				current_size = ''
 				original_size = ''
-				a_size=''
+				a_size=None
 				if is_integer(record[5]):
 					current_size = int(record[5] )
 					if is_integer(previous[5]):
@@ -136,7 +136,7 @@ def hanly(rout, tfile, parsed, checksum, cdiag, cursor):
 							if file_path.is_file():
 								result=subprocess.run(['stat','--format=%Y', file_path], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
 								asize = subprocess.run(['stat', '--format=%s', file_path], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-								if asize.returncode != 0:
+								if asize.returncode == 0:
 									a_size=int(asize.stdout.strip()) # actual size
 								md5=get_md5(file_path)	
 								if md5:
@@ -162,12 +162,10 @@ def hanly(rout, tfile, parsed, checksum, cdiag, cursor):
 
 											if md5 != record[4]:
 												if cdiag == 'true': 
-													with open('/tmp/scr', 'a') as file6:
-														print(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size} ', file=file6)
+													print(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size} ', file=file4)
 												else:
-													with open('/tmp/scr', 'a') as file6:
-														print(f'File changed during search. File likely changed. system cache item.', file=file6)
-												csm=stealth(filename, label, file3, collision_message, record[4] , a_size, current_size, cdiag, 'regular', cursor) # Flag *** ?
+													print(f'File changed during search. File likely changed. system cache item.', file=file4)
+												csm=stealth(filename, label, file3, file4, collision_message, record[4] , a_size, current_size, cdiag, 'regular', cursor) # Flag *** ?
 
 					else: # Modified.
 
@@ -181,12 +179,12 @@ def hanly(rout, tfile, parsed, checksum, cdiag, cursor):
 									for f in (file, file2):
 										print(f'Overwrt {record[3]} {label}', file=f)
 
-										csm=stealth(filename, label, file3, collision_message, record[4], current_size, original_size, cdiag, 'eql', cursor) # stealth edit
+										csm=stealth(filename, label, file3, file4, collision_message, record[4], current_size, original_size, cdiag, 'eql', cursor) # stealth edit
 								else:
 									for f in (file, file2):
 										print(f'Replaced {record[3]} {label}', file=f)
 									
-									csm=stealth(filename, label, file3, collision_message, record[4] ,current_size, original_size, cdiag, 'regular', cursor) # Flag *** ?
+									csm=stealth(filename, label, file3, file4, collision_message, record[4] ,current_size, original_size, cdiag, 'regular', cursor) # Flag *** ?
 
 
 							else:
@@ -196,7 +194,7 @@ def hanly(rout, tfile, parsed, checksum, cdiag, cursor):
 									for f in (file, file2):
 										print(f'Modified {record[3]} {label}', file=f)
 							
-									csm=stealth(filename, label, file3, collision_message, record[4] , current_size, original_size, cdiag, 'regular', cursor)  # Flag *** ?
+									csm=stealth(filename, label, file3, file4, collision_message, record[4] , current_size, original_size, cdiag, 'regular', cursor)  # Flag *** ?
 								else:
 									for f in (file, file2):
 										print(f'Touched {record[3]} {label}', file=f)
