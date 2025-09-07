@@ -3,5 +3,5 @@
 atmp="$1" ; SORTCOMPLETE="$2" ; ofile="$3" ; checkSUM="$4" ; cdiag="$5"
 rout="$atmp/haloop1_${RANDOM}$$_tmp.log" ; tfile="$atmp/haloop2_${RANDOM}$$_tmp.log"
 declare -a collisions=()
-mapfile -t ref_lines < "$ofile"
+#mapfile -t ref_lines < "$ofile"
 hablk

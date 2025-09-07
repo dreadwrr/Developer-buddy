@@ -1,5 +1,5 @@
 #!/bin/bash
-# Clear cache from gpgs              08/23/2025 
+# Clear cache from gpgs              9/6/2025
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/save-changesnewfnts

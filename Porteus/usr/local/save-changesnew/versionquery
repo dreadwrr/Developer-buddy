@@ -58,7 +58,7 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    echo -e "recentchanges compile \t\t Dynamically build a filter profile - Deepscan or standard search"
    echo ; echo
    echo " profiles will be stored in  /home"$USR"/.config/save-changesnew"
-   echo "         							                                "
+   echo
    echo "    Deepscan 300 seconds including delta of 60 backwards"
    echo "    Standard 90 second search"
    echo "    display time or not"
@@ -72,7 +72,8 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    echo -e "rnt search \t  same as recentchanges search but apply filter"
    echo 
    echo  "Backup"
-   echo " set isolateBACK to true and call savechanges-new backup"
+   echo " set isolateBACK to true and call 'savechanges-new backup' for Changes=EXIT:/"
+   echo " save-changesnew for Changes="
    exit
 fi
 exit 1

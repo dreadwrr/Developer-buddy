@@ -1,5 +1,5 @@
 #!/bin/bash
-#   recentchanges query                recentchanges v3.0                                                                                08/11/2025
+#   recentchanges query                recentchanges v3.0                                                                               9/6/2025
 #   retrieval of data  from  /tmp  or  logpst and statpst
 . /usr/share/porteus/porteus-functions
 get_colors
@@ -22,7 +22,7 @@ if [ "$STATPST" == "true" ]; then
     if [ -s $logpst ]; then
         cyan "Pulling logs from persistent storage"
         if gpg -d -o $xdata $logpst; then #decrypt
-            #cp $xdata /tmp/logdebug
+            cp $xdata /tmp/logdebug
 			sed -i '/NOTA-FI-LE 77:77:77/d' $xdata
 			cd /home/$2/Downloads || exit
 			rm query_MDY* > /dev/null 2>&1

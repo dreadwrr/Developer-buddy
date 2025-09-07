@@ -1,0 +1,48 @@
+#!/bin/bash
+shopt -s nullglob										# 9/6/2025
+. /usr/local/save-changesnew/rntchangesfunctions
+atmp=/tmp/ztmp$$ 											;	ch=/mnt/live/memory/images/
+xdata3=$atmp/db_log.log									;	SORTCOMPLETE=$atmp/list_complete_sorted.txt
+md="$1"															;	xdata=$atmp/log.log
+mkdir $atmp
+for folder in "$ch"{001..003} "$ch"{001..003}-*; do
+	[ ! -d "$folder" ]  && continue
+	for subdir in bin etc sbin usr opt/porteus-scripts; do
+		dir="$folder/$subdir"
+		if [ -d "$dir" ]; then
+			if [ "$md" == "mc" ]; then # ! -path '*/usr/share/*' 
+				find "$dir" -type f -executable -print0 | xargs -0 -n 200 -P 4 /usr/local/save-changesnew/sysprofileloop "$atmp" "$folder"
+			else
+				find "$dir" -type f -executable -print0 | while IFS= read -r -d '' file; do c="${file#$folder}" ; printf '%s\0' "$c" >> "$xdata3" ; done
+			fi
+		fi
+	done
+#	if [ "$md" == "mc" ]; then
+#		for subdir in lib lib64 var/lib; do
+#			dir="$folder/$subdir"
+#			if [ -d "$dir" ]; then 
+#				find "$dir" -type f -name '*.so*' -print0 >> $xdata
+#				xargs -0 -n 8  -P 4 /usr/local/save-changesnew/sysprofileloop "$atmp" "$folder" < $xdata
+#			 fi
+#		done
+#	else#
+#	for subdir in $folder/lib $folder/lib64 $folder/var/lib ; do
+#		if [ -d "$subdir" ]; then
+#			find "$subdir" -type f -name '*.so*' -print0 | while IFS= read -r -d '' file; do c="${file#"$folder"}" ; printf '%s\0' "$c" >> "$xdata3" ; done
+#		fi
+#	done
+# fi
+done
+#x=$(tr -cd '\0' < $xdata | wc -c) ; y=8
+#if (( x > 100 )); then y=16 ; fi
+#if compgen -G "$atmp/searchfiles1_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles1_*_tmp.log >> "$xdata3"; fi
+if compgen -G "$atmp/searchfiles1_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles1_*_tmp.log >> "$xdata3"; fi
+sort -o $xdata3 $xdata3
+if [ "$md" == "mc" ]; then
+	x=$(tr -cd '\0' < $xdata3 | wc -c) ; y=8 ; if (( x > 100 )); then y=16 ; fi
+	if ! xargs -0 -n"$y" -P4 /usr/local/save-changesnew/mainloop $atmp $SORTCOMPLETE "/dev/null" "true" < $xdata3; then echo "Error: mainloop or xargs failed" >&2 ; return 2 ; fi
+else
+	if ! xargs -0 /usr/local/save-changesnew/mainloop $atmp $SORTCOMPLETE "/dev/null" "true" < $xdata3; then echo "Error: single mainloop of xargs failed" >&2 ; return 2 ; fi
+fi
+[[ -s "$SORTCOMPLETE" ]] && sed -i '/NOTA-FI-LE 77:77:7/d' $SORTCOMPLETE && echo "$SORTCOMPLETE" || return 1
+#/mnt/live/memory/images/001-core.xzm/usr/lib64/perl5/vendor_perl/XML/Parser/Style/Stream.pm

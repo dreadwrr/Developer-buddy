@@ -1,5 +1,5 @@
 #!/bin/bash
-# Merge modules                                                                                 08/01/2025
+# Merge modules                                                                                 9/6/2025
 # only merges  *_uid_*.xzm  in $PWD and only deletes the old on successful completion.
 . /usr/share/porteus/porteus-functions
 get_colors
@@ -54,10 +54,6 @@ if [ "$r" -gt 1 ]; then
     while IFS= read -r ofile; do [[ -z "$ofile" || "$ofile" == \#* ]] && continue ; fname="$( basename "${ofile%.xzm}").bak" ; [[ "$keepMRGED" == "true" ]] && cmd=(mv "/tmp/$fname" "$PWD") || cmd=(rm "/tmp/$fname") ; "${cmd[@]}" ; done < "$oMF"
 	unset IFS
     rm $oMF
-elif [[ "$r" -eq 0 ]]; then
-    cyan "No modules detected or could be in the wrong working directory." && exit 0 
-else
-    cyan "Only 1 module. exiting" && exit 0
-fi
+[[ "$r" -eq 0 ]] && cyan "No modules detected or could be in the wrong working directory." && exit 0 || cyan "Only 1 module. exiting" && exit 0
 test -e $elog && rm $elog ; test -d $tmp && rm -rf $tmp
 exit

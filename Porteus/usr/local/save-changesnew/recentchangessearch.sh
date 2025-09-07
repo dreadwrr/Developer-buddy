@@ -1,5 +1,5 @@
 #!/bin/bash
-#      recentchanges search             Developer Buddy v3.0    08/28/2025
+#      recentchanges search             Developer Buddy v3.0     9/6/2025
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/rntchangesfunctions
@@ -21,9 +21,9 @@ SORTCOMPLETE=$tmp/list_complete_sorted.txt			;		COMPLETENUL=$tmp/list_completenu
 TMPOUTPUT=$tmp/list_tmp_sorted.txt						;		TMPCOMPLETE=$tmp/tmp_complete.txt
 TMPOPT=$tmp/tmp_holding										;		flth=/usr/local/save-changesnew/flth.csv
 OLDSORTED=""
-diffrlt="false" 											; 		nodiff="false"
-validrlt="false"											;		flsrh="false"
-pstc="false"
+diffrlt="false" 															; 		nodiff="false"
+validrlt="false"															;		flsrh="false"
+pstc="false"																;		nc="false"
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 mkdir $tmp
@@ -79,11 +79,13 @@ elif [ "$mMODE" == "mc" ]; then
 	if compgen -G "$atmp/mainloop1_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop1_*_tmp.log > $SORTCOMPLETE;  fi
 	if compgen -G "$atmp/mainloop2_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop2_*_tmp.log >> $COMPLETE; fi
 fi
+
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
 if [ -s $SORTCOMPLETE ]; then
 	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE ; SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') ; PRD=$SRTTIME
-	if [ ${#xfile[@]} -gt 0 ]; then printf "%s\n" "${xfile[@]}" >> $SORTCOMPLETE; fi
-	if [ -s $tout ]; then grep -v 'NOTA-FI-LE 77:77:77' "$tout" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' > $TMPOPT ; cat $TMPOPT >> $SORTCOMPLETE ; fi
+	if [ ${#xfile[@]} -gt 0 ]; then printf "%s\n" "${xfile[@]}" | grep -v 'NOTA-FI-LE 77:77:77' | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' >> $SORTCOMPLETE; fi
+	if [ -s $tout ]; then grep -v 'NOTA-FI-LE 77:77:77' "$tout" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' >> $SORTCOMPLETE ; fi
+	inclusions
 	if [ "$flsrh" != "true" ]; then
 		s=$(date -d "$SRTTIME" "+%s")
 		if [ "$2" == "noarguser" ]; then RANGE=$(( s + 300 )) ; else RANGE=$(( s + argone )) ; fi

@@ -1,10 +1,10 @@
 #!/bin/bash
-# save-changesnew functions to move options further up the script             08/30/2025
+# save-changesnew functions to move options further up the script             9/6/2025
 dycmb() {
 TFLD="$(for x in $IFOLDERS; do test -e "$ch/$x" && echo "$x"; done)"
 IFOLDERS="$TFLD" ; TFLD=""
 [[ -n "$IFOLDERS" ]] && TFLD="$(for x in $IFOLDERS; do [[ ! " $FOLDERS " == *" $x "* ]] && echo "$x" ; done)"
-[[ -n "$TFLD" ]] && { IFOLDERS="$TFLD" ; FOLDERS="$IFOLDERS" ; }
+[[ -n "$TFLD" ]] && { IFOLDERS="$TFLD" ; FOLDERS="$IFOLDERS" ; } # | tr ' ' '\n' | awk '!seen[$0]++'
 }
 exldir() {
 > $1
@@ -79,6 +79,7 @@ autosave() { in=$( sed -n "104p" $chc | grep -o "Remount aufs with 'udba=none'")
 #    fi
 brnd() { BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'` ; echo $BRAND >> $1 ; }
 errmsg() { mount -o remount,udba=none / ; if [ "$1" != "false" ]; then rm -rf "$1" ; fi ; red "Error making the new module in ${instm}: ${2}" >&2 ; cyan "Everything preserved.  Check the script" ; exit 1 ; }
+errblk() { [[ "$trlt" -ne 0 ]] && echo "$trlt" && errmsg "$mtmp" "updating .xzm" ; }
 clog() { tmpdir=$(mktemp -d) && mount -o loop "$1" "$tmpdir" && find "$tmpdir" -type f -printf '%P\n' >> "$2" && umount "$tmpdir" && rmdir "$tmpdir" ; } # print contents of new .xzm
 # try the fast way. If file changes copy to mtmp with procxzm
 newxzm() {
@@ -96,20 +97,19 @@ if [ "$trlt" -ne 0 ]; then # or tmp
     find $ch -type f -printf '%P\0' | while IFS= read -r -d '' f; do echo "$f" ; done > $SFILES # We need to insert the .wh.* files
     sed -i '/^\.wh\./d' $SFILES
 	base_cmd=(mksquashfs $ch $tmp$rname -comp $cmode -ef $SFILES) ; "${base_cmd[@]}" > /dev/null # only .wh.*
-	test -e $tmp$rname && xzm2dir $tmp$rname $mtmp 2> /dev/null && $tmp$rname # insert
-    test -e $SFILES && rm $SFILES 
+	test -e $tmp$rname && xzm2dir $tmp$rname $mtmp 2> /dev/null && rm $tmp$rname # insert
 	base_cmd=(mksquashfs $mtmp "$target$em$rname" -comp $cmode)
     if [ "$FEEDBACK" != "true" ]; then "${base_cmd[@]}" > /dev/null ; else "${base_cmd[@]}" ; fi
 else
     clog "$target$em$rname" $UPDATE ; brnd $UPDATE ; mv $UPDATE $LOGDIR/$LOGFILE # make list
 fi
-rm $SFILES
+test -e $SFILES && rm $SFILES
 if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print $end - $start}") ; fi
 }
 createxzm() { cm=(mksquashfs $ch "$target$em$rname" -comp $cmode -ef $EXFILES) ; cpt=$( "${cm[@]}" 2>&1 | grep "changed size while reading" ) ; if [[ -n "$cpt" ]]; then echo "$cpt" ; rm "$target$em$rname" ; return 1 ; fi ; } 
 #supress stat on .wh. for user
 #if [ "$1" == "_uid_L" ]; then cat $trsyncexl > $SFILES ; else cat $trsyncexl | grep -v "*.wh..*" > $SFILES  ; fi # include .wh. and .wh.. for _uid_
-run_cmd() { if [ "$FEEDBACK" != "true" ]; then "$@" >>"$UPDATE" 2>/dev/null ; else "$@" | tee -a "$UPDATE" ; fi ; } # see Merge ln 130
+run_cmd() { if [ "$FEEDBACK" != "true" ]; then "$@" >>"$UPDATE" 2>/dev/null ; else "$@" | tee -a "$UPDATE" ; fi ; trlt=$?; } # see Merge ln 136
 procxzm() {
 adtcmd=(--exclude '.wh.*') ; cd $ch || { mount -o remount,udba=none /; exit; }
 if [[ -z "$1" ]]; then
@@ -118,8 +118,12 @@ if [[ -z "$1" ]]; then
     for y in $(find $FOLDERS -name ".wh.*"); do
 	    f="${y//.wh./}"
         test -e "$mtmp/$f" && rm -rf "${mtmp:?}/$f";
-        test -e "$INAME"/*/"$f" || { echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }  #  | fixsqh >> $QEXCL; echo "$y" 
+	  #found="false"
+	  #for file in "$INAME"/*/"$f"; do [ -e "$file" ] && found="true" && break ; done
+      #[[ "$found" == "true" ]] || { echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$MNAME/$y" && rm -f "$MNAME/$y"; }
+       test -e "$INAME/*/$f" || { echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }  #  | fixsqh >> $QEXCL; echo "$y" 
     done
+	
     #cat $EXCL | unfixwh | fixsqh > $exclfiles   
     #test -s $exclfiles && grep -Fvxf $EXFILES $exclfiles > $UPDATE && rm $exclfiles; test -s $UPDATE && cat $UPDATE >> $EXFILES && rm $UPDATE
     test -s "$EXCL" && { find $FOLDERS -type d | egrep -vf $EXCL || find $FOLDERS -type d; } > $SFOLDERS
@@ -131,11 +135,12 @@ if [[ -z "$1" ]]; then
     find $mtmp -name ".wh.*" -exec rm -r {} \;
     #find . -name ".wh.*" ! -name ".wh..*" -exec rm -r {} \;
 fi  
-base_cmd=(rsync -aHv "${adtcmd[@]}" --exclude-from=$trsyncexl)
-[[ -s "$EXFILES" ]] && base_cmd+=(--exclude-from=$EXFILES) # Merge build the command and rsync
-for x in $FOLDERS; do run_cmd "${base_cmd[@]}" "${ch}/${x}/" "$mtmp/${x}/" ; done  
-trlt=$?
-[[ "$trlt" -ne 0 ]] && errmsg "$mtmp" "updating .xzm" 
+
+#base_cmd=(rsync -aHv --from0 --files-from=$SFILES "${adtcmd[@]}" --exclude-from=$trsyncexl) && { run_cmd "${base_cmd[@]}" $ch "$mtmp/" ; trlt=$? ; errblk ; }
+base_cmd=(rsync -aHv "${adtcmd[@]}" --exclude-from=$trsyncexl) && [[ -s "$EXFILES" ]] && base_cmd+=(--exclude-from=$EXFILES)
+#echo "${base_cmd[@]}"
+run_cmd "${base_cmd[@]}" $FOLDERS "$mtmp/" ; errblk
+# for x in $FOLDERS; do run_cmd "${base_cmd[@]}" "${ch}/${x}/" "$mtmp/${x}/" ; done
 # Remove exclusions as there could be new ones
 if [[ -z "$1" ]]; then cd $mtmp || exit ; while IFS= read -r ex; do [ -n "$ex" ] || continue ; ex="${ex%/}"  ; if [[ "$ex" == */* ]]; then find "$mtmp" -mindepth 1 -path "$mtmp/$ex" -exec rm -rf -- {} + ; else find "$mtmp" -mindepth 1 -name "$ex" -exec rm -rf -- {} + ; fi done < <(cat "$trsyncexl" "$EXFILES") ; fi
 brnd $UPDATE
@@ -629,16 +634,18 @@ fi
 test -e $EXCLUDED && rm $EXCLUDED ; rm -rf $tmp
 }
 cleanup() {
-# Remount aufs with 'udba=none' flag:
-mount -o remount,udba=none /
-test -e $EXCL && rm $EXCL # parsing rsync
-#test -e $EXFILES && rm $EXFILES # commit script rsync exclusion list
-test -e $SFILES && rm $SFILES
-#test -e $SFOLDERS && rm $SFOLDERS
-test -e $EXCLUDED && rm $EXCLUDED
-test -e /tmp/incfilter.log && rm /tmp/incfilter.log
+if [[ "$1" != "6" ]]; then
+	# Remount aufs with 'udba=none' flag:
+	mount -o remount,udba=none /
+	test -e $EXCL && rm $EXCL # parsing rsync
+	#test -e $EXFILES && rm $EXFILES # commit script rsync exclusion list
+	test -e $SFILES && rm $SFILES
+	#test -e $SFOLDERS && rm $SFOLDERS
+	test -e $EXCLUDED && rm $EXCLUDED
+	test -e /tmp/incfilter.log && rm /tmp/incfilter.log
+fi
 #Remove /mnt/live/tmp/changes-exit if called from rc.6 (temporary for legacy initrd where cleanup still has changes=EXIT: routine)
-[[ "$1" == "6" ]] && rm /mnt/live/tmp/changes-exit
+[[ "$1" == "6" ]] && [[ "$2" != "c" ]] && rm /mnt/live/tmp/changes-exit
 exit
 }
 initf() { FOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e $ch/"$x" && echo "$x"; done)" ; dycmb ; exldir $EXFILES ; }
@@ -789,6 +796,7 @@ test -d $mtmp && rm -rf $mtmp
 [[ -z "$sts" ]] && sleep 5
 exit
 }
+pl() { for x in $FOLDERS; do find "$ch/$x" -type f -printf '%P\0' | while IFS= read -r -d '' f; do printf '%s/%s\0' "$x" "$f" ; done ; done > "$SFILES" ; }
 rand_alpha() { letters=( {A..Z} {a..z} ); echo -n "${letters[RANDOM % 52]}${letters[RANDOM % 52]}" ; }
 loadermsg() { green "Updated bootloader in /syslinux/"; cyan "if you use a different loader use cheatcode extramod=${target}${em} include changes modules" ; }
 # Fix folder names and make `egrep' interpret wildcards
