@@ -7,13 +7,14 @@ import subprocess
 import sys
 import tempfile
 import tkinter as tk
-from hanlydb import is_integer
-from pstsrg import decr
-from pstsrg import encr
+from tkinter import ttk
 from collections import Counter
 from datetime import datetime
+from pstsrg import decr
+from pstsrg import encr
 from pyfunctions import getcount
-from tkinter import ttk
+from pyfunctions import get_delete_patterns
+from pyfunctions import is_integer
 sort_directions = {}
 def hardlinks(database, target, email, conn, cur):
 	# query = """
@@ -73,22 +74,7 @@ def hardlinks(database, target, email, conn, cur):
 		print(f"Error executing updating db. data preserved.: {e}")
 		conn.rollback()
 def clear_cache(database, target, email, usr, dbp, conn, cur):
-		files_d = [ # Delete patterns db 08/26/25
-		"%caches%",
-		"%cache2%",
-		#"%cache%",
-		"%Cache2%",
-		"%.cache%",
-		"%share/Trash%",
-		f"%home/{usr}/Downloads/rntfiles%",
-		f"%home/{usr}/.local/state/wireplumber%",
-		"%usr/share/mime/application%",
-		"%usr/share/mime/text%",
-		"%usr/share/mime/image%",
-		"%release/cache%",
-		f"%{dbp}%",
-		"%usr/local/save-changesnew/flth.csv%",
-		]
+		files_d = get_delete_patterns(usr, dbp)
 		try:
 			for filename_pattern in files_d:
 				cur.execute("DELETE FROM logs WHERE filename LIKE ?", (filename_pattern,))
@@ -137,42 +123,75 @@ def sort_column(tree, col, columns):
     for index_, (val, item) in enumerate(data):
         tree.move(item, '', index_)
 def results(database, conn, cur, target, email, user, dbp):
-	cur = conn.cursor()
-	cur.execute("SELECT * FROM logs")
-	rows = cur.fetchall()
-	columns = [desc[0] for desc in cur.description]
-	root = tk.Tk()
-	root.title("Database Viewer")
-	frame = tk.Frame(root)
-	frame.pack(fill=tk.X)
-	hardlink_button = tk.Button(frame, text="Set Hardlinks", command=lambda: hardlinks(database, target, email, conn, cur))
-	hardlink_button.pack(side=tk.RIGHT, padx=10, pady=10)
-	clear_cache_button = tk.Button(frame, text="Clear Cache", command=lambda: clear_cache(database, target, email, user, dbp, conn, cur))
-	clear_cache_button.pack(side=tk.RIGHT, padx=10, pady=10)
-	tree = ttk.Treeview(root, columns=columns, show='headings')
-	tree.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=10)
-	scrollbar = tk.Scrollbar(root, orient=tk.VERTICAL, command=tree.yview)
-	scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-	tree.configure(yscrollcommand=scrollbar.set)
-	for col in columns:
-		tree.heading(col, text=col, command=lambda _col=col: sort_column(tree, _col, columns))
-		if col == "filename":
-			tree.column(col, width=1000)
-		elif col == "timestamp":
-			tree.column(col, width=150)
-		elif col == "accesstime":
-			tree.column(col, width=150)
-		elif col == "checksum":
-			tree.column(col, width=270)
-		elif col == "owner":
-			tree.column(col, width=75)
-		elif col == "permission":
-			tree.column(col, width=150)
-		else:
-			tree.column(col, width=50)
-	for row in rows:
-		tree.insert('', tk.END, values=row)
-	root.mainloop()
+    root = tk.Tk()
+    root.title("Database Viewer")
+    toolbar = tk.Frame(root)
+    toolbar.pack(side=tk.TOP, fill=tk.X)
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    tables = [t[0] for t in cur.fetchall()] or ["(no tables)"]
+    selected_table = tk.StringVar(value=tables[0])
+    table_menu = ttk.Combobox(toolbar, textvariable=selected_table, values=tables, state="readonly", width=30)
+    table_menu.pack(side=tk.LEFT, padx=10, pady=10)
+    # load_btn = tk.Button(toolbar, text="Load Table",
+    #                      command=lambda: load_table(selected_table.get()))
+    # load_btn.pack(side=tk.LEFT, padx=6, pady=10)
+    hardlink_button = tk.Button(toolbar, text="Set Hardlinks",
+        command=lambda: hardlinks(database, target, email, conn, cur))
+    hardlink_button.pack(side=tk.RIGHT, padx=10, pady=10)
+    clear_cache_button = tk.Button(toolbar, text="Clear Cache",
+        command=lambda: clear_cache(database, target, email, user, dbp, conn, cur))
+    clear_cache_button.pack(side=tk.RIGHT, padx=10, pady=10)
+    # Container for Tree + scrollbars (keeps layout stable)
+    table_frame = tk.Frame(root)
+    table_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+    tree = ttk.Treeview(table_frame, show='headings')
+    tree.grid(row=0, column=0, sticky="nsew")
+    vsb = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=tree.yview)
+    vsb.grid(row=0, column=1, sticky="ns")
+    hsb = ttk.Scrollbar(table_frame, orient=tk.HORIZONTAL, command=tree.xview)
+    hsb.grid(row=1, column=0, sticky="ew")
+    tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+    table_frame.rowconfigure(0, weight=1)
+    table_frame.columnconfigure(0, weight=1)
+    def load_table(table_name: str):
+        # Bail out if there are no real tables
+        if table_name == "(no tables)":
+            # Clear tree content safely
+            for iid in tree.get_children():
+                tree.delete(iid)
+            tree["columns"] = ()
+            return
+        c = conn.cursor()
+        c.execute(f"SELECT * FROM \"{table_name}\"")
+        rows = c.fetchall()
+        columns = [d[0] for d in c.description]
+        tree.delete(*tree.get_children())
+        # Rebuild columns (don’t recreate widgets; just reconfigure)
+        tree["columns"] = columns
+        for col in columns:
+            tree.heading(col, text=col, command=lambda _col=col: sort_column(tree, _col, columns))
+            if col == "filename":
+                tree.column(col, width=600, anchor="w", stretch=True)
+            elif col in ("timestamp", "accesstime"):
+                tree.column(col, width=160, anchor="w", stretch=False)
+            elif col == "checksum":
+                tree.column(col, width=300, anchor="w", stretch=True)
+            elif col in ("owner",):
+                tree.column(col, width=90, anchor="w", stretch=False)
+            elif col in ("permission",):
+                tree.column(col, width=150, anchor="w", stretch=False)
+            else:
+                tree.column(col, width=120, anchor="w", stretch=True)
+        for row in rows:
+            tree.insert("", tk.END, values=row)
+        tree.yview_moveto(0)
+        tree.xview_moveto(0)
+        table_frame.update_idletasks()
+    def on_select(_event):
+        load_table(selected_table.get())
+    table_menu.bind("<<ComboboxSelected>>", on_select)
+    load_table(tables[0])
+    root.mainloop()
 def averagetm(conn, cur):
     cur = conn.cursor()
     cur.execute('''
@@ -325,6 +344,11 @@ def main() :
 								disply = os.environ.get('DISPLAY')
 								wish_path = shutil.which("wish")
 								if disply and wish_path:
+									print(f'database in: {tempdir}')
 									results(dbopt, conn, cur, dbtarget, email, usr, dbpst)
+								elif not wish_path:
+									print("Install tk to display db.")
+								elif not disply:
+									print("No X11 display.")
 if __name__ == "__main__":
     main()

@@ -10,22 +10,22 @@ USR=$3 ; [[ -z "$6" ]] && exit
 if [ "$USR" == "" ]; then echo please call from recentchanges; exit; fi
 if [ "$4" == "" ]; then echo "incorrect usage please call from recentchanges"; exit 1; fi
 if [ "$1" != "search" ]; then echo exiting not a search && exit; fi
-work=work$$													;		atmp=/tmp/atmp$$
-tmp=/tmp/work$$												;		rout=$atmp/routput.tmp
-chxzm=/rntfiles.xzm											;		tout=$atmp/toutput.tmp
-USRDIR=/home/$USR/Downloads									;		toutnul=$atmp/toutputnul.tmp
-slog=/tmp/scr												;		xdata=$atmp/logs_stat.log
+work=work$$															;		atmp=/tmp/atmp$$
+tmp=/tmp/work$$														;		rout=$atmp/routput.tmp
+chxzm=/rntfiles.xzm													;		tout=$atmp/toutput.tmp
+USRDIR=/home/$USR/Downloads								;		toutnul=$atmp/toutputnul.tmp
+slog=/tmp/scr															;		xdata=$atmp/logs_stat.log
 UPDATE=$tmp/save.transferlog.tmp							;		xdata2=$atmp/logs_log.log
-ABSENT=$tmp/absent.txt										;		xdata3=$atmp/db_log.log
-RECENT=$tmp/list_recentchanges_filtered.txt					;		pytmp=$atmp/pytmp.tmp
-RECENTNUL=$tmp/list_recentchanges_filterednul.txt			;		COMPLETE=$tmp/list_complete.txt
-SORTCOMPLETE=$tmp/list_complete_sorted.txt					;		COMPLETENUL=$tmp/list_completenul.txt
-TMPOUTPUT=$tmp/list_tmp_sorted.txt							;		TMPCOMPLETE=$tmp/tmp_complete.txt
+ABSENT=$tmp/absent.txt											;		xdata3=$atmp/db_log.log
+RECENT=$tmp/list_recentchanges_filtered.txt				;		pytmp=$atmp/pytmp.tmp
+RECENTNUL=$tmp/list_recentchanges_filterednul.txt	;		COMPLETE=$tmp/list_complete.txt
+SORTCOMPLETE=$tmp/list_complete_sorted.txt			;		COMPLETENUL=$tmp/list_completenul.txt
+TMPOUTPUT=$tmp/list_tmp_sorted.txt						;		TMPCOMPLETE=$tmp/tmp_complete.txt
 TMPOPT=$tmp/tmp_holding										;		flth=/usr/local/save-changesnew/flth.csv
 OLDSORTED=""
-diffrlt="false" 											; 		nodiff="false"
-validrlt="false"											;		flsrh="false"
-pstc="false"
+diffrlt="false" 															; 		nodiff="false"
+validrlt="false"															;		flsrh="false"
+pstc="false"																;		nc="false"
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 mkdir $tmp
@@ -77,8 +77,9 @@ fi
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
 if [ -s $SORTCOMPLETE ]; then
 	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE ; SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') ; PRD=$SRTTIME
-	if [ ${#xfile[@]} -gt 0 ]; then printf "%s\n" "${xfile[@]}" >> $SORTCOMPLETE; fi
-	if [ -s $tout ]; then grep -v 'NOTA-FI-LE 77:77:77' "$tout" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' > $TMPOPT ; cat $TMPOPT >> $SORTCOMPLETE ; fi
+	if [ ${#xfile[@]} -gt 0 ]; then printf "%s\n" "${xfile[@]}" | grep -v 'NOTA-FI-LE 77:77:77' | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' >> $SORTCOMPLETE; fi
+	if [ -s $tout ]; then grep -v 'NOTA-FI-LE 77:77:77' "$tout" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' >> $SORTCOMPLETE ; fi
+	inclusions
 	if [ "$flsrh" != "true" ]; then
 		s=$(date -d "$SRTTIME" "+%s")
 		if [ "$2" == "noarguser" ]; then RANGE=$(( s + 300 )) ; else RANGE=$(( s + argone )) ; fi
