@@ -182,11 +182,11 @@ autosave
 rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
 # Graphics Not changes=EXIT:/ mode  <---
 [[ -z "$rlt" ]] && initf && savex
-[[ -n "$rlt" ]] && [[ ! -f /mnt/live/tmp/changes-exit ]] && [[ "$isolateBACK" == "true" ]] && initf && backup "c" && cleanup
+[[ -n "$rlt" ]] && [[ ! -f /mnt/live/tmp/changes-exit ]] && [[ "$isolateBACK" == "true" ]] && initf && backup "c" && cleanup "$1" "c"
 test -f /mnt/live/tmp/changes-exit || { echo "'changes=EXIT:' cheatcode is not active - exiting..."; exit; }
 initf
 rlt=$(sed -n 's/.*changes=EXIT:\([^ ]*\).*/\1/p' /proc/cmdline)
-[[ -n "$rlt" ]] && [[ "$2" == "backup" ]] && backup && cleanup
+[[ -n "$rlt" ]] && [[ "$2" == "backup" ]] && backup && cleanup "$1"
 DEST="$(cat /mnt/live/tmp/changes-exit)"	; 	NAME="$(basename "${DEST:-}")"
 if [[ $(grep ".dat" /mnt/live/tmp/changes-exit 2>/dev/null) ]]; then
 	Dest="Save.dat file"
@@ -258,8 +258,12 @@ if [[ "$1" != "6" ]]; then
 		for y in $(find $FOLDERS -name ".wh.*"); do
 		  f="$(echo $y | sed 's@\.wh\.@@g')"
 		  test -e "$MNAME/$f" && rm -rf "$MNAME/$f";
-		  test -e "$INAME"/*/"$f" || { echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$MNAME/$y" && rm -f "$MNAME/$y"; }
-			    #         ^   changed from "$INAME/*/$f"       to prevent binary operator expected on empty sym link
+
+		  found="false"
+		  for file in "$INAME"/*/"$f"; do [ -e "$file" ] && found="true" && break ; done
+          [[ "$found" == "true" ]] || { echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$MNAME/$y" && rm -f "$MNAME/$y"; }
+		 # test -e "$INAME/*/$f" || { echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$MNAME/$y" && rm -f "$MNAME/$y"; }
+			           #         ^    to prevent binary operator expected on empty sym link
 		done
 
 		#  We have  EXCL  regex and        EXFILES   non regex to work with
@@ -301,11 +305,13 @@ if [[ "$1" != "6" ]]; then
 
 		#Reject old log file in session
 		test -e $ch$LOGDIR/$LOGFILE && rm $ch$LOGDIR/$LOGFILE
-        >$UPDATE
-	    [[ -s $EXFILES ]] && { rsync -aHv --exclude-from=$EXFILES --exclude '.wh.*' $FOLDERS $MNAME; } >> $UPDATE || { [[ ! -s $EXFILES ]] && rsync -aHv --exclude '.wh.*' $FOLDERS $MNAME ; } >> $UPDATE
-		end=$(date +%s.%N)     
-		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ] && [ "$BACKUP" == "false" ] ; then el=$(awk "BEGIN {print $end - $start}") ; printf "Saving took %.3f seconds.\n" "$el" ; fi
-
+        >$UPDATE 
+		adtcmd=(--exclude '.wh.*')
+		base_cmd=(rsync -aHv "${adtcmd[@]}")
+		[[ -s "$EXFILES" ]] && base_cmd+=(--exclude-from=$EXFILES) ; [[ -s "$trsyncexl" ]] && base_cmd+=(--exclude-from=$trsyncexl)
+		run_cmd "${base_cmd[@]}" $FOLDERS "$MNAME/" ; errblk
+		end=$(date +%s.%N) ; if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ] && [ "$BACKUP" == "false" ] ; then el=$(awk "BEGIN {print $end - $start}") ; printf "Saving took %.3f seconds.\n" "$el" ; fi
+		
 		#Create a log
 		BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
 		echo $BRAND >> $UPDATE
@@ -371,5 +377,5 @@ if [[ "$ans" = "" ]]; then
 		fi
 		backup
 	fi
-	[[ "$1" != "6" ]] && cleanup # Remove not shuttingdown
+	cleanup "$1" # Remove not shuttingdown
 fi

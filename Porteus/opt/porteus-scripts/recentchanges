@@ -1,6 +1,6 @@
 #!/bin/bash
 #   Analytics NMS5 porteus
-#   recentchanges. Developer buddy      make xzm     08/11/2025  v3.0
+#   recentchanges. Developer buddy      make xzm     9/6/2025  v3.0
 #
 #   Provide ease of pattern finding ie what files to block we can do this a number of ways
 #   1) if a file was there (many as in more than a few) and another search lists them as deleted its either a sys file or not but unwanted nontheless
@@ -46,7 +46,7 @@ export logPRF="del" # del delete and stop    what to do on max logSIZE
                                 # rfh refresh clear and log again
 
 
-export compLVL=200  # default 200mb to disable compression on logpst size
+export compLVL=200  # default 200mb to disable compression on gpg size
 
 #this script
 cmode="gzip"                   # default nothing. uses gzip compression level balanced. This is for recentchanges .xzm and SRC tag
@@ -82,7 +82,7 @@ export ANALYTICS="true" # store recent searches in /tmp       default false
 
 export STATPST="false" # persistent storage searches encrypted in /usr/local/save-changesnew for recentchanges query see logSIZE / logCT
                                     # Only overhead is gpg compression set compression to off. At large size speeds can increase by as much as 50%.
-                                    # if you prefer security turn ANALYTICS false and use this
+                                    # if you prefer security turn ANALYTICS false and use th2025-09-06 02:36:21 "/home/guest/Downloads/save-changesnew/usr/local/save-changesnew/heuristics" 51354 2025-09-06 02:36:49 fb942496358a549bc4ed809b018a27be 7011 2025-09-06 02:36:21is
 
 
 #Display
@@ -106,6 +106,8 @@ export POSTOP="false" # Diagnostics. Create file doctrine. Runs post search oper
                                     # more overhead so recommend off unless one off. output /Downloads
                                     #
                                     # if it is run again and a file is still there it will not run the POSTOP and the script will set POSTOP to false to itself
+
+export proteusSHIELD="false"	# take initial hash of base modules 001-core.. ect database mode
 ## End Diagnostics
 
 export logpst="/usr/local/save-changesnew/logs.gpg"
@@ -113,6 +115,7 @@ export statpst="/usr/local/save-changesnew/stats.gpg"
 export pydbpst="/usr/local/save-changesnew/recent.gpg"
 
 # END CHANGEABLE
+[[ "$STATPST" == "true" ]] && [[ "$ANALYTICS" == "true" ]] && echo statpst and analytics cant both be true. skipping && exit
 if [ "$STATPST" == "true" ] && [ "$ANALYTICS" == "true" ]; then echo With STATPST cant run with ANALYTICS. for security reasons as its stored in gpg. ; echo you can modify to run both if wanted. && exit; fi
 if [ "$STATPST" == "false" ] && [ "$backend" == "database" ]; then echo cant run database with ANALYTICS. && exit; fi
 if [ "$1" = "-v" ]; then get_vrn $1 ; elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] || [ "$1" = "-help" ]; then get_vrn $1; fi # If inquery tag no need to call root. pass to other function and exit.
@@ -183,11 +186,11 @@ FOLDERLOG=$tmp/save.totalfolders.tmp					;	THETIME="${arge[0]}" # shift for this
 SORTCOMPLETE=$tmp/list_complete_sorted.txt			;	USRDIR=/home/$USR/Downloads
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
-SRCDIR=""
-diffrlt="false"											;		pstc="false"
-nodiff="false"											;       samerlt="false"
-syschg="false"											;		validrlt="false"
-approval="true"
+SRCDIR=""											;   cores=""
+diffrlt="false"									;	pstc="false"
+nodiff="false"									;   samerlt="false"
+syschg="false"									;	validrlt="false"
+approval="true"								;	nc="false"
 mkdir $tmp
 mkdir $tmp$workdir
 mkdir $atmp
@@ -226,13 +229,13 @@ elif [ "$mMODE" == "mc" ]; then
 else
 	echo incorrect mMODE && exit
 fi
+
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
 if [ -s $SORTCOMPLETE ]; then
-	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE
-	SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')
-	PRD=$SRTTIME
-	if declare -p xfile &>/dev/null && [ ${#xfile[@]} -gt 0 ]; then printf "%s\n" "${xfile[@]}" >> $SORTCOMPLETE; fi
-	if [ -s $tout ]; then grep -v 'NOTA-FI-LE 77:77:77' "$tout" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' > $TMPOPT ; cat $TMPOPT >> $SORTCOMPLETE ; fi
+	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE ; SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') ; PRD=$SRTTIME
+	if [ ${#xfile[@]} -gt 0 ]; then printf "%s\n" "${xfile[@]}" | grep -v 'NOTA-FI-LE 77:77:77' | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' >> $SORTCOMPLETE; fi
+	if [ -s $tout ]; then grep -v 'NOTA-FI-LE 77:77:77' "$tout" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' >> $SORTCOMPLETE ; fi
+	inclusions
 	s=$(date -d "$SRTTIME" "+%s")
 	if [ "$THETIME" == "noarguser" ]; then RANGE=$(( s + 300 )) ; else RANGE=$(( s + argone )) ; fi
 	PRD=$(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S') # convert back to YYYY MM-DD HH:MM:SS
@@ -424,8 +427,7 @@ if [ "$validrlt" == "true" ]; then
   	    cyan "${filename}".xzm ; echo
     else
         cyan " Total pull range: ""${endtm}"
-        cyan "$chxzm  including a file manifest"
-        echo
+        cyan "$chxzm  including a file manifest" ; echo
     fi
 else
    	cyan "There were no files to grab." ; echo
