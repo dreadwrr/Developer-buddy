@@ -58,7 +58,7 @@ export tmpSRHS=7 # Default 7 store most recent searches in /tmp try 30 and then 
 
 
 
-export mMODE="mem"  # normal default. robust less prone to failure
+export mMODE="mc"  # normal default. robust less prone to failure
 								  		# mem    balanced store search in arrays less i/o
 								   		# mc      turbo mode run the search in parallel or multiple cores.
 
@@ -168,6 +168,7 @@ FOLDERLOG=$tmp/save.totalfolders.tmp							;		THETIME="${arge[0]}" # shift for t
 SORTCOMPLETE=$tmp/list_complete_sorted.txt					;		USRDIR=/home/$USR/Downloads
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
+fmt="%Y-%m-%d %H:%M:%S"
 SRCDIR=""
 diffrlt="false"											        ;		pstc="false"
 nodiff="false"											        ;       samerlt="false"
@@ -202,8 +203,8 @@ elif [ "$mMODE" == "mc" ]; then
 	x=$(tr -cd '\0' < $RECENTNUL | wc -c) ; y=8
 	if (( x > 100 )); then y=16 ; fi
 	xargs -0 -n"$y" -P4 /usr/local/save-changesnew/mainloop $atmp $checkSUM < $RECENTNUL
-	if compgen -G "$atmp/mainloop1_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop1_*_tmp.log > $SORTCOMPLETE; fi
-	if compgen -G "$atmp/mainloop2_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop2_*_tmp.log >> $COMPLETE; fi
+	if compgen -G "$atmp"/mainloop1_*_tmp.log > /dev/null; then cat "$atmp"/mainloop1_*_tmp.log > $SORTCOMPLETE; fi
+	if compgen -G "$atmp"/mainloop2_*_tmp.log > /dev/null; then cat "$atmp"/mainloop2_*_tmp.log >> $COMPLETE; fi
 else
 	echo incorrect mMODE && exit
 fi
@@ -372,7 +373,7 @@ if [ -s $SORTCOMPLETE ]; then
 			cDATE=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') #Cut out irrelevant files
             awk -v tme="$cDATE" '$0 >= tme' "$difffile" > $TMPCOMPLETE
 	        echo >> "${difffile}"
-            while IFS="" read -r p || [ -n "$p" ]; do cFILE="$( echo "$p" | cut -d " " -f3-)" ; grep -Fqs "$cFILE" $SORTCOMPLETE && { echo "Modified" "$p" >> $ABSENT; echo "Modified" "$p" >> $rout; } || { echo "Deleted " "$p" >> $ABSENT; echo "Deleted" "$p" >> $rout; } ;  done < $TMPCOMPLETE
+            while IFS="" read -r p || [ -n "$p" ]; do cFILE="$( echo "$p" | cut -d " " -f3-)" ; grep -Fqs "$cFILE" $SORTCOMPLETE && { echo "Modified" "$p" >> $ABSENT; echo "Modified" "$p" >> $tout; } || { echo "Deleted " "$p" >> $ABSENT; echo "Deleted" "$p" >> $tout; } ;  done < $TMPCOMPLETE
 	        test -f $ABSENT  && { echo Applicable to your search ; cat $ABSENT ; } >> "${difffile}" || { diffrlt="false" ; echo "None of above is applicable to search. It is the previous search."; } >> "${difffile}"
         else
             samerlt="true"
