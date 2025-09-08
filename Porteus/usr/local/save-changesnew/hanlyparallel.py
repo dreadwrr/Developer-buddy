@@ -4,11 +4,12 @@ import os
 import sqlite3
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from hanlymc import hanly
-from pyfunctions import increment_fname
+from pyfunctions import detect_copy
 
-def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt="/usr/local/save-changesnew/recent.db"):
+def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt="/usr/local/save-changesnew/recent.db", table="logs"):
 	key_to_files = {
-		"flag": [rout, tfile],
+		"flag": [rout],
+		"tout": [tfile],
 		"cerr": [cerr],
 		"scr": [scr],
 	}
@@ -28,19 +29,31 @@ def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt
 					for fpath in files:
 						file_messages.setdefault(fpath, []).extend(messages)
 
-			if "sys" in entry:
+		#if "sys" in entry:
+			#conn.commit()
 
-				sys_messages = entry["sys"]
-				if not isinstance(sys_messages, list):
-					sys_messages = [sys_messages]
+		if "dcp" in entry:
+			dcp_messages = entry["dcp"]
+			if not isinstance(dcp_messages, list):
+				dcp_messages = [dcp_messages]
 
-				for msg in sys_messages:
+			if dcp_messages:
+				with open(rout, 'a') as file, open(tfile, 'a') as file2:
+						for msg in dcp_messages:
+							try:
+								timestamp = msg[0]
+								label = msg[1]
+								ct = msg[2]
+								inode = msg[3]   
+								checksum = msg[5]
+								result = detect_copy(label, inode, checksum, c, table)
+								if result:
+									print(f'Copy {timestamp} {ct} {label}', file=file)
+									print(f'Copy {timestamp} {label}', file=file2)
+									# print(f'System file: {msg[1]}', file=file7)
 
-					try:
-						increment_fname(conn, c, msg)
-					#	print(f'System file: {msg[1]}', file=file7)
-					except Exception as e:
-						print(f"Error updating DB for sys entry '{msg}': {e}")
+							except Exception as e:
+								print(f"Error updating DB for sys entry '{msg}': {e}")
 						
 	for fpath, messages in file_messages.items():
 		if messages:
@@ -53,7 +66,7 @@ def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt
 				print(f"Error logger to {fpath}: as {e}")
                               
 						
-def hanly_parallel(rout, tfile, parsed, checksum, cdiag, dbopt, ps, user, dbtarget):
+def hanly_parallel(rout, tfile, parsed, checksum, cdiag, dbopt, ps, user, dbtarget, table):
     max_workers = min(16, os.cpu_count() or 1, len(parsed) if parsed else 1)
     all_results = []
 
@@ -79,4 +92,4 @@ def hanly_parallel(rout, tfile, parsed, checksum, cdiag, dbopt, ps, user, dbtarg
             except Exception as e:
                 logging.error("Worker error: %s\n%s", e, traceback.format_exc())
 
-    logger_process(all_results, rout, tfile, '/tmp/scr', '/tmp/cerr', dbopt)
+    logger_process(all_results, rout, tfile, '/tmp/scr', '/tmp/cerr', dbopt, table)

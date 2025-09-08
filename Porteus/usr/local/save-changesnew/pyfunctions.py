@@ -64,12 +64,38 @@ def collision(filename, checksum, filesize, cursor, sys):
         '''
     cursor.execute(query, (filename, checksum, filesize))
     return cursor.fetchall()
+def detect_copy(filename, inode, checksum, cursor, sys_table):
+    # Step 1: select candidates by checksum only (index-friendly)
+    if sys_table == 'sys':
+        query = '''
+            SELECT filename, inode, checksum
+            FROM logs
+            UNION ALL
+            SELECT filename, inode, checksum
+            FROM sys
+            WHERE checksum = ?
+        '''
+    else:
+        query = '''
+            SELECT filename, inode
+            FROM logs
+            WHERE checksum = ?
+        '''
+    
+    cursor.execute(query, (checksum,))
+    candidates = cursor.fetchall()
+    
+    for o_filename, o_inode in candidates:
+        if o_filename != filename or o_inode != inode:
+            return True
+    
+    return None
 def get_recent_changes(filename, cursor, table):
 	allowed_tables = ('logs', 'sys')
 	if table not in allowed_tables:
 		return None
 	query = f'''
-		SELECT timestamp, filename, inode, accesstime, checksum, filesize, changetime
+		SELECT timestamp, filename, changetime, inode, accesstime, checksum, filesize
 		FROM {table}
 		WHERE filename = ?
 		ORDER BY timestamp DESC
@@ -91,22 +117,25 @@ def getcount (curs):
       ''')
       count = curs.fetchone()
       return count[0]
+
 def increment_fname(conn, c, record):
     filename = record[1]
-    c.execute('SELECT count FROM sys WHERE filename = ?', (filename,))
-    row = c.fetchone()
-    current_count = (row[0] if row else 0) + 1
     c.execute('''
-        INSERT OR REPLACE INTO sys (
-            timestamp, filename, inode, accesstime, checksum, filesize, symlink, owner, `group`, permissions, changetime, casmod, count
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR IGNORE INTO sys (
+            timestamp, filename, changetime, inode, accesstime, checksum,
+            filesize, symlink, owner, `group`, permissions, casmod, count
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     ''', (
         record[0], filename, record[2], record[3],
         record[4], record[5], record[6], record[7],
-        record[8], record[9], record[10], record[11],
-        current_count
+        record[8], record[9], record[10], record[11]
     ))
-    conn.commit()
+    c.execute('''
+        UPDATE sys
+        SET count = count + 1
+        WHERE filename = ? AND timestamp != ? AND changetime != ?
+    ''', (filename, record[0], record[2]))
+    
 
 def matches_any_pattern(s, patterns):
     # Convert SQL-like % wildcard to fnmatch *
@@ -116,7 +145,7 @@ def matches_any_pattern(s, patterns):
             return True
     return False
     
-def parse_datetime(value, fmt="%Y-%m-%d %H:%M:%S"):
+def parse_datetime(value, fmt):
 	try:
 		return datetime.strptime(str(value).strip(), fmt)
 		#return dt.strftime(fmt)
@@ -131,21 +160,22 @@ def parse_line(line):
     try:
         filepath = codecs.decode(raw_filepath.encode(), 'unicode_escape')
     except UnicodeDecodeError:
-        filepath = raw_filepath  # Fallback to raw path if decoding fails
+        filepath = raw_filepath
 
     # Remove quoted path 
     line_without_file = line.replace(quoted_match.group(0), '').strip()
     other_fields = line_without_file.split()
 
-    if len(other_fields) < 5:
-        return None  # Not enough fields
+    if len(other_fields) < 7:
+        return None
 
     timestamp1 = other_fields[0] + ' ' + other_fields[1]
-    inode = other_fields[2]
-    timestamp2 = other_fields[3] + ' ' + other_fields[4]
-    rest = other_fields[5:]
+    timestamp2 = other_fields[2] + ' ' + other_fields[3]
+    inode = other_fields[4]
+    timestamp3 = other_fields[5] + ' ' + other_fields[6]
+    rest = other_fields[7:]
 
-    return [timestamp1, filepath, inode, timestamp2] + rest
+    return [timestamp1, filepath, timestamp2, inode, timestamp3] + rest
 def get_md5(file_path):
     try:
         with open(file_path, "rb") as f:
@@ -161,7 +191,7 @@ def is_integer(value):
         return True
     except (ValueError, TypeError):
         return False
-def is_valid_datetime(value, fmt="%Y-%m-%d %H:%M:%S"):
+def is_valid_datetime(value, fmt):
 	try: 
 		datetime.strptime(str(value).strip(), fmt)
 		return True
