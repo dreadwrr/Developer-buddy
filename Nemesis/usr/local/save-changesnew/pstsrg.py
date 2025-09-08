@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # pstsrg.py - Process and store logs in a SQLite database, encrypting the database       9/5/2025
+from cProfile import label
+from time import ctime
 import pyfunctions
 import os
 import shutil
@@ -32,7 +34,7 @@ def encr(database, opt, email, nc, md):
                   cmd.extend(["--compress-level", "0"])
             cmd.append(database)
             subprocess.run(cmd, check=True)
-            if md:
+            if md == "true":
                   os.remove(database)
             return True
     except subprocess.CalledProcessError as e:
@@ -69,11 +71,13 @@ def table_exists_and_has_data(conn, table_name):
             return True
       else:
             return False
+      
 def create_table(c, table, last_column, unique_columns):
       columns = [
             'id INTEGER PRIMARY KEY AUTOINCREMENT',
             'timestamp TEXT',
             'filename TEXT',
+            'changetime TEXT',
             'inode TEXT',
             'accesstime TEXT',
             'checksum TEXT',
@@ -82,7 +86,6 @@ def create_table(c, table, last_column, unique_columns):
             'owner TEXT',
             '`group` TEXT',
             'permissions TEXT',
-            'changetime TEXT',
             'casmod TEXT',
             f'{last_column} TEXT'
       ]
@@ -95,40 +98,70 @@ def create_table(c, table, last_column, unique_columns):
       )
       '''
       c.execute(sql)
-def create_db(database):
+
+      sql='CREATE INDEX IF NOT EXISTS'
+      
+      if table == 'logs':
+            c.execute(f'{sql} idx_logs_checksum ON logs (checksum)')
+            c.execute(f'{sql} idx_logs_filename ON logs (filename)')
+            c.execute(f'{sql} idx_logs_checksum_filename ON logs (checksum, filename)') # Composite
+      else:
+            c.execute(f'{sql} idx_sys_checksum ON sys (checksum)')
+            c.execute(f'{sql} idx_sys_filename ON sys (filename)')
+            c.execute(f'{sql} idx_sys_checksum_filename ON sys (checksum, filename)')
+
+def create_db(database, action=None):
       print('Initializing database...')
+ 
       conn = sqlite3.connect(database)
       c = conn.cursor()
-      create_table(c, 'logs', 'hardlinks', ('timestamp','filename'))
-      create_table(c, 'sys', 'count', ('filename',))
+      create_table(c, 'logs', 'hardlinks', ('timestamp','filename', 'changetime')) 
+
+      # c.execute('''
+      # CREATE TABLE IF NOT EXISTS stats (
+      #       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      #       timestamp TEXT,
+      #       filename TEXT,
+      #       changetime TEXT,
+      #       inode TEXT,
+      #       accesstime TEXT,
+      #       checksum TEXT,
+      #       filesize TEXT,
+      #       symlink TEXT,
+      #       owner TEXT,
+      #       `group` TEXT,
+      #       permissions TEXT,
+      #       casmod TEXT,
+      #       hardlinks TEXT,
+      #       )
+      # ''')
+
+      create_table(c, 'sys', 'count', ('timestamp', 'filename', 'changetime',))
+
       c.execute('''
       CREATE TABLE IF NOT EXISTS stats (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             action TEXT,
             timestamp TEXT,
             filename TEXT,
-			UNIQUE(timestamp, filename)
+            changetime TEXT,
+			UNIQUE(timestamp, filename, changetime)
             )
       ''')
       conn.commit()
-      return (conn)
-def insert(log, c, table, last_column): # Log, sys
+      if action:
+            return (conn)
+      else:
+            conn.close()
+
+def insert(log, conn, c, table, last_column): # Log, sys
       global count
       count = getcount(c)
-      # c.executemany('''
-      #       INSERT OR IGNORE INTO logs (timestamp, filename, inode, accesstime, checksum, filesize, symlink, owner, `group`, permissions, changetime, casmod, hardlinks)
-      #       VALUES (Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?))
-      # ''', log)
-      # blank_row = (None, None, None, None, None, None, None, None, None, None, None, None, None,)  # Blank values for each column in 'logs' table
-      # c.execute('''
-      #       INSERT INTO logs (timestamp, filename, inode, accesstime, checksum, filesize, symlink, owner, `group`, permissions, changetime, casmod, hardlinks)
-      #       VALUES (?, ?, ?, ?, ?, ?, ?, ? ,? ,? ,? ,? ,?)
-      # ''', blank_row)
-      # conn.commit()
+
       columns = [
-            'timestamp', 'filename', 'inode', 'accesstime', 'checksum',
-            'filesize', 'symlink', 'owner', '`group`', 'permissions',
-            'changetime', 'casmod', last_column
+            'timestamp', 'filename', 'changetime', 'inode', 'accesstime', 
+            'checksum', 'filesize', 'symlink', 'owner', '`group`', 
+            'permissions', 'casmod', last_column
       ]
       placeholders = ', '.join(['Trim(?)'] * len(columns))
       col_str = ', '.join(columns)
@@ -136,18 +169,24 @@ def insert(log, c, table, last_column): # Log, sys
             f'INSERT OR IGNORE INTO {table} ({col_str}) VALUES ({placeholders})',
             log
       )
-      blank_row = tuple([None] * len(columns))
-      c.execute(
-            f'INSERT INTO {table} ({col_str}) VALUES ({", ".join(["?"]*len(columns))})',
-            blank_row
-      )
-def insert_if_not_exists(action, timestamp, filename, conn, c): # Stats 
+
+      if table == 'logs':
+            blank_row = tuple([None] * len(columns))
+            c.execute(
+                  f'INSERT INTO {table} ({col_str}) VALUES ({", ".join(["?"]*len(columns))})',
+                  blank_row
+            )
+
+      conn.commit()
+
+def insert_if_not_exists(action, timestamp, filename, changetime, conn, c): # Stats 
       timestamp = timestamp or None
       c.execute('''
-      INSERT OR IGNORE INTO stats (action, timestamp, filename)
-      VALUES (?, ?, ?)
-      ''', (action, timestamp, filename))
+      INSERT OR IGNORE INTO stats (action, timestamp, filename, changetime)
+      VALUES (?, ?, ?, ?)
+      ''', (action, timestamp, filename, changetime))
       conn.commit()
+
 def parselog(file, list, checksum, type):
       with open(file, 'r') as file: 
             for line in file:
@@ -158,30 +197,28 @@ def parselog(file, list, checksum, type):
                         continue
                   timestamp = None if inputln[0] in ("None", "") else inputln[0]
                   filename    = None if inputln[1] in ("", "None") else inputln[1]
-                  inode       = None if inputln[2] in ("", "None") else inputln[2]
-                  accesstime  = None if inputln[3] in ("", "None") else inputln[3]
-                  checks      = None if len(inputln) > 4 and inputln[4] in ("", "None") else (inputln[4] if len(inputln) > 4 else None)
-                  filesize    = None if len(inputln) > 5 and inputln[5] in ("", "None") else (inputln[5] if len(inputln) > 5 else None)
+                  changetime  = None if inputln[2] in ("", "None") else inputln[2]
+                  inode       = None if inputln[3] in ("", "None") else inputln[3]
+                  accesstime = None if inputln[4] in ("", "None") else inputln[4]
+                  checks      = None if len(inputln) > 5 and inputln[5] in ("", "None") else (inputln[5] if len(inputln) > 5 else None)
+                  filesize    = None if len(inputln) > 6 and inputln[6] in ("", "None") else (inputln[6] if len(inputln) > 6 else None)
                   if checksum == 'true':
-                        sym   = None if len(inputln) <= 6 or inputln[6] in ("", "None") else inputln[6]
-                        onr   = None if len(inputln) <= 7 or inputln[7] in ("", "None") else inputln[7]
-                        gpp   = None if len(inputln) <= 8 or inputln[8] in ("", "None") else inputln[8]
-                        pmr   = None if len(inputln) <= 9 or inputln[9] in ("", "None") else inputln[9]
-                        itime = None
-                        if len(inputln) > 11 and inputln[10] not in ("", "None") and inputln[11] not in ("", "None"):
-                              itime = f"{inputln[10]} {inputln[11]}"
-                        cam   = None if len(inputln) <= 12 or inputln[12] in ("", "None") else inputln[12]
-                        hardlink_count = None if len(inputln) <= 13 or inputln[13] in ("", "None") else inputln[13]
+                        sym   = None if len(inputln) <= 7 or inputln[7] in ("", "None") else inputln[7]
+                        onr   = None if len(inputln) <= 8 or inputln[8] in ("", "None") else inputln[8]
+                        gpp   = None if len(inputln) <= 9 or inputln[9] in ("", "None") else inputln[9]
+                        pmr   = None if len(inputln) <= 10 or inputln[10] in ("", "None") else inputln[10]
+
+                        cam   = None if len(inputln) <= 11 or inputln[11] in ("", "None") else inputln[11]
+                        hardlink_count = None if len(inputln) <= 12 or inputln[12] in ("", "None") else inputln[12]
                   else:
                         sym = None
                         onr = None
                         gpp = None
                         pmr = None
-                        itime = None
                         cam = None
                         hardlink_count = None if type == "sys" else checks
                         checks=None
-                  list.append((timestamp, filename, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, itime, cam, hardlink_count))
+                  list.append((timestamp, filename, changetime, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, cam, hardlink_count))
 def main():
       xdata=sys.argv[1] # data source
       dbtarget=sys.argv[2]  # the target
@@ -195,9 +232,11 @@ def main():
       ps=sys.argv[10] # proteusshield
       nc=sys.argv[11] # no compression
       user="guest"
+      table="logs"
       stats = []
       parsed = []
       parsedsys=[]
+      recorddata=[]
       dbe=False
       goahead=True                
       conn=None
@@ -211,7 +250,7 @@ def main():
                   return 2
       else:
             try:
-                  conn = create_db(dbopt)
+                  conn = create_db(dbopt, True)
                   print(f'{pyfunctions.GREEN}Persistent database created.{pyfunctions.RESET}')
                   goahead=False
             except Exception as e:
@@ -226,29 +265,28 @@ def main():
 
             #initial Sys profile
             if ps != 'false':
-
+                  table="sys"
                   if not table_exists_and_has_data(conn, 'sys') and checksum == 'true':
                         print(f'{pyfunctions.CYAN}Generating system profile from base .xzms.{pyfunctions.RESET}') # hash base xzms
                         result=subprocess.run(["/usr/local/save-changesnew/sysprofile", turbo],capture_output=True,text=True)
                         if result.returncode == 1:
                               print("Bash failed to hash profile.")
                         
-                        elif result.stdout:
-                              dir_path = result.stdout.strip()
+                        else:
+                              try:
+                                    dir_path = result.stdout.strip()
 
-                              parselog(dir_path, parsedsys, checksum, 'sys') #sys
+                                    parselog(dir_path, parsedsys, checksum, 'sys') #sys
 
-                              if os.path.isdir(dir_path):
-                                    shutil.rmtree(dir_path)
+                                    if os.path.isdir(dir_path):
+                                          shutil.rmtree(dir_path)
+                              except Exception as e:
+                                    print(f"bash sysprofile failed missing SORTCOMPLETE: {e}")
 
-                        if not table_exists_and_has_data(conn, 'logs'): # reset it
-                              os.remove(dbopt)
-                              create_db(dbopt)
-                              goahead=False
 
                         if parsedsys:
                               try: 
-                                    insert(parsedsys, c, "sys", "count") 
+                                    insert(parsedsys, conn, c, "sys", "count") 
                                     
                               except Exception as e:
                                     print('sys db failed insert', e)
@@ -261,11 +299,24 @@ def main():
                         try: 
 
                               if turbo == 'mc':
-                                    hanly_parallel(rout, tfile, parsed, checksum, cdiag, dbopt, ps, user, dbtarget)
+                                    hanly_parallel(rout, tfile, parsed, checksum, cdiag, dbopt, ps, user, dbtarget, table)
                               else:
                                     with open(rout, 'a') as file, open(tfile, 'a') as file2, open('/tmp/cerr', 'a') as file3, open('/tmp/scr', 'a') as file4:
-                                          hanly(parsed, checksum, cdiag, conn, c,  ps, user, dbtarget, file, file2, file3, file4)
-                                          
+                                          hanly(parsed, recorddata, checksum, cdiag, conn, c,  ps, user, dbtarget, file, file2, file3, file4)
+                                          if recorddata:
+                                                for record in recorddata:
+
+                                                      timestamp = record[0]
+                                                      label = record[1]
+                                                      changetime = record[2]
+                                                      inode = record[3]   
+                                                      checksum = record[5]
+                                        
+                                                      result = pyfunctions.detect_copy(label, inode, checksum, c, table)
+                                                      if result:
+                                                            print(f'Copy {record[0]} {record[2]} {label}', file=file)
+                                                            print(f'Copy {record[0]} {label}', file=file2)	
+                                                      
 
                         except Exception as e:
                               print(f"hanlydb failed to process on mode {turbo}: {e}", file=sys.stderr)
@@ -285,7 +336,7 @@ def main():
             # Log
             if parsed: 
                   try: 
-                        insert(parsed, c, "logs", "hardlinks")
+                        insert(parsed, conn, c, "logs", "hardlinks")
                         if count % 10 == 0:
                               print(f'{count + 1} searches in gpg database')
 
@@ -300,26 +351,32 @@ def main():
 
                         with open(rout, 'r', newline='') as record:
                               for line in record:
-                                    parts = line.split(maxsplit=3)
-                                    if len(parts) < 4:
+                                    parts = line.strip().split(maxsplit=5)
+                                    if len(parts) < 6:
                                           continue
                                     action = parts[0]
-                                    date = parts[1]
-                                    time = parts[2]
-                                    fp = parts[3]
+                                    date = None if parts[1] == "None" else parts[1]
+                                    time = None if parts[2] == "None" else parts[2]
+                                    cdate = None if parts[3] == "None" else parts[3]
+                                    ctime = None if parts[4] == "None" else parts[4]
+                                    fp = parts[5]
                                     filename = fp.strip()
 
+                                    timestamp = None if date is None or time is None else f"{date} {time}"
+                                    changetime = None if cdate is None or ctime is None else f"{cdate} {ctime}"
+
                                     if filename:
-                                          stats.append((action, date + ' ' + time, filename))
+                                          stats.append((action, timestamp, changetime, filename))
 
                         if stats:
 
                               for record in stats:
                                     action = record[0]
                                     timestamp = record[1]
-                                    fp = record[2]
+                                    changetime = record[2]
+                                    fp = record[3]
 
-                                    insert_if_not_exists(action, timestamp, fp, conn, c)
+                                    insert_if_not_exists(action, timestamp, fp, changetime, conn, c)
 
                   except Exception as e:
                         print('stats db failed to insert', e)
@@ -327,7 +384,7 @@ def main():
 
             if not dbe: # Encrypt if o.k.
                   try:
-                        sts=encr(dbopt, dbtarget, email, nc, True)
+                        sts=encr(dbopt, dbtarget, email, nc, "true")
                         if not sts:		
                               print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}  before running again.')
 

@@ -17,25 +17,6 @@ from pyfunctions import get_delete_patterns
 from pyfunctions import is_integer
 sort_directions = {}
 def hardlinks(database, target, email, conn, cur):
-	# query = """
-	# UPDATE logs
-	# SET hardlinks = COALESCE((
-	# 	SELECT COUNT(*)
-	# 	FROM logs AS l2
-	# 	WHERE l2.inode = logs.inode
-	# 	AND l2.inode IS NOT NULL
-	# ), 0)  -- Default to 0 if no hard links
-	# WHERE inode IS NOT NULL;
-	# """
-	# query = """
-	# UPDATE logs
-	# SET hardlinks = CASE 
-	# 				WHEN (SELECT COUNT(*) FROM logs AS l2 WHERE l2.inode = logs.inode AND l2.inode IS NOT NULL) > 1
-	# 				THEN (SELECT COUNT(*) FROM logs AS l2 WHERE l2.inode = logs.inode AND l2.inode IS NOT NULL)
-	# 				ELSE NULL
-	# 				END
-	# WHERE inode IS NOT NULL;
-	# """
 	cur.execute("SELECT COUNT(*) FROM logs WHERE hardlinks IS NOT NULL AND hardlinks != ''")
 	count = cur.fetchone()[0]
 	if count > 0:
@@ -65,7 +46,7 @@ def hardlinks(database, target, email, conn, cur):
 	try:
 		cur.execute(query)
 		conn.commit()
-		rlt=encr(database, target, email, False)
+		rlt=encr(database, target, email, "False", "False")
 		if rlt:
 			print("Hard links updated")
 		else:
@@ -81,7 +62,7 @@ def clear_cache(database, target, email, usr, dbp, conn, cur):
 				conn.commit()
 				cur.execute("DELETE FROM stats WHERE filename LIKE ?", (filename_pattern,))
 				conn.commit()
-			rlt=encr(database, target, email, False)
+			rlt=encr(database, target, email,"False", "False")
 			if rlt:
 				print("Cache files cleared.")
 				try:
@@ -293,7 +274,7 @@ def main() :
 						top_3_directories = directory_counts.most_common(3)
 						print(f"{pyfunctions.CYAN}Top 3 directories{pyfunctions.RESET}")
 						for directory, count in top_3_directories:
-							print(f'{count}: {directory} times')
+							print(f'{count}: {directory}')
 						print() ; cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''") # common file 5
 						filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines
 						filename_counts = Counter(filenames)

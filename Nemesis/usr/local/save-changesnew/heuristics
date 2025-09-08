@@ -1,8 +1,16 @@
 #!/bin/bash
 # 08/11/2025
 asz() {
-awk 'NF && $8 ~ /^[0-9]+$/ && $8 > 0 {
-    filesize = $8
+awk '
+{
+    # Remove quotes from file path
+    path = $2
+    gsub(/^"|"$/, "", path)
+
+    inode = $4
+    filesize = $7
+
+    # Example: accumulate total size
     total_size += filesize
     file_count++
 }
@@ -15,14 +23,21 @@ END {
     }
 }' "$1"
 }
+#    if (f[2] ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/ && f[3] ~ /^[0-9]{2}:[0-9]{2}:[0-9]{2}$/) {
+#        cmd = "date -d \"" f[2] " " f[3] "\" +%s"
 aat() {
 awk '
 {
     match($0, /"([^"]+)"/)
     rest = substr($0, RSTART + RLENGTH)
     split(rest, f, " ")
-    if (f[2] ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/ && f[3] ~ /^[0-9]{2}:[0-9]{2}:[0-9]{2}$/) {
-        cmd = "date -d \"" f[2] " " f[3] "\" +%s"
+
+    # Assuming f[1..2] after the quote are old date/time, f[3] is inode
+    date_idx = 4  # access date
+    time_idx = 5  # access time
+
+    if (f[date_idx] ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/ && f[time_idx] ~ /^[0-9]{2}:[0-9]{2}:[0-9]{2}$/) {
+        cmd = "date -d \"" f[date_idx] " " f[time_idx] "\" +%s"
         cmd | getline e
         close(cmd)
         sum += e
@@ -227,40 +242,30 @@ function process_session(block, snum,    lines, n, i, parts, timestamp, times, g
   }
 }
 ' "$1"
-echo ; echo "Most Replaced by inode (awk generated)"
+echo; echo "Most Replaced by inode (awk generated)"
 awk -v RS="" -v max=7 '
-function process_snapshot(snapshot,   i, lines, path, inode, rest, ino_match, n, fields, filepath) {
+function process_snapshot(snapshot, i, lines, path, inode, rest, n, fields, pos) {
   n = split(snapshot, lines, "\n")
   for (i = 1; i <= n; i++) {
-    # Split the line by comma
-    split(lines[i], fields, ",")
+    if (match(lines[i], /"([^"]+)"/, m)) {
+      path = m[1]
 
-    # Join fields from the 3rd to the end (in case filepath contains commas)
-    filepath = fields[3]
-    for (j = 4; j <= length(fields); j++) {
-      filepath = filepath "," fields[j]
+      # Split remainder of the line after quoted path
+      rest = substr(lines[i], RSTART + RLENGTH)
+      nfields = split(rest, fields, /[ \t]+/)
+
+      # inode is the 2nd field after the quoted path
+      inode = (nfields >= 3) ? fields[3] : ""
+
+      if (path == "" || inode == "") continue
+
+      if (prev_inode[path] && prev_inode[path] != inode) {
+        changes[path]++
+        found = 1
+      }
+      prev_inode[path] = inode
     }
-
-    # Trim leading/trailing spaces from filepath
-    gsub(/^ +| +$/, "", filepath)
-
-    # Get inode number after filepath (assuming inode is the first number after the filepath)
-    rest = substr(lines[i], index(lines[i], filepath) + length(filepath))
-    if (match(rest, /[0-9]+/, ino_match)) {
-      inode = ino_match[0]
-    } else {
-      inode = ""
-    }
-
-    if (filepath == "" || inode == "") continue
-
-    if (prev_inode[filepath] && prev_inode[filepath] != inode) {
-      changes[filepath]++
-      found = 1        # Mark that we found at least one change
-    }
-    prev_inode[filepath] = inode
   }
-}
 }
 
 {
@@ -269,9 +274,8 @@ function process_snapshot(snapshot,   i, lines, path, inode, rest, ino_match, n,
 
 END {
   start = (NR > max) ? NR - max + 1 : 1
-  for (i = start; i <= NR; i++) {
-    process_snapshot(snapshots[i])
-  }
+  for (i = start; i <= NR; i++) process_snapshot(snapshots[i])
+
   if (found) {
     for (p in changes) print changes[p], p
   } else {

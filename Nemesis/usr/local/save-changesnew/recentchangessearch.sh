@@ -28,6 +28,7 @@ validrlt="false"															;		flsrh="false"
 pstc="false"																;		nc="false"
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
+fmt="%Y-%m-%d %H:%M:%S"
 mkdir $tmp
 mkdir $atmp
 intst
@@ -71,8 +72,8 @@ elif [ "$mMODE" == "mc" ]; then
 	x=$(tr -cd '\0' < $FEEDFILE | wc -c) ; y=8
 	if (( x > 100 )); then y=16 ; fi
 	xargs -0 -n"$y" -P4 /usr/local/save-changesnew/mainloop "$atmp" "$checkSUM" < $FEEDFILE
-	if compgen -G "$atmp/mainloop1_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop1_*_tmp.log > $SORTCOMPLETE;  fi
-	if compgen -G "$atmp/mainloop2_*_tmp.log" > /dev/null; then cat "$atmp"/mainloop2_*_tmp.log >> $COMPLETE; fi
+	if compgen -G "$atmp"/mainloop1_*_tmp.log > /dev/null; then cat "$atmp"/mainloop1_*_tmp.log > $SORTCOMPLETE;  fi
+	if compgen -G "$atmp"/mainloop2_*_tmp.log > /dev/null; then cat "$atmp"/mainloop2_*_tmp.log >> $COMPLETE; fi
 fi
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
 if [ -s $SORTCOMPLETE ]; then
@@ -138,7 +139,7 @@ if [ -s $SORTCOMPLETE ] ; then
     	CDATE=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')
         if [ "$flsrh" == "false" ]; then awk -v tme="$CDATE" '$0 >= tme' "$difffile" > $TMPCOMPLETE ; else cat "${difffile}" > $TMPCOMPLETE; fi
     	echo >> "${difffile}"
-    	while IFS="" read -r p || [ -n "$p" ]; do cFILE="$( echo "$p" | cut -d " " -f3-)" ; grep -Fqs "$cFILE" $SORTCOMPLETE && { echo "Modified" "$p" >> $ABSENT; echo "Modified" "$p" >> $rout; } || { echo "Deleted " "$p" >> $ABSENT; echo "Deleted" "$p" >> $rout; } ; done < $TMPCOMPLETE
+    	while IFS="" read -r p || [ -n "$p" ]; do cFILE="$( echo "$p" | cut -d " " -f3-)" ; grep -Fqs "$cFILE" $SORTCOMPLETE && { echo "Modified" "$p" >> $ABSENT; echo "Modified" "$p" >> $tout; } || { echo "Deleted " "$p" >> $ABSENT; echo "Deleted" "$p" >> $tout; } ; done < $TMPCOMPLETE
 		test -f $ABSENT  && { echo Applicable to your search ; cat $ABSENT ; } >> "${difffile}" || { echo "None of above is applicable to search. It is the previous search"; } >> "${difffile}"
     else
         test -e "${difffile}" && rm "${difffile}"
