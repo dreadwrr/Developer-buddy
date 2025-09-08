@@ -21,9 +21,11 @@ get_colors
 . /usr/local/save-changesnew/save-changesnewfnts
 # Check if 'changes=EXIT' cheatcode is active and not run from rc.6:
 [[ "$1" != "6" ]] && if [[ $(whoami) != "root" ]]; then yellow "Please enter root's password below:" ; su - -c "/opt/porteus-scripts/save-changesnew $USER $1" ; exit ; fi
-[[ "$1" == "6" ]] && theUSER="$2" && thetgt="$4" || theUSER="$1" # Handle actual root call
-[[ -z "$theUSER" ]] && theUSER="guest"
+[[ "$1" == "6" ]] && theUSER="$2" && thetgt="$4" || { theUSER="$1" ; bck="$2" ; } # Handle actual root call   
+[[ -z "$2" ]] && bck=$1 && theUSER="guest"
 [[ -z "$thetgt" ]] && thetgt=$BASEDIR     # <----- ie   /mnt/sda3   some root environments are null 
+if ! id $theUSER >/dev/null 2>&1; then echo "user:" ${2} "not found"; exit 0 ; fi # quick user check                     #we test the target directory $1 after VARS
+
 # Notes
 # Changes commit vars   line 172          this is the main script
 # developer buddy  vars         160         this runs after changes commit if BACKUP  true
@@ -186,7 +188,7 @@ rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
 test -f /mnt/live/tmp/changes-exit || { echo "'changes=EXIT:' cheatcode is not active - exiting..."; exit; }
 initf
 rlt=$(sed -n 's/.*changes=EXIT:\([^ ]*\).*/\1/p' /proc/cmdline)
-[[ -n "$rlt" ]] && [[ "$2" == "backup" ]] && backup && cleanup "$1"
+[[ -n "$rlt" ]] && [[ "$bck" == "backup" ]] && backup && cleanup "$1"
 DEST="$(cat /mnt/live/tmp/changes-exit)"	; 	NAME="$(basename "${DEST:-}")"
 if [[ $(grep ".dat" /mnt/live/tmp/changes-exit 2>/dev/null) ]]; then
 	Dest="Save.dat file"
