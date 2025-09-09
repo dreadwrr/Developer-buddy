@@ -205,7 +205,7 @@ if [ "$STATPST" == "true" ]; then
 				dt="$f1 $f2"
 				ct="$f3 $f4"
 				r=$( grep -F "$dt \"$y\" $ct" $source)
-				[[ -n "$r" ]] &&  echo "$p" >> $source
+				[[ -z "$r" ]] &&  echo "$p" >> $source
 			done < $1
 			unset IFS
             echo >> $source # end of log
@@ -274,7 +274,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 	read -r _ _ f3 f4 _ _ _ f8 _ <<< "$current_ln"
 	cs="$f8"
 	ct="$f3 $f4"
-	copy_record=$(grep -F -v "\"$y\"" "$1" | awk -F'"' '{print $1 $3}' | tail -n 1)
+	copy_record=$(grep -F -v "\"$y\"" $1 | awk -F'"' '{print $1 $3}' | tail -n 1)
 	if [[ -n "$copy_record" ]]; then
 		original_ln="$( echo "$copy_record" | xargs -d '\n')"
 		read -r _ _ of3 of4 <<< "$original_ln"
@@ -284,21 +284,35 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 		fi
 	fi
 done < $TMPCOMPLETE
-	#$ofile
-	#if [ "$1" == "A" ]; then found_line="${ref_map[$y]}" ; else found_line=$( grep -F "$y" "$ofile" | tail -n 1) ; fi  
-	#if [ -n "$found_line" ]; then
-		#original_ln="$found_line"
-		#if [ "$1" != "A" ]; then original_ln="${found_line//\"$y\"/}" ; original_ln="$( echo "$original_ln" | xargs -d '\n')" ; fi # sans filename
-		#
-		#read -r of1 of2 of3 of4 of5 of6 of7 of8 of9 of10 of11 of12 of13 <<< "$original_ln"
-		#in="$f5"
-		#oin="$of5"
-		#org="$of6"
-		#if [ "$cs" = "$org" ]
-		#	echo "Copy $dt $y" | tee -a $rout >> $tfile
-		#fi
-	#fi
 }
+#read -r of3 of4 < <(grep -F -v "\"$y\"" $1 | awk -F'"' '{print $1 $3}' | tail -n 1 | awk '{print $3, $4}')
+#oct=$(grep -F -v "\"$y\"" $1 | awk -F'"' '{print $1 $3}' | tail -n 1 | awk '{print $3, $4}') efficient
+#	oct=$(
+#	  awk -F'"' -v y="$y" '
+#		index($0, "\"" y "\"") == 0 {    # like grep -F -v
+#		  line=$1 $3                     # like your first awk
+#		  last=line                      # track last line
+#		}
+#		END {
+#		  n=split(last,f," ")
+#		  if (n >= 4) print f[3], f[4]   # like tail + second awk
+#		}
+#	  ' $1
+#	)
+#$ofile
+#if [ "$1" == "A" ]; then found_line="${ref_map[$y]}" ; else found_line=$( grep -F "$y" "$ofile" | tail -n 1) ; fi  
+#if [ -n "$found_line" ]; then
+	#original_ln="$found_line"
+	#if [ "$1" != "A" ]; then original_ln="${found_line//\"$y\"/}" ; original_ln="$( echo "$original_ln" | xargs -d '\n')" ; fi # sans filename
+	#
+	#read -r of1 of2 of3 of4 of5 of6 of7 of8 of9 of10 of11 of12 of13 <<< "$original_ln"
+	#in="$f5"
+	#oin="$of5"
+	#org="$of6"
+	#if [ "$cs" = "$org" ]
+	#	echo "Copy $dt $y" | tee -a $rout >> $tfile
+	#fi
+#fi
 hanly(){
 	local csm=""
 	declare -a collisions=()
@@ -320,6 +334,7 @@ hanly(){
 		while read -r p; do key=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$p") ; current_ln="${p//\"$key\"/}" ; current_ln="$(echo "$current_ln" | xargs  -d '\n')" ; ref_map["$key"]="$current_ln" ; done < $2
 		hablk "A"
 	fi
+	
 	test -s $TMPCOMPLETE && iscopy $2
 	rm $2
     processha "$@"
@@ -332,6 +347,20 @@ local filesize="$3"
 local type=$4
 local arr
 if [ "$checkSUM" == "false" ]; then fld=3 ; fi
+while IFS= read -r line; do
+	os=""
+	cFILE=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$line")
+	rest=$(awk -F'"' '{print $3}' <<< "$line")
+	read -r _ _ _ _ _ record_c os <<< "$rest"
+    if [[ "$cFILE" != "$label" && "$record_c" != "None" && "$os" != "None" ]]; then
+        if [[ "$chksum" == "$record_c" && "$filesize" != "$os" ]]; then 
+			if [ "$os" -ge 0 ] 2>/dev/null; then
+				collisions+=("COLLISION: $label vs $cFILE | Checksum: ${chksum} && ${record_c} | Sizes: $filesize != $os") ; csm="true"
+			fi
+		fi
+    fi
+done < <(grep -F "$chksum" "$ofile")
+}
 #if [ "$type" == "A" ]; then arr="!ref_map[@]" ; else arr="ref_lines[@]" ; fi
 #for line in "${arr}"; do
 #if [ "$type" == "A" ]; then arr=("${!ref_map[@]}") ; else arr=("${ref_lines[@]}") ; fi  original
@@ -351,30 +380,14 @@ if [ "$checkSUM" == "false" ]; then fld=3 ; fi
 #        if [[ "$chksum" == "$record_c" && "$filesize" != "$os" ]]; then collisions+=("COLLISION: $label vs $cFILE | Checksum: $chksum | Sizes: $filesize != $os") ; csm="true" ; fi
 #    fi
 #done
-while IFS= read -r line; do
-	os=""
-	cFILE=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$line")
-    #cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$line")
-    #parsed="${line//\"$cFILE\"/}"       
-    #parsed="$(echo "$parsed" | xargs -d '\n')"
-    # read -r _ _ _ _ _ record_c os <<< "$parsed"
-	#     #parsed="${line//\"$cFILE\"/FILENAME}"
-	#inode=$( sed -E 's/^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} ".*" [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} ([0-9]+)$/\1/' <<< "$line")
-	#os=$(awk '{for (i=1;i<=NF;i++) if ($i == inode) print $(i+4)}' inode="$inode" <<< "$line")
-	#filename=$(awk -F'"' '{print $2}' <<< "$line")
-	rest=$(awk -F'"' '{print $3}' <<< "$line")
-	read -r _ _ _ _ _ record_c os <<< "$rest"
-    if [[ "$cFILE" != "$label" && "$record_c" != "None" && "$os" != "None" ]]; then
-        if [[ "$chksum" == "$record_c" && "$filesize" != "$os" ]]; then 
-			if [ "$os" -ge 0 ] 2>/dev/null; then
-				collisions+=("COLLISION: $label vs $cFILE | Checksum: ${chksum} && ${record_c} | Sizes: $filesize != $os") ; csm="true"
-			fi
-		fi
-    fi
-done < <(grep -F "$chksum" "$ofile")
-
-
-}
+#cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$line")
+#parsed="${line//\"$cFILE\"/}"       
+#parsed="$(echo "$parsed" | xargs -d '\n')"
+# read -r _ _ _ _ _ record_c os <<< "$parsed"
+#     #parsed="${line//\"$cFILE\"/FILENAME}"
+#inode=$( sed -E 's/^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} ".*" [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} ([0-9]+)$/\1/' <<< "$line")
+#os=$(awk '{for (i=1;i<=NF;i++) if ($i == inode) print $(i+4)}' inode="$inode" <<< "$line")
+#filename=$(awk -F'"' '{print $2}' <<< "$line")
 stealth() {
 local file="$1"				;	local label="$2"		
 local cksum="$3"			;   local current_size="$4"
@@ -404,14 +417,14 @@ hablk() {
 while IFS= read -r p || [[ -n "$p" ]]; do
     df="false"
 	found_line=""
-    #cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")
+    #cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p") orig
     cFILE=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$p")
 	y=$cFILE
 	current_ln="${p//\"$y\"/}"
 	current_ln="$( echo "$current_ln" | xargs  -d '\n')"
 	read -r f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 _ <<< "$current_ln"
 	in="$f5"
-	if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then 	# for line in "${ref_lines[@]}"; do if [[ "$line" == *"$y"* ]]; then found_line="$line" ; fi ; done
+	if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then 	# for line in "${ref_lines[@]}"; do if [[ "$line" == *"$y"* ]]; then found_line="$line" ; fi ; done regular array old multicore
 		if [ "$1" == "A" ]; then found_line="${ref_map[$y]}" ; else found_line=$( grep -F "$y" "$ofile" | tail -n 1) ; fi  # 
 		if [ -n "$found_line" ]; then
 			original_ln="$found_line"
@@ -420,52 +433,47 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 			cFILE="$( unescf "$cFILE")"
 			oin="$of5"
 			if [ -n "$oin" ] && [ "$oin" -ge 0 ] 2>/dev/null; then
-				omt="$of1 $of2" ; oct="$of3 $of4" ; org="$of8"
-				dt="$f1 $f2" ; ct="$f3 $f4" ; cs="$f8" ; cat="$f6 $7"
-				if [ "$checkSUM" == "true" ]; then os="$of9" ; csze="$f9" ; fs="" ; is_valid_date "$ct" && is_valid_date "$oct" && [ -n "$org" ] && [ -n "$cs" ] && [ "$cs" != "None" ] && [ -n "$org" ] || continue ; fi
+				dt="$f1 $f2" ; omt="$of1 $of2"
 				if [ "$dt" == "$omt" ]; then
 					if [ "$checkSUM" == "true" ]; then
-						if [ -f "$cFILE" ]; then                     
-							if [ "$org" != "$cs" ]; then
-								a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
-                                read a_mod fs acte au ag apmr < <(stat --format="%Y %s %Z %U %g %A" "$cFILE" 2>/dev/null)
-								afrm=$(date -d "@$a_mod" +"$fmt" 2>/dev/null)
-								if [ -n "$afrm" ] && [ -n "$a_checksum" ]; then
+						oct="$of3 $of4" ; oat="$of6 $o7" ; ocs="$of8" ; os="$of9"
+						ct="$f3 $f4" ; cat="$f6 $7" ; cs="$f8" ; csze="$f9" 
+						is_valid_date "$cat" && is_valid_date "$oat" && [[ "$cs" != "None" ]] && [[ "$ocs" != "None" ]] || continue
+						if [ -f "$cFILE" ]; then                     		
+							a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
+                            read a_mod fs a_ct au ag apmr < <(stat --format="%Y %s %Z %U %g %A" "$cFILE" 2>/dev/null)
+							afrm=$(date -d "@$a_mod" +"$fmt" 2>/dev/null)
+							if [ -n "$afrm" ] && [ -n "$a_checksum" ]; then
+								if [ "$a_checksum" != "$cs" ]; then
 									if [ "$afrm" == "$dt" ]; then
-										if [ "$a_checksum" != "$cs" ]; then
-											m="Suspect $dt"
-											echo "$m $y" >> $tfile
-											echo "$m $ct $y" >> $rout
-                                            echo "Suspect file: $y changed without a new modified time." >> /tmp/cerr
-                                            df="true" ; csm="true"
-										fi
+										m="Suspect $dt"
+										echo "$m $y" >> $tfile
+										echo "$m $ct $y" >> $rout
+                                        echo "Suspect file: $y changed without a new modified time." >> /tmp/cerr
+                                        df="true" ; csm="true"
 									else
-                                            if [ "$cdiag" == "true" ]; then 
-                                                m="File changed during the search."
-											    echo "$m $y at ${afrm}. Size was $os, now $fs." >> /tmp/scr
-                                            else
-											    echo "$m $y. File likely changed. system cache item." >> /tmp/scr
-                                            fi
-                                            stealth "$cFILE" "$y" $cs $fs $csze "regular" $1
-                                            df="true"
-										fi
-                                    if [ "$df" == "false" ]; then
-										if (( oin == in )); then
-											oat="$of6 $o7"
-											old_meta="$of11 $of12 $of13"     #$wnr $grp $pmn $cam"       
-		                               		# cur_meta="$f11 $f12 $f13"          these are free with stat call.
-											cur_meta="$au $ag $apmr" # actual 
-											act=$(date -d "@$acte" +"$fmt" 2>/dev/null)
-		                                     if is_valid_date "$oct" && [ -n "$act" ]; then
-												if [ "$old_meta" != "$cur_meta" ] || [ "$oct" != "$act" ]]; then
-													m="Metadata $dt"
-		                                        	echo "$m $y" >> $tfile
-													echo "$m $ct $y" >> $rout
-												fi
-		                                    fi
-										fi
-										df="true"
+										if [ "$cdiag" == "true" ]; then 
+	                                        m="File changed during the search."
+											echo "$m $y at ${afrm}. Size was $os, now $fs." >> /tmp/scr
+	                                    else
+											echo "$m $y. File likely changed. system cache item." >> /tmp/scr
+	                                    fi
+	                                    stealth "$cFILE" "$y" $cs $fs $csze "regular" $1
+	                                    df="true"
 									fi
+								fi
+                                if [ "$df" == "false" ]; then
+									if (( oin == in )); then
+										old_meta="$of11 $of12 $of13" #owner grp perm
+	                               		# cur_meta="$f11 $f12 $f13"
+										cur_meta="$au $ag $apmr" # ln 448   free
+										if [ "$old_meta" != "$cur_meta" ]; then
+											m="Metadata $dt"
+                                        	echo "$m $y" >> $tfile
+											echo "$m $ct $y" >> $rout
+										fi
+									fi
+									df="true"
 								fi
 							fi
 						fi
@@ -474,7 +482,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 					df="true"
 					if [ "$checkSUM" == "true" ]; then
 						if (( oin != in )); then
-							if [ "$org" == "$cs" ]; then
+							if [ "$ocs" == "$cs" ]; then
 								m="Overwrite $dt"
 								echo "$m $y" >> $tfile
 								echo "$m $ct $y" >> $rout
@@ -486,7 +494,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 								stealth "$cFILE" "$y" $cs $csze $os "regular" $1
 							fi
 						else
-							if [ "$org" != "$cs" ]; then
+							if [ "$ocs" != "$cs" ]; then
 								m="Modified $dt"
 								echo "$m $y" >> $tfile
 								echo "$m $ct $y" >> $rout
@@ -514,7 +522,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 				fi
 			fi
 		else
-			echo "$p" >> $TMPCOMPLETE
+			echo "$p" >> $TMPCOMPLETE  # is copy?
 		fi
 	fi
 done < $SORTCOMPLETE
@@ -573,7 +581,7 @@ if [[ -s $rout ]] &&  [[ -s $tfile ]]; then
 		filteroutput "/tmp/cerr" "Warning" "Suspect" "yellow" "red" "elevated"
 		if [[ -z "$csum" ]]; then csum="true" ; fi
 	fi
-	if [ -n "$cores" ] && [ "$csum" == "" ]; then echo "Detected $cc CPU cores."; fi
+	if [ -n "$cores" ] && [ "$csum" == "" ]; then echo "Detected $cores CPU cores."; fi
 fi
 }
 cblk() {
@@ -753,13 +761,10 @@ if [ "$STATPST" == "true" ]; then
 				fi
 				if [ -s $rout ]; then
 					sort -u -o $rout $rout
-					#sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2",\3/' $rout orig
-					sed -i -E '/^Deleted/ s/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2","\2",\3/' "$rout"
-					#sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2","\2",\3/' $rout   # action date time file name -->  action,"date time", "date time", file name
-					# Touched Overwrite Replaced Metadata Suspect
-					sed -i -E '/^Deleted/! s/^([^ ]+) ([^ ]+ [^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2","\3",\4/' $rout  # Action,"date time","date time", file name spaces     modified time changed time
-					#sed -i -E '/^(Replaced|Modified)/ s/^([^ ]+) ([^ ]+ [^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2","\3",\4/' "$rout"
-					#sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2","\3",\4/' "$rout" orig
+					sed -i -E '/^Deleted/ s/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2","\2",\3/' "$rout" # input action date time file name -->  action,"date time", "date time", file name
+					sed -i -E '/^Deleted/! s/^([^ ]+) ([^ ]+ [^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2","\3",\4/' $rout  # input Action,"date time","date time", file name spaces   
+					#sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2",\3/' $rout         # last
+					#sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2","\3",\4/' "$rout"         #orig
 					if [ -s $COMPLETE ]; then cat $COMPLETE >> $rout; fi
 					if [ "$pstc" == "true" ]; then
 						imsg="$(storeenc $rout $statpst)"

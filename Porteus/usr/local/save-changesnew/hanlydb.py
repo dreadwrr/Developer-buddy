@@ -73,10 +73,9 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 					if recent_systime:
 						if recent_systime > recent_timestamp:
 							is_sys=True
-							ra=True
 							pyfunctions.increment_fname(conn, c, label) # add to system file count db
+							ra=True
 							previous = recent_sys
-							filedate = recent_systime
 
 		if not recent_entries or not previous or not filedate or not previous[0]:
 			continue
@@ -117,52 +116,47 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 
 							if md5:
 								afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt) # actual modify time
-								afrm_dt = pyfunctions.parse_datetime(afrm_str, fmt)               
-                        
-								if afrm_dt and pyfunctions.is_valid_datetime(record[2], fmt): # stable? format?
+								afrm_dt = pyfunctions.parse_datetime(afrm_str, fmt)                                
+								if afrm_dt and pyfunctions.is_valid_datetime(record[2], fmt): # stable?
 
-									if afrm_dt == previous_timestamp:
-										
+									if md5 != record[5]:
 
-										if md5 != record[5]:  # Flag ***
-											print(f'Suspect {record[0]} {record[2]} {label}', file=file)
+										if afrm_dt == previous_timestamp:
+
+											print(f'Suspect {record[0]} {record[2]} {label}', file=file) # Flag ***
 											print(f'Suspect {record[0]} {label}', file=file2)
 											print(f'Suspect file: {label} changed without a new modified time.', file3)
 											df=True
 								
 
-								else:
-
-
-									if md5 != record[5]:
-										if cdiag == 'true': 
-											print(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size} ', file=file4)
 										else:
-											print(f'File changed during search. File likely changed. system cache item.', file=file4)
-										stealth(filename, label, file3, file4, collision_message, record[5], a_size, current_size, cdiag, 'regular', c) # Flag *** ?
-										df=True
+
+											if cdiag == 'true': 
+												print(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size} ', file=file4)
+											else:
+												print(f'File changed during search. File likely changed. system cache item.', file=file4)
+											stealth(filename, label, file3, file4, collision_message, record[5], a_size, current_size, cdiag, 'regular', c) # Flag *** ?
+											df=True
 
 
+									if not df:
 
-								if not df:
 
+										if record[3] == previous[3]: # Inode
+											#prev_ctime = datetime.strptime(metadata[5], fmt)
+											#recent_ctime = datetime.strptime(str(record[2]).strip(), fmt)
 
-									if record[3] == previous[3]: # Inode
+											metadata = (metadata[0], metadata[1], metadata[2], metadata[3], metadata[4])
+											metadata_changed = (
+												metadata[0] != str(record[10]).strip() or # Perm
+												metadata[1] != str(record[8]).strip() or # Owner
+												metadata[2] != int(record[9]) # Group
+											)	
 
-										#prev_ctime = datetime.strptime(metadata[5], fmt)
-										#recent_ctime = datetime.strptime(str(record[2]).strip(), fmt)
-
-										metadata = (metadata[0], metadata[1], metadata[2], metadata[3], metadata[4])
-										metadata_changed = (
-											metadata[0] != str(record[10]).strip() or # Perm
-											metadata[1] != str(record[8]).strip() or # Owner
-											metadata[2] != int(record[9]) # Group
-										)	
-
-										if metadata_changed:
-											print(f'Metadata {record[0]} {record[2]} {label}', file=file)
-											print(f'Metadata {record[0]} {label}', file=file2)
-										df=True
+											if metadata_changed:
+												print(f'Metadata {record[0]} {record[2]} {label}', file=file)
+												print(f'Metadata {record[0]} {label}', file=file2)
+											df=True
 
 
 					except Exception as e:

@@ -274,7 +274,7 @@ def main() :
 						top_3_directories = directory_counts.most_common(3)
 						print(f"{pyfunctions.CYAN}Top 3 directories{pyfunctions.RESET}")
 						for directory, count in top_3_directories:
-							print(f'{count}: {directory}')
+							print(f'{count}: {directory} times')
 						print() ; cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''") # common file 5
 						filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines
 						filename_counts = Counter(filenames)
