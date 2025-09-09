@@ -164,9 +164,9 @@ TMPCOMPLETE=$tmp/tmp_complete.txt								;		toutnul=$atmp/toutputnul.tmp
 RSYNCEXCL=$tmp/list_filesexclude.txt								;		rout=$atmp/routput.tmp 
 TMPOPT=$tmp/tmp_holding												;		flth=/usr/local/save-changesnew/flth.csv
 REJECTLOG=$tmp/list_rejectsrc.txt										;		slog=/tmp/scr # feedback
-FOLDERLOG=$tmp/save.totalfolders.tmp							;		THETIME="${arge[0]}" # shift for this script
-SORTCOMPLETE=$tmp/list_complete_sorted.txt					;		USRDIR=/home/$USR/Downloads
-BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
+FOLDERLOG=$tmp/save.totalfolders.tmp							;		cerr=/tmp/cerr # priority
+SORTCOMPLETE=$tmp/list_complete_sorted.txt					;		THETIME="${arge[0]}" # shift for this script
+BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')		;		USRDIR=/home/$USR/Downloads
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 fmt="%Y-%m-%d %H:%M:%S"
 SRCDIR=""
