@@ -314,7 +314,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 				if [ "$dt" == "$omt" ]; then
 					if [ "$checkSUM" == "true" ]; then
 						oct="$of3 $of4" ; oat="$of6 $o7" ; ocs="$of8" ; os="$of9"
-						ct="$f3 $f4" ; cat="$f6 $7" ; cs="$f8" ; csze="$f9" 
+						ct="$f3 $f4" ; cat="$f6 $f7" ; cs="$f8" ; csze="$f9" 
 						is_valid_date "$cat" && is_valid_date "$oat" && [[ "$cs" != "None" ]] && [[ "$ocs" != "None" ]] || continue
 						if [ -f "$cFILE" ]; then                     		
 							a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
