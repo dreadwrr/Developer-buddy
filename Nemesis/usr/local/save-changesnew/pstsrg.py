@@ -157,7 +157,36 @@ def create_db(database, action=None):
 def insert(log, conn, c, table, last_column): # Log, sys
       global count
       count = getcount(c)
+      # c.executemany('''            original
+      #       INSERT OR IGNORE INTO logs (timestamp, filename, changetime, inode, accesstime, checksum, filesize, symlink, owner, `group`, permissions, casmod, hardlinks)
+      #       VALUES (Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?))
+      # ''', log)
+      # blank_row = (None, None, None, None, None, None, None, None, None, None, None, None, None,)  # Blank values for each column in 'logs' table
+      # c.execute('''
+      #       INSERT INTO logs (timestamp, filename, changetime, inode, accesstime, checksum, filesize, symlink, owner, `group`, permissions, casmod, hardlinks)
+      #       VALUES (?, ?, ?, ?, ?, ?, ?, ? ,? ,? ,? ,? ,?)
+      # ''', blank_row)
+      # conn.commit()
+      # if table == 'logs':
 
+            # for record in log:                  logic without UNIQUE fields
+            #       filename = record[1]
+            #       changetime = record[10]
+            #       timestamp = record[0]
+
+            #       c.execute(
+            #             "SELECT timestamp FROM logs WHERE filename=? AND changetime=? ORDER BY timestamp DESC LIMIT 1",
+            #             (filename, changetime)
+            #       )
+            #       row = c.fetchone()
+
+            #       if not row or timestamp > row[0]:
+            #             # No entry exists, or timestamp is newer → insert
+            #             c.execute(
+            #                   f"INSERT INTO {table} ({col_str}) VALUES ({', '.join(['?']*len(columns))})",
+            #                   record
+            #             )
+      
       columns = [
             'timestamp', 'filename', 'changetime', 'inode', 'accesstime', 
             'checksum', 'filesize', 'symlink', 'owner', '`group`', 
@@ -283,6 +312,10 @@ def main():
                               except Exception as e:
                                     print(f"bash sysprofile failed missing SORTCOMPLETE: {e}")
 
+                        if not table_exists_and_has_data(conn, 'logs'): # reset it
+                              os.remove(dbopt)
+                              create_db(dbopt)
+                              goahead=False
 
                         if parsedsys:
                               try: 

@@ -93,11 +93,9 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 						if recent_systime:
 							if recent_systime > recent_timestamp:
 								is_sys=True
-								ra=True
 								increment_fname(conn, cursor, label) # add to system file count db
-								#entry["sys"].append(f'{label}')
-								previous = recent_sys
-								filedate = recent_systime
+								ra=True
+								previous = recent_sys #entry["sys"].append(f'{label}')
 
 			if not recent_entries or not previous or not filedate or not previous[0]:
 				continue
@@ -136,46 +134,43 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 								if md5:
 									afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt) # actual modify time
 									afrm_dt = parse_datetime(afrm_str, fmt)               
-											
 									if afrm_dt and is_valid_datetime(record[3], fmt): # Format check.
 
-										if afrm_dt == previous_timestamp:
-							
+										if md5 != record[5]:
 
-											if md5 != record[5]:
+											if afrm_dt == previous_timestamp:
+
 												entry["flag"].append(f'Suspect {record[0]} {record[2]} {label}')
 												entry["tout"].append(f'Suspect {record[0]} {label}')
 												entry["cerr"].append(f'Suspect file: {label} changed without a new modified time.')
 												df=True
 
 
-									else:
-
-
-										if md5 != record[5]:
-											if cdiag == 'true': 
-												entry["scr"].append(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size}')
 											else:
-												entry["scr"].append(f'File changed during search. File likely changed. system cache item.')
-											stealth(filename, label, entry, record[5] , a_size, current_size, cdiag, 'regular', cursor, is_sys)
-											df=True
 
-									if not df:
-									
-										if record[3] == previous[3]: # Inode
+												if cdiag == 'true': 
+													entry["scr"].append(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size}')
+												else:
+													entry["scr"].append(f'File changed during search. File likely changed. system cache item.')
+												stealth(filename, label, entry, record[5] , a_size, current_size, cdiag, 'regular', cursor, is_sys)
+												df=True
 
 
-											metadata = (metadata[0], metadata[1], metadata[2], metadata[3], metadata[4])
-											metadata_changed = (
-												metadata[0] != str(record[10]).strip() or # Perm
-												metadata[1] != str(record[8]).strip() or # Owner
-												metadata[2] != int(record[9]) # Group
-											)	
-											
-											if metadata_changed:
-												entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
-												entry["tout"].append(f'Metadata {record[0]} {label}')
-											df=True
+										if not df:
+										
+											if record[3] == previous[3]: # Inode
+
+
+												metadata = (metadata[0], metadata[1], metadata[2], metadata[3], metadata[4])
+												metadata_changed = (
+													metadata[0] != str(record[10]).strip() or # Perm
+													metadata[1] != str(record[8]).strip() or # Owner
+													metadata[2] != int(record[9]) # Group
+												)	
+												if metadata_changed:
+													entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
+													entry["tout"].append(f'Metadata {record[0]} {label}')
+												df=True
 
 
 						except Exception as e:
@@ -184,9 +179,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 
 				else:
 
-
 					if checksum == 'true':
-
 
 						if record[3] != previous[3]:
 
@@ -221,7 +214,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 							entry["tout"].append(f'Replaced {label}')
 						else: 
 							entry["flag"].append(f'Modified {record[0]} {label}')
-							entry["tout"].append(f'Replaced {label}')
+							entry["tout"].append(f'Modified {label}')
 								
 
 					two_days_ago = datetime.now() - timedelta(days=2)
@@ -239,7 +232,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 					entry["cerr"].extend(collision_message)
 
 
-				if entry["cerr"] or entry["flag"] or entry["scr"] or entry["sys"] or entry["tout"]: #entry["sys"]:
+				if entry["cerr"] or entry["flag"] or entry["scr"] or entry["sys"] or entry["tout"]:
 					results.append(entry)
 				elif not df:
 					entry["dcp"].append(record)
