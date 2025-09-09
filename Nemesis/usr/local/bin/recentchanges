@@ -111,8 +111,8 @@ export statpst="/usr/local/save-changesnew/stats.gpg"
 export pydbpst="/usr/local/save-changesnew/recent.gpg"
 
 # END CHANGEABLE
-if [ "$STATPST" == "true" ] && [ "$ANALYTICS" == "true" ]; then echo With STATPST cant run with ANALYTICS. for security reasons as its stored in gpg. ; echo you can modify to run both if wanted. && exit; fi
-if [ "$STATPST" == "false" ] && [ "$backend" == "database" ]; then echo cant run database with ANALYTICS. && exit; fi
+[[ "$STATPST" == "true" ]] && [[ "$ANALYTICS" == "true" ]] && { echo With STATPST cant run with ANALYTICS. for security reasons as its stored in gpg. ; echo you can modify to run both if wanted. ; } && exit
+[[ "$STATPST" == "false" ]] && [[ "$backend" == "database" ]] && echo cant run database with ANALYTICS. && exit
 if [ "$1" = "-v" ]; then get_vrn $1 ; elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] || [ "$1" = "-help" ]; then get_vrn $1; fi # If inquery tag no need to call root. pass to other function and exit.
 argf=$5
 if [ `whoami` != "root" ]; then #if [[ $(whoami) != "root" ]]; su -c "$0"; exit fi  if [[ $(id -u) -ne 0 ]]; then sudo "$0" "$@"; exit 0; fi
