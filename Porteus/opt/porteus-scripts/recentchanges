@@ -183,6 +183,7 @@ TMPOPT=$tmp/tmp_holding									    ;	flth=/usr/local/save-changesnew/flth.csv
 REJECTLOG=$tmp/list_rejectsrc.txt						        ;	slog=/tmp/scr # feedback
 FOLDERLOG=$tmp/save.totalfolders.tmp					;	THETIME="${arge[0]}" # shift for this script
 SORTCOMPLETE=$tmp/list_complete_sorted.txt			;	USRDIR=/home/$USR/Downloads
+cerr=/tmp/cerr # priority
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 fmt="%Y-%m-%d %H:%M:%S"
@@ -404,7 +405,7 @@ if [ -s $SORTCOMPLETE ]; then
 	backend
 	filterhits $TMPOPT $flth
 	postop $TMPOPT $0
-    cp $TMPOPT "/tmp"$MODULENAME"xSystemchanges"$argone
+    cp $TMPOPT "/tmp"$MODULENAME"xSystemchanges"$argonetout
 	chown $USR "/tmp"$MODULENAME"xSystemchanges"$argone
 	test -e "$difffile" && chown $USR "$difffile"
 fi
