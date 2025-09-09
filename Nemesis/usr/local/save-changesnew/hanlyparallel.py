@@ -38,7 +38,8 @@ def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt
 				dcp_messages = [dcp_messages]
 
 			if dcp_messages:
-				with open(rout, 'a') as file, open(tfile, 'a') as file2:
+				# open(tfile, 'a') as file2:
+				with open(rout, 'a') as file:
 						for msg in dcp_messages:
 							try:
 								timestamp = msg[0]
@@ -49,7 +50,7 @@ def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt
 								result = detect_copy(label, inode, checksum, c, table)
 								if result:
 									print(f'Copy {timestamp} {ct} {label}', file=file)
-									print(f'Copy {timestamp} {label}', file=file2)
+									#print(f'Copy {timestamp} {label}', file=file2)
 									# print(f'System file: {msg[1]}', file=file7)
 
 							except Exception as e:

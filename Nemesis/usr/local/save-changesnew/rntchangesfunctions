@@ -269,13 +269,13 @@ done < <(grep -F "$chksum" "$ofile")
 stealth() {
 local file="$1"				;	local label="$2"		
 local cksum="$3"			;   local current_size="$4"
-local original_size="$5"	;   local lcl="$6"		
+local original_size="$5"	
 local delta						;	local abs_delta 					
 if [ -f "$file" ] && [ -n "$current_size" ] && [ "$current_size" != "None" ] && [ -n "$original_size" ]; then
 	if [ "$label" != "/usr/local/save-changesnew/flth.csv" ]; then
 		delta=$(( current_size - original_size ))
 		abs_delta=${delta#-}
-		if [ "$original_size" == "$current_size" ] && [ "$lcl" != "eql" ]; then
+		if [ "$original_size" == "$current_size" ]; then
 			echo "Warning file ${label} same filesize different checksum. Contents changed." >> $cerr
 		elif [ "$abs_delta" -le 12  ] && [ "$abs_delta" -ne 0 ]; then
 			msg="Checksum indicates a change in ${label}. Size changed slightly — possible stealth edit."
@@ -286,14 +286,27 @@ if [ -f "$file" ] && [ -n "$current_size" ] && [ "$current_size" != "None" ] && 
 			fi
 		fi
 	fi
-	if [ "$cdiag" == "true" ]  && [ "$lcl" != "eql" ]; then collision "$label" $cksum $current_size $7 ; fi
+	if [ "$cdiag" == "true" ]; then collision "$label" $cksum $current_size $7 ; fi
 fi
 }
 is_valid_date() { date -d "$1" >/dev/null 2>&1 ; c=$?; return $c ; }
+newmeta() {
+current_own="$1"
+current_grp="$2"
+current_perm="$3"
+prev_own="$4"
+prev_grp="$5"
+prev_perm="$6"
+old_meta="$prev_own $prev_grp $prev_perm"
+#cur_meta="$au $ag $apmr" # ln 448   free
+cur_meta="$current_own $current_grp $current_perm"
+if [[ "$old_meta" == "$cur_meta" ]]; then
+	return 1
+fi
+}
 hablk() {
 >$TMPCOMPLETE
 while IFS= read -r p || [[ -n "$p" ]]; do
-    df="false"
 	found_line=""
     #cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p") orig
     cFILE=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$p")
@@ -309,7 +322,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 			if [ "$1" != "A" ]; then original_ln="${found_line//\"$y\"/}" ; original_ln="$( echo "$original_ln" | xargs -d '\n')" ; fi
 			read -r of1 of2 of3 of4 of5 of6 of7 of8 of9 of10 of11 of12 of13 _ <<< "$original_ln"
 			cFILE="$( unescf "$cFILE")"
-			oat="$of6 $o7" ; cat="$f6 $f7" 
+			oat="$of6 $of7" ; cat="$f6 $f7" 
 			is_valid_date "$oat" && is_valid_date "$cat" || continue 
 			if [ "$checkSUM" == "true" ]; then ocs="$of8" ; cs="$f8" ; os="$of9" ; csze="$f9" ; [[ "$cs" != "None" ]] || continue ; fi
 			oin="$of5"
@@ -319,57 +332,54 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 				if [ "$dt" == "$omt" ]; then
 					if [ "$checkSUM" == "true" ]; then
 						if [ -f "$cFILE" ]; then                     		
-							a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
                             read a_mod fs a_ct au ag apmr < <(stat --format="%Y %s %Z %U %g %A" "$cFILE" 2>/dev/null)
 							afrm=$(date -d "@$a_mod" +"$fmt" 2>/dev/null)
 							if [ -n "$afrm" ] && [ -n "$a_checksum" ]; then
-								if [ "$a_checksum" != "$cs" ]; then
-									df="true" 
-									if [ "$afrm" == "$dt" ]; then
+								if [ "$afrm" == "$dt" ]; then
+									a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
+									if  [ -n "$a_checksum" ] && [ "$a_checksum" != "$cs" ]; then
 										echo "Suspect $dt $ct $y" >> $rout
                                         echo "Suspect file: $y changed without a new modified time." >> $cerr
                                         csm="true"
-									else
-										if [ "$cdiag" == "true" ]; then 
-	                                        m="File changed during the search."
-											echo "$m $y at ${afrm}. Size was $os, now $fs." >> $slog
-	                                    else
-											echo "$m $y. File likely changed. system cache item." >> $slog
-	                                    fi
-	                                    stealth "$cFILE" "$y" $cs $fs $csze "regular"
 									fi
+								else
+									if [ "$cdiag" == "true" ]; then 
+                                        m="File changed during the search."
+										echo "$m $y at ${afrm}. Size was $os, now $fs." >> $slog
+                                    else
+										echo "$m $y. File likely changed. system cache item." >> $slog
+                                    fi
+                                    stealth "$cFILE" "$y" $cs $fs $csze
 								fi
 							fi
 						fi
-						if (( oin == in )) && [[ "$cs" == "$ocs" ]]; then
-							df="true"
-							old_meta="$of11 $of12 $of13" #owner grp perm
-							#cur_meta="$au $ag $apmr" # ln 448   free
-							cur_meta="$f11 $f12 $f13"
-							if [[ "$old_meta" != "$cur_meta" ]]; then
-								echo "Metadata $dt $ct $y" >> $rout
+						if [[ "$cs" == "$ocs" ]]; then
+							if (( oin == in )); then
+
+								if newmeta $f11 $f12 $f13 $of11 $of12 $of13; then
+									echo "Metadata $dt $ct $y" >> $rout
+								fi
+							else
+								echo "Copy $dt $ct $y" >> $rout
 							fi
 						fi
 					fi        
 				else
-					df="true"
+					
 					if [ "$checkSUM" == "true" ]; then
 						if (( oin != in )); then
 							if [ "$ocs" == "$cs" ]; then
 								echo "Overwrite $dt $ct $y" >> $rout
-								stealth "$cFILE" "$y" $cs $csze $os "eql"
 							else
 								echo "Replaced $dt $ct $y" >> $rout
-								stealth "$cFILE" "$y" $cs $csze $os "regular"
+								stealth "$cFILE" "$y" $cs $csze $os
 							fi
 						else
 							if [ "$ocs" != "$cs" ]; then
 								echo "Modified $dt $ct $y" >> $rout
-								stealth "$cFILE" "$y" $cs $csze $os "regular"
+								stealth "$cFILE" "$y" $cs $csze $os
 							else
-								old_meta="$of11 $of12 $of13"
-								cur_meta="$f11 $f12 $f13"
-								if [[ "$old_meta" != "$cur_meta" ]]; then
+								if newmeta $f11 $f12 $f13 $of11 $of12 $of13; then
 									echo "Metadata $dt $ct $y" >> $rout
 								else
 									echo "Touched $dt $ct $y" >> $rout
@@ -383,9 +393,6 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 							echo "Modified $dt $ct $y" >> $rout
 						fi
 					fi
-				fi
-				if [[ "$df" == "false" ]]; then
-					echo "$p" >> $2
 				fi
 			fi
 		else

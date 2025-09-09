@@ -203,3 +203,10 @@ def log_event(event, record, label, file_full, file_short):
     print(msg_full, file=file_full)
     #print(msg_short, file=file_short)
      #msg_short = f'{event} {record[0]} {label}'
+
+def new_meta(record, metadata):
+    return (
+        record[10] != metadata[2] or # perm
+        record[8]  != metadata[0] or # onr
+        record[9]  != metadata[1] # grp
+    )
