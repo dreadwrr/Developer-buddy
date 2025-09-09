@@ -208,10 +208,11 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 	copy_record=$(grep -F -v "\"$y\"" $1 | awk -F'"' '{print $1 $3}' | tail -n 1)
 	if [[ -n "$copy_record" ]]; then
 		original_ln="$( echo "$copy_record" | xargs -d '\n')"
-		read -r _ _ of3 of4 <<< "$original_ln"
+		read -r _ _ of3 of4 _ <<< "$original_ln"
 		oct="$of3 $of4"
 		if date -d "$ct" "+$fmt" >/dev/null 2>&1 && date -d "$oct" "+$fmt" >/dev/null 2>&1; then
-			echo "Copy $dt $y" | tee -a $rout >> $tfile
+			echo "Copy $dt $ct $y" >> $rout
+			echo "Copy $dt $y" >> $tfile
 		fi
 	fi
 done < $TMPCOMPLETE
