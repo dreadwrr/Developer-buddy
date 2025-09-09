@@ -22,7 +22,7 @@ if [ "$STATPST" == "true" ]; then
     if [ -s $logpst ]; then
         cyan "Pulling logs from persistent storage"
         if gpg -d -o $xdata $logpst; then #decrypt
-            cp $xdata /tmp/logdebug
+            #cp $xdata /tmp/logdebug
 			sed -i '/NOTA-FI-LE 77:77:77/d' $xdata
 			cd /home/$2/Downloads || exit
 			rm query_MDY* > /dev/null 2>&1
@@ -77,7 +77,7 @@ if [ "$STATPST" == "true" ]; then
             if [ -s $statpst ]; then
                 cyan "Pulling from stats archive"
                 if gpg -d -o $xdata $statpst; then
-					cp $xdata /tmp/statdebut
+					#cp $xdata /tmp/statdebut
 					{
                      green "Stats gpg" ; echo ; cyan "Most Modified"
 					awk -F',' '

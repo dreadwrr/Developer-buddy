@@ -9,7 +9,7 @@ from pyfunctions import detect_copy
 def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt="/usr/local/save-changesnew/recent.db", table="logs"):
 	key_to_files = {
 		"flag": [rout],
-		"tout": [tfile],
+#		"tout": [tfile],
 		"cerr": [cerr],
 		"scr": [scr],
 	}
@@ -64,6 +64,16 @@ def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt
 					#file7.write('\n'.join(str(msg) for msg in messages) + '\n')
 			except IOError as e:
 				print(f"Error logger to {fpath}: as {e}")
+
+			if fpath == rout:
+				try:
+					with open(rout, "r") as rf, open(tfile, "a") as tf:
+						for line in rf:
+							parts = line.strip().split()
+							filtered = [parts[i] for i in range(len(parts)) if i not in (3, 4)]
+							tf.write(' '.join(filtered) + '\n')
+				except IOError as e:
+					print(f"Error copying from {rout} to {tfile}: {e}")
                               
 						
 def hanly_parallel(rout, tfile, parsed, checksum, cdiag, dbopt, ps, user, dbtarget, table):

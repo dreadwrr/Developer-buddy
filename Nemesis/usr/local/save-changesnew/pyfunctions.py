@@ -95,7 +95,7 @@ def get_recent_changes(filename, cursor, table):
 	if table not in allowed_tables:
 		return None
 	query = f'''
-		SELECT timestamp, filename, changetime, inode, accesstime, checksum, filesize
+		SELECT timestamp, filename, changetime, inode, accesstime, checksum, filesize, owner, `group`, permissions
 		FROM {table}
 		WHERE filename = ?
 		ORDER BY timestamp DESC
@@ -197,3 +197,9 @@ def is_valid_datetime(value, fmt):
 		return True
 	except (ValueError, TypeError, AttributeError):
 		return False
+     
+def log_event(event, record, label, file_full, file_short):
+    msg_full = f'{event} {record[0]} {record[2]} {label}'
+    print(msg_full, file=file_full)
+    #print(msg_short, file=file_short)
+     #msg_short = f'{event} {record[0]} {label}'
