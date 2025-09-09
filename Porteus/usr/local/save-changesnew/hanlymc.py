@@ -10,6 +10,7 @@ from pyfunctions import collision
 from pyfunctions import is_integer
 from pyfunctions import is_valid_datetime
 from pyfunctions import increment_fname
+from pyfunctions import new_meta
 from pyfunctions import get_delete_patterns
 from pyfunctions import get_md5
 from pyfunctions import get_recent_changes
@@ -17,7 +18,7 @@ from pyfunctions import matches_any_pattern
 from pyfunctions import parse_datetime
 collision_message=[]
 
-def stealth(filename, label, entry, checksum, current_size, original_size, cdiag, option, cursor, is_sys):
+def stealth(filename, label, entry, checksum, current_size, original_size, cdiag, cursor, is_sys):
 	global collision_message
 	if current_size and original_size:
 		file_path=Path(filename)
@@ -25,7 +26,7 @@ def stealth(filename, label, entry, checksum, current_size, original_size, cdiag
 			delta= abs(current_size - original_size)
 				
 
-			if original_size == current_size and option != 'eql':
+			if original_size == current_size:
 				entry["cerr"].append(f'Warning file {label} same filesize different checksum. Contents changed.')
 			
 
@@ -39,7 +40,7 @@ def stealth(filename, label, entry, checksum, current_size, original_size, cdiag
 						entry["scr"].append(message)
 
 
-			if cdiag == 'true' and option != 'eql':
+			if cdiag == 'true':
 					ccheck=collision(label, checksum, current_size, cursor, is_sys)
 
 					if ccheck:
@@ -50,21 +51,24 @@ def stealth(filename, label, entry, checksum, current_size, original_size, cdiag
 
 def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 	global collision_message
-	ra = False
-	collision_message.clear()
-	fmt = "%Y-%m-%d %H:%M:%S"
 	results = []
+	fmt = "%Y-%m-%d %H:%M:%S"
+	db=False
 	conn = sqlite3.connect(dbopt)
+	
 	with conn:
 		cursor = conn.cursor()
-
+		collision_message.clear()
+		
 		for record in parsed_chunk:
+
+			is_sys=False
 
 			if len(record) < 11:
 				continue
 			entry = {"cerr": [], "flag": [], "scr": [], "sys": [], "dcp": []}
-			is_sys=False
-			df=False
+			
+
 			recent_sys = None
 			label = record[1]
 			try: 
@@ -96,7 +100,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 							if recent_systime > recent_timestamp:
 								is_sys=True
 								increment_fname(conn, cursor, label)
-								ra=True
+								db=True
 								previous = recent_sys #entry["sys"].append(f'{label}')
 
 			if not previous or not filedate or not previous[0] :
@@ -123,92 +127,76 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 						
 						try:
 							file_path=Path(filename)
-							if file_path.is_file():
-
-								md5=get_md5(file_path)
+							if file_path.is_file():		
 								st = file_path.stat()
 								a_size = st.st_size
 								a_mod = int(st.st_mtime)
-
-									
-								if md5:
-									afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt) # actual
-									afrm_dt = parse_datetime(afrm_str, fmt)               
-									if afrm_dt and is_valid_datetime(record[3], fmt):
-
-										if md5 != record[5]:
-
-											df=True
-
-
-											if afrm_dt == previous_timestamp:
-
+								afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt) # actual
+								afrm_dt = parse_datetime(afrm_str, fmt)    
+								if afrm_dt and is_valid_datetime(record[3], fmt):
+									if afrm_dt == previous_timestamp:
+										md5=get_md5(file_path)
+										if md5:
+			
+								
+											if md5 != record[5]:
 												entry["flag"].append(f'Suspect {record[0]} {record[2]} {label}')
 												entry["cerr"].append(f'Suspect file: {label} changed without a new modified time.')
-												
-											else:
+											
+									else:
 
-												if cdiag == 'true': 
-													entry["scr"].append(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size}')
-												else:
-													entry["scr"].append(f'File changed during search. File likely changed. system cache item.')
-												stealth(filename, label, entry, record[5] , a_size, current_size, cdiag, 'regular', cursor, is_sys)
-
+										if cdiag == 'true': 
+											entry["scr"].append(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size}')
+										else:
+											entry["scr"].append(f'File changed during search. File likely changed. system cache item.')
+										stealth(filename, label, entry, record[5] , a_size, current_size, cdiag, cursor, is_sys)
 
 						except Exception as e:
 							print(f"Skipping {filename}: {type(e).__name__} - {e}")
 							continue
 
 
-			
-
-						if record[5] == previous[5] and record[3] == previous[3]: # checksum, Inode
-							
-							df=True
-
+					if record[5] == previous[5]: # checksum
+						if record[3] == previous[3]: 
 							metadata = (previous[7], previous[8], previous[9])
-							metadata_changed = (
-								record[10] != metadata[2] or
-								record[8] != metadata[0] or
-								record[9] != metadata[1]
-							)
-							if metadata_changed:
+
+
+							if new_meta(record, metadata):
 								entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
 
-				else:
+						else:
 
-					df=True
+							entry["flag"].append(f'Copy {record[0]} {record[2]} {label}')
+
+				else:
 
 					if checksum == 'true':
 
 
 						if record[3] != previous[3]:
 
+
 							if record[5] == previous[5]:
 								entry["flag"].append(f'Overwrite {record[0]} {record[2]} {label}')
-								stealth(filename, label, entry, record[5], current_size, original_size, cdiag, 'eql', cursor, is_sys)
 							else:
 								entry["flag"].append(f'Replaced {record[0]} {record[2]} {label}')
-								stealth(filename, label, entry, record[5] ,current_size, original_size, cdiag, 'regular', cursor, is_sys)
+								stealth(filename, label, entry, record[5] ,current_size, original_size, cdiag, cursor, is_sys)
 
 						else:
 
 							if record[5] != previous[5]:
 								entry["flag"].append(f'Modified {record[0]} {record[2]} {label}')
-								stealth(filename, label, entry, record[5] , current_size, original_size, cdiag, 'regular', cursor, is_sys)
+								stealth(filename, label, entry, record[5] , current_size, original_size, cdiag, cursor, is_sys)
 							else:
 								metadata = (previous[7], previous[8], previous[9])
-								metadata_changed = (
-									record[10] != metadata[2] or
-									record[8] != metadata[0] or
-									record[9] != metadata[1]
-								)
-								if metadata_changed:
+
+								if new_meta(record, metadata):
 									entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
 								else:
 									entry["flag"].append(f'Touched {record[0]} {record[2]} {label}')
 
 					else:
+
 						if record[3] != previous[3]:
 							entry["flag"].append(f'Replaced {record[0]} {label}')
 						else: 
@@ -232,9 +220,8 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 
 				if entry["cerr"] or entry["flag"] or entry["scr"] or entry["sys"]:
 					results.append(entry)
-				elif not df:
-					entry["dcp"].append(record)
 
-		if ra:
+
+		if db:
 			conn.commit()
 	return results

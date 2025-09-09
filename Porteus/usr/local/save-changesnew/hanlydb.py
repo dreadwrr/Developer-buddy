@@ -6,7 +6,7 @@ import pwd
 from datetime import datetime, timedelta
 from pathlib import Path
 
-def stealth(filename, label, cer, scr, collision_message, checksum, current_size, original_size, cdiag, option, cursor):
+def stealth(filename, label, cer, scr, collision_message, checksum, current_size, original_size, cdiag, cursor):
 		
 	if current_size and original_size:
 
@@ -14,7 +14,7 @@ def stealth(filename, label, cer, scr, collision_message, checksum, current_size
 		if file_path.is_file():
 			delta= abs(current_size - original_size)
 				
-			if original_size == current_size and option != 'eql':  # flag ***
+			if original_size == current_size:  # flag ***
 				print(f'Warning file {label} same filesize different checksum. Contents changed.', file=cer)
 
 			elif delta < 12 and delta != 0:  # stealth cng?
@@ -25,7 +25,7 @@ def stealth(filename, label, cer, scr, collision_message, checksum, current_size
 				else:
 					print(f'{message}', file=scr)
 
-			if cdiag == 'true' and option != 'eql':
+			if cdiag == 'true':
 				ccheck=pyfunctions.collision(label, checksum, current_size, cursor, 'logs')
 				if ccheck:
 					for row in ccheck:
@@ -36,13 +36,11 @@ def stealth(filename, label, cer, scr, collision_message, checksum, current_size
 #Hybrid analysis
 def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file, file2, file3, file4):
 
-	collision_message=[]
-	ra=False
 	fmt = "%Y-%m-%d %H:%M:%S"
-
+	collision_message=[]
+	db=False
 	for record in parsed:
 
-		df=False
 		is_sys=False
 		recent_sys = None
 		label = record[1] # human readable
@@ -60,7 +58,7 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 			recent_sys = pyfunctions.get_recent_changes(label, c, 'sys')
 		
 		if not recent_entries and not recent_sys:
-			recorddata.append(record)
+			recorddata.append(record) # is copy?
 			continue
 
 		filedate = record[0]
@@ -74,7 +72,7 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 						if recent_systime > recent_timestamp:
 							is_sys=True
 							pyfunctions.increment_fname(conn, c, label) # add to system file count db
-							ra=True
+							db=True
 							previous = recent_sys
 
 		if not previous or not filedate or not previous[0]:
@@ -103,70 +101,49 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 						file_path=Path(filename)
 						if file_path.is_file():
 							
-							md5=pyfunctions.get_md5(file_path)
 							st = file_path.stat()
 							a_size = st.st_size
 							a_mod = int(st.st_mtime)
-							#a_ctime = int(st.st_ctime)
-							#ctime_str = datetime.utcfromtimestamp(a_ctime).strftime(fmt)
-							#str(st.st_uid) # , ctime_str
-							# mode_str = stat.filemode(st.st_mode)
-							# uid_str = pwd.getpwuid(st.st_uid).pw_name
-							# metadata = (mode_str, uid_str, st.st_gid, a_size, a_mod)
+							afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt) # actual modify time
+							afrm_dt = pyfunctions.parse_datetime(afrm_str, fmt)  
+							if afrm_dt and pyfunctions.is_valid_datetime(record[2], fmt): # stable?
 
-							if md5:
-								afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt) # actual modify time
-								afrm_dt = pyfunctions.parse_datetime(afrm_str, fmt)                                
-								if afrm_dt and pyfunctions.is_valid_datetime(record[2], fmt): # stable?
-
-									if md5 != record[5]:
-
-										df=True # File delta
+								if afrm_dt == previous_timestamp:
+									md5=pyfunctions.get_md5(file_path)
+									if md5:
 
 
-										if afrm_dt == previous_timestamp:
-											pyfunctions.log_event("Suspect", record, label, file, file2) # Flag *** 
-											print(f'Suspect file: {label} changed without a new modified time.', file3) 
-											
-								
-										else:
-											if cdiag == 'true': 
-												print(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size} ', file=file4)
-											else:
-												print(f'File changed during search. File likely changed. system cache item.', file=file4)
-											stealth(filename, label, file3, file4, collision_message, record[5], a_size, current_size, cdiag, 'regular', c) # Flag *** ?
-								
+										if md5 != record[5]:
+												pyfunctions.log_event("Suspect", record, label, file, file2) # Flag *** 
+												print(f'Suspect file: {label} changed without a new modified time.', file3) 
+															
+								else:
+
+
+									if cdiag == 'true': 
+										print(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size} ', file=file4)
+									else:
+										print(f'File changed during search. File likely changed. system cache item.', file=file4)
+									stealth(filename, label, file3, file4, collision_message, record[5], a_size, current_size, cdiag, c) # Flag *** ?
+
 					except Exception as e:
 						print(f"Skipping {filename}: {type(e).__name__} - {e}")
 						continue
 
 
-					if record[5] == previous[5] and record[3] == previous[3]: # checksum, Inode
-						
-						df=True
-						#prev_ctime = datetime.strptime(metadata[5], fmt)
-						#recent_ctime = datetime.strptime(str(record[2]).strip(), fmt)
-						# if metadata:
-						# 	if len(metadata) <= 3:
-						# 		metadata = (metadata[0], metadata[1], metadata[2])
-						# 		metadata_changed = (
-						# 			metadata[0] != str(record[10]).strip() or # Perm
-						# 			metadata[1] != str(record[8]).strip() or # Owner
-						# 			metadata[2] != int(record[9]) # Group
-						# 		)	
-						metadata = (previous[7], previous[8], previous[9])
-						metadata_changed = (
-							record[10] != metadata[2] or
-							record[8] != metadata[0] or
-							record[9] != metadata[1]
-						)
-						if metadata_changed:
-							pyfunctions.log_event("Metadata", record, label, file, file2)
+					if record[5] == previous[5]: # checksum
+						if record[3] == previous[3]: 
+							metadata = (previous[7], previous[8], previous[9])
+
+
+							if pyfunctions.new_meta(record, metadata):
+								pyfunctions.log_event("Metadata", record, label, file, file2)
+
+						else: # inode change preserved meta
+							pyfunctions.log_event("Copy", record, label, file, file2)
 
 
 			else: # Modified.
-
-				df=True
 
 				if checksum == 'true':
 
@@ -176,11 +153,9 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 
 						if record[5] == previous[5]:
 							pyfunctions.log_event("Overwrite", record, label, file, file2)
-							stealth(filename, label, file3, file4, collision_message, record[5], current_size, original_size, cdiag, 'eql', c) # stealth edit
-
 						else:
 							pyfunctions.log_event("Replaced", record, label, file, file2)
-							stealth(filename, label, file3, file4, collision_message, record[5] ,current_size, original_size, cdiag, 'regular', c) # Flag *** ?
+							stealth(filename, label, file3, file4, collision_message, record[5] ,current_size, original_size, cdiag, c) # Flag *** ?
 							
 
 					else:
@@ -188,16 +163,13 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 
 						if record[5] != previous[5]:
 							pyfunctions.log_event("Modified", record, label, file, file2)
-							stealth(filename, label, file3, file4, collision_message, record[5] , current_size, original_size, cdiag, 'regular', c)  # Flag *** ?
+							stealth(filename, label, file3, file4, collision_message, record[5] , current_size, original_size, cdiag, c)  # Flag *** ?
 
 						else:			
 							metadata = (previous[7], previous[8], previous[9])
-							metadata_changed = (
-								record[10] != metadata[2] or
-								record[8] != metadata[0] or
-								record[9] != metadata[1]
-							)
-							if metadata_changed:
+
+
+							if pyfunctions.new_meta(record, metadata):
 								pyfunctions.log_event("Metadata", record, label, file, file2)
 							else:
 								pyfunctions.log_event("Touched", record, label, file, file2)
@@ -207,7 +179,6 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 
 					if record[3] != previous[3]:
 						pyfunctions.log_event("Replaced", record, label, file, file2)
-
 					else: 
 						pyfunctions.log_event("Modified", record, label, file, file2)
 
@@ -223,9 +194,7 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 							print(f'{message}.', file=file4)
 
 
-			if not df:	
-				recorddata.append(record) # is copy?
-	if ra:
+	if db:
 		conn.commit()
 	if collision_message:
 		for entry in collision_message:
