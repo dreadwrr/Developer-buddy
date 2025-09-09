@@ -41,6 +41,7 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 	fmt = "%Y-%m-%d %H:%M:%S"
 
 	for record in parsed:
+
 		df=False
 		is_sys=False
 		recent_sys = None
@@ -68,7 +69,6 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 		if ps == 'true':  # check sys
 			recent_timestamp = pyfunctions.parse_datetime(filedate, fmt)
 			if recent_sys:
-				if recent_sys:
 					recent_systime = pyfunctions.parse_datetime(recent_sys[0], fmt)
 					if recent_systime:
 						if recent_systime > recent_timestamp:
@@ -77,11 +77,11 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 							ra=True
 							previous = recent_sys
 
-		if not recent_entries or not previous or not filedate or not previous[0]:
+		if not previous or not filedate or not previous[0]:
 			continue
 
 		if checksum == 'true':
-			if not record[5] or str(record[5]).strip() == '': # checksum
+			if not record[5] or str(record[5]).strip() == '' or record[5] == 'None': # checksum
 				continue
 			current_size = None
 			original_size = None
@@ -94,11 +94,11 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 		previous_timestamp = pyfunctions.parse_datetime(previous[0], fmt)
 		if pyfunctions.is_integer(record[3]) and pyfunctions.is_integer(previous[3]) and recent_timestamp and previous_timestamp:
 
-
 			if recent_timestamp == previous_timestamp: # Not modified?
 
 				if checksum == 'true':
 	
+
 					try:
 						file_path=Path(filename)
 						if file_path.is_file():
@@ -109,10 +109,10 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 							a_mod = int(st.st_mtime)
 							#a_ctime = int(st.st_ctime)
 							#ctime_str = datetime.utcfromtimestamp(a_ctime).strftime(fmt)
-							mode_str = stat.filemode(st.st_mode)
-							uid_str = pwd.getpwuid(st.st_uid).pw_name
 							#str(st.st_uid) # , ctime_str
-							metadata = (mode_str, uid_str, st.st_gid, a_size, a_mod)
+							# mode_str = stat.filemode(st.st_mode)
+							# uid_str = pwd.getpwuid(st.st_uid).pw_name
+							# metadata = (mode_str, uid_str, st.st_gid, a_size, a_mod)
 
 							if md5:
 								afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt) # actual modify time
@@ -121,47 +121,48 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 
 									if md5 != record[5]:
 
+										df=True # File delta
+
+
 										if afrm_dt == previous_timestamp:
-
-											print(f'Suspect {record[0]} {record[2]} {label}', file=file) # Flag ***
-											print(f'Suspect {record[0]} {label}', file=file2)
-											print(f'Suspect file: {label} changed without a new modified time.', file3)
-											df=True
+											pyfunctions.log_event("Suspect", record, label, file, file2) # Flag *** 
+											print(f'Suspect file: {label} changed without a new modified time.', file3) 
+											
 								
-
 										else:
-
 											if cdiag == 'true': 
 												print(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size} ', file=file4)
 											else:
 												print(f'File changed during search. File likely changed. system cache item.', file=file4)
 											stealth(filename, label, file3, file4, collision_message, record[5], a_size, current_size, cdiag, 'regular', c) # Flag *** ?
-											df=True
-
-
-									if not df:
-
-
-										if record[3] == previous[3]: # Inode
-											#prev_ctime = datetime.strptime(metadata[5], fmt)
-											#recent_ctime = datetime.strptime(str(record[2]).strip(), fmt)
-
-											metadata = (metadata[0], metadata[1], metadata[2], metadata[3], metadata[4])
-											metadata_changed = (
-												metadata[0] != str(record[10]).strip() or # Perm
-												metadata[1] != str(record[8]).strip() or # Owner
-												metadata[2] != int(record[9]) # Group
-											)	
-
-											if metadata_changed:
-												print(f'Metadata {record[0]} {record[2]} {label}', file=file)
-												print(f'Metadata {record[0]} {label}', file=file2)
-											df=True
-
-
+								
 					except Exception as e:
 						print(f"Skipping {filename}: {type(e).__name__} - {e}")
 						continue
+
+
+					if record[5] == previous[5] and record[3] == previous[3]: # checksum, Inode
+						
+						df=True
+						#prev_ctime = datetime.strptime(metadata[5], fmt)
+						#recent_ctime = datetime.strptime(str(record[2]).strip(), fmt)
+						# if metadata:
+						# 	if len(metadata) <= 3:
+						# 		metadata = (metadata[0], metadata[1], metadata[2])
+						# 		metadata_changed = (
+						# 			metadata[0] != str(record[10]).strip() or # Perm
+						# 			metadata[1] != str(record[8]).strip() or # Owner
+						# 			metadata[2] != int(record[9]) # Group
+						# 		)	
+						metadata = (previous[7], previous[8], previous[9])
+						metadata_changed = (
+							record[10] != metadata[2] or
+							record[8] != metadata[0] or
+							record[9] != metadata[1]
+						)
+						if metadata_changed:
+							pyfunctions.log_event("Metadata", record, label, file, file2)
+
 
 			else: # Modified.
 
@@ -174,13 +175,11 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 
 
 						if record[5] == previous[5]:
-							print(f'Overwrite {record[0]} {record[2]} {label}', file=file)
-							print(f'Overwrite {record[0]} {label}', file=file2)
+							pyfunctions.log_event("Overwrite", record, label, file, file2)
 							stealth(filename, label, file3, file4, collision_message, record[5], current_size, original_size, cdiag, 'eql', c) # stealth edit
 
 						else:
-							print(f'Replaced {record[0]} {record[2]} {label}', file=file)
-							print(f'Replaced {record[0]} {label}', file=file2)
+							pyfunctions.log_event("Replaced", record, label, file, file2)
 							stealth(filename, label, file3, file4, collision_message, record[5] ,current_size, original_size, cdiag, 'regular', c) # Flag *** ?
 							
 
@@ -188,26 +187,31 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 
 
 						if record[5] != previous[5]:
-							print(f'Modified {record[0]} {record[2]} {label}', file=file)
-							print(f'Modified {record[0]} {label}', file=file2)
+							pyfunctions.log_event("Modified", record, label, file, file2)
 							stealth(filename, label, file3, file4, collision_message, record[5] , current_size, original_size, cdiag, 'regular', c)  # Flag *** ?
+
 						else:			
-							print(f'Touched {record[0]} {record[2]} {label}', file=file)
-							print(f'Touched {record[0]} {label}', file=file2)
-						
+							metadata = (previous[7], previous[8], previous[9])
+							metadata_changed = (
+								record[10] != metadata[2] or
+								record[8] != metadata[0] or
+								record[9] != metadata[1]
+							)
+							if metadata_changed:
+								pyfunctions.log_event("Metadata", record, label, file, file2)
+							else:
+								pyfunctions.log_event("Touched", record, label, file, file2)
 
 				else:
 					
 
 					if record[3] != previous[3]:
-						print(f'Replaced {record[0]} {record[2]} {label}', file=file)
-						print(f'Replaced {record[0]} {label}', file=file2)
+						pyfunctions.log_event("Replaced", record, label, file, file2)
+
 					else: 
+						pyfunctions.log_event("Modified", record, label, file, file2)
 
-						print(f'Modified {record[0]} {record[2]} {label}', file=file)
-						print(f'Modified {record[0]} {label}', file=file2)	
 					
-
 				two_days_ago = datetime.now() - timedelta(days=2)
 				if previous_timestamp < two_days_ago:
 					message=f'File that isnt regularly updated {label}.'
@@ -218,8 +222,9 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 						if not pyfunctions.matches_any_pattern(label, screen):		
 							print(f'{message}.', file=file4)
 
+
 			if not df:	
-				recorddata.append(record)
+				recorddata.append(record) # is copy?
 	if ra:
 		conn.commit()
 	if collision_message:

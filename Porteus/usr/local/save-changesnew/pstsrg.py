@@ -312,10 +312,6 @@ def main():
                               except Exception as e:
                                     print(f"bash sysprofile failed missing SORTCOMPLETE: {e}")
 
-                        if not table_exists_and_has_data(conn, 'logs'): # reset it
-                              os.remove(dbopt)
-                              create_db(dbopt)
-                              goahead=False
 
                         if parsedsys:
                               try: 
@@ -338,7 +334,6 @@ def main():
                                           hanly(parsed, recorddata, checksum, cdiag, conn, c,  ps, user, dbtarget, file, file2, file3, file4)
                                           if recorddata:
                                                 for record in recorddata:
-
                                                       timestamp = record[0]
                                                       label = record[1]
                                                       changetime = record[2]

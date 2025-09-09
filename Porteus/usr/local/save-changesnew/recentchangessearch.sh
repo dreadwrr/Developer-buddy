@@ -20,7 +20,7 @@ RECENTNUL=$tmp/list_recentchanges_filterednul.txt	;		COMPLETE=$tmp/list_complete
 SORTCOMPLETE=$tmp/list_complete_sorted.txt			;		COMPLETENUL=$tmp/list_completenul.txt
 TMPOUTPUT=$tmp/list_tmp_sorted.txt						;		TMPCOMPLETE=$tmp/tmp_complete.txt
 TMPOPT=$tmp/tmp_holding										;		flth=/usr/local/save-changesnew/flth.csv
-OLDSORTED=""
+OLDSORTED=""															;		cerr=/tmp/cerr
 diffrlt="false" 															; 		nodiff="false"
 validrlt="false"															;		flsrh="false"
 pstc="false"																;		nc="false"

@@ -60,7 +60,9 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 
 		for record in parsed_chunk:
 
-			entry = {"cerr": [], "flag": [], "scr": [], "sys": [], "dcp": [], "tout": []}
+			if len(record) < 11:
+				continue
+			entry = {"cerr": [], "flag": [], "scr": [], "sys": [], "dcp": []}
 			is_sys=False
 			df=False
 			recent_sys = None
@@ -85,7 +87,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 			filedate = record[0]
 			previous = recent_entries
 
-			if ps == 'true':  # hand off previous record to system?
+			if ps == 'true':
 				recent_timestamp = parse_datetime(filedate. fmt)
 				if recent_sys:
 					if recent_sys:
@@ -93,16 +95,16 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 						if recent_systime:
 							if recent_systime > recent_timestamp:
 								is_sys=True
-								increment_fname(conn, cursor, label) # add to system file count db
+								increment_fname(conn, cursor, label)
 								ra=True
 								previous = recent_sys #entry["sys"].append(f'{label}')
 
-			if not recent_entries or not previous or not filedate or not previous[0]:
+			if not previous or not filedate or not previous[0] :
 				continue
-        
 			if checksum == 'true':
-				if not record[5] or str(record[5]).strip() == '':
+				if not record[5] or str(record[5]).strip() == '' or record[5] == 'None':
 					continue
+
 				current_size = None
 				original_size = None
 				if is_integer(record[6]):
@@ -122,30 +124,28 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 						try:
 							file_path=Path(filename)
 							if file_path.is_file():
+
 								md5=get_md5(file_path)
 								st = file_path.stat()
 								a_size = st.st_size
 								a_mod = int(st.st_mtime)
-								mode_str = stat.filemode(st.st_mode)
-								uid_str = pwd.getpwuid(st.st_uid).pw_name
-								metadata = (mode_str, uid_str, st.st_gid, a_size, a_mod)
-						
+
 									
 								if md5:
-									afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt) # actual modify time
+									afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt) # actual
 									afrm_dt = parse_datetime(afrm_str, fmt)               
-									if afrm_dt and is_valid_datetime(record[3], fmt): # Format check.
+									if afrm_dt and is_valid_datetime(record[3], fmt):
 
 										if md5 != record[5]:
+
+											df=True
+
 
 											if afrm_dt == previous_timestamp:
 
 												entry["flag"].append(f'Suspect {record[0]} {record[2]} {label}')
-												entry["tout"].append(f'Suspect {record[0]} {label}')
 												entry["cerr"].append(f'Suspect file: {label} changed without a new modified time.')
-												df=True
-
-
+												
 											else:
 
 												if cdiag == 'true': 
@@ -153,68 +153,66 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 												else:
 													entry["scr"].append(f'File changed during search. File likely changed. system cache item.')
 												stealth(filename, label, entry, record[5] , a_size, current_size, cdiag, 'regular', cursor, is_sys)
-												df=True
-
-
-										if not df:
-										
-											if record[3] == previous[3]: # Inode
-
-
-												metadata = (metadata[0], metadata[1], metadata[2], metadata[3], metadata[4])
-												metadata_changed = (
-													metadata[0] != str(record[10]).strip() or # Perm
-													metadata[1] != str(record[8]).strip() or # Owner
-													metadata[2] != int(record[9]) # Group
-												)	
-												if metadata_changed:
-													entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
-													entry["tout"].append(f'Metadata {record[0]} {label}')
-												df=True
 
 
 						except Exception as e:
 							print(f"Skipping {filename}: {type(e).__name__} - {e}")
 							continue
 
+
+			
+
+						if record[5] == previous[5] and record[3] == previous[3]: # checksum, Inode
+							
+							df=True
+
+							metadata = (previous[7], previous[8], previous[9])
+							metadata_changed = (
+								record[10] != metadata[2] or
+								record[8] != metadata[0] or
+								record[9] != metadata[1]
+							)
+							if metadata_changed:
+								entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
+
 				else:
+
+					df=True
 
 					if checksum == 'true':
 
+
 						if record[3] != previous[3]:
 
-
 							if record[5] == previous[5]:
-								entry["flag"].append(f'Overwrt {record[0]} {record[2]} {label}')
-								entry["tout"].append(f'Overwrt {record[0]} {label}')
+								entry["flag"].append(f'Overwrite {record[0]} {record[2]} {label}')
 								stealth(filename, label, entry, record[5], current_size, original_size, cdiag, 'eql', cursor, is_sys)
 							else:
 								entry["flag"].append(f'Replaced {record[0]} {record[2]} {label}')
-								entry["tout"].append(f'Replaced {record[0]} {label}')
 								stealth(filename, label, entry, record[5] ,current_size, original_size, cdiag, 'regular', cursor, is_sys)
-
 
 						else:
 
-
 							if record[5] != previous[5]:
 								entry["flag"].append(f'Modified {record[0]} {record[2]} {label}')
-								entry["tout"].append(f'Modified {record[0]} {label}')
 								stealth(filename, label, entry, record[5] , current_size, original_size, cdiag, 'regular', cursor, is_sys)
 							else:
-								entry["flag"].append(f'Touched {record[0]} {record[2]} {label}')
-								entry["tout"].append(f'Touched {record[0]} {label}')
-
+								metadata = (previous[7], previous[8], previous[9])
+								metadata_changed = (
+									record[10] != metadata[2] or
+									record[8] != metadata[0] or
+									record[9] != metadata[1]
+								)
+								if metadata_changed:
+									entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
+								else:
+									entry["flag"].append(f'Touched {record[0]} {record[2]} {label}')
 
 					else:
-						
-
 						if record[3] != previous[3]:
 							entry["flag"].append(f'Replaced {record[0]} {label}')
-							entry["tout"].append(f'Replaced {label}')
 						else: 
 							entry["flag"].append(f'Modified {record[0]} {label}')
-							entry["tout"].append(f'Modified {label}')
 								
 
 					two_days_ago = datetime.now() - timedelta(days=2)
@@ -232,7 +230,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 					entry["cerr"].extend(collision_message)
 
 
-				if entry["cerr"] or entry["flag"] or entry["scr"] or entry["sys"] or entry["tout"]:
+				if entry["cerr"] or entry["flag"] or entry["scr"] or entry["sys"]:
 					results.append(entry)
 				elif not df:
 					entry["dcp"].append(record)
