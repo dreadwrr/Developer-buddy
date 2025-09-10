@@ -99,7 +99,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 						if recent_systime:
 							if recent_systime > recent_timestamp:
 								is_sys=True
-								increment_fname(conn, cursor, label)
+								increment_fname(cursor, record)
 								db=True
 								previous = recent_sys #entry["sys"].append(f'{label}')
 
