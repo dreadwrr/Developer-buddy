@@ -71,7 +71,7 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 					if recent_systime:
 						if recent_systime > recent_timestamp:
 							is_sys=True
-							pyfunctions.increment_fname(conn, c, label) # add to system file count db
+							pyfunctions.increment_fname(c, record) # add to system file count db
 							db=True
 							previous = recent_sys
 

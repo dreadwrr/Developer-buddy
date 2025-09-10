@@ -211,7 +211,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 		read -r _ _ of3 of4 _ <<< "$original_ln"
 		oct="$of3 $of4"
 		if date -d "$ct" "+$fmt" >/dev/null 2>&1 && date -d "$oct" "+$fmt" >/dev/null 2>&1; then
-			echo "Copy $dt $y" | tee -a $rout >> $tfile
+			echo "Copy $dt $ct $y" | tee -a $rout >> $tfile
 		fi
 	fi
 done < $TMPCOMPLETE

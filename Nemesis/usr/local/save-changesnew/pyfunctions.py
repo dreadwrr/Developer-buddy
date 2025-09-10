@@ -118,7 +118,7 @@ def getcount (curs):
       count = curs.fetchone()
       return count[0]
 
-def increment_fname(conn, c, record):
+def increment_fname(c, record):
     filename = record[1]
     c.execute('''
         INSERT OR IGNORE INTO sys (
