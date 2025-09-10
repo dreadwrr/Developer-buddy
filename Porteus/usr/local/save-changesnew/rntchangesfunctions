@@ -164,17 +164,7 @@ if [ "$STATPST" == "true" ]; then
                     ft=$(echo "$p" | cut -d',' -f1)
 					dt=$(echo "$p" | cut -d',' -f2 | tr -d '"')
 					if [ "$ft" == "Nosuchfile" ]; then #  | cut -d',' -f3- | sed 's/^ *//;s/ *$//') orig		
-						filepath=$(echo "$p" | cut -d',' -f4)
-						#entry="Nosuchfile,$dt,,${filepath}"    # Action,dt,,file path
-						if [[ ! -v ref_map["$filepath"] ]]; then
-			                echo "$p" >> $source
-						else
-							found="${ref_map["$filepath"]}"
-							old_dt=$(echo "$found" | cut -d',' -f2 | tr -d '"')
-							if [[ "$dt" > "$old_dt" ]]; then
-								echo "$p" >> $source
-							fi
-						fi
+						echo "$p" >> $source
 					else
 						ct=$(echo "$p" | cut -d',' -f3 | tr -d '"')
 						filepath=${p#*,*,*,}
@@ -271,8 +261,8 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 	y=$cFILE
 	current_ln="${p//\"$y\"/}"
 	current_ln="$( echo "$current_ln" | xargs  -d '\n')"
-	read -r _ _ f3 f4 _ _ _ f8 _ <<< "$current_ln"
-	cs="$f8"
+	read -r f1 f2 f3 f4 _ _ _ f8 _ <<< "$current_ln"
+	dt="$f1 $f2" ; cs="$f8"
 	ct="$f3 $f4"
 	copy_record=$(grep -F -v "\"$y\"" $1 | awk -F'"' '{print $1 $3}' | tail -n 1)
 	if [[ -n "$copy_record" ]]; then
@@ -623,10 +613,9 @@ if [ -e "$x" ] && [ -f "$x" ]; then
 else
 	if [ -z "$1" ]; then
 		printf 'NOTA-FI-LE 77:77:77 "%s"\n' "$y" >> "$tout"
-		mt=$(date -d "@$mtime" +"%Y-%m-%d %H:%M:%S")
-		printf "%s,\"%s\",,%s\n" "Nosuchfile" "$mt" "$y" >> "$COMPLETE"
+		printf "%s,,,%s\n" "Nosuchfile" "$y" >> "$COMPLETE"
 	else
-		nsf+=("Nosuchfile,\"$mt\",,$y")
+		nsf+=("Nosuchfile,,,$y")
 	fi
 fi
 }
@@ -663,9 +652,9 @@ if [ -e "$x" ] && [ -f "$x" ]; then
 else
 	if [ -z "$1" ]; then
 		printf 'NOTA-FI-LE 77:77:77 "%s"\n' "$y" >> $SORTCOMPLETE
-		printf "%s,\"%s\",,%s\n" "Nosuchfile" "$mt" "$y" >> $COMPLETE
+		printf "%s,,,%s\n" "Nosuchfile" "$y" >> $COMPLETE
 	else
-		nsf+=("Nosuchfile,\"$mt\",,$y")
+		nsf+=("Nosuchfile,,,$y")
 	fi
 fi
 }

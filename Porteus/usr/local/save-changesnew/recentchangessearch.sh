@@ -145,7 +145,7 @@ if [ -s $SORTCOMPLETE ] ; then
     	CDATE=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')
         if [ "$flsrh" == "false" ]; then awk -v tme="$CDATE" '$0 >= tme' "$difffile" > $TMPCOMPLETE ; else cat "${difffile}" > $TMPCOMPLETE; fi
     	echo >> "${difffile}"
-    	while IFS="" read -r p || [ -n "$p" ]; do cFILE=$( echo "$p" | cut -d " " -f3-) ; grep -Fqs "$cFILE" $SORTCOMPLETE && { echo "Modified" "$p" >> $ABSENT; echo "Modified" "$p" >> $tout; } || { echo "Deleted" "$p" >> $ABSENT; echo "Deleted" "$p" >> $tout; } ; done < $TMPCOMPLETE
+    	while IFS="" read -r p || [ -n "$p" ]; do cFILE=$( echo "$p" | cut -d " " -f3-) ; dt="$( echo "$p" | cut -d " " -f12)" ; grep -Fqs "$cFILE" $SORTCOMPLETE && { echo "Modified" "$p" >> $ABSENT; echo "Modified" "$dt" "$p" >> $tout; } || { echo "Deleted" "$p" >> $ABSENT; echo "Deleted" "$dt" "$p" >> $rout; } ; done < $TMPCOMPLETE
 		test -f $ABSENT  && { echo Applicable to your search ; cat $ABSENT ; } >> "${difffile}" || { echo "None of above is applicable to search. It is the previous search"; } >> "${difffile}"
     else
         test -e "${difffile}" && rm "${difffile}"
