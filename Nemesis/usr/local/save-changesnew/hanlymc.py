@@ -106,7 +106,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 			if not previous or not filedate or not previous[0] :
 				continue
 			if checksum == 'true':
-				if not record[5] or str(record[5]).strip() == '' or record[5] == 'None':
+				if not record[5] or str(record[5]).strip() == '' or record[5] == 'None' or previous[5] == 'None':
 					continue
 
 				current_size = None
