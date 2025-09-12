@@ -26,7 +26,7 @@ adds $BASEDIR to /ect/rc.d/rc.local_shutdown and the script sets itself to non-e
 Manual
 https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0  
 Porteus forums
-https://forum.porteus.org/  <BR><BR>
+https://forum.porteus.org/  <br><br>
 
 
 Version: Standard                save-changesnew        save-changesnewNMS <br><br>
@@ -55,11 +55,12 @@ Contantly up to date as I use this daily when developing.
 
 2 modes. normal  and mc.  Written strictly in bash. <BR><BR><BR><BR>
 
+<p> The script also updates the syslinux bootloader automatically to point to $BASEDIR/extramod. If you use a grub bootloader there  is a setting to point to the grub line number. Just make a new entry for graphics mode ie non changes. If your bootloader in on a different drive there is a setting to point to that.</p>
+<br><br><br><br>
 
 
 
-
-  Recentchanges
+  ## Recentchanges
 
    recentchanges. Developer buddy      make xzm     
    Provide ease of pattern finding ie what files to block we can do this a number of ways
@@ -74,13 +75,16 @@ or what changed on your system. So if you compiled something you call this scrip
 We use the find command to list all files 5 minutes or newer. Filter it and then get to copying the files in a temporary staging directory in /tmp.
 Then take those files and make an .xzm along with a transfer log to staging directory and file manifest of the xzm  <BR><BR><BR><BR>
 
+<p> 'recentchanges' default search time of 5 minutes.</p>
+<p> 'recentchanges n' where the time to search is specified in seconds.</p>
+<p> There is also 'recentchanges -SRC'  which will look for a root folder from a compiled application and grab it and allow you to enter a custom name, preselected name or default name. So the application is packaged neatly. This can be used for other scripts ect. </p>
+<BR><BR><BR><BR>
 
 
 
 
 
-
-  Save Changes New        Nemesis
+ ## Save Changes New        Nemesis
 
    this script works for two modes porteus nemesis graphics and changes.        
 
@@ -109,7 +113,7 @@ Then take those files and make an .xzm along with a transfer log to staging dire
 
 
 
-   Save Changes New            Porteus
+   ## Save Changes New            Porteus
 
 In addition to the RSync backup it saves your changes with rsync in porteus.       /mnt/live/memory/changes ---->   /mnt/sdx/changes    -----> /mnt/sdx/changes.bak
 
