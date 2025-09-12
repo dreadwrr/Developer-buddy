@@ -9,9 +9,6 @@ https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/
 Porteus forums
 https://forum.porteus.org/  <BR><BR>
 
-Porteus changes=    backup will be made with save-changesnew
-changes=EXIT:/     save-changesnew backup. that will make the backup with appropriate isolateBACK interlock
-
 
 Brought _uid_L for porteus graphics mode! for non changes=EXIT:/ users.
 
