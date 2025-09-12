@@ -7,7 +7,7 @@ prefixt=mainloop2
 if [ "$2" == "true" ] || [ "$2" == "false" ]; then
 	checkSUM="$2"
 	xmode="$3"
-	[[ "$4" = "batch2" ]] && shift 4 && prefix=mainloop3 && prefixt=mainloop4
+	[[ "$4" = "batch2" ]] && shift 4 && prefix=mainloop3 && prefixt=mainloop4 || shift 3
 else
 	[[ "$6" = "batch2" ]] && shift 6 && prefix=mainloop3 && prefixt=mainloop4 || shift 5
 fi

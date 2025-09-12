@@ -1,5 +1,6 @@
 #!/bin/bash
-#   Developer buddy 3.0 core                                               9/9/2025
+#   Developer buddy 3.0 core                                               9/12/2025
+
 # Filter terminal and hardlinks
 sbwr() {
 webb=(
@@ -161,11 +162,11 @@ if [ "$STATPST" == "true" ]; then
             while IFS="" read -r p || [ -n "$p" ]; do
                 ft=$(echo "$p" | cut -d',' -f1)
 				dt=$(echo "$p" | cut -d',' -f2 | tr -d '"')
-				if [ "$ft" == "Nosuchfile" ]; then #  | cut -d',' -f3- | sed 's/^ *//;s/ *$//') orig		
+				if [ "$ft" == "Nosuchfile" ]; then #  sed 's/^ *//;s/ *$//')  remove leading trailing space
 					echo "$p" >> $source
 				else
 					ct=$(echo "$p" | cut -d',' -f3 | tr -d '"')
-					filepath=${p#*,*,*,} #entry="$ft,\"${dt}\",${filepath}"
+					filepath=${p#*,*,*,} # format action,"date time","change time", file name 
 					if [[ ! -v ref_map["$filepath"] ]]; then
 		                echo "$p" >> $source
 					else
@@ -178,6 +179,7 @@ if [ "$STATPST" == "true" ]; then
 					fi
 				fi
             done < $1
+			unset IFS
         else # its a log
 	        c=$( grep -c '^$' $source)
 	        if  (( c == logCT )); then
@@ -225,10 +227,9 @@ if [ "$STATPST" == "true" ]; then
         echo "The${msg} was created."
     fi
 fi
-
 }
 decrypt() {
-if grep -iq "Porteus 5.01" /etc/os-release && ! which gpg2 > /dev/null 2>&1; then # GnuPG 1.4.23copy
+if grep -iq "Porteus 5.01" /etc/os-release && ! which gpg2 > /dev/null 2>&1; then # GnuPG 1.4.23
     if which gpg-agent > /dev/null 2>&1; then
 	    export GPG_TTY=$(tty)            # If you cant get it to work try commenting these two out and the other two in recentchanges might fix it
         export GPG_AGENT_INFO=/root/.gnupg/S.gpg-agent:0:1
@@ -289,6 +290,21 @@ while IFS= read -r line; do
     fi
 done < <(grep -F "$chksum" "$ofile")
 }
+
+is_valid_date() { date -d "$1" >/dev/null 2>&1 ; c=$?; return $c ; }
+newmeta() {
+current_own="$1"
+current_grp="$2"
+current_perm="$3"
+prev_own="$4"
+prev_grp="$5"
+prev_perm="$6"
+old_meta="$prev_own $prev_grp $prev_perm"
+cur_meta="$current_own $current_grp $current_perm" #cur_meta="$au $ag $apmr" # ln 448   free
+if [[ "$old_meta" == "$cur_meta" ]]; then
+	return 1
+fi
+}
 stealth() {
 local file="$1"
 local label="$2"		
@@ -315,31 +331,18 @@ if [ -f "$file" ] && [ -n "$current_size" ] && [ "$current_size" != "None" ] && 
 	if [ "$cdiag" == "true" ]; then collision "$label" $cksum $current_size $7 ; fi
 fi
 }
-is_valid_date() { date -d "$1" >/dev/null 2>&1 ; c=$?; return $c ; }
-newmeta() {
-current_own="$1"
-current_grp="$2"
-current_perm="$3"
-prev_own="$4"
-prev_grp="$5"
-prev_perm="$6"
-old_meta="$prev_own $prev_grp $prev_perm"
-cur_meta="$current_own $current_grp $current_perm" #cur_meta="$au $ag $apmr" # ln 448   free
-if [[ "$old_meta" == "$cur_meta" ]]; then
-	return 1
-fi
-}
 hablk() {
 >$TMPCOMPLETE
 while IFS= read -r p || [[ -n "$p" ]]; do
 	found_line=""
-    cFILE=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$p") #cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p") orig
+	#cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p") orig
+    cFILE=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$p") 
 	y=$cFILE
 	current_ln="${p//\"$y\"/}"
 	read -r f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 _ <<< "$current_ln"
 	in="$f5"
-	if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then 	# for line in "${ref_lines[@]}"; do if [[ "$line" == *"$y"* ]]; then found_line="$line" ; fi ; done regular array old multicore
-		if [ "$1" == "A" ]; then found_line="${ref_map[$y]}" ; else found_line=$( grep -F "$y" "$ofile" | tail -n 1) ; fi  # 
+	if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then 	
+		if [ "$1" == "A" ]; then found_line="${ref_map[$y]}" ; else found_line=$( grep -F "$y" "$ofile" | tail -n 1) ; fi # for line in "${ref_lines[@]}"; do if [[ "$line" == *"$y"* ]]; then found_line="$line" ; fi ; done regular array old multicore
 		if [ -n "$found_line" ]; then
 			original_ln="$found_line"
 			if [ "$1" != "A" ]; then original_ln="${found_line//\"$y\"/}" ; fi
@@ -356,7 +359,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 						if [ -f "$cFILE" ]; then                     		
                             read a_mod fs a_ct au ag apmr < <(stat --format="%Y %s %Z %U %g %A" "$cFILE" 2>/dev/null)
 							afrm=$(date -d "@$a_mod" +"$fmt" 2>/dev/null)
-							if [ -n "$afrm" ] && [ -n "$a_checksum" ]; then
+							if [ -n "$afrm" ]; then
 								if [ "$afrm" == "$dt" ]; then
 									a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
 									if  [ -n "$a_checksum" ] && [ "$a_checksum" != "$cs" ]; then
@@ -377,7 +380,6 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 						fi
 						if [[ "$cs" == "$ocs" ]]; then
 							if (( oin == in )); then
-
 								if newmeta $f11 $f12 $f13 $of11 $of12 $of13; then
 									echo "Metadata $dt $ct $y" >> $rout
 								fi
@@ -439,10 +441,10 @@ hanly(){
 		find "$atmp" -type f -name 'sortchunk_*' -print0 | sort -z | xargs -0 -P"$max_jobs" -I{} /usr/local/save-changesnew/haloop $atmp "{}" $2 $checkSUM $cdiag
 		isoutput haloop1* haloop2* haloop3* haloop4* $rout $slog $cerr $TMPCOMPLETE
 	else
-		# mapfile -t ref_lines < "$2"
+		# mapfile -t ref_lines < "$2" old array
+		 # tmp="${p#\"}" ; key="${tmp%%\"*}"   # key=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")
 		declare -A ref_map                    
-        # #  tmp="${p#\"}" ; key="${tmp%%\"*}"   # cFILE= # $(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")
-		while read -r p; do key=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$p") ; current_ln="${p//\"$key\"/}" ; current_ln="$(echo "$current_ln" | xargs  -d '\n')" ; ref_map["$key"]="$current_ln" ; done < $2
+		while read -r p; do key=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$p") ; current_ln="${p//\"$key\"/}" ; ref_map["$key"]="$current_ln" ; done < $2
 		hablk "A" $TMPCOMPLETE
 	fi
 	
@@ -551,7 +553,7 @@ else
     samerlt="true" # test -e "$1" && rm "$1"
 fi
 }
-# find any old search for convenience
+# find old search for convenience
 hsearch() {
 r=$(find . -type f -path "*${MODULENAME}_MDY*/*" | wc -l)
 if (( r >= 1 )); then
@@ -671,7 +673,8 @@ sbwr
 green "Updating hardlinks"
 while IFS= read -r p || [[ -n "$p" ]]; do 
     ck="false"
-    cFILE=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$p") #cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")
+	#cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")
+    cFILE=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$p")
 	y=$cFILE
 	cln="${p//\"$y\"/}"
 	read -r _ _ _ _ of5 _ <<< "$cln"
@@ -701,42 +704,9 @@ for inode in "${inodes_array[@]}"; do
 done > $TMPOPT
 paste -d' ' $1 $TMPOPT > $2 ; mv $2 $SORTCOMPLETE
 }
-sblk() {
-local y="$x"
-x="$( unescf "$x")" 
-local sl=""
-local csum
-if [ -e "$x" ] && [ -f "$x" ]; then
-   	stat_out=$(stat -c "%Y %X %i %U %g %A %Z " "$x")
-	read -r mtime atime i onr gr pmr itime <<<"$stat_out"
-	mt=$(date -d "@$mtime" +"%Y-%m-%d %H:%M:%S")
-	ct=$(date -d "@$itime" +"%Y-%m-%d %H:%M:%S")
-	ats=$(date -d "@$atime" +"%Y-%m-%d %H:%M:%S")
-	if [ -n "$mt" ]; then
-		if [[ "$1" = "ctime" ]]; then cam="y" ; else cam="None" ; fi
-        if [[ "$cam" = "y" && $itime -gt $mtime ]] || [[ "$1" == "main" ]]; then
-			if [ "$checkSUM" == "true" ]; then
-				[[ -L "$x" ]] && sl="y"
-				wnr=${onr:-None} ; grp=${gr:-None} ; pmn=${pmr:-None}  ; sl=${sl:-None}
-				cam="None"
-				csum=$(md5sum "$x" 2> /dev/null) ; csum=${csum%% *} ; csum=${csum:-None}
-				fs=$(stat --format=%s "$x" 2> /dev/null) ; fs=${fs:-None} 
-				adtcmd="$csum $fs $sl $wnr $grp $pmn $cam"
-			else
-			    adtcmd=""
-			fi
-			ct=${ct:-None None}
-			ats=${ats:-None None}
-			output="$mt \"$y\" $ct $i $ats $adtcmd"
-			printf '%s\n' "$output" >> $2
-		fi
-	fi
-else
-	printf "%s,,,%s\n" "Nosuchfile" "$y" >> $3
-fi
-}
+
 intst() {
-if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
+if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi 
 if [ "$STATPST" == "true" ]; then
     if [ -f $logpst ]; then
         sz=$( stat -c %s "$logpst")
@@ -760,17 +730,7 @@ if [ "$STATPST" == "true" ]; then
     fi
 fi
 }
-search() {
-if [ "$mMODE" == "default" ]; then
-	xargs -0 -n 50 /usr/local/save-changesnew/mainloop $atmp $2 $3 $4 $5 $6 < $1
-elif [ "$mMODE" == "mc" ]; then
-	x=$(tr -cd '\0' < $FEEDFILE | wc -c) ; y=8
-	if (( x > 100 )); then y=16 ; fi
-	xargs -0 -n"$y" -P4 /usr/local/save-changesnew/mainloop $atmp $2 $3 $4 $5 $6 < $1
-else
-	echo incorrect mMODE && exit
-fi
-}
+
 isoutput() {
 local y=$#
 if (( y >= 7 )); then
@@ -790,6 +750,48 @@ for ((i = 1; i <= c; i++)); do
         cat "${files[@]}" >> $output
     fi
 done
+}
+sblk() {
+local sl=""
+local y="$x"
+x="$( unescf "$x")" 
+local csum
+if [ -e "$x" ] && [ -f "$x" ]; then
+   	stat_out=$(stat -c "%Y %X %i %U %g %A %Z " "$x")
+	read -r mtime atime i onr gr pmr itime <<<"$stat_out"
+	mt=$(date -d "@$mtime" +"%Y-%m-%d %H:%M:%S")
+	ct=$(date -d "@$itime" +"%Y-%m-%d %H:%M:%S")
+	ats=$(date -d "@$atime" +"%Y-%m-%d %H:%M:%S")
+	if [ -n "$mt" ]; then
+        if [[ "$1" = "ctime" && "$itime" -gt "$mtime" ]] || [[ "$1" = "main" ]]; then
+			if [ "$checkSUM" == "true" ]; then
+				csum=$(md5sum "$x" 2> /dev/null) ; csum=${csum%% *} ; csum=${csum:-None}
+				fs=$(stat --format=%s "$x" 2> /dev/null) ; fs=${fs:-None} 
+				[[ -L "$x" ]] && sl="y"
+				wnr=${onr:-None} ; grp=${gr:-None} ; pmn=${pmr:-None}  ; sl=${sl:-None}
+				adtcmd="$csum $fs $sl $wnr $grp $pmn $cam"
+			else
+			    adtcmd=""
+			fi
+			[[ "$1" = "ctime" ]] && cam="y" && mt=$ct || cam="None"
+			ct=${ct:-None None}
+			ats=${ats:-None None}
+			output="$mt \"$y\" $ct $i $ats $adtcmd"
+			printf '%s\n' "$output" >> $2
+		fi
+	fi
+else
+	printf "%s,,,%s\n" "Nosuchfile" "$y" >> $3
+fi
+}
+search() {
+if [[ "$mMODE" = "default" ]]; then
+	xargs -0 -n 50 /usr/local/save-changesnew/mainloop $atmp $2 $3 $4 $5 $6 < $1
+elif [[ "$mMODE" = "mc" ]]; then
+	x=$(tr -cd '\0' < $1 | wc -c) ; y=8
+	if (( x > 100 )); then y=16 ; fi
+	xargs -0 -n"$y" -P4 /usr/local/save-changesnew/mainloop $atmp $2 $3 $4 $5 $6 < $1
+fi
 }
 ctimeloop() {
 [[ "$checkSUM" = "true" ]] && [[ "$ANALYTICS" = "true" || "$STATPST" = "true" ]] && cyan "Running checksum." || checkSUM="false"

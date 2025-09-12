@@ -1,13 +1,13 @@
 #!/bin/bash
-#      recentchanges search             Developer Buddy v3.0     9/11/2025
+#      recentchanges search             Developer Buddy v3.0     9/12/2025
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/rntchangesfunctions
-if [ `whoami` != "root" ]; then echo "Please enter your root password below" ; su - -c "/usr/local/save-changesnew/recentchangessearch.sh $1 '$2' $3 '$4'" ; exit ; fi
 USR=$3
 if [ "$USR" == "" ]; then echo please call from recentchanges; exit; fi
 if [ "$4" == "" ]; then echo "incorrect usage please call from recentchanges"; exit 1; fi
 if [ "$1" != "search" ]; then echo exiting not a search && exit; fi
+
 work=work$$													        ;		atmp=/tmp/atmp$$
 tmp=/tmp/work$$												        ;		rout=$atmp/routput.tmp
 chxzm=/rntfiles.xzm											        ;		tout=$atmp/toutput.tmp
@@ -21,6 +21,7 @@ SORTCOMPLETE=$tmp/list_complete_sorted.txt			;		COMPLETENUL=$tmp/list_completenu
 TMPOUTPUT=$tmp/list_tmp_sorted.txt						;		TMPCOMPLETE=$tmp/tmp_complete.txt
 TMPOPT=$tmp/tmp_holding										;		flth=/usr/local/save-changesnew/flth.csv
 OLDSORTED=""															;		cerr=/tmp/cerr
+
 diffrlt="false" 															; 		nodiff="false"
 pstc="false"																;		flsrh="false"
 samerlt="false"															;		nc="false"
@@ -28,24 +29,24 @@ syschg="false"
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 fmt="%Y-%m-%d %H:%M:%S"
+
+intst
 mkdir $tmp
 mkdir $atmp
-intst
+
 if [ "$2" != "noarguser" ] && [ "$2" != "" ]; then # If a desired time is specified we will search for that  (in seconds)
 	if [ "$2" -ge 0 ] 2>/dev/null; then # is it a number
-        argone=$2 #What the user passed
-	 	p=60       # divider
-	 	# is it a number
-    	argone=$2  #What the user passed
+        argone=$2
+	 	p=60
         tmn=$( echo "scale=2; $argone /$p" | bc)
 		if [ $(( $argone % $p )) -eq 0 ]; then tmn=$(( $argone / $p )); fi
 		cyan "searching for files $2 seconds old or newer"
     else
         argone=".txt"
-    	test -d "${4}" || { echo "Invalid argument ${4} . PWD required."; exit 1; }
-		cd "${4}"  || exit
+    	test -d "$4" || { echo "Invalid argument ${4} . PWD required."; exit 1; }
+		cd "$4"  || exit
     	filename="$2"
-    	test -f "${filename}" || { test -d "${filename}" || echo no such directory file or integer; exit 1; }
+    	test -f "$filename" || { test -d "$filename" || echo no such directory file or integer; exit 1; }
     	parseflnm="${2##*/}"
 		if [ "$parseflnm" == "" ]; then parseflnm="$(echo "$2" | sed -e 's/\/$//' -e 's@.*/@@')" ; fi
     	cyan "searching for files newer than $filename "
@@ -72,6 +73,7 @@ search $FEEDFILE $SORTCOMPLETE $COMPLETE $checkSUM "main"
 isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
 if [ -s $SORTCOMPLETE ]; then
+	syschg="true"
 	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE ; SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') ; PRD=$SRTTIME
 	if [ -s $tout ]; then awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' $tout >> $SORTCOMPLETE ; fi
 	inclusions
@@ -81,7 +83,7 @@ if [ -s $SORTCOMPLETE ]; then
 		PRD=$(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S')
 		awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' $SORTCOMPLETE > $tout ; mv $tout $SORTCOMPLETE
 	fi
-	syschg="true"; sort -u -o $SORTCOMPLETE $SORTCOMPLETE
+	sort -u -o $SORTCOMPLETE $SORTCOMPLETE
 	if [[ "$updatehlinks" = "true" && "$backend" = "database" && "$STATPST" = "true" ]]; then ulink $SORTCOMPLETE $tout; fi
 	awk '{print $1, $2}' $SORTCOMPLETE > $tout
 	perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' "$SORTCOMPLETE" > "$TMPCOMPLETE"
@@ -98,8 +100,13 @@ if [ "$5" == "filtered" ] || [ "$flsrh" == "true" ]; then
 	if [ "$5" == "filtered" ] && [ "$flsrh" == "true" ]; then logf=$RECENT ; fi 
     /usr/local/save-changesnew/filter $TMPOPT $USR
 fi
-MODULENAME=${chxzm:0:9} ; LCLMODULENAME=${chxzm:1:8} ; cd $USRDIR
+
+cd $USRDIR
+MODULENAME=${chxzm:0:9}
+LCLMODULENAME=${chxzm:1:8}
+
 if [ -s $SORTCOMPLETE ] ; then
+	cp $SORTCOMPLETE /home/guest/aris
     if [ "$flsrh" == "true" ]; then
 	    flnm="xNewerThan_${parseflnm}"$argone
 	    flnmdff="xDiffFromLast_${parseflnm}"$argone
@@ -131,6 +138,7 @@ if [ -s $SORTCOMPLETE ] ; then
     postop $logf $6
 	test -e "$difffile" && chown $USR "$difffile"
 fi
+
 if [ "$ANALYTICS" = "true" ] && [ "$STATPST" = "false" ] ; then stmp $SORTCOMPLETE && [[ ! -f /tmp/rc/full ]] && cyan "Search saved in /tmp" ; fi
 rm -rf $tmp ; rm -rf $atmp
 if [ "$ANALYTICSECT" = "true" ]; then
@@ -152,4 +160,4 @@ else
 fi
 logic
 display $USRDIR $MODULENAME"$flnm"
-#if [ -z "$AGENT_PID" ]; then kill "$AGENT_PID"; fi
+#if [ -n "$AGENT_PID" ]; then kill "$AGENT_PID"; fi
