@@ -1,6 +1,6 @@
 #!/bin/bash
 #   Analytics NMS5 porteus
-#   recentchanges. Developer buddy      make xzm     9/6/2025  v3.0
+#   recentchanges. Developer buddy      make xzm     9/11/2025  v3.0
 #
 #   Provide ease of pattern finding ie what files to block we can do this a number of ways
 #   1) if a file was there (many as in more than a few) and another search lists them as deleted its either a sys file or not but unwanted nontheless
@@ -62,8 +62,7 @@ export tmpSRHS=7 # Default 7 store most recent searches in /tmp try 30 and then 
 
 
 
-export mMODE="mem"  # normal default. robust less prone to failure
-								  		# mem    balanced store search in arrays less i/o
+export mMODE="mc"  #  default 
 								   		# mc      turbo mode run the search in parallel or multiple cores.
 
 
@@ -93,15 +92,20 @@ export ANALYTICSECT="true" # provides more feedback
 
 export FEEDBACK="false"  # include find output in terminal as well ie scrolling terminal look
 
+export dspEDITOR="false" # default false. launch text editor?
+										# featherpad
+										# xed  
+
 
 ## Diagnostics
 export checkSUM="true"	# compare file checksums for slight changes
 										# slower useful if you want to check deeper level of stats
 export cdiag="true"       # Include stealth changes in diff file    a file was changed but has the same checksum and filesize subtle edit  ie cache items or string was changed
-
+									# also run collosion check
 export supbrwr="true"   # supress cache warnings on terminal from known browsers? Mozilla... ect list top of rntfuncions
 export supress="false"  # ..      all cdiag output to terminal except critical events
 export updatehlinks="true"   # scan for accurate hardlinks in db. alternatively use Set hardlinks button
+
 export POSTOP="false" # Diagnostics. Create file doctrine. Runs post search operation that can only be done at this time as search is relevant
                                     # more overhead so recommend off unless one off. output /Downloads
                                     #
@@ -115,8 +119,8 @@ export statpst="/usr/local/save-changesnew/stats.gpg"
 export pydbpst="/usr/local/save-changesnew/recent.gpg"
 
 # END CHANGEABLE
-[[ "$STATPST" == "true" ]] && [[ "$ANALYTICS" == "true" ]] && { echo With STATPST cant run with ANALYTICS. for security reasons as its stored in gpg. ; echo you can modify to run both if wanted. ; } && exit
-[[ "$STATPST" == "false" ]] && [[ "$backend" == "database" ]] && echo cant run database with ANALYTICS. && exit
+[[ "$STATPST" = "true" ]] && [[ "$ANALYTICS" = "true" ]] && { echo With STATPST cant run with ANALYTICS. for security reasons as its stored in gpg. ; echo you can modify to run both if wanted. ; } && exit
+[[ "$STATPST" = "false" ]] && [[ "$ANALYTICS" = "true" ]] && [[ "$backend" = "database" ]] && echo cant run database with ANALYTICS. && exit
 if [ "$1" = "-v" ]; then get_vrn $1 ; elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] || [ "$1" = "-help" ]; then get_vrn $1; fi # If inquery tag no need to call root. pass to other function and exit.
 argf=$5
 if [ `whoami` != "root" ]; then #if [[ $(whoami) != "root" ]]; su -c "$0"; exit fi  if [[ $(id -u) -ne 0 ]]; then sudo "$0" "$@"; exit 0; fi
@@ -160,7 +164,6 @@ if [ "${arge[1]}" == "" ]; then THETIME="noarguser" ; fi
 if [ "${arge[2]}" == "" ] || [ "${arge[3]}" == "" ]; then USR="guest" ; passdir=$PWD ; fi #Default user
 if [ "${arge[2]}" == "SRC" ]; then echo "Incorrect usage please use recentchanges SRC s , s SRC or SRC" && exit 1; fi
 if  ! id $USR>/dev/null 2>&1; then echo "user: $USR not found"; exit 1; fi
-
 #Fork
 if [ "${arge[0]}" == "search" ]; then
    	test -d "${passdir}" || { echo  "not a valid directory. usage recentchanges search time."; exit 1; }
@@ -213,34 +216,18 @@ else # Search the default time  5 minutes.
 fi
 find /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var -mmin -${tmn} -not -type d -print0 2> /dev/null | tee $RECENTNUL > /dev/null 2> /dev/null
 find /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var \( -cmin -${tmn}-o -amin -${tmn} \) -not -type d -print0 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null
-ctimeloop $RECENTNUL $RECENT
- # Main loop we append to after
-if [ "$mMODE" == "normal" ]; then
-	xargs -0 /usr/local/save-changesnew/mainloop $atmp $SORTCOMPLETE $COMPLETE $checkSUM < $RECENTNUL
-elif [ "$mMODE" == "mem" ]; then
-	searcharr $RECENTNUL
-	printf "%s\n" "${ffile[@]}" >> $SORTCOMPLETE
-	if [ ${#nsf[@]} -gt 0 ]; then printf "%s\n" "${nsf[@]}" >> $COMPLETE; fi
-elif [ "$mMODE" == "mc" ]; then
-	x=$(tr -cd '\0' < $RECENTNUL | wc -c) ; y=8
-	if (( x > 100 )); then y=16 ; fi
-	xargs -0 -n"$y" -P4 /usr/local/save-changesnew/mainloop $atmp $checkSUM < $RECENTNUL
-	if compgen -G "$atmp/"mainloop1_*_tmp.log > /dev/null; then cat "$atmp"/mainloop1_*_tmp.log > $SORTCOMPLETE; fi
-	if compgen -G "$atmp/"mainloop2_*_tmp.log > /dev/null; then cat "$atmp"/mainloop2_*_tmp.log >> $COMPLETE; fi
-else
-	echo incorrect mMODE && exit
-fi
-
+ctimeloop $RECENTNUL $RECENT # pacman slackpkg downloads ctime > mtime keep $RECENT
+search $RECENTNUL $SORTCOMPLETE $COMPLETE $checkSUM "main"  # regular append ctime later
+isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
 if [ -s $SORTCOMPLETE ]; then
 	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE ; SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') ; PRD=$SRTTIME
-	if [ ${#xfile[@]} -gt 0 ]; then printf "%s\n" "${xfile[@]}" | grep -v 'NOTA-FI-LE 77:77:77' | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' >> $SORTCOMPLETE; fi
-	if [ -s $tout ]; then grep -v 'NOTA-FI-LE 77:77:77' "$tout" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' >> $SORTCOMPLETE ; fi
+	if [ -s $tout ]; then awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' $tout>> $SORTCOMPLETE ; fi
 	inclusions
 	s=$(date -d "$SRTTIME" "+%s")
-	if [ "$THETIME" == "noarguser" ]; then RANGE=$(( s + 300 )) ; else RANGE=$(( s + argone )) ; fi
-	PRD=$(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S') # convert back to YYYY MM-DD HH:MM:SS
-	grep -v 'NOTA-FI-LE 77:77:77' "$SORTCOMPLETE" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' > $tout ; mv $tout $SORTCOMPLETE
+	if [ "$THETIME" == "noarguser" ]; then RANGE=$(( s + 300 )) ; else RANGE=$(( s + argone )) ; fi # filter ctime
+	PRD=$(date -d "@$RANGE" +"$fmt")
+	awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' $SORTCOMPLETE > $tout ; mv $tout $SORTCOMPLETE
 	syschg="true"; sort -u -o $SORTCOMPLETE $SORTCOMPLETE
 	if [ "$updatehlinks" == "true" ] && [ "$backend" == "database" ]; then ulink "$SORTCOMPLETE" "$tout" ; fi
 	awk '{print $1, $2}' $SORTCOMPLETE > $tout
@@ -262,7 +249,7 @@ while IFS= read -r -d '' x; do x="$( escf "$x")"; echo "$x" ; done < $SVFILES >>
 mv $tout $SVFILES
 sed -i -e "s|$tmp$workdir||g" $SVFILES
 cat $SVFILES | sed -e 's![^/]*$!!g' > $SVFOLDERS
-if [ "$SRCDIR" == "SRC" ]; then
+if [ "$SRCDIR" == "SRC" ]; then # make .xzm from root fld
     arrfiles=()
     arrreject=()
     appname="Application"
@@ -365,14 +352,15 @@ if [ -z "$k" ]; then
     test -e /tmp"$chxzm" && mv /tmp"$chxzm" "/tmp"$moduledir ; test -e "/tmp"$chxzmnm && mv "/tmp"$chxzmnm "/tmp"$moduledir; test -e "/tmp"$MODULENAME"Transferlog" && mv "/tmp"$MODULENAME"Transferlog" "/tmp"$moduledir
     mv $LCLMODULENAME"xSystemchanges"* "/tmp"$moduledir 2> /dev/null ; mv $LCLMODULENAME"xSystemDiffFromLastSearch"* "/tmp"$moduledir 2> /dev/null
     test -e  "/tmp"$MODULENAME"ItemsFilteredout" && rm  "/tmp"$MODULENAME"ItemsFilteredout"
-    if [ "$SRCDIR" != "SRC" ]; then # rntfiles.xzm
+
+    if [ "$SRCDIR" != "SRC" ]; then # make rntfiles.xzm from all filtered
 	    mksquashfs $tmp$workdir "/tmp"$chxzm -comp $cmode
 	    cp $SVFILES "/tmp"$chxzmnm
 	    cp $UPDATE  "/tmp"$MODULENAME"Transferlog"
         if [ "$validrlt" == "true" ]; then
             sort -o $RECENT $RECENT
             cat $TMPOPT | grep -Fvf $RECENT > $FLTOUT ; echo $BRAND >> $FLTOUT
-            cat $TMPOPT | grep -Ff $RECENT | grep -v 'NOTA-FI-LE 77:77:77'  | tee $TMPCOMPLETE > /dev/null
+            cat $TMPOPT | grep -Ff $RECENT | tee $TMPCOMPLETE > /dev/null
             sed -i '/^[[:space:]]*$/d' $TMPCOMPLETE
             endtm=$( gettime $TMPCOMPLETE "/tmp"$chxzmnm)
         fi
@@ -380,27 +368,15 @@ if [ -z "$k" ]; then
         test -e "/tmp"$moduledir && chown $USR "/tmp"$moduledir
     fi
 fi
-if [ ! -f "/tmp"$moduledir$MODULENAME"xSystemchanges"$argone ]; then
-	hsearch
-else
-    OLDSORTED="/tmp"$moduledir$MODULENAME"xSystemchanges"$argone; nodiff="true"
-fi
-difffile="/tmp"$MODULENAME"xSystemDiffFromLastSearch"$argone
+if [ ! -f "/tmp"$moduledir$MODULENAME"xSystemchanges"$argone ]; then hsearch ; else OLDSORTED="/tmp"$moduledir$MODULENAME"xSystemchanges"$argone; nodiff="true" ; fi
+
+
+difffile="/tmp${MODULENAME}xSystemDiffFromLastSearch${argone}"
 if [ -s $SORTCOMPLETE ]; then
-    if [  -n "$OLDSORTED" ] && [ -s $OLDSORTED ]; then
+    if [ -n "$OLDSORTED" ] && [ -s $OLDSORTED ]; then
     	sed -i '/^[[:space:]]*$/d' $OLDSORTED
-        comm -23 $OLDSORTED $TMPOPT > $TMPCOMPLETE
-        if [ -s $TMPCOMPLETE ]; then
-            cp $TMPCOMPLETE "${difffile}"
-	        diffrlt="true"
-			cDATE=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') #Cut out irrelevant files
-            awk -v tme="$cDATE" '$0 >= tme' "$difffile" > $TMPCOMPLETE
-	        echo >> "${difffile}"
-            while IFS="" read -r p || [ -n "$p" ]; do cFILE="$( echo "$p" | cut -d " " -f3-)" ; dt="$( echo "$p" | cut -d " " -f12)" ; grep -Fqs "$cFILE" $SORTCOMPLETE && { echo "Modified" "$p" >> $ABSENT; echo "Modified" "$dt" "$p" >> $tout; } || { echo "Deleted " "$p" >> $ABSENT; echo "Deleted" "$dt" "$p" >> $rout; } ;  done < $TMPCOMPLETE
-	        test -f $ABSENT  && { echo Applicable to your search ; cat $ABSENT ; } >> "${difffile}" || { diffrlt="false" ; echo "None of above is applicable to search. It is the previous search."; } >> "${difffile}"
-        else
-            samerlt="true"
-        fi
+        comm -23 $OLDSORTED $TMPOPT > $difffile
+        isdiff $difffile $TMPCOMPLETE
     fi
 	backend
 	filterhits $TMPOPT $flth
@@ -441,10 +417,6 @@ elif [ "$syschg" == "true" ]; then
 	cyan "All system files in the last 5 minutes are included"
     cyan ""$MODULENAME"xSystemchanges"$argone ; echo
 fi
-if [ "$syschg" == "false" ]; then  cyan "No sys files to report." ; fi
-if [ "$samerlt" == "true" ] && [ "$syschg" == "true" ] && [ "$nodiff" == "true" ]; then cyan "The sys search was the same as before." ; fi
-if [ "$diffrlt" == "false" ] && [ "$nodiff" == "true" ] && [ "$samerlt" == "false" ]; then green " Nothing in the sys diff file. That is the results themselves are true" ; cyan "Refer to /rntfiles_MDY folder for the previous search" ; fi
-# We could test if featherpad or xed is installed and open it
-#test -e /usr/bin/featherpad && featherpad "/tmp"$MODULENAME"xSystemchanges"$argone
-#test -e /usr/bin/xed && xed "/tmp"$MODULENAME"xSystemchanges"$argone
+logic "Refer to /rntfiles_MDY folder for the previous search"
+display /tmp $MODULENAME"xSystemchanges"$argone # We could test if featherpad or xed is installed and open it
 #if [ -z "$AGENT_PID" ]; then kill "$AGENT_PID"; fi
