@@ -34,24 +34,29 @@ Find new files, save changes in porteus/nemesis and RSync backup in changes=EXIT
 
 
 
-Find files withnew atime such as slackpkg to appear in searches. The modified time is preserved metadata and wont showup in regular searches.
+Find files with new itime (change time) such as downloads from slackpkg and pacman. The modified time is preserved and only change time and accesss time are shown.
+those are targeted and merged into the search.
 
-Pull an .xzm with only the new files you want and also include all system new files
+Pull an .xzm with only the new files you want and also include all system new files in a .txt. 
 
 This program has a filter that you can edit in /usr/local/save-changesnew/filter that can filter files from the search so only files you want to see are in the .xzm.
 
-Uses two .gpgs for STATPST or persistent storage. logs.gpg and stats.gpg. stats.gpg contains actions Overwrt, Modified, Deleted, Replaced, Touched, Csumc ect.
+Uses two .gpgs for STATPST or persistent storage. logs.gpg and stats.gpg. stats.gpg contains actions Overwrite, Modified, Deleted, Replaced, Touched, Checksum, Metadata and Copy.
 
-All searches are stored in logs.gpg and is the underlying principle of hybrid analysis. All searches with STATPST will include ha. Not only can you see new files but 
-exactly what happened to them.
+All searches are stored in logs.gpg and is the underlying principle of hybrid analysis. All searches with STATPST will include ha. So you can see what happened to them.
+
+ANALYTICS is the same but its stored in /tmp/rc as a text file. Less secure but its owned by root and in TMPFS.
 
 Rsync backup your changes folder in changes=EXIT:/ on porteus
 
 Contantly up to date as I use this daily when developing.
 
-2 modes. normal  and mc.  Written strictly in bash. <BR><BR><BR><BR>
+2 modes. default  and mc.  Written strictly in bash and captures filenames with spaces commas quotes and new lines. <BR><BR><BR><BR>
 
-<p> The script also updates the syslinux bootloader automatically to point to $BASEDIR/extramod. If you use a grub bootloader there  is a setting to point to the grub line number. Just make a new entry for graphics mode ie non changes. If your bootloader in on a different drive there is a setting to point to that.</p>
+<p> The script also updates the syslinux bootloader automatically to point to $BASEDIR/extramod. If you use a grub bootloader there  is a setting to point to the grub line number. Just make a new entry for graphics mode ie non changes. If your bootloader in on a different drive there is a setting to point to that.
+
+for porteus a new entry called Graphics changes is made so one can be for loading extramod= ect.
+</p>
 <br><br><br><br>
 
 
@@ -69,7 +74,8 @@ or what changed on your system. So if you compiled something you call this scrip
   If not using for developing call it a file change snapshot
 
 We use the find command to list all files 5 minutes or newer. Filter it and then get to copying the files in a temporary staging directory in /tmp.
-Then take those files and make an .xzm along with a transfer log to staging directory and file manifest of the xzm  <BR><BR><BR><BR>
+Then take those files and make an .xzm along with a transfer log to staging directory and file manifest of the xzm. A system search of all files for the specified time
+is included less /tmp as that it confusing and too much info. <BR><BR><BR><BR>
 
 <p> 'recentchanges' default search time of 5 minutes.</p>
 <p> 'recentchanges n' where the time to search is specified in seconds.</p>
@@ -88,7 +94,8 @@ Then take those files and make an .xzm along with a transfer log to staging dire
    and adds extramod=/mnt/sdx/extramod. so when the system boots it loads all your changes. if one already exists it will update it. So graphics changes mode wont
 	load the graphics saves.
 
-   Graphics changes mode all changes are saved to the hdd already. so this part will backup the changes to /changes.bak right beside it.
+   Graphics changes mode all changes are saved to the hdd already. so this part will backup the changes to /changes.bak right beside it. including a logfile of the files 
+   saved each time.
 
    Once the backup is made it only applies the deletions and additions so writes are minimal. Having a desktop icon makes it more likely you saved in the event 
    of a powerloss ect.
@@ -111,13 +118,14 @@ Then take those files and make an .xzm along with a transfer log to staging dire
 
    ## Save Changes New            Porteus
 
-In addition to the RSync backup it saves your changes with rsync in porteus.       /mnt/live/memory/changes ---->   /mnt/sdx/changes    -----> /mnt/sdx/changes.bak
+In addition to the RSync backup it saves your changes with rsync in porteus similar to changes commit.       /mnt/live/memory/changes ---->   /mnt/sdx/changes    -----> /mnt/sdx/changes.bak
 
  rsync backup to /changes.bak minimal writes as the backup would already be in place. Files are logged and its accurate
  
  to system specs with --delete. Added drive to drive while this is fast the preferable way is to not use drive to drive
- as it freezes the file system at that point in time. But on shutdown that wait would be too long. So drive to drive provides
- a way to save on that condition. So both options are available depending on preference.
+ as it freezes the file system at that point in time. It does this by copying the files first to tmp. Its slower but good practice. However
+on shutdown that wait would be too long. So drive to drive provides a way to save on that condition. It has so far worked without
+any problems and is very fast. So both options are available depending on preference.
 
 
  Result saves your changes to your Changes=EXIT:  folder
