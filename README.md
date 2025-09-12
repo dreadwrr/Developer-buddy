@@ -10,7 +10,7 @@
 Brought _uid_L for porteus graphics mode! for non changes=EXIT:/ users.
 
 ## Porteus:
-To save the backup in changes= type save-changesnew
+To save the backup in changes= type save-changesnew <br>
 To save the backup in changes=EXIT:/   turn isolateBACK to true. then 'save-changesnew backup' and a backup will be made in /changes.bak beside /changes
 
 With isolateBACK false changes are saved to /changes. You can also autosave to true which will add your $BASEDIR to changes commit and save changes on shutdown.
