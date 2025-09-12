@@ -1,6 +1,6 @@
 #!/bin/bash
 #   Analytics NMS5 porteus
-#   recentchanges. Developer buddy      make xzm     9/11/2025  v3.0
+#   recentchanges. Developer buddy      make xzm     9/12/2025  v3.0
 #
 #   Provide ease of pattern finding ie what files to block we can do this a number of ways
 #   1) if a file was there (many as in more than a few) and another search lists them as deleted its either a sys file or not but unwanted nontheless
@@ -62,7 +62,7 @@ export tmpSRHS=7 # Default 7 store most recent searches in /tmp try 30 and then 
 
 
 
-export mMODE="mc"  #  default 
+export mMODE="mc"  #  default. regular search
 								   		# mc      turbo mode run the search in parallel or multiple cores.
 
 
@@ -81,7 +81,7 @@ export ANALYTICS="true" # store recent searches in /tmp       default false
 
 export STATPST="false" # persistent storage searches encrypted in /usr/local/save-changesnew for recentchanges query see logSIZE / logCT
                                     # Only overhead is gpg compression set compression to off. At large size speeds can increase by as much as 50%.
-                                    # if you prefer security turn ANALYTICS false and use th2025-09-06 02:36:21 "/home/guest/Downloads/save-changesnew/usr/local/save-changesnew/heuristics" 51354 2025-09-06 02:36:49 fb942496358a549bc4ed809b018a27be 7011 2025-09-06 02:36:21is
+                                    # if you prefer security turn ANALYTICS false and use this
 
 
 #Display
@@ -92,7 +92,7 @@ export ANALYTICSECT="true" # provides more feedback
 
 export FEEDBACK="false"  # include find output in terminal as well ie scrolling terminal look
 
-export dspEDITOR="false" # default false. launch text editor?
+export dspEDITOR="false" # false.  default dont display text editor. launch text editor?
 										# featherpad
 										# xed  
 
@@ -119,6 +119,7 @@ export statpst="/usr/local/save-changesnew/stats.gpg"
 export pydbpst="/usr/local/save-changesnew/recent.gpg"
 
 # END CHANGEABLE
+[[ "$mMODE" != "default" ]] && [[ "$mMODE" != "mc" ]] && echo incorrect mMODE && exit 
 [[ "$STATPST" = "true" ]] && [[ "$ANALYTICS" = "true" ]] && { echo With STATPST cant run with ANALYTICS. for security reasons as its stored in gpg. ; echo you can modify to run both if wanted. ; } && exit
 [[ "$STATPST" = "false" ]] && [[ "$ANALYTICS" = "true" ]] && [[ "$backend" = "database" ]] && echo cant run database with ANALYTICS. && exit
 if [ "$1" = "-v" ]; then get_vrn $1 ; elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] || [ "$1" = "-help" ]; then get_vrn $1; fi # If inquery tag no need to call root. pass to other function and exit.
@@ -131,10 +132,10 @@ if [ `whoami` != "root" ]; then #if [[ $(whoami) != "root" ]]; su -c "$0"; exit 
     if [ -z "$argtwo" ]; then argtwo="noarguser" ; fi
 	if [ "$2" == "inv" ]; then argtwo="noarguser" ; argf="filtered" ; fi
 	if [ "$3" == "inv" ]; then argf="filtered" ; fi
-	#if [ "$XDG_SESSION_TYPE" = "wayland" ]; then/root/somefile\\\"quote.txt
-		su - -c "/opt/porteus-scripts/recentchanges $argone '$argtwo' $argthree '$PWD' $argf"
+	#if [ "$XDG_SESSION_TYPE" = "wayland" ]; then
+		su - -c "/opt/porteus-scripts/recentchanges $argone '$argtwo' $argthree '$PWD' $argf"   
 	#else
-	#	sudo -k                   #gpg 1.4 and agent 2.1.11
+	#	sudo -k                   #gpg 1.4 and agent 2.1.11          uncomment & comment ^
 	#	exec sudo "$0" $argone "$argtwo" $argthree "$PWD"
 	#fi
     exit
@@ -150,7 +151,7 @@ while (( p < 5 )); do arge+=("") ; ((p++)) ; done
 #    eval "$(gpg-agent --daemon)"
 #    #AGENT_PID=$(pgrep -u root -n gpg-agent)
 #    export GPG_TTY=$(tty)
-#	export GPG_AGENT_INFO=/root/.gnupg/S.gpg-agent:0:1
+#    export GPG_AGENT_INFO=/root/.gnupg/S.gpg-agent:0:1
 #fi
 # Handle root call
 THETIME="${arge[1]}"
@@ -159,7 +160,6 @@ passdir="${arge[3]}"
 if [ -z "$argf" ]; then argf="bnk"; fi
 export DISPLAY=:0 # for tkl and root xed featherpad
 export XAUTHORITY=/home/$USR/.Xauthority
-
 if [ "${arge[1]}" == "" ]; then THETIME="noarguser" ; fi
 if [ "${arge[2]}" == "" ] || [ "${arge[3]}" == "" ]; then USR="guest" ; passdir=$PWD ; fi #Default user
 if [ "${arge[2]}" == "SRC" ]; then echo "Incorrect usage please use recentchanges SRC s , s SRC or SRC" && exit 1; fi
@@ -172,6 +172,7 @@ if [ "${arge[0]}" == "search" ]; then
 elif [ "${arge[0]}" == "query" ]; then
 	if [ "$backend" == "default" ]; then  /usr/local/save-changesnew/query "$THETIME" $USR "$passdir"; exit; else python3 /usr/local/save-changesnew/query.py $pydbpst $email $USR $pydbpst $logpst $statpst ; exit; fi
 fi
+
 tmp=/tmp/work$$											            ;	work=work$$
 workdir=/myfiles										                ;	chxzm=/rntfiles.xzm
 ABSENT=$tmp/tmp_absent.txt								    ;	SVFILES=$tmp/save.rncfilesmanifest.tmp 
@@ -190,19 +191,20 @@ cerr=/tmp/cerr # priority
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 fmt="%Y-%m-%d %H:%M:%S"
+
 SRCDIR=""											;   cores=""
 diffrlt="false"									;	pstc="false"
 nodiff="false"									;   samerlt="false"
 syschg="false"									;	validrlt="false"
 approval="true"								;	nc="false"
+
 mkdir $tmp
 mkdir $tmp$workdir
 mkdir $atmp
-if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi #if [ "$ANALYTICS" == "true" ]; then
-if [ "$1" == "" ]; then THETIME="noarguser" ; fi # root call
-[ "$THETIME" == "SRC" ] &&{ SRCDIR=$THETIME; THETIME="${2:-noarguser}"; } # Handle argument redirection as if we moved this script to another subscript it wouldnt be user friendly
-[ "$2" == "SRC" ] && SRCDIR=$2 || { [ "$2" == "SEARCH" ] || [ "$2" == "search" ]; } && echo "The SRC tag is for recentchanges only" && exit
-#if [ "$ANALYTICS" == "true" ]; then ; fi
+#if [ "$ANALYTICS" == "true" ]; then
+if [ "${arge[0]}" == "" ]; then THETIME="noarguser" ; fi # root call
+[ "$THETIME" == "SRC" ] &&{ SRCDIR=$THETIME; THETIME="${2:-noarguser}"; } # shift
+[ "${arge[1]}" == "SRC" ] && SRCDIR=${arge[1]} || { [ "${arge[1]}" == "SEARCH" ] || [ "${arge[1]}" == "search" ]; } && echo "The SRC tag is for recentchanges only" && exit
 intst
 if [ "$THETIME" != "noarguser" ] && [ "$THETIME" != "" ]; then # If a desired time is specified we will search for that  (in seconds)
     if [ "$THETIME" -ge 0 ] 2>/dev/null; then argone=$THETIME ; else echo argument specified not a valid integer or valid flag && exit; fi
@@ -217,25 +219,29 @@ fi
 find /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var -mmin -${tmn} -not -type d -print0 2> /dev/null | tee $RECENTNUL > /dev/null 2> /dev/null
 find /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var \( -cmin -${tmn}-o -amin -${tmn} \) -not -type d -print0 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null
 ctimeloop $RECENTNUL $RECENT # pacman slackpkg downloads ctime > mtime keep $RECENT
-search $RECENTNUL $SORTCOMPLETE $COMPLETE $checkSUM "main"  # regular append ctime later
+search $RECENTNUL $SORTCOMPLETE $COMPLETE $checkSUM "main"  # mtime append ctime in range later
 isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
 if [ -s $SORTCOMPLETE ]; then
+	syschg="true"
 	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE ; SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') ; PRD=$SRTTIME
-	if [ -s $tout ]; then awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' $tout>> $SORTCOMPLETE ; fi
+	if [ -s $tout ]; then awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' $tout>> $SORTCOMPLETE ; fi # Append ctimeloop
 	inclusions
 	s=$(date -d "$SRTTIME" "+%s")
-	if [ "$THETIME" == "noarguser" ]; then RANGE=$(( s + 300 )) ; else RANGE=$(( s + argone )) ; fi # filter ctime
+	if [ "$THETIME" == "noarguser" ]; then RANGE=$(( s + 300 )) ; else RANGE=$(( s + argone )) ; fi # filter out non existant files ect
 	PRD=$(date -d "@$RANGE" +"$fmt")
 	awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' $SORTCOMPLETE > $tout ; mv $tout $SORTCOMPLETE
-	syschg="true"; sort -u -o $SORTCOMPLETE $SORTCOMPLETE
+	sort -u -o $SORTCOMPLETE $SORTCOMPLETE
 	if [ "$updatehlinks" == "true" ] && [ "$backend" == "database" ]; then ulink "$SORTCOMPLETE" "$tout" ; fi
 	awk '{print $1, $2}' $SORTCOMPLETE > $tout
 	perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' $SORTCOMPLETE > $TMPCOMPLETE
 	paste -d' ' $tout $TMPCOMPLETE > $TMPOPT
 	sort -o $TMPOPT $TMPOPT
 fi
+
 /usr/local/save-changesnew/filter $RECENT $USR
+
+# Copy files
 > $tout
 while IFS= read -r x; do  x="$( unescf "$x")" ; printf '%s\0' "$x"; done < $RECENT >> $tout
 while IFS= read -r -d '' x; do if cp -a --parents "$x" "$tmp$workdir" > /dev/null 2>> $xdata; then printf '%s %s\n' "$x" "success" >> $UPDATE; else echo "Failed to copy: $x" >&2; echo "ERROR: $x" >> $UPDATE; fi; done < $tout
@@ -249,7 +255,9 @@ while IFS= read -r -d '' x; do x="$( escf "$x")"; echo "$x" ; done < $SVFILES >>
 mv $tout $SVFILES
 sed -i -e "s|$tmp$workdir||g" $SVFILES
 cat $SVFILES | sed -e 's![^/]*$!!g' > $SVFOLDERS
-if [ "$SRCDIR" == "SRC" ]; then # make .xzm from root fld
+
+# make .xzm from root
+if [ "$SRCDIR" == "SRC" ]; then 
     arrfiles=()
     arrreject=()
     appname="Application"
@@ -273,7 +281,7 @@ if [ "$SRCDIR" == "SRC" ]; then # make .xzm from root fld
 	    srcpath="${rlt#?}"
 		> $xdata
 		r=$( find "${rlt}" -type f | wc -l)  # system
-		s=$(grep -n 'MDY' "/tmp/${appname}_xdata" | head -n 1 | cut -d: -f1)
+		s=$(grep -n 'MDY' "/tmp/${appname}_xdata" | head -n 1 | cut -d: -f1)arrreject
 		if [[ -n "$s" ]]; then s=$(( s - 1 )) ; else s=0 ; fi
 		x=0
 		y=$( wc -l < $RECENTAPP) # copied
@@ -332,18 +340,22 @@ if [ "$SRCDIR" == "SRC" ]; then # make .xzm from root fld
             filename="$appname" #Default
         fi
 		fn=$(printf '%b' "$filename") ; fn=$( echo "$fn" | sed -e 's/\...$//' -e 's/\....$//' -e 's/ /_/g')
-        if [ "$fn" != "${appname}" ]; then mv /tmp/"${appname}".xzm /tmp/"${fn}".xzm ; mv /tmp/"${appname}"_xdata /tmp/"${fn}"_xdata ; fi
-        chown $USR /tmp/"${fn}".xzm
-        chown $USR /tmp/"${fn}"_xdata
+        if [ "$fn" != "${appname}" ]; then mv /tmp/"$appname".xzm /tmp/"$fn".xzm ; mv /tmp/"$appname"_xdata /tmp/"$fn"_xdata ; fi
+        chown $USR /tmp/"$fn".xzm
+        chown $USR /tmp/"$fn"_xdata
     fi
 fi
+
 echo $BRAND >> $SVFILES
 cd /tmp || exit
-MODULENAME=${chxzm:0:9} ; LCLMODULENAME=${chxzm:1:8}
+MODULENAME=${chxzm:0:9}
+LCLMODULENAME=${chxzm:1:8}
 chxzmnm=$MODULENAME"manifest.txt"
 moduledir=$MODULENAME"_"$FLBRAND
 FLTOUT="/tmp"$MODULENAME"ItemsFilteredout"
 k=$( head -n1 $SVFILES | grep "MDY")
+
+#Are there files for recentchanges, move old files, ect
 if [ -z "$k" ]; then
 	validrlt="true"
     r=$(find . -maxdepth 1 -type d -name '*rntfiles_MDY*' | wc -l) #Move
@@ -368,10 +380,11 @@ if [ -z "$k" ]; then
         test -e "/tmp"$moduledir && chown $USR "/tmp"$moduledir
     fi
 fi
+
+#Difference file
 if [ ! -f "/tmp"$moduledir$MODULENAME"xSystemchanges"$argone ]; then hsearch ; else OLDSORTED="/tmp"$moduledir$MODULENAME"xSystemchanges"$argone; nodiff="true" ; fi
-
-
 difffile="/tmp${MODULENAME}xSystemDiffFromLastSearch${argone}"
+
 if [ -s $SORTCOMPLETE ]; then
     if [ -n "$OLDSORTED" ] && [ -s $OLDSORTED ]; then
     	sed -i '/^[[:space:]]*$/d' $OLDSORTED
@@ -385,6 +398,8 @@ if [ -s $SORTCOMPLETE ]; then
 	chown $USR "/tmp"$MODULENAME"xSystemchanges"$argone
 	test -e "$difffile" && chown $USR "$difffile"
 fi
+
+#Cleanup
 if [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then
     stmp $SORTCOMPLETE
     if [ ! -f /tmp/rc/full ]; then cyan "Search saved in /tmp"; fi
@@ -418,5 +433,5 @@ elif [ "$syschg" == "true" ]; then
     cyan ""$MODULENAME"xSystemchanges"$argone ; echo
 fi
 logic "Refer to /rntfiles_MDY folder for the previous search"
-display /tmp $MODULENAME"xSystemchanges"$argone # We could test if featherpad or xed is installed and open it
-#if [ -z "$AGENT_PID" ]; then kill "$AGENT_PID"; fi
+display /tmp $MODULENAME"xSystemchanges"$argone
+#if [ -n "$AGENT_PID" ]; then kill "$AGENT_PID"; fi
