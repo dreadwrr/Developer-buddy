@@ -25,7 +25,7 @@ Porteus forums
 https://forum.porteus.org/  <br><br>
 
 
-Version: Standard                save-changesnew        save-changesnewNMS <br><br>
+Version: Standard     v1.0.9           save-changesnew        save-changesnewNMS <br><br>
 
 Bash and python backends
 
