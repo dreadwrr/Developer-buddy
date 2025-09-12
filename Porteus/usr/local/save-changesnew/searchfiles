@@ -1,13 +1,13 @@
 #!/bin/bash
 . /usr/local/save-changesnew/rntchangesfunctions
-atmp="$1" ; tout="$2" ; COMPLETE="$3" ; checkSUM="$4"
-if [ "$2" == "true" ]; then
+atmp="$1" ; tout="$2" ; COMPLETE="$3" ; checkSUM="$4" ; xmode="$5"
+if [ "$2" == "true" ] || [ "$2" == "false" ]; then
 	tout="${atmp}/searchfiles1_$$_tmp.log"
 	COMPLETE="${atmp}/searchfiles2_$$_tmp.log"
 	checkSUM="$2"
 	shift 2
 else
-	shift 4
+	shift 5
 fi
-files=("$@") ; for x in "${files[@]}"; do cblk ; done
+files=("$@") ; for x in "${files[@]}"; do sblk $xmode $tout $COMPLETE ; done
 

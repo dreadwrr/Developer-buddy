@@ -64,32 +64,21 @@ def collision(filename, checksum, filesize, cursor, sys):
         '''
     cursor.execute(query, (filename, checksum, filesize))
     return cursor.fetchall()
-def detect_copy(filename, inode, checksum, cursor, sys_table):
-    # Step 1: select candidates by checksum only (index-friendly)
-    if sys_table == 'sys':
-        query = '''
-            SELECT filename, inode, checksum
-            FROM logs
-            UNION ALL
-            SELECT filename, inode, checksum
-            FROM sys
-            WHERE checksum = ?
-        '''
-    else:
-        query = '''
-            SELECT filename, inode
-            FROM logs
-            WHERE checksum = ?
-        '''
+def detect_copy(filename, checksum, cursor, table="logs"):
+    """
+    Look for other files in logs with the same checksum (possible copies).
+    Excludes the current file by filename.
+    Returns list of filenames.
+    """
+    query = f'''
+        SELECT filename
+        FROM {table}
+        WHERE checksum = ?
+          AND filename != ?
+    '''
+    cursor.execute(query, (checksum, filename))
+    return [row[0] for row in cursor.fetchall()]
     
-    cursor.execute(query, (checksum,))
-    candidates = cursor.fetchall()
-    
-    for o_filename, o_inode in candidates:
-        if o_filename != filename or o_inode != inode:
-            return True
-    
-    return None
 def get_recent_changes(filename, cursor, table):
 	allowed_tables = ('logs', 'sys')
 	if table not in allowed_tables:
@@ -131,9 +120,9 @@ def increment_fname(c, record):
         record[8], record[9], record[10], record[11]
     ))
     c.execute('''
-        UPDATE sys
-        SET count = count + 1
-        WHERE filename = ? AND timestamp != ? AND changetime != ?
+    UPDATE sys
+    SET count = COALESCE(count, 0) + 1
+    WHERE filename = ? AND timestamp != ? AND changetime != ?
     ''', (filename, record[0], record[2]))
     
 

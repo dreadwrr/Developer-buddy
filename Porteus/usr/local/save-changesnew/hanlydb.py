@@ -40,7 +40,7 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 	collision_message=[]
 	db=False
 	for record in parsed:
-
+		print(record)
 		is_sys=False
 		recent_sys = None
 		label = record[1] # human readable

@@ -1,12 +1,16 @@
 #!/bin/bash
 . /usr/local/save-changesnew/rntchangesfunctions
-atmp="$1" ; SORTCOMPLETE="$2" ; COMPLETE="$3" ; checkSUM="$4"
+. /usr/local/save-changesnew/save-changesnewfnts
+atmp="$1" ; OUTPUT="$2" ; NFS="$3" ; checkSUM="$4" ; xmode="$5"
+prefix=mainloop1
+prefixt=mainloop2
 if [ "$2" == "true" ] || [ "$2" == "false" ]; then
-	SORTCOMPLETE="${atmp}/mainloop1_${RANDOM}$$_tmp.log"
-	COMPLETE="${atmp}/mainloop2_${RANDOM}$$_tmp.log"
 	checkSUM="$2"
-	shift 2
+	xmode="$3"
+	[[ "$4" = "batch2" ]] && shift 4 && prefix=mainloop3 && prefixt=mainloop4
 else
-	shift 4
+	[[ "$6" = "batch2" ]] && shift 6 && prefix=mainloop3 && prefixt=mainloop4 || shift 5
 fi
-files=("$@") ; for x in "${files[@]}"; do sblk ; done
+OUTPUT="${atmp}/${prefix}_${RANDOM}$(rand_alpha)$$_tmp.log"
+NFS="${atmp}/${prefixt}_${RANDOM}$(rand_alpha)$$_tmp.log"
+files=("$@") ; for x in "${files[@]}"; do sblk $xmode $OUTPUT $NFS; done

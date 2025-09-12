@@ -92,10 +92,10 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 			previous = recent_entries
 
 			if ps == 'true':
-				recent_timestamp = parse_datetime(filedate. fmt)
+				recent_timestamp = parse_datetime(filedate, fmt)
 				if recent_sys:
 					if recent_sys:
-						recent_systime = parse_datetime(recent_sys[0]. fmt)
+						recent_systime = parse_datetime(recent_sys[0], fmt)
 						if recent_systime:
 							if recent_systime > recent_timestamp:
 								is_sys=True

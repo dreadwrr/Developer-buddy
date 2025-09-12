@@ -76,6 +76,18 @@ def clear_cache(database, target, email, usr, dbp, conn, cur):
 		except sqlite3.Error as e:
 			conn.rollback()
 			print(f"Cache clear failed to write to db. on {filename_pattern}")
+def clear_sys(database, target, email, conn, cur):
+		try:
+			cur.execute("DELETE FROM sys")
+			conn.commit()
+			rlt=encr(database, target, email,"False", "False")
+			if rlt:
+				print("Sys table cleared.")
+			else:
+				print(f"Reencryption failed sys not cleared.:")		
+		except sqlite3.Error as e:
+			conn.rollback()
+			print(f"Sys clear failed to write to db.")
 def dexec(cur, actname, limit):
 	query = '''
 	SELECT *
@@ -103,6 +115,7 @@ def sort_column(tree, col, columns):
     data.sort(key=lambda t: convert(t[0]), reverse=not ascending)
     for index_, (val, item) in enumerate(data):
         tree.move(item, '', index_)
+
 def results(database, conn, cur, target, email, user, dbp):
     root = tk.Tk()
     root.title("Database Viewer")
@@ -113,16 +126,14 @@ def results(database, conn, cur, target, email, user, dbp):
     selected_table = tk.StringVar(value=tables[0])
     table_menu = ttk.Combobox(toolbar, textvariable=selected_table, values=tables, state="readonly", width=30)
     table_menu.pack(side=tk.LEFT, padx=10, pady=10)
-    # load_btn = tk.Button(toolbar, text="Load Table",
-    #                      command=lambda: load_table(selected_table.get()))
-    # load_btn.pack(side=tk.LEFT, padx=6, pady=10)
-    hardlink_button = tk.Button(toolbar, text="Set Hardlinks",
-        command=lambda: hardlinks(database, target, email, conn, cur))
+    hardlink_button = tk.Button(toolbar, text="Set Hardlinks", command=lambda: hardlinks(database, target, email, conn, cur))
     hardlink_button.pack(side=tk.RIGHT, padx=10, pady=10)
-    clear_cache_button = tk.Button(toolbar, text="Clear Cache",
-        command=lambda: clear_cache(database, target, email, user, dbp, conn, cur))
+    clear_cache_button = tk.Button(toolbar, text="Clear Cache", command=lambda: clear_cache(database, target, email, user, dbp, conn, cur))
     clear_cache_button.pack(side=tk.RIGHT, padx=10, pady=10)
-    # Container for Tree + scrollbars (keeps layout stable)
+    lower_frame = tk.Frame(root)
+    lower_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
+    new_button = tk.Button(lower_frame, text="Clear sys", command=lambda: clear_sys(database, target, email, conn, cur))
+    new_button.pack(side=tk.RIGHT, padx=10, pady=10)
     table_frame = tk.Frame(root)
     table_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
     tree = ttk.Treeview(table_frame, show='headings')
@@ -135,9 +146,7 @@ def results(database, conn, cur, target, email, user, dbp):
     table_frame.rowconfigure(0, weight=1)
     table_frame.columnconfigure(0, weight=1)
     def load_table(table_name: str):
-        # Bail out if there are no real tables
         if table_name == "(no tables)":
-            # Clear tree content safely
             for iid in tree.get_children():
                 tree.delete(iid)
             tree["columns"] = ()
@@ -147,18 +156,21 @@ def results(database, conn, cur, target, email, user, dbp):
         rows = c.fetchall()
         columns = [d[0] for d in c.description]
         tree.delete(*tree.get_children())
-        # Rebuild columns (don’t recreate widgets; just reconfigure)
         tree["columns"] = columns
         for col in columns:
             tree.heading(col, text=col, command=lambda _col=col: sort_column(tree, _col, columns))
             if col == "filename":
-                tree.column(col, width=600, anchor="w", stretch=True)
-            elif col in ("timestamp", "accesstime"):
-                tree.column(col, width=160, anchor="w", stretch=False)
+                tree.column(col, width=900, anchor="w", stretch=True)
+            elif col == "id":
+                tree.column(col, width=60, anchor="w", stretch=True)			
+            elif col in ("timestamp", "accesstime", "changetime"):
+                tree.column(col, width=150, anchor="w", stretch=False)
+            elif col in ("inode", "filesize"):
+                tree.column(col, width=70, anchor="w", stretch=False)
             elif col == "checksum":
-                tree.column(col, width=300, anchor="w", stretch=True)
-            elif col in ("owner",):
-                tree.column(col, width=90, anchor="w", stretch=False)
+                tree.column(col, width=270, anchor="w", stretch=True)
+            elif col in ("owner", "group", "casmod", "hardlinks", "symlink"):
+                tree.column(col, width=65, anchor="w", stretch=False)
             elif col in ("permission",):
                 tree.column(col, width=150, anchor="w", stretch=False)
             else:
@@ -274,7 +286,7 @@ def main() :
 						top_3_directories = directory_counts.most_common(3)
 						print(f"{pyfunctions.CYAN}Top 3 directories{pyfunctions.RESET}")
 						for directory, count in top_3_directories:
-							print(f'{count}: {directory} times')
+							print(f'{count}: {directory}')
 						print() ; cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''") # common file 5
 						filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines
 						filename_counts = Counter(filenames)
