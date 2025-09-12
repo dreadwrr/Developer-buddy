@@ -4,6 +4,10 @@
 ![Logo](https://i.imgur.com/sbZa1r3.png)
 
 ![Alt text](https://i.imgur.com/tKW7UEe.png)
+Manual
+https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0  
+Porteus forums
+https://forum.porteus.org/  <BR><BR>
 
 Porteus changes=    backup will be made with save-changesnew
 changes=EXIT:/     save-changesnew backup. that will make the backup with appropriate isolateBACK interlock
@@ -26,10 +30,7 @@ Bash and python backends
 
 Find new files, save changes in porteus/nemesis and RSync backup in changes=EXIT:/
 
-Manual
-https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0  
-Porteus forums
-https://forum.porteus.org/  <BR><BR>
+
 
 
 Find files withnew atime such as slackpkg to appear in searches. The modified time is preserved metadata and wont showup in regular searches.
