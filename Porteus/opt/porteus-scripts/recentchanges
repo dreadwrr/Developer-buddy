@@ -381,7 +381,7 @@ if [ -s $SORTCOMPLETE ]; then
 	backend
 	filterhits $TMPOPT $flth
 	postop $TMPOPT $0
-    cp $TMPOPT "/tmp"$MODULENAME"xSystemchanges"$argonetout
+    cp $TMPOPT "/tmp"$MODULENAME"xSystemchanges"$argone
 	chown $USR "/tmp"$MODULENAME"xSystemchanges"$argone
 	test -e "$difffile" && chown $USR "$difffile"
 fi
