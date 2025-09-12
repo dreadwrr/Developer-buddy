@@ -1,5 +1,5 @@
 #!/bin/bash
-shopt -s nullglob										# 9/12/2025
+shopt -s nullglob										# 9/6/2025
 . /usr/local/save-changesnew/rntchangesfunctions
 atmp=/tmp/ztmp$$ 					;	ch=/mnt/live/memory/images/
 xdata3=$atmp/db_log.log			;	SORTCOMPLETE=$atmp/list_complete_sorted.txt

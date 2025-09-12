@@ -6,9 +6,7 @@ folder="$2"
 pf="$3"
 tout="${atmp}/${pf}1_${RANDOM}$(rand_alpha)$$_tmp.log"  # create temp output file path using current PID
 shift 3
-
 files=("$@")
-
 for f in "${files[@]}"; do
     t="${f#"$folder"}"
 	t="$( escf "$t")"

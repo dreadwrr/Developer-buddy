@@ -33,7 +33,7 @@ ctmp() { if [ -d /tmp/rc ]; then for file in /tmp/rc/*; do [[ -s $file ]] && cle
 decrypt(){	if ! gpg --yes -d -o $1 $2; then red "Failed to decrypt  ${2}" && rm $atmp && exit 1; fi; }
 encr() { if ! gpg --yes -e -r $mail -o $2 $1; then red "Rencryption failed. Everything preserved" && rm $atmp && exit 1; fi; }
 atmp=/tmp/atmp$$									;	logpst="/usr/local/save-changesnew/logs.gpg"
-efile="/opt/porteus-scripts/recentchanges"	;	statpst="/usr/local/save-changesnew/stats.gpg"
+efile="/usr/local/bin/recentchanges"			;	statpst="/usr/local/save-changesnew/stats.gpg"
 email="john.doe@email.com"					;	pydbpst="/usr/local/save-changesnew/recent.gpg"
 flth="/usr/local/save-changesnew/flth.csv"	;	xdata=$atmp/logs_stats.log
 mkdir $atmp 
