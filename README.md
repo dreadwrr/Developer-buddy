@@ -15,13 +15,17 @@ changes=EXIT:/     save-changesnew backup. that will make the backup with approp
 
 Brought _uid_L for porteus graphics mode! for non changes=EXIT:/ users.
 
-Porteus:
+##Porteus:
 To save the backup in changes= type save-changesnew
 To save the backup in changes=EXIT:/   turn isolateBACK to true. then 'save-changesnew backup' and a backup will be made in /changes.bak beside /changes
 
 With isolateBACK false changes are saved to /changes. You can also autosave to true which will add your $BASEDIR to changes commit and save changes on shutdown.
 backup to false and changes commit wont do anything on backup
 autosave to false and changes commit is set to non-executable
+
+##Nemesis:
+save-changesnew y or yes to auto sync backup on shutdown.
+adds $BASEDIR to /ect/rc.d/rc.local_shutdown and the script sets itself to non-executable so it wont call again unless you recall y or yes
 
 
 Version: Standard                save-changesnew        save-changesnewNMS <br><br>
