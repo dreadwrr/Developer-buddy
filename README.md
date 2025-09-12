@@ -4,10 +4,7 @@
 ![Logo](https://i.imgur.com/sbZa1r3.png)
 
 ![Alt text](https://i.imgur.com/tKW7UEe.png)
-Manual
-https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0  
-Porteus forums
-https://forum.porteus.org/  <BR><BR>
+
 
 
 Brought _uid_L for porteus graphics mode! for non changes=EXIT:/ users.
@@ -25,6 +22,13 @@ save-changesnew y or yes to auto sync backup on shutdown.
 adds $BASEDIR to /ect/rc.d/rc.local_shutdown and the script sets itself to non-executable so it wont call again unless you recall y or yes
 <p>&nbsp;</p>
 <br><br><br>
+
+Manual
+https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0  
+Porteus forums
+https://forum.porteus.org/  <BR><BR>
+
+
 Version: Standard                save-changesnew        save-changesnewNMS <br><br>
 
 Bash and python backends
