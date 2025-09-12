@@ -9,9 +9,15 @@ Porteus changes=    backup will be made with save-changesnew
 changes=EXIT:/     save-changesnew backup. that will make the backup with appropriate isolateBACK interlock
 
 
-
 Brought _uid_L for porteus graphics mode! for non changes=EXIT:/ users.
 
+Porteus:
+To save the backup in changes= type save-changesnew
+To save the backup in changes=EXIT:/   turn isolateBACK to true. then 'save-changesnew backup' and a backup will be made in /changes.bak beside /changes
+
+With isolateBACK false changes are saved to /changes. You can also autosave to true which will add your $BASEDIR to changes commit and save changes on shutdown.
+backup to false and changes commit wont do anything on backup
+autosave to false and changes commit is set to non-executable
 
 
 Version: Standard                save-changesnew        save-changesnewNMS <br><br>
@@ -41,7 +47,7 @@ Rsync backup your changes folder in changes=EXIT:/ on porteus
 
 Contantly up to date as I use this daily when developing.
 
-3 modes. normal, mem and mc. The traditional loop, an array or multiple core. Highly optimized code and written strictly in bash. <BR><BR><BR><BR>
+2 modes. normal  and mc.  Written strictly in bash. <BR><BR><BR><BR>
 
 
 
@@ -59,8 +65,8 @@ Contantly up to date as I use this daily when developing.
 or what changed on your system. So if you compiled something you call this script to build a module of it for distribution.
   If not using for developing call it a file change snapshot
 
-We use the find command to list all files 5 minutes or newer. Filter it and then get to copying the files in a temporary staging directory.
-Then take those files and make an .xzm. It will be placed in   /tmp  along with a transfer log to staging directory and file manifest of the xzm  <BR><BR><BR><BR>
+We use the find command to list all files 5 minutes or newer. Filter it and then get to copying the files in a temporary staging directory in /tmp.
+Then take those files and make an .xzm along with a transfer log to staging directory and file manifest of the xzm  <BR><BR><BR><BR>
 
 
 
@@ -73,7 +79,7 @@ Then take those files and make an .xzm. It will be placed in   /tmp  along with 
    this script works for two modes porteus nemesis graphics and changes.        
 
    graphics mode all changes are in memory so to implement changes saving this script will save changes to an .xzm. it will then modify the porteus.cfg
-   to load=/porteus/changes.xzm. so when the system boots it loads all your changes. if one already exists it will update it. So graphics changes mode wont
+   and adds extramod=/mnt/sdx/extramod. so when the system boots it loads all your changes. if one already exists it will update it. So graphics changes mode wont
 	load the graphics saves.
 
    Graphics changes mode all changes are saved to the hdd already. so this part will backup the changes to /changes.bak right beside it.
@@ -107,13 +113,6 @@ In addition to the RSync backup it saves your changes with rsync in porteus.    
  as it freezes the file system at that point in time. But on shutdown that wait would be too long. So drive to drive provides
  a way to save on that condition. So both options are available depending on preference.
 
- module rollback is a possibility for porteus and could bring that disabled a few options as porteus has changes:EXIT/
-
- Hard drive changes commit   Save files via directory method    Final version 
-
- This script efficiently copies changes to a hard drive for systems with limited memory.
- it uses rsync and includes a log of all files saved. if files havent changed it simply 
- doesnt copy them. Automatically skip .wh.  files and  Direct to drive save.
 
  Result saves your changes to your Changes=EXIT:  folder
 
