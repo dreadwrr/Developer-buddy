@@ -45,9 +45,9 @@ def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt
 								timestamp = msg[0]
 								label = msg[1]
 								ct = msg[2]
-								inode = msg[3]   
+								#inode = msg[3]   
 								checksum = msg[5]
-								result = detect_copy(label, inode, checksum, c, table)
+								result = detect_copy(label, checksum, c, table)
 								if result:
 									print(f'Copy {timestamp} {ct} {label}', file=file)
 									#print(f'Copy {timestamp} {label}', file=file2)

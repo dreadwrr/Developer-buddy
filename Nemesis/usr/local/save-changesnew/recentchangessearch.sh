@@ -1,5 +1,5 @@
 #!/bin/bash
-#      recentchanges search             Developer Buddy v3.0    08/18/2025
+#      recentchanges search             Developer Buddy v3.0    9/12/2025
 # If some as root calls the program with 2 arguments thats not intended use so exit
 # we would fail to get our correct username such as they put a second bogus argument
 . /usr/share/porteus/porteus-functions
@@ -24,8 +24,9 @@ TMPOUTPUT=$tmp/list_tmp_sorted.txt						;		TMPCOMPLETE=$tmp/tmp_complete.txt
 TMPOPT=$tmp/tmp_holding										;		flth=/usr/local/save-changesnew/flth.csv
 OLDSORTED=""															;		cerr=/tmp/cerr
 diffrlt="false" 															; 		nodiff="false"
-validrlt="false"															;		flsrh="false"
-pstc="false"																;		nc="false"
+pstc="false"																;		flsrh="false"
+samerlt="false"															;		nc="false"
+syschg="false"
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 fmt="%Y-%m-%d %H:%M:%S"
@@ -61,36 +62,22 @@ if [ "$tmn" != "" ]; then
 fi
 eval "$fc" 2> /dev/null | tee $FEEDFILE > /dev/null 2> /dev/null
 eval "$fca" 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null
-ctimeloop $FEEDFILE $xdata
-if [ "$mMODE" == "normal" ]; then
-	xargs -0 /usr/local/save-changesnew/mainloop $atmp $SORTCOMPLETE $COMPLETE $checkSUM < $FEEDFILE
-elif [ "$mMODE" == "mem" ]; then
-	searcharr $FEEDFILE
-	printf "%s\n" "${ffile[@]}" >> $SORTCOMPLETE
-	if [ ${#nsf[@]} -gt 0 ]; then printf "%s\n" "${nsf[@]}" > $COMPLETE; fi
-elif [ "$mMODE" == "mc" ]; then
-	x=$(tr -cd '\0' < $FEEDFILE | wc -c) ; y=8
-	if (( x > 100 )); then y=16 ; fi
-	xargs -0 -n"$y" -P4 /usr/local/save-changesnew/mainloop "$atmp" "$checkSUM" < $FEEDFILE
-	if compgen -G "$atmp"/mainloop1_*_tmp.log > /dev/null; then cat "$atmp"/mainloop1_*_tmp.log > $SORTCOMPLETE;  fi
-	if compgen -G "$atmp"/mainloop2_*_tmp.log > /dev/null; then cat "$atmp"/mainloop2_*_tmp.log >> $COMPLETE; fi
-fi
+ctimeloop $FEEDFILE $xdata # dont keep xdata
+search $FEEDFILE $SORTCOMPLETE $COMPLETE $checkSUM "main"
+isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
 if [ -s $SORTCOMPLETE ]; then
 	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE ; SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') ; PRD=$SRTTIME
-	if [ ${#xfile[@]} -gt 0 ]; then printf "%s\n" "${xfile[@]}" | grep -v 'NOTA-FI-LE 77:77:77' | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' >> $SORTCOMPLETE; fi
-	if [ -s $tout ]; then grep -v 'NOTA-FI-LE 77:77:77' "$tout" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' >> $SORTCOMPLETE ; fi
+	if [ -s $tout ]; then awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' $tout >> $SORTCOMPLETE ; fi
 	inclusions
 	if [ "$flsrh" != "true" ]; then
 		s=$(date -d "$SRTTIME" "+%s")
 		if [ "$2" == "noarguser" ]; then RANGE=$(( s + 300 )) ; else RANGE=$(( s + argone )) ; fi
 		PRD=$(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S')
-		grep -v 'NOTA-FI-LE 77:77:77' "$SORTCOMPLETE" | awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' > $tout ; mv $tout $SORTCOMPLETE
-	else
-		grep -v 'NOTA-FI-LE 77:77:77' "$SORTCOMPLETE" > $tout ; mv $tout $SORTCOMPLETE
+		awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' $SORTCOMPLETE > $tout ; mv $tout $SORTCOMPLETE
 	fi
-	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE
-	if [ "$updatehlinks" == "true" ] && [ "$backend" == "database" ]; then ulink $SORTCOMPLETE $tout; fi
+	syschg="true"; sort -u -o $SORTCOMPLETE $SORTCOMPLETE
+	if [[ "$updatehlinks" = "true" && "$backend" = "database" && "$STATPST" = "true" ]]; then ulink $SORTCOMPLETE $tout; fi
 	awk '{print $1, $2}' $SORTCOMPLETE > $tout
 	perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' "$SORTCOMPLETE" > "$TMPCOMPLETE"
 	paste -d' ' $tout $TMPCOMPLETE > $TMPOPT
@@ -103,12 +90,11 @@ if [ -s $SORTCOMPLETE ]; then
 fi
 if [ "$5" == "filtered" ] || [ "$flsrh" == "true" ]; then
 	logf="$TMPOPT"
-	if [ "$5" == "filtered" ] && [ "$flsrh" == "true" ]; then logf=$RECENT ; fi
+	if [ "$5" == "filtered" ] && [ "$flsrh" == "true" ]; then logf=$RECENT ; fi 
     /usr/local/save-changesnew/filter $TMPOPT $USR
 fi
 MODULENAME=${chxzm:0:9} ; LCLMODULENAME=${chxzm:1:8} ; cd $USRDIR
 if [ -s $SORTCOMPLETE ] ; then
-	validrlt="true"
     if [ "$flsrh" == "true" ]; then
 	    flnm="xNewerThan_${parseflnm}"$argone
 	    flnmdff="xDiffFromLast_${parseflnm}"$argone
@@ -130,45 +116,34 @@ if [ -s $SORTCOMPLETE ] ; then
 		chown $USR $USRDIR$MODULENAME"xSystemTmpfiles${parseflnm}${argone%.txt}"
 	fi
     difffile=$USRDIR$MODULENAME"${flnmdff}"
-    [[ -n "$OLDSORTED" ]] && test -e $OLDSORTED && comm -23 "$OLDSORTED" $logf > "${difffile}"
-	[[ "$nodiff" == "false" ]] && test -e $tmp$MODULENAME"${flnm}" && { OLDSORTED=$tmp$MODULENAME"${flnm}" ; comm -23 "${OLDSORTED}" $logf; } > "${difffile}" && nodiff="true"
-    cp $logf $USRDIR$MODULENAME"${flnm}"
-    chown $USR $USRDIR$MODULENAME"${flnm}"
-    if [ -s "${difffile}" ]; then
-    	diffrlt="true"
-    	CDATE=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')
-        if [ "$flsrh" == "false" ]; then awk -v tme="$CDATE" '$0 >= tme' "$difffile" > $TMPCOMPLETE ; else cat "${difffile}" > $TMPCOMPLETE; fi
-    	echo >> "${difffile}"
-    	while IFS="" read -r p || [ -n "$p" ]; do cFILE="$( echo "$p" | cut -d " " -f3-)" ; dt="$( echo "$p" | cut -d " " -f12)" ; grep -Fqs "$cFILE" $SORTCOMPLETE && { echo "Modified" "$p" >> $ABSENT; echo "Modified" "$dt" "$p" >> $tout; } || { echo "Deleted " "$p" >> $ABSENT; echo "Deleted" "$dt" "$p" >> $rout; } ; done < $TMPCOMPLETE
-		test -f $ABSENT  && { echo Applicable to your search ; cat $ABSENT ; } >> "${difffile}" || { echo "None of above is applicable to search. It is the previous search"; } >> "${difffile}"
-    else
-        test -e "${difffile}" && rm "${difffile}"
-    fi
+    [[ -n "$OLDSORTED" ]] && test -e $OLDSORTED && comm -23 "$OLDSORTED" $logf > "$difffile"
+	[[ "$nodiff" = "false" ]] && test -e $tmp$MODULENAME"$flnm" && { OLDSORTED=$tmp$MODULENAME"$flnm" ; comm -23 "$OLDSORTED" $logf; } > "$difffile" && nodiff="true"
+    cp $logf $USRDIR$MODULENAME"$flnm"
+    chown $USR $USRDIR$MODULENAME"$flnm"
+    isdiff "$difffile" $TMPCOMPLETE
 	backend
     filterhits $RECENT $flth
     postop $logf $6
 	test -e "$difffile" && chown $USR "$difffile"
 fi
-if [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ] ; then stmp $SORTCOMPLETE && [[ ! -f /tmp/rc/full ]] && cyan "Search saved in /tmp" ; fi
+if [ "$ANALYTICS" = "true" ] && [ "$STATPST" = "false" ] ; then stmp $SORTCOMPLETE && [[ ! -f /tmp/rc/full ]] && cyan "Search saved in /tmp" ; fi
 rm -rf $tmp ; rm -rf $atmp
-if [ "$ANALYTICSECT" == "true" ]; then
+if [ "$ANALYTICSECT" = "true" ]; then
     el=$(awk "BEGIN {print $end - $start}")
     printf "Search took %.3f seconds.\n" "$el"
-	if [ "$checkSUM" == "true" ]; then
+	if [ "$checkSUM" = "true" ]; then
 		el=$(awk "BEGIN {print $cend - $cstart}")
 		printf "Checksum took %.3f seconds.\n" "$el"
 	fi
 fi
-if [ "$flsrh" == "true" ]; then
+if [ "$flsrh" = "true" ]; then
     cyan "All files newer than ""${filename}""  in /Downloads"
     echo
-elif [ "$5" == "filtered" ]; then
+elif [ "$5" = "filtered" ]; then
     cyan "All new filtered files are listed in /Downloads"
 else
   	cyan "All new system files are listed  in /Downloads"
   	echo
 fi
-if [ "$nodiff" == "true" ] && [ "$diffrlt" == "false" ]; then green "There was no difference file. That is the results themselves are true." ; fi
-if [ "$validrlt" == "false" ]; then green  "No new files to report." ; echo; fi
-#test -e /usr/bin/featherpad && featherpad $USRDIR$MODULENAME"${flnm}"
-#test -e /usr/bin/xed && xed $USRDIR$MODULENAME"${flnm}"
+logic
+display $USRDIR $MODULENAME"$flnm"

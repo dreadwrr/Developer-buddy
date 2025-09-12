@@ -1,10 +1,17 @@
 #!/bin/bash
-shopt -s nullglob										# 9/6/2025
+shopt -s nullglob										# 9/12/2025
 . /usr/local/save-changesnew/rntchangesfunctions
-atmp=/tmp/ztmp$$ 						;	ch=/mnt/live/memory/images/
-xdata3=$atmp/db_log.log					;	SORTCOMPLETE=$atmp/list_complete_sorted.txt
+atmp=/tmp/ztmp$$ 					;	ch=/mnt/live/memory/images/
+xdata3=$atmp/db_log.log			;	SORTCOMPLETE=$atmp/list_complete_sorted.txt
 md="$1"									;	xdata=$atmp/log.log
+systemf=$atmp/filelist				;	TMPF=$atmp/structure
 mkdir $atmp
+batch() {
+com1=("${cmd_base[@]}")
+batch_opts=(-n "$y" -P 4)
+com1+=("${batch_opts[@]}")
+com1+=("${target_cmd[@]}")	
+}
 mcore() {
 c=$1
 local y=$2
@@ -14,29 +21,13 @@ target_cmd=(/usr/local/save-changesnew/sysprofileloop "$atmp" "$folder" $4)
 if [[ "$md" == "mc" ]]; then
 	if (( c > 1000 )); then
 		y=200 
-		com1=("${cmd_base[@]}")
-		batch_opts=(-n "$y" -P 4)
-		com1+=("${batch_opts[@]}")
-		com1+=("${target_cmd[@]}")
 	elif (( c > 100 )); then
 		y=16
-		com1=("${cmd_base[@]}")
-		batch_opts=(-n "$y" -P 4)
-		com1+=("${batch_opts[@]}")
-		com1+=("${target_cmd[@]}")
 	else
 		y=8
-		com1=("${cmd_base[@]}")
-		batch_opts=(-n "$y" -P 4)
-		com1+=("${batch_opts[@]}")
-		com1+=("${target_cmd[@]}")	
-	fi
-else
-	com1=("${cmd_base[@]}")
-	batch_opts=(-n "$y")
-	com1+=("${batch_opts[@]}")
-	com1+=("${target_cmd[@]}")	
+	fi	
 fi
+batch
 "${com1[@]}" < $xdata
 #com1=(xargs -0 -n "${y}" -P 4 /usr/local/save-changesnew/sysprofileloop "$atmp" "$folder")
 #com2=(xargs -0 -n "${y}" /usr/local/save-changesnew/searchfiles "$atmp" "$folder")
@@ -48,8 +39,10 @@ y=50 #default if less than 100 files
 k1="binary"
 k2="sects"
 k3="library"
-for folder in "$ch"{001..003} "$ch"{001..003}-*; do
+for folder in "$ch"{000..003} "$ch"{000..003}-*; do
 	[ ! -d "$folder" ]  && continue
+	find "$folder" -type f -printf '/%P\0' >> $systemf
+	if [[ "$folder" == "$ch"000 ]]; then continue ; fi
 	#binaryies                  # ! -path '*/usr/share/*' 
 	for subdir in bin etc sbin usr opt/porteus-scripts; do
 		dir="$folder/$subdir"
@@ -76,28 +69,32 @@ for folder in "$ch"{001..003} "$ch"{001..003}-*; do
 		fi
 	done
 done
-#Original libraries
-#	if [ "$md" == "mc" ]; then        too few files for mc
-#		for subdir in lib lib64 var/lib; do
-#			dir="$folder/$subdir"
-#			if [ -d "$dir" ]; then 
-#				find "$dir" -type f -name '*.so*' -print0 >> $xdata
-#				xargs -0 -n 8  -P 4 /usr/local/save-changesnew/sysprofileloop "$atmp" "$folder" < $xdata
-#			 fi
-#		done
-#	else#
-#x=$(tr -cd '\0' < $xdata | wc -c) ; y=8     libs were fewers files so disabled mc originally
-#if (( x > 100 )); then y=16 ; fi
-#if compgen -G "$atmp/searchfiles1_*_tmp.log" > /dev/null; then cat "$atmp"/searchfiles1_*_tmp.log >> "$xdata3"; fi
-if compgen -G "$atmp/${k1}1_*_tmp.log" > /dev/null; then cat "$atmp/$k1"1_*_tmp.log >> "$xdata3"; fi
-if compgen -G "$atmp/${k2}1_*_tmp.log" > /dev/null; then cat "$atmp/$k2"1_*_tmp.log >> "$xdata3"; fi
-if compgen -G "$atmp/${k3}1_*_tmp.log" > /dev/null; then cat "$atmp/$k3"1_*_tmp.log >> "$xdata3"; fi
-sort -o $xdata3 $xdata3
+isoutput "*1_*_tmp.log" $xdata3
+while IFS= read -r -d '' x; do x="$( escf "$x")" ;  printf "%s\0" "$x" ; done < $systemf > $TMPF ; mv $TMPF $systemf 
+sort -z -o $systemf $systemf
+sort -z -o $xdata3 $xdata3
+comm -z -23 $systemf $xdata3 > $xdata # all files sans executable and *.so*
+
+# hash core flies
 if [ "$md" == "mc" ]; then
 	x=$(tr -cd '\0' < $xdata3 | wc -c) ; y=8 ; if (( x > 100 )); then y=16 ; fi
-	if ! xargs -0 -n"$y" -P4 /usr/local/save-changesnew/mainloop $atmp $SORTCOMPLETE "/dev/null" "true" < $xdata3; then echo "Error: mainloop or xargs failed" >&2 ; return 2 ; fi
+	if ! xargs -0 -n"$y" -P4 /usr/local/save-changesnew/mainloop $atmp "true" "main" < $xdata3; then echo "Error: mainloop or xargs failed" >&2 ; return 2 ; fi
 else
-	if ! xargs -0 -n 50 /usr/local/save-changesnew/mainloop $atmp $SORTCOMPLETE "/dev/null" "true" < $xdata3; then echo "Error: single mainloop of xargs failed" >&2 ; return 2 ; fi
+	if ! xargs -0 -n 50 /usr/local/save-changesnew/mainloop $atmp "true" "main" < $xdata3; then echo "Error: single mainloop of xargs failed" >&2 ; return 2 ; fi
 fi
-[[ -s "$SORTCOMPLETE" ]] && sed -i '/NOTA-FI-LE 77:77:7/d' $SORTCOMPLETE && echo "$SORTCOMPLETE" || return 1
+isoutput "mainloop1*" $SORTCOMPLETE
+
+
+# get timestamps of remaining dont hash
+if [ "$md" == "mc" ]; then
+	x=$(tr -cd '\0' < $xdata | wc -c) ; y=8 ; if (( x > 100 )); then y=16 ; fi
+	if ! xargs -0 -n"$y" -P4 /usr/local/save-changesnew/mainloop $atmp "false" "main" batch2 < $xdata; then echo "Error: mainloop or xargs failed" >&2 ; return 2 ; fi
+else
+	if ! xargs -0 -n 50 /usr/local/save-changesnew/mainloop $atmp "false" "main" batch2 < $xdata; then echo "Error: single mainloop of xargs failed" >&2 ; return 2 ; fi
+fi
+isoutput "mainloop3*" $SORTCOMPLETE
+
+
+sort -o $SORTCOMPLETE $SORTCOMPLETE
+[[ -s "$SORTCOMPLETE" ]] && echo "$SORTCOMPLETE" || return 1
 #/mnt/live/memory/images/001-core.xzm/usr/lib64/perl5/vendor_perl/XML/Parser/Style/Stream.pm
