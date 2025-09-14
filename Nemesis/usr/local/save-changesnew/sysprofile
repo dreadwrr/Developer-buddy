@@ -1,100 +1,93 @@
 #!/bin/bash
-shopt -s nullglob										# 9/6/2025
+shopt -s nullglob										# 9/13/2025
 . /usr/local/save-changesnew/rntchangesfunctions
 atmp=/tmp/ztmp$$ 					;	ch=/mnt/live/memory/images/
 xdata3=$atmp/db_log.log			;	SORTCOMPLETE=$atmp/list_complete_sorted.txt
 md="$1"									;	xdata=$atmp/log.log
 systemf=$atmp/filelist				;	TMPF=$atmp/structure
 mkdir $atmp
-batch() {
-com1=("${cmd_base[@]}")
-batch_opts=(-n "$y" -P 4)
-com1+=("${batch_opts[@]}")
-com1+=("${target_cmd[@]}")	
-}
-mcore() {
-c=$1
-local y=$2
-local folder="$3"
-cmd_base=(xargs -0)
-target_cmd=(/usr/local/save-changesnew/sysprofileloop "$atmp" "$folder" $4)
-if [[ "$md" == "mc" ]]; then
-	if (( c > 1000 )); then
-		y=200 
-	elif (( c > 100 )); then
-		y=16
-	else
-		y=8
-	fi	
-fi
-batch
-"${com1[@]}" < $xdata
-#com1=(xargs -0 -n "${y}" -P 4 /usr/local/save-changesnew/sysprofileloop "$atmp" "$folder")
-#com2=(xargs -0 -n "${y}" /usr/local/save-changesnew/searchfiles "$atmp" "$folder")
-#while IFS= read -r -d '' file; do c="${file#"$folder"}" ; printf '%s\0' "$c" >> "$xdata3" ; done < $xdata
-#find "$dir" -type f -executable -print0 | while IFS= read -r -d '' file; do c="${file#$folder}" ; printf '%s\0' "$c" >> "$xdata3" ; done
-#find "$dir" -type f -executable -print0 | sed -z "s|$folder||g" >> "$xdata3"
-}
-y=50 #default if less than 100 files
+
+y=50
 k1="binary"
 k2="sects"
 k3="library"
+
 for folder in "$ch"{000..003} "$ch"{000..003}-*; do
+
 	[ ! -d "$folder" ]  && continue
-	find "$folder" -type f -printf '/%P\0' >> $systemf
-	if [[ "$folder" == "$ch"000 ]]; then continue ; fi
-	#binaryies                  # ! -path '*/usr/share/*' 
+	find "$folder" -type f -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' >> $systemf
+	if [[ "$folder" == "$ch"000 ]]; then continue ; fi # dont hash kernel firmware
+
+	#binaries                  # ! -path '*/usr/share/*' 
 	for subdir in bin etc sbin usr opt/porteus-scripts; do
 		dir="$folder/$subdir"
 		if [ -d "$dir" ]; then
-			find "$dir" -type f -executable -print0 > $xdata
-			x=$(tr -cd '\0' < $xdata | wc -c)
-			if (( x > 0 )); then mcore $x $y "$folder" $k1 ;fi
-			
+			find "$dir" -type f -executable -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' > $xdata
+			/usr/local/save-changesnew/sysprofileloop $atmp $xdata $folder $k1
 		fi
 	done
+
 	# configs
-	dir="$folder"/etc
-	if [ -d "$dir" ]; then
-		find "$dir" -type f -print0 > $xdata
-		x=$(tr -cd '\0' < $xdata | wc -c)
-		if (( x > 0 )); then mcore $x $y "$folder" $k2 ; fi
-	fi
-	# *.so*
-	for subdir in $folder/lib $folder/lib64 $folder/usr/lib $folder/usr/lib64 $folder/var/lib $folder/home/guest $folder/~ ; do
+	for subdir in $folder/etc $folder/home/guest $folder/root; do
 		if [ -d "$subdir" ]; then
-			find "$subdir" -type f -name '*.so*' -print0 > $xdata
-			x=$(tr -cd '\0' < $xdata | wc -c)
-			if (( x > 0 )); then mcore $x $y "$folder" $k3 ; fi
+			find "$subdir" -type f -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' > $xdata
+			/usr/local/save-changesnew/sysprofileloop $atmp $xdata $folder $k2
+		fi
+	done
+
+	# *.so*
+	for subdir in $folder/lib $folder/lib64 $folder/usr/lib $folder/usr/lib64 $folder/var/lib; do
+		if [ -d "$subdir" ]; then
+			find "$subdir" -type f -name '*.so*' -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' > $xdata
+			/usr/local/save-changesnew/sysprofileloop $atmp $xdata $folder $k3
 		fi
 	done
 done
-isoutput "*1_*_tmp.log" $xdata3
-while IFS= read -r -d '' x; do x="$( escf "$x")" ;  printf "%s\0" "$x" ; done < $systemf > $TMPF ; mv $TMPF $systemf 
-sort -z -o $systemf $systemf
-sort -z -o $xdata3 $xdata3
-comm -z -23 $systemf $xdata3 > $xdata # all files sans executable and *.so*
 
-# hash core flies
+isoutput "*1_*_tmp.log" $xdata3 # There will be 3-5 of each k1 k2 and k3
+
+# Escape filenames
+while IFS= read -r -d '' x; do x="$( escf "$x")" ;  printf "%s\0" "$x" ; done < $systemf > $TMPF ; mv $TMPF $systemf 
+sort -z -o $systemf $systemf 
+sort -z -o $xdata3 $xdata3 #files to hash Already escaped
+comm -z -23 $systemf $xdata3 > $xdata # all other files not hashed
+
+## hash the selected files and convert
+x=$(tr -cd '\0' < $xdata3 | wc -c) 
 if [ "$md" == "mc" ]; then
-	x=$(tr -cd '\0' < $xdata3 | wc -c) ; y=8 ; if (( x > 100 )); then y=16 ; fi
-	if ! xargs -0 -n"$y" -P4 /usr/local/save-changesnew/mainloop $atmp "true" "main" < $xdata3; then echo "Error: mainloop or xargs failed" >&2 ; return 2 ; fi
+	cores=$( nproc 2>/dev/null || echo 1)
+	max_jobs=$(( cores > 16 ? 16 : cores ))
+	y=$(( (x + max_jobs - 1) / max_jobs ))
+	opts=(-P"$max_jobs")
 else
-	if ! xargs -0 -n 50 /usr/local/save-changesnew/mainloop $atmp "true" "main" < $xdata3; then echo "Error: single mainloop of xargs failed" >&2 ; return 2 ; fi
+	y=$(( (x + 3) / 4 ))
+	[ $y -lt 10 ] && y=10    
+	opts=(-n1)
 fi
+split -l "$y" --numeric-suffixes=1 --suffix-length=4 "$xdata3" "$atmp/hashchunk_"
+tail=(/usr/local/save-changesnew/mainloop "$atmp" "{}" "$SORTCOMPLETE" "$TMPF" "true" "main")
+find "$atmp" -type f -name "hashchunk_*" -print0 | sort -z | xargs -0 "${opts[@]}" -I{} "${tail[@]}"
 isoutput "mainloop1*" $SORTCOMPLETE
 
-
-# get timestamps of remaining dont hash
+ #remaining dont hash but convert
+x=$(tr -cd '\0' < $xdata | wc -c) 
 if [ "$md" == "mc" ]; then
-	x=$(tr -cd '\0' < $xdata | wc -c) ; y=8 ; if (( x > 100 )); then y=16 ; fi
-	if ! xargs -0 -n"$y" -P4 /usr/local/save-changesnew/mainloop $atmp "false" "main" batch2 < $xdata; then echo "Error: mainloop or xargs failed" >&2 ; return 2 ; fi
+	y=$(( (x + max_jobs - 1) / max_jobs ))
+	opts=(-P"$max_jobs")
 else
-	if ! xargs -0 -n 50 /usr/local/save-changesnew/mainloop $atmp "false" "main" batch2 < $xdata; then echo "Error: single mainloop of xargs failed" >&2 ; return 2 ; fi
+	y=$(( (x + 3) / 4 ))
+	[ $y -lt 10 ] && y=10    
+	opts=(-n1)
 fi
+split -l "$y" --numeric-suffixes=1 --suffix-length=4 "$xdata" "$atmp/profilechunk_"
+tail=(/usr/local/save-changesnew/mainloop "$atmp" "{}" "$SORTCOMPLETE" "$TMPF" "false" "main" "batch2") 
+find "$atmp" -type f -name "profilechunk_*" -print0 | sort -z | xargs -0 "${opts[@]}" -I{} "${tail[@]}"
 isoutput "mainloop3*" $SORTCOMPLETE
-
 
 sort -o $SORTCOMPLETE $SORTCOMPLETE
 [[ -s "$SORTCOMPLETE" ]] && echo "$SORTCOMPLETE" || return 1
-#/mnt/live/memory/images/001-core.xzm/usr/lib64/perl5/vendor_perl/XML/Parser/Style/Stream.pm
+
+# Just get the filename
+#while IFS= read -r -d '' y; do  x=$(escf "$(cut -d' ' -f9- <<< "$y")") ; printf '%s\0' "$x"; done < $xdata3 > $TMPF
+#sort -z -o $TMPF $TMPF
+#comm -z -23 $systemf $TMPF > $xdata # all other files not hashed

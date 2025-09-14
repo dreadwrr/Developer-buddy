@@ -1,6 +1,5 @@
 #!/bin/bash
 # save-changesnew functions to move options further up the script             08/31/2025
-
 dycmb() {
 TFLD=""
 for x in $FOLDERS; do [[ -e "$ch/$x" ]] && TFLD="$TFLD $x" ; done
@@ -10,14 +9,6 @@ for x in $FOLDERS; do [[ " $IFOLDERS " != *" $x "* ]] && TFLD="$TFLD $x" ; done
 if [[ -n "$TFLD" ]]; then FOLDERS="$TFLD" ;  IFOLDERS="$IFOLDERS $FOLDERS" ; fi
 FOLDERS="$(for f in $FOLDERS $IFOLDERS; do echo "$f"; done | awk '!seen[$0]++')"
 }
-
-#dycmb() {
-#    TFLD="$(for x in $FOLDERS; do test -e "$ch/$x" && echo "$x"; done)"
-#    FOLDERS="$TFLD" ; TFLD=""
-#	# | tr ' ' '\n' | awk '!seen[$0]++'
-#    [[ -n "$IFOLDERS" ]] && TFLD="$(for x in $IFOLDERS; do [[ ! " $FOLDERS " == *" $x "* ]] && echo "$x" ; done)"
-#    [[ -n "$TFLD" ]] && { IFOLDERS="$TFLD" ; FOLDERS="$FOLDERS $IFOLDERS" ; }
-#}
 #Generate exclude directories changes-commit
 exldir() {
 > $1

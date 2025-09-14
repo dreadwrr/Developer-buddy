@@ -337,13 +337,13 @@ def main():
                                                       timestamp = record[0]
                                                       label = record[1]
                                                       changetime = record[2]
-                                                      #inode = record[3]   
+                                                      inode = record[3]   
                                                       checksum = record[5]
                                         
-                                                      result = pyfunctions.detect_copy(label, checksum, c, table)
+                                                      result = pyfunctions.detect_copy(label, inode, checksum, c, table)
                                                       if result:
-                                                            print(f'Copy {timestamp} {changetime} {label}', file=file)
-                                                            print(f'Copy {timestamp} {label}', file=file2)	
+                                                            print(f'Copy {record[0]} {record[2]} {label}', file=file)
+                                                            print(f'Copy {record[0]} {label}', file=file2)	
                                                       
 
                         except Exception as e:
