@@ -1,5 +1,5 @@
 #!/bin/bash
-#   NMS5                                                                            09/12/2025  v3.0
+#   NMS5                                                                            09/13/2025  v3.0
 #   recentchanges. Developer buddy      make xzm
 #   Provide ease of pattern finding ie what files to block we can do this a number of ways
 #   1) if a file was there (many as in more than a few) and another search lists them as deleted its either a sys file or not but unwanted nontheless
@@ -89,7 +89,7 @@ export ANALYTICSECT="true" # provides more feedback
 export FEEDBACK="false"  # include find output in terminal as well ie scrolling terminal look
 
 
-export dspEDITOR="default" # false.  default dont display text editor. launch text editor?
+export dspEDITOR="xed" # false.  default dont display text editor. launch text editor?
 										# featherpad
 										# xed  
 
@@ -100,7 +100,7 @@ export checkSUM="true"	# compare file checksums for slight changes
 export cdiag="true"       # Include stealth changes in diff file    a file was changed but has the same checksum and filesize subtle edit  ie cache items or string was changed
 export supbrwr="true"   # supress cache warnings on terminal from known browsers? Mozilla... ect list top of rntfuncions
 export supress="false"  # ..      all cdiag output to terminal except critical events
-export updatehlinks="true"   # scan for accurate hardlinks in db. alternatively use Set hardlinks button
+export updatehlinks="false"   # scan for accurate hardlinks in db. alternatively use Set hardlinks button
 
 export POSTOP="false" # Diagnostics. Create file doctrine. Runs post search operation that can only be done at this time as search is relevant
                                     # more overhead so recommend off unless one off. output /Downloads
@@ -160,29 +160,34 @@ elif [ "${arge[0]}" == "query" ]; then
 	if [ "$backend" == "default" ]; then  /usr/local/save-changesnew/query "$THETIME" $USR "$passdir"; exit; else python3 /usr/local/save-changesnew/query.py $pydbpst $email $USR $pydbpst $logpst $statpst   ; exit; fi
 fi
 
-tmp=/tmp/work$$																;		work=work$$
-workdir=/myfiles																;		chxzm=/rntfiles.xzm
-ABSENT=$tmp/tmp_absent.txt											;		SVFILES=$tmp/save.rncfilesmanifest.tmp 
-UPDATE=$tmp/save.transferlog.tmp									;		SVFOLDERS=$tmp/save.rncfoldersmanifest.tmp 
-RECENT=$tmp/list_recentchanges_filtered.txt						;		atmp=/tmp/atmp$$ 
-RECENTAPP=$tmp/list_recentapp_filtered.txt						;		xdata=$atmp/logs_stats.log # dcryp log file     
-COMPLETE=$tmp/list_complete.txt										;		xdata2=$atmp/logs.log.log  
-RECENTNUL=$tmp/list_recentchanges_filterednul.txt			;		tout=$atmp/toutput.tmp 
-TMPCOMPLETE=$tmp/tmp_complete.txt								;		toutnul=$atmp/toutputnul.tmp
-RSYNCEXCL=$tmp/list_filesexclude.txt								;		rout=$atmp/routput.tmp 
-TMPOPT=$tmp/tmp_holding												;		flth=/usr/local/save-changesnew/flth.csv
-REJECTLOG=$tmp/list_rejectsrc.txt										;		slog=/tmp/scr # feedback
-FOLDERLOG=$tmp/save.totalfolders.tmp							;		cerr=/tmp/cerr # priority
-SORTCOMPLETE=$tmp/list_complete_sorted.txt					;		THETIME="${arge[0]}" # shift for this script
-BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')		;		USRDIR=/home/$USR/Downloads
+tmp=/tmp/work$$														; 	work=work$$
+workdir=/myfiles														;	chxzm=/rntfiles.xzm
+ABSENT=$tmp/tmp_absent.txt									;	SVFILES=$tmp/save.rncfilesmanifest.tmp 
+UPDATE=$tmp/save.transferlog.tmp							;	SVFOLDERS=$tmp/save.rncfoldersmanifest.tmp 
+RECENT=$tmp/list_recentchanges_filtered.txt				;	atmp=/tmp/atmp$$ 
+RECENTAPP=$tmp/list_recentapp_filtered.txt				;	xdata=/logs_stats.log # dcryp log file     
+COMPLETE=$tmp/list_complete.txt								;	xdata2=/logs.log.log  
+RECENTNUL=$tmp/list_recentchanges_filterednul.txt	;	tout=$atmp/toutput.tmp 
+TMPCOMPLETE=$tmp/tmp_complete.txt						;	toutnul=$atmp/toutputnul.tmp
+RSYNCEXCL=$tmp/list_filesexclude.txt						;	rout=$atmp/routput.tmp 
+TMPOPT=$tmp/tmp_holding										;	flth=/usr/local/save-changesnew/flth.csv
+REJECTLOG=$tmp/list_rejectsrc.txt								;	slog=/tmp/scr # feedback
+FOLDERLOG=$tmp/save.totalfolders.tmp					;	THETIME="${arge[0]}" # shift for this script
+SORTCOMPLETE=$tmp/list_complete_sorted.txt			;	USRDIR=/home/$USR/Downloads
+
+xopt=/mnt/live/tmp													;   cerr=/tmp/cerr # priority
+SRCDIR=""                                           
+
+cores=0																	;   max_jobs=0
+
+BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 fmt="%Y-%m-%d %H:%M:%S"
 
-SRCDIR=""											;   cores=""
-diffrlt="false"									;	pstc="false"
-nodiff="false"									;   samerlt="false"
-syschg="false"									;	validrlt="false"
-approval="true"								;	nc="false"
+diffrlt="false"															;	pstc="false"
+nodiff="false"															;   samerlt="false"
+syschg="false"															;	validrlt="false"
+approval="true"														;	nc="false"
 
 mkdir $tmp
 mkdir $tmp$workdir
@@ -197,17 +202,27 @@ if [ "$THETIME" != "noarguser" ] && [ "$THETIME" != "" ]; then
 	cyan "Grabbing files (filtered) and searching for total sys files ${arge[0]} seconds old or newer"
 	comp $argone
 else
-    cyan "Grabbing files (filtered) and searching for total sys files 5 minutes old or newer" ; argone="5" ; qtn="5"
+    cyan "Grabbing files (filtered) and searching for total sys files 5 minutes old or newer"
+	argone="5" ; qtn="5"
 fi
 
-find /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var -mmin -${tmn} -not -type d -print0 2> /dev/null | tee $RECENTNUL > /dev/null 2> /dev/null
-find /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var \( -cmin -${tmn}-o -amin -${tmn} \) -not -type d -print0 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null
-ctimeloop $RECENTNUL $RECENT # pacman slackpkg downloads ctime > mtime keep $RECENT
-search $RECENTNUL $SORTCOMPLETE $COMPLETE $checkSUM "main"  # mtime append ctime in range later
-isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE
+F=( /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var )
+CMIN=( -cmin "-${qtn}" )
+MMIN=( -mmin "-${qtn}" )
+TAIL=( -not -type d -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' )
+find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$RECENTNUL" > /dev/null 2>&1
+find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$toutnul" > /dev/null 2>&1
+
+ctimeloop $RECENTNUL $RECENT # pacman slackpkg downloads ctime > mtime         
+while IFS= read -r -d '' y; do  x=$(escf "$(cut -d' ' -f9- <<< "$y")") ; printf '%s\n' "$x"; done < $RECENTNUL > $RECENT # Used to copy files \n delimited it is the filtered list
+search $RECENTNUL $SORTCOMPLETE $COMPLETE $checkSUM "main"  # mtime append ctimeloop in range later
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
+isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE
+
+
 if [ -s $SORTCOMPLETE ]; then
 	syschg="true"
+	
 	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE ; SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') ; PRD=$SRTTIME
 	if [ -s $tout ]; then awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' $tout>> $SORTCOMPLETE ; fi # Append ctimeloop
 	inclusions
@@ -216,22 +231,26 @@ if [ -s $SORTCOMPLETE ]; then
 	PRD=$(date -d "@$RANGE" +"$fmt")
 	awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' $SORTCOMPLETE > $tout ; mv $tout $SORTCOMPLETE
 	sort -u -o $SORTCOMPLETE $SORTCOMPLETE
-	if [ "$updatehlinks" == "true" ] && [ "$backend" == "database" ]; then ulink "$SORTCOMPLETE" "$tout" ; fi
+	if [[ "$updatehlinks" = "true" && "$backend" = "database" && "$STATPST" = "true" ]]; then ulink $SORTCOMPLETE $tout; fi
+
 	awk '{print $1, $2}' $SORTCOMPLETE > $tout
 	perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' $SORTCOMPLETE > $TMPCOMPLETE
-	paste -d' ' $tout $TMPCOMPLETE > $TMPOPT
+	paste -d' ' $tout $TMPCOMPLETE > $TMPOPT	
 	sort -o $TMPOPT $TMPOPT
 fi
 
 /usr/local/save-changesnew/filter $RECENT $USR
 
+tfile=$atmp$xdata
+tfile2=$atmp$xdata2
+
 # Copy files
 > $tout
 while IFS= read -r x; do  x="$( unescf "$x")" ; printf '%s\0' "$x"; done < $RECENT >> $tout
-while IFS= read -r -d '' x; do if cp -a --parents "$x" "$tmp$workdir" > /dev/null 2>> $xdata; then printf '%s %s\n' "$x" "success" >> $UPDATE; else echo "Failed to copy: $x" >&2; echo "ERROR: $x" >> $UPDATE; fi; done < $tout
+while IFS= read -r -d '' x; do if cp -a --parents "$x" "$tmp$workdir" > /dev/null 2>> $tfile; then printf '%s %s\n' "$x" "success" >> $UPDATE; else echo "Failed to copy: $x" >&2; echo "ERROR: $x" >> $UPDATE; fi; done < $tout
 unset IFS
-if [ -s $xdata ]; then echo > $UPDATE ; cat $xdata $UPDATE; fi
-test -e $xdata && rm $xdata
+if [ -s $tfile ]; then echo > $UPDATE ; cat $tfle $UPDATE; fi
+test -e $tfile && rm $tfile
 echo $BRAND >> $UPDATE
 find $tmp$workdir -not -type d -print0 > $SVFILES
 >$tout
@@ -240,7 +259,7 @@ mv $tout $SVFILES
 sed -i -e "s|$tmp$workdir||g" $SVFILES
 cat $SVFILES | sed -e 's![^/]*$!!g' > $SVFOLDERS
 
-# make .xzm from root
+# make .xzm from root folder
 if [ "$SRCDIR" == "SRC" ]; then 
     arrfiles=()
     arrreject=()
@@ -253,8 +272,8 @@ if [ "$SRCDIR" == "SRC" ]; then
     if [ "$rlt" != "" ]; then
         cat $SVFILES | grep "${rlt}" > $RECENTAPP ; cat $SVFILES | grep -v "${rlt}" > $RSYNCEXCL
 		find $tmp$workdir -type d -empty -delete 
-		while IFS= read -r p || [ -n "$p" ]; do  p="$( unescf "$p")" ; p="${p#/}" ; echo "$p" >> $xdata ; done < $RSYNCEXCL # This is for our SRC files after finding root
-        test -s $xdata && mksquashfs $tmp$workdir "/tmp/${appname}.xzm" -comp $cmode -ef $xdata || { [[ ! -s "$xdata" ]] && mksquashfs $tmp$workdir "/tmp/${appname}.xzm" -comp $cmode ; }
+		while IFS= read -r p || [ -n "$p" ]; do  p="$( unescf "$p")" ; p="${p#/}" ; echo "$p" >> $tfile ; done < $RSYNCEXCL # This is for our SRC files after finding root
+        test -s $tfile && mksquashfs $tmp$workdir "/tmp/${appname}.xzm" -comp $cmode -ef $tfile || { [[ ! -s "$tfile" ]] && mksquashfs $tmp$workdir "/tmp/${appname}.xzm" -comp $cmode ; }
         cp $RECENTAPP "/tmp/${appname}_xdata" ; echo $BRAND >> "/tmp/${appname}_xdata"
         sort -o $RECENTAPP $RECENTAPP
         cat $SORTCOMPLETE | grep -Ff $RECENTAPP | grep -v 'NOTA-FI-LE 77:77:77'  | tee $TMPCOMPLETE > /dev/null
@@ -263,18 +282,18 @@ if [ "$SRCDIR" == "SRC" ]; then
         cat $TMPOPT  | grep -Fvf $RECENTAPP > $TMPCOMPLETE
 	    cd $tmp$workdir || exit
 	    srcpath="${rlt#?}"
-		> $xdata
+		> $tfile
 		r=$( find "${rlt}" -type f | wc -l)  # system
 		s=$(grep -n 'MDY' "/tmp/${appname}_xdata" | head -n 1 | cut -d: -f1)arrreject
 		if [[ -n "$s" ]]; then s=$(( s - 1 )) ; else s=0 ; fi
 		x=0
 		y=$( wc -l < $RECENTAPP) # copied
-		while IFS= read -r -d '' f ; do echo "$f" >> $xdata ;  x=$(( x + 1 )) ; done < <(find "${srcpath}" \( -type f -o -type l \) -print0)  # Our system files is what we should be comparing		
+		while IFS= read -r -d '' f ; do echo "$f" >> $tfile ;  x=$(( x + 1 )) ; done < <(find "${srcpath}" \( -type f -o -type l \) -print0)  # Our system files is what we should be comparing		
 		{ echo Root:"${rlt}" ; echo "File count: "$x "of ${y}" ; echo "System count: "$r ; echo ; echo ; } >> "/tmp/${appname}_xdata"   
 		if (( x < y )); then  #Default
-			sort -o $xdata $xdata
-			sort $RECENT > $xdata2
-			comm -23 $xdata $xdata2 > $tout
+			sort -o $tfile $tfile
+			sort $RECENT > $tfile2
+			comm -23 $tfile $tfile2 > $tout
 			{ echo ; echo "Transfer: File transfer failed. " ; echo ; echo "Following file(s) were not transfered:" ; cat $tout ;} >> "/tmp/${appname}_xdata"
 		elif (( x == y)); then
 			{ echo "Transfer: File transfer verified " ; echo ; } >> "/tmp/${appname}_xdata"
@@ -388,7 +407,8 @@ if [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then
     stmp $SORTCOMPLETE
     if [ ! -f /tmp/rc/full ]; then cyan "Search saved in /tmp"; fi
 fi
-rm -rf $tmp ; rm -rf $atmp
+rm -rf $tmp 
+rm -rf $atmp
 if [ "$ANALYTICSECT" == "true" ]; then
     el=$(awk "BEGIN {print $end - $start}")
     printf "Search took %.3f seconds.\n" "$el"
