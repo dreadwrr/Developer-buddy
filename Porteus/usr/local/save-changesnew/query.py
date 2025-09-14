@@ -310,7 +310,7 @@ def main() :
 						for filename, count in top_7_filenames:
 							filename = filename.strip()
 							print(f'{count} {filename}')
-						top_7_writen = dexec(cur, 'Overwrt', 7)
+						top_7_writen = dexec(cur, 'Overwrite', 7)
 						filenames = [row[3] for row in top_7_writen]
 						filename_counts = Counter(filenames)
 						top_7_filenames = filename_counts.most_common(7)

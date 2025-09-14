@@ -1,5 +1,5 @@
 #!/bin/bash
-#   Developer buddy 3.0 core                                               9/12/2025
+#   Developer buddy 3.0 core                                               9/13/2025
 
 # Filter terminal and hardlinks
 sbwr() {
@@ -12,6 +12,7 @@ webb=(
 # other
 )
 }
+
 get_colors(){
 txtyellow=${txtbld}$(tput setaf 3)
 txtblue=${txtbld}$(tput setaf 4)
@@ -20,7 +21,7 @@ function blue(){ echo $txtblue "$1" $rst; }
 }
 postop() {
 if [ "$POSTOP" == "true" ]; then
-	while IFS= read -r x; do x="$(unescf "$x")" ; printf '%s\0' "$x"; done < $1 >> $xdata
+	while IFS= read -r x; do x="$(unescf "$x")" ; printf '%s\0' "$x"; done < $1 > $atmpxdata
     if [ -f $USRDIR/doctrine.tsv ]; then
         sed -i 's/^export POSTOP="true"/export POSTOP="false"/' $2
     else
@@ -38,7 +39,7 @@ if [ "$POSTOP" == "true" ]; then
                 ae=$( stat -c '%X' "$f") ; y=$(date -d "@$ae" +'%Y-%m-%d %H:%M:%S')
                 echo -e "$dt\t$f\t$(( sz / 1024 ))\t$mtyp\t$x\t$y\t$onr" >> $atmp/doctrine
             fi
-        done < $xdata
+        done < $atmpxdata
         unset IFS
         head -1 $atmp/doctrine > $USRDIR/doctrine.tsv
         tail -n +2 $atmp/doctrine | sort -t$'\t' -k7,7 -k3,3n >> $USRDIR/doctrine.tsv
@@ -92,7 +93,7 @@ rm $lt
 generatekey() {
 	# 5.1 porteus   GPG 2.x+ generate key but if 5.01 has GPG2 do it too
 	if which gpg2 > /dev/null 2>&1 || gpg --version | grep -q "(GnuPG) 2"; then #gpg --full-generate-key
-        read -sp "Enter passphrase for new GPG key: " p
+		read -sp "Enter passphrase for new GPG key: " p
 cat > /tmp/keyparams.conf <<EOF
 %echo Generating a GPG key
 Key-Type: RSA
@@ -106,22 +107,22 @@ Passphrase: $p
 %commit
 %echo done
 EOF
-       	if which gpg2 > /dev/null 2>&1; then
-        	gpg2 --batch --pinentry-mode loopback --passphrase "$p" --generate-key /tmp/keyparams.conf
-        else
-        	gpg --batch --pinentry-mode loopback --passphrase "$p" --generate-key /tmp/keyparams.conf
-        fi
-        shred -u /tmp/keyparams.conf
-        echo "GPG key generated for ${email}."
-	else
-    	if grep -iq "Porteus 5.01" /etc/os-release; then
-    		if which expect > /dev/null 2>&1; then # is expect installed?
-    			echo "expect needs to be installed. And run the keygen file for 5.01. Remember to remove passphrase after from file."
-    		else
-    			echo "Please run the keygen file for 5.01. Then erase the passphrase you entered in the file from the file."
-    		fi
-			return 1
+		if which gpg2 > /dev/null 2>&1; then
+			gpg2 --batch --pinentry-mode loopback --passphrase "$p" --generate-key /tmp/keyparams.conf
+		else
+			gpg --batch --pinentry-mode loopback --passphrase "$p" --generate-key /tmp/keyparams.conf
 		fi
+		shred -u /tmp/keyparams.conf
+		echo "GPG key generated for ${email}."
+	else
+		if grep -iq "Porteus 5.01" /etc/os-release; then
+			if which expect > /dev/null 2>&1; then # is expect installed?
+				echo "expect needs to be installed. And run the keygen file for 5.01. Remember to remove passphrase after from file."
+			else
+				echo "Please run the keygen file for 5.01. Then erase the passphrase you entered in the file from the file."
+			fi
+		fi
+		return 1
 	fi
 }
 storeenc() {
@@ -137,54 +138,59 @@ if [ "$STATPST" == "true" ]; then
 			generatekey
 		fi
 	fi
-    if grep -m 1 -q '^Modified,' $1; then  msg=" stats"; else msg=" log"; fi
-    if [ -s "$2" ]; then
-        ag="true"
+	if grep -m 1 -q '^Modified,' $1; then  msg=" stats"; else msg=" log"; fi
+
+	if [ -s "$2" ]; then
+
+		ag="true"
 		if [ "$3" != "dcr" ]; then
+			xdata=$TMPDIR$xdata
 			if ! decrypt $xdata $2; then
 				if [ "$ag" == "false" ]; then
-                    echo "Agent not installed for gpg 1.4 skipping... ${msg}"
-                else
-                    echo "Failed to decrypt"  $2$msg
+					echo "Agent not installed for gpg 1.4 skipping... ${msg}"
+				else
+					echo "Failed to decrypt ${2}${msg}"
 				fi
 				return 1
-            fi
+			fi
 			source=$xdata
 		else
 			source=$xdata2
 		fi
-    	if [ "$msg" == " stats" ]; then
+
+		if [ "$msg" == " stats" ]; then
 			declare -A ref_map
 			while IFS= read -r line || [ -n "$line" ]; do
 				key=${line#*,*,*,}
 				[[ -n "$key" ]] && ref_map["$key"]="$line"
 			done < $source
-            while IFS="" read -r p || [ -n "$p" ]; do
-                ft=$(echo "$p" | cut -d',' -f1)
-				dt=$(echo "$p" | cut -d',' -f2 | tr -d '"')
-				if [ "$ft" == "Nosuchfile" ]; then #  sed 's/^ *//;s/ *$//')  remove leading trailing space
-					echo "$p" >> $source
+         while IFS="" read -r p || [ -n "$p" ]; do
+			ft=$(echo "$p" | cut -d',' -f1)
+			dt=$(echo "$p" | cut -d',' -f2 | tr -d '"')
+			if [ "$ft" == "Nosuchfile" ]; then #  sed 's/^ *//;s/ *$//')  remove leading trailing space
+				echo "$p" >> $source
+			else
+				ct=$(echo "$p" | cut -d',' -f3 | tr -d '"')
+				filepath=${p#*,*,*,} # format action,"date time","change time", file name 
+				if [[ ! -v ref_map["$filepath"] ]]; then
+	                echo "$p" >> $source
 				else
-					ct=$(echo "$p" | cut -d',' -f3 | tr -d '"')
-					filepath=${p#*,*,*,} # format action,"date time","change time", file name 
-					if [[ ! -v ref_map["$filepath"] ]]; then
-		                echo "$p" >> $source
-					else
-					 	found="${ref_map["$filepath"]}"
-						old_dt=$(echo "$found" | cut -d',' -f2 | tr -d '"')
-						old_ct=$(echo "$found" | cut -d',' -f3 | tr -d '"')
-						if [[ "$dt" > "$old_dt" ]] || [[ "$ct" > "$old_ct" ]]; then
-							echo "$p" >> $source
-						fi
+				 	found="${ref_map["$filepath"]}"
+					old_dt=$(echo "$found" | cut -d',' -f2 | tr -d '"')
+					old_ct=$(echo "$found" | cut -d',' -f3 | tr -d '"')
+					if [[ "$dt" > "$old_dt" ]] || [[ "$ct" > "$old_ct" ]]; then
+						echo "$p" >> $source
 					fi
 				fi
-            done < $1
+			fi
+         done < $1
 			unset IFS
-        else # its a log
-	        c=$( grep -c '^$' $source)
-	        if  (( c == logCT )); then
-	            sed -i '1,/^$/d' $source
-	        fi
+
+		else # its a log
+			c=$( grep -c '^$' $source)
+			if  (( c == logCT )); then
+				sed -i '1,/^$/d' $source
+			fi
 			while IFS= read -r p || [[ -n "$p" ]]; do
 				cFILE=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$p")
 				y=$cFILE
@@ -193,39 +199,42 @@ if [ "$STATPST" == "true" ]; then
 				dt="$f1 $f2"
 				ct="$f3 $f4"
 				r=$( grep -F "$dt \"$y\" $ct" $source)
-				[[ -z "$r" ]] &&  echo "$p" >> $source
+				[[ -z "$r" ]] && echo "$p" >> $source
 			done < $1
 			unset IFS
-	        echo >> $source # end of log
-        fi
-		if which gpg2 > /dev/null 2>&1; then # 5.01 with 2.0
-		    cmmd=(gpg2 --yes -e -r $email -o $2 $source)
-			if [ "$nc" == "true" ]; then cmmd=(gpg2 --yes --compress-level 0 -e -r $email -o $2 $source); fi
-        else # 5.1 with gpg2 or 5.01 with gpg 1.4.23 and gpg agent 2.1.11
-		    cmmd=(gpg --yes -e -r $email -o $2 $source) # normal usage
-			if [ "$nc" == "true" ]; then cmmd=(gpg --yes --compress-level 0 -e -r $email -o $2 $source); fi
-        fi
+			echo >> $source # end of log
+		fi
+
+		t=(e -r $email -o $2 $source)
+		if which gpg2 > /dev/null 2>&1; then 
+			cmmd=(gpg2 --yes) # 5.01 with 2.0
+		else
+			cmmd=(gpg --yes) # 5.1 with gpg2 or 5.01 with gpg 1.4.23 and gpg agent 2.1.11
+		fi
+		[[ "$nc" == "true" ]] && cmmd+=(--compress-level 0)
+		cmmd+=("${t[@]}")
 		if ! "${cmmd[@]}"; then
 			echo "Encryption failed for file: $source  . $2$msg "
 			return 1
 		fi
-        rm $source #shred -u $source
-        if [ "$msg" == " log" ]; then echo $c; fi
-    else # no file create file
-        echo >> $1
+		rm $source #shred -u $source
+		if [ "$msg" == " log" ]; then echo $c; fi
+
+	else # no file create file
+		echo >> $1
 		if which gpg2 > /dev/null 2>&1; then # 5.01 with 2.0
-            if ! gpg2 --yes -e -r $email -o $2 "$1"; then #encrypt
-                echo "Encryption failed for file: $1"
-                return 1
-            fi
-        else # 5.1 or 5.01 with 1.4.23
-            if ! gpg --yes -e -r $email -o $2 "$1"; then #encrypt
-                echo "Encryption failed for file: $1"
-                return 1
-            fi
-        fi
-        echo "The${msg} was created."
-    fi
+			if ! gpg2 --yes -e -r $email -o $2 "$1"; then #encrypt
+				 echo "Encryption failed for file: $1"
+				 return 1
+			fi
+		else # 5.1 or 5.01 with 1.4.23
+			if ! gpg --yes -e -r $email -o $2 "$1"; then #encrypt
+				 echo "Encryption failed for file: $1"
+				 return 1
+			fi
+		fi
+		echo "The${msg} was created."
+	fi
 fi
 }
 decrypt() {
@@ -264,7 +273,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 	if [[ -n "$copy_record" ]]; then
 		oct=$( awk '{ print $(NF-10), $(NF-9) }' <<< "$copy_record")
 		if date -d "$ct" "+$fmt" >/dev/null 2>&1 && date -d "$oct" "+$fmt" >/dev/null 2>&1; then
-			echo "Copy $dt $ct $y" | tee -a $rout >> $tfile
+			echo "Copy $dt $ct $y" | tee -a $rout
 		fi
 	fi
 done < $TMPCOMPLETE
@@ -429,20 +438,18 @@ fi
 }
 hanly(){
 	local csm=""
-	declare -a collisions=()
-	>$tfile 			; y=8
+	local y=8
+    declare -a collisions=()
 	if [ "$mMODE" == "mc" ]; then
-		cores=$( nproc 2>/dev/null || echo 1)
-		max_jobs=$cores
-		if (( max_jobs > 16 )); then max_jobs=16; fi
 		x=$(wc -l < "$SORTCOMPLETE")
-		if (( x > 100 )); then y=20; fi
+		y=$(( (x + max_jobs - 1) / max_jobs )) 
 		split -l $y --numeric-suffixes=1 --suffix-length=4 "$SORTCOMPLETE" "$atmp/sortchunk_"
 		find "$atmp" -type f -name 'sortchunk_*' -print0 | sort -z | xargs -0 -P"$max_jobs" -I{} /usr/local/save-changesnew/haloop $atmp "{}" $2 $checkSUM $cdiag
 		isoutput haloop1* haloop2* haloop3* haloop4* $rout $slog $cerr $TMPCOMPLETE
 	else
-		# mapfile -t ref_lines < "$2" old array
-		 # tmp="${p#\"}" ; key="${tmp%%\"*}"   # key=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")
+		cores=""
+        # mapfile -t ref_lines < "$2" old array
+        # tmp="${p#\"}" ; key="${tmp%%\"*}"   # key=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")
 		declare -A ref_map                    
 		while read -r p; do key=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$p") ; current_ln="${p//\"$key\"/}" ; ref_map["$key"]="$current_ln" ; done < $2
 		hablk "A" $TMPCOMPLETE
@@ -477,10 +484,11 @@ done < $1
 processha() {
 local invr="$3" ; [[ -z "$invr" ]] && invr="$1"
 if [ -s $rout ]; then
-	sed -E 's/^(([^[:space:]]+[[:space:]]+){3})([^[:space:]]+[[:space:]]+){2}(.*)/\1\4/' "$rout" | grep -v "^Deleted" > "$tfile"
+	sed -E 's/^(([^[:space:]]+[[:space:]]+){3})([^[:space:]]+[[:space:]]+){2}(.*)/\1\4/' "$rout" | grep -v "^Deleted" > $tfile
     { echo ; echo "Hybrid analysis" ; echo ; } >> "$difffile"
 	sort -o $tfile $tfile
 	if [ -s $ABSENT ]; then sort -o $ABSENT $ABSENT; comm -23 $tfile $ABSENT > $TMPCOMPLETE ; else sort -k2,2 -k3,3 -o $TMPCOMPLETE $tfile ; fi
+
 	if [ "$flsrh" == "true" ] || [ "$invr" == "filtered" ]; then
 		if ! { [ "$flsrh" == "true" ] && [ "$invr" == "filtered" ]; } ; then /usr/local/save-changesnew/filter $TMPCOMPLETE $USR ; fi
 	fi
@@ -575,15 +583,32 @@ local k="$1"
 k="${k//\\n/$'\n'}" ; k="${k//\\\"/\"}" ; k="${k//\\\$/\$}" ; k="${k//\\\\/\\}" 
 printf '%s' "$k"
 }
-backend() {
-ofile=$atmp/tmpinfo ; tfile=$atmp/tmpd
+pyerrblk() {
+if [ "$ret" -ne 0 ]; then
+	if [ "$ret" -eq 2 ] || [ "$ret" -eq 3 ]; then
+		echo "Problem with GPG refer to instructions on setting up pinentry ect. Database preserved."
+	elif [ "$ret" -eq 4 ]; then
+		echo "Problem with database in psysrg.py"
+	elif [ "$ret" -eq 7 ]; then
+		echo "mem failed in pstsrg.py"
+	elif [ "$ret" -eq 87 ]; then
+		echo "failed to parse from mMODE=\"mem\""
+	else
+		echo "Pstsrg.py failed. exitcode ${ret}"
+	fi
+fi
+}
+backend() { 
+ofile=/tmpinfo ; tfile=$atmp/tmpd
+ TMPDIR=$(mktemp -d $xopt/tmpda.XXXXXX)  
+
 if [ -d /tmp/rc ] && [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then
     for file in /tmp/rc/*; do
-        cat $file >> $ofile  2> /dev/null
+        cat $file >> $atmp$ofile 2> /dev/null
     done
     if [ -s $ofile ]; then
-        sort -u -o $ofile $ofile
-		hanly $SORTCOMPLETE $ofile $5
+        sort -u -o $atmp$ofile $atmp$ofile
+		hanly $SORTCOMPLETE $atmp$ofile $1
 		ret=$?
 		if [ "$ret" -gt 0 ]; then
 			echo "failure in ANALYTICS hanly subprocess"
@@ -594,6 +619,13 @@ if [ "$STATPST" == "true" ]; then
 	if [ "$ANALYTICS" == "false" ]; then
 		if [ "$backend" == "default" ]; then
 			if [ -s $logpst ]; then
+
+             # decypt once perform ha and save
+            
+             chmod 600 $TMPDIR
+             xdata2=$TMPDIR$xdata2
+             ofile=$TMPDIR$ofile
+
 				if decrypt $xdata2 $logpst; then
 					awk 'NF' $xdata2 > $ofile
 					 if [ -s $ofile ]; then
@@ -611,7 +643,7 @@ if [ "$STATPST" == "true" ]; then
 			else
 				pstc="true"
 			fi
-			if [ "$pstc" == "true" ]; then
+			if [[ "$pstc" = "true" ]]; then
 				imsg="$(storeenc $SORTCOMPLETE $logpst "dcr")"
 				ret=$?
 				if [ "$ret" -ne 0 ]; then
@@ -629,7 +661,7 @@ if [ "$STATPST" == "true" ]; then
 					sed -i -E '/^Deleted/! s/^([^ ]+) ([^ ]+ [^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2","\3",\4/' $rout  # input Action,"date time","date time", file name spaces   
 					if [ -s $COMPLETE ]; then cat $COMPLETE >> $rout; fi
 					if [ "$pstc" == "true" ]; then
-						imsg="$(storeenc $rout $statpst)"
+						imsg="$(storeenc $rout $statpst)" # decrypt store encrypt
 						ret=$?
 						if [ "$ret" -ne 0 ]; then
 							echo "$imsg"
@@ -640,18 +672,11 @@ if [ "$STATPST" == "true" ]; then
 				fi
 			fi
 		else
-	        if ! gpg --list-keys | grep -q $email; then generatekey ; fi	
+			cores=""
+			if ! gpg --list-keys | grep -q $email; then generatekey ; fi	
 			python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $pydbpst $rout $tfile $checkSUM $cdiag $email $mMODE $ANALYTICSECT $proteusSHIELD $nc
 			ret=$?
-			if [ "$ret" -ne 0 ]; then
-				if [ "$ret" -eq 2 ] || [ "$ret" -eq 3 ]; then
-					echo "Problem with GPG refer to instructions on setting up pinentry ect. Database preserved."
-				elif [ "$ret" -eq 4 ]; then
-					echo "Problem with database in psysrg.py"
-				else
-					echo "Pstsrg.py failed. exitcode ${ret}"
-				fi
-			fi
+			pyerrblk
 			processha $argf
 		fi
 	fi
@@ -666,11 +691,59 @@ elif [[ "$csum" == "true" ]]; then
 	{ echo; echo "cdiag alert"; echo ; cat /tmp/cerr ; } >> "$difffile"
 	rm /tmp/cerr
 fi
+test -e $TMPDIR && rm -rf "${TMPDIR:?}"
 test -f $slog && rm $slog ; test -f $rout && rm $rout
+}
+
+intst() {
+if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi 
+if [ "$STATPST" == "true" ]; then
+    if [ -f $logpst ]; then
+        sz=$( stat -c %s "$logpst")
+        if [ $(( sz / 1048576 )) -gt $logSIZE ]; then
+            if [ "$logPRF" == "del" ]; then
+               : > $logpst
+            elif [ "$logPRF" == "stop" ]; then
+                cyan "persist log saving stopped on size limit"
+            fi
+            STATPST="false"
+            if [ "$logPRF" == "rfh" ]; then
+                rm $logpst
+                STATPST="true"
+            fi
+		elif [ $(( sz / 1048576 )) -ge $compLVL ]; then
+			nc="true"
+        elif [ $sz -eq 0 ]; then
+            cyan "$logpst is 0 bytes. to resume persistent logging delete file"
+            STATPST="false"
+        fi
+    fi
+fi
+}
+isoutput() {
+local y=$#
+if (( y >= 7 )); then
+	c=4
+elif (( y == 4)); then
+	c=2
+elif (( y == 2 )); then
+	c=1
+else
+	echo either 2 4 or 8 args
+fi
+for ((i = 1; i <= c; i++)); do
+    files=($atmp/${!i})
+    x=$((i + c))
+    if [[ ${#files[@]} -gt 0 ]] && [[ " ${files[@]} " != *"${!i}"* ]]; then
+        output="${!x}"
+        cat "${files[@]}" >> $output
+    fi
+done
 }
 ulink() {
 sbwr
 green "Updating hardlinks"
+#if [ "$checkSUM" == "false" ]; then fld=3 ; fi
 while IFS= read -r p || [[ -n "$p" ]]; do 
     ck="false"
 	#cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")
@@ -704,107 +777,75 @@ for inode in "${inodes_array[@]}"; do
 done > $TMPOPT
 paste -d' ' $1 $TMPOPT > $2 ; mv $2 $SORTCOMPLETE
 }
-
-intst() {
-if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi 
-if [ "$STATPST" == "true" ]; then
-    if [ -f $logpst ]; then
-        sz=$( stat -c %s "$logpst")
-        if [ $(( sz / 1048576 )) -gt $logSIZE ]; then
-            if [ "$logPRF" == "del" ]; then
-               : > $logpst
-            elif [ "$logPRF" == "stop" ]; then
-                cyan "persist log saving stopped on size limit"
-            fi
-            STATPST="false"
-            if [ "$logPRF" == "rfh" ]; then
-                rm $logpst
-                STATPST="true"
-            fi
-		elif [ $(( sz / 1048576 )) -ge $compLVL ]; then
-			nc="true"
-        elif [ $sz -eq 0 ]; then
-            cyan "$logpst is 0 bytes. to resume persistent logging delete file"
-            STATPST="false"
-        fi
-    fi
-fi
-}
-
-isoutput() {
-local y=$#
-if (( y >= 7 )); then
-	c=4
-elif (( y == 4)); then
-	c=2
-elif (( y == 2 )); then
-	c=1
-else
-	echo either 2 4 or 8 args
-fi
-for ((i = 1; i <= c; i++)); do
-    files=($atmp/${!i})
-    x=$((i + c))
-    if [[ ${#files[@]} -gt 0 ]] && [[ " ${files[@]} " != *"${!i}"* ]]; then
-        output="${!x}"
-        cat "${files[@]}" >> $output
-    fi
-done
-}
 sblk() {
 local sl=""
-local y="$x"
-x="$( unescf "$x")" 
+local cFILE
 local csum
-if [ -e "$x" ] && [ -f "$x" ]; then
-   	stat_out=$(stat -c "%Y %X %i %U %g %A %Z " "$x")
-	read -r mtime atime i onr gr pmr itime <<<"$stat_out"
-	mt=$(date -d "@$mtime" +"%Y-%m-%d %H:%M:%S")
-	ct=$(date -d "@$itime" +"%Y-%m-%d %H:%M:%S")
-	ats=$(date -d "@$atime" +"%Y-%m-%d %H:%M:%S")
-	if [ -n "$mt" ]; then
-        if [[ "$1" = "ctime" && "$itime" -gt "$mtime" ]] || [[ "$1" = "main" ]]; then
-			if [ "$checkSUM" == "true" ]; then
-				csum=$(md5sum "$x" 2> /dev/null) ; csum=${csum%% *} ; csum=${csum:-None}
-				fs=$(stat --format=%s "$x" 2> /dev/null) ; fs=${fs:-None} 
-				[[ -L "$x" ]] && sl="y"
-				wnr=${onr:-None} ; grp=${gr:-None} ; pmn=${pmr:-None}  ; sl=${sl:-None}
-				adtcmd="$csum $fs $sl $wnr $grp $pmn $cam"
-			else
-			    adtcmd=""
+local y
+while IFS= read -r -d '' p ; do
+	read -r mtime atime itime i fs onr grp pmr path <<< "$p"
+	cFILE="$path"
+	y="$( escf "$cFILE")" 
+	mt=$(date -d "@${mtime%%.*}" +"%Y-%m-%d %H:%M:%S")
+	ct=$(date -d "@${itime%%.*}" +"%Y-%m-%d %H:%M:%S")
+	if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
+		if [ -n "$mt" ]; then
+        	if { [[ "$4" = "ctime" ]] && (( ${itime%%.*} > ${mtime%%.*} )); } || [[ "$4" = "main" ]]; then
+				if [ "$checkSUM" == "true" ]; then
+					[[ "$1" = "ctime" ]] && cam="y" && mt=$ct || cam="None"
+					csum=$(md5sum "$cFILE" 2> /dev/null)
+					csum=${csum%% *}
+					csum=${csum:-None}
+					fs=${fs:-None} 
+					[[ -L "$cFILE" ]] && sl="y" ; sl=${sl:-None}
+					wnr=${onr:-None} ; grp=${grp:-None} ; pmn=${pmr:-None}
+					adtcmd="$csum $fs $sl $wnr $grp $pmn $cam"
+				else
+			    	adtcmd=""
+				fi
+    			ats=$(date -d "@${atime%%.*}" +"%Y-%m-%d %H:%M:%S")			
+				ct=${ct:-None None}
+				ats=${ats:-None None}
+				output="$mt \"$y\" $ct $i $ats $adtcmd"
+				printf '%s\n' "$output" >> $2
 			fi
-			[[ "$1" = "ctime" ]] && cam="y" && mt=$ct || cam="None"
-			ct=${ct:-None None}
-			ats=${ats:-None None}
-			output="$mt \"$y\" $ct $i $ats $adtcmd"
-			printf '%s\n' "$output" >> $2
 		fi
+	else
+		printf "%s,,,%s\n" "Nosuchfile" "$y" >> $3
 	fi
-else
-	printf "%s,,,%s\n" "Nosuchfile" "$y" >> $3
-fi
+done < $1
 }
+# load balance for if there is over 1000 files
 search() {
-if [[ "$mMODE" = "default" ]]; then
-	xargs -0 -n 50 /usr/local/save-changesnew/mainloop $atmp $2 $3 $4 $5 $6 < $1
-elif [[ "$mMODE" = "mc" ]]; then
-	x=$(tr -cd '\0' < $1 | wc -c) ; y=8
-	if (( x > 100 )); then y=16 ; fi
-	xargs -0 -n"$y" -P4 /usr/local/save-changesnew/mainloop $atmp $2 $3 $4 $5 $6 < $1
+x=$(tr -cd '\0' < "$1" | wc -c)
+if [[ "$mMODE" = "default" ]]; then     
+	y=$(( (x + 3) / 4 ))
+	[ $y -lt 10 ] && y=10    
+	opts=(-n1)
+else
+	y=$(( (x + max_jobs - 1) / max_jobs ))
+	opts=(-P"$max_jobs")
 fi
+split -l "$y" --numeric-suffixes=1 --suffix-length=4 "$1" "$atmp/${5}chunk_"
+tail=(/usr/local/save-changesnew/mainloop "$atmp" "{}" "$2" "$3" "$4" "$5" "$6")
+find "$atmp" -type f -name "${5}chunk_*" -print0 | sort -z | xargs -0 "${opts[@]}" -I{} "${tail[@]}"
 }
 ctimeloop() {
+#Init
+if [[ "$mMODE" == "mc" ]]; then
+	cores=$( nproc 2>/dev/null || echo 1)
+	max_jobs=$(( cores > 16 ? 16 : cores ))
+fi	
 [[ "$checkSUM" = "true" ]] && [[ "$ANALYTICS" = "true" || "$STATPST" = "true" ]] && cyan "Running checksum." || checkSUM="false"
-if [ "$ANALYTICSECT" = "true" ]; then end=$(date +%s.%N) ; if [ "$checkSUM" == "true" ]; then cstart=$(date +%s.%N) ; fi ; fi
-while IFS= read -r -d '' f; do f="$( escf "$f")" ; echo "$f" ; done < $1 >> $2
-while IFS= read -r -d '' f; do f="$( escf "$f")" ; echo "$f" ; done < $toutnul >> $tout
-if [ "$FEEDBACK" == "true" ]; then cat $tout; cat $2; fi
-if [ -s $tout ]; then grep -Fxv -f $2 $tout > $TMPCOMPLETE; >$tout; fi
->$tout
-if [ -s $TMPCOMPLETE ]; then
-	while IFS= read -r x; do x="$( unescf "$x")" ; printf '%s\0' "$x"; done < $TMPCOMPLETE > $xdata
-	search $xdata $tout $COMPLETE $checkSUM "ctime" batch2 # new output files
+if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi
+# what is not in the main search
+sort -z -o $2 $1                
+sort -z -o $tout $toutnul
+comm -z -23 $tout $2 > $TMPCOMPLETE
+
+if [ "$FEEDBACK" == "true" ]; then tr '\0' '\n' < $1; tr '\0' '\n' < $toutnul; fi #scrolling look
+if [ -s $TMPCOMPLETE ]; then	
+	search $TMPCOMPLETE $tout $COMPLETE $checkSUM "ctime" batch2
 	isoutput mainloop3* mainloop4* $tout $COMPLETE
 fi
 }
-

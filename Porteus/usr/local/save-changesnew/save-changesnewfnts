@@ -1,12 +1,12 @@
 #!/bin/bash
-# save-changesnew functions to move options further up the script             9/6/2025
+# save-changesnew functions to move options further up the script             9/13/2025
 dycmb() {
 TFLD=""
 for x in $IFOLDERS; do [[ -e "$ch/$x" ]] && TFLD="$TFLD $x" ; done
 IFOLDERS="$TFLD"
 TFLD=""
 for x in $IFOLDERS; do [[ " $FOLDERS " != *" $x "* ]] && TFLD="$TFLD $x" ; done
-if [[ -n "$TFLD" ]]; then echo "$TFLD" ; IFOLDERS="$TFLD" ;  FOLDERS="$FOLDERS $IFOLDERS" ; fi
+if [[ -n "$TFLD" ]]; then FOLDERS="$TFLD" ; FOLDERS="$FOLDERS $IFOLDERS" ; fi
 FOLDERS="$(for f in $FOLDERS $IFOLDERS; do echo "$f"; done | awk '!seen[$0]++')"
 }
 exldir() {
@@ -268,9 +268,9 @@ for mods in $PWD"/"*_uid_*.xzm; do
 	mount -o loop $mods $dest
 	find "${dest}/" -type f -name '.wh.*' -printf '%P\0' | while IFS= read -r -d '' file; do
         k=$( echo "$file" | sed -e 's/^\.wh\.//')
-    #       p=$( echo "$file" | sed -E 's|(.*\/)\.wh\.|\1|') # keep path remove .wh.
+		#p=$( echo "$file" | sed -E 's|(.*\/)\.wh\.|\1|') # keep path remove .wh.
         test -e "$k" && rm -rf "$k";
-        test -e "$INAME"/*/"$k" || test -e "$file" && rm -f "$file"  #  { echo "y" | fixsqh >> $EXCL; echo "$y" >> $EXFILES; test -e "$y" && rm -f "$y"; }
+        test -e "$INAME/*/$k" || test -e "$file" && rm -f "$file"  #  { echo "y" | fixsqh >> $EXCL; echo "$y" >> $EXFILES; test -e "$y" && rm -f "$y"; }
     done
     unset IFS
     cp -aufv $dest/* $1 2> >(tee /tmp/error.log >&2)

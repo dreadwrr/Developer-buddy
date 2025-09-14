@@ -9,7 +9,6 @@ from pyfunctions import detect_copy
 def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt="/usr/local/save-changesnew/recent.db", table="logs"):
 	key_to_files = {
 		"flag": [rout],
-#		"tout": [tfile],
 		"cerr": [cerr],
 		"scr": [scr],
 	}
@@ -29,8 +28,6 @@ def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt
 					for fpath in files:
 						file_messages.setdefault(fpath, []).extend(messages)
 
-		#if "sys" in entry:
-			#conn.commit()
 
 		if "dcp" in entry:
 			dcp_messages = entry["dcp"]
@@ -51,7 +48,7 @@ def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt
 								if result:
 									print(f'Copy {timestamp} {ct} {label}', file=file)
 									#print(f'Copy {timestamp} {label}', file=file2)
-									# print(f'System file: {msg[1]}', file=file7)
+
 
 							except Exception as e:
 								print(f"Error updating DB for sys entry '{msg}': {e}")

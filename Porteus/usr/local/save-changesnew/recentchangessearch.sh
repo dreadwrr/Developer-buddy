@@ -1,5 +1,5 @@
 #!/bin/bash
-#      recentchanges search             Developer Buddy v3.0     9/12/2025
+#      recentchanges search             Developer Buddy v3.0     9/13/2025
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/rntchangesfunctions
@@ -8,27 +8,34 @@ if [ "$USR" == "" ]; then echo please call from recentchanges; exit; fi
 if [ "$4" == "" ]; then echo "incorrect usage please call from recentchanges"; exit 1; fi
 if [ "$1" != "search" ]; then echo exiting not a search && exit; fi
 
-work=work$$													        ;		atmp=/tmp/atmp$$
-tmp=/tmp/work$$												        ;		rout=$atmp/routput.tmp
-chxzm=/rntfiles.xzm											        ;		tout=$atmp/toutput.tmp
-USRDIR=/home/$USR/Downloads								;		toutnul=$atmp/toutputnul.tmp
-slog=/tmp/scr												            ;		xdata=$atmp/logs_stat.log
-UPDATE=$tmp/save.transferlog.tmp							;		xdata2=$atmp/logs_log.log
-ABSENT=$tmp/absent.txt										    ;		xdata3=$atmp/db_log.log
-RECENT=$tmp/list_recentchanges_filtered.txt				;		pytmp=$atmp/pytmp.tmp
-RECENTNUL=$tmp/list_recentchanges_filterednul.txt	;		COMPLETE=$tmp/list_complete.txt
-SORTCOMPLETE=$tmp/list_complete_sorted.txt			;		COMPLETENUL=$tmp/list_completenul.txt
-TMPOUTPUT=$tmp/list_tmp_sorted.txt						;		TMPCOMPLETE=$tmp/tmp_complete.txt
-TMPOPT=$tmp/tmp_holding										;		flth=/usr/local/save-changesnew/flth.csv
-OLDSORTED=""															;		cerr=/tmp/cerr
+work=work$$															;   atmp=/tmp/atmp$$
+tmp=/tmp/work$$														;   rout=$atmp/routput.tmp
+chxzm=/rntfiles.xzm													;   tout=$atmp/toutput.tmp
+USRDIR=/home/$USR/Downloads								;   toutnul=$atmp/toutputnul.tmp
+slog=/tmp/scr															;   xdata=/logs_stat.log
+UPDATE=$tmp/save.transferlog.tmp							;   xdata2=/logs_log.log
+ABSENT=$tmp/absent.txt											;   xdata3=/db_log.log
+RECENT=$tmp/list_recentchanges_filtered.txt				;   pytmp=$atmp/pytmp.tmp
+RECENTNUL=$tmp/list_recentchanges_filterednul.txt	;   COMPLETE=$tmp/list_complete.txt
+SORTCOMPLETE=$tmp/list_complete_sorted.txt			;   COMPLETENUL=$tmp/list_completenul.txt
+TMPOUTPUT=$tmp/list_tmp_sorted.txt						;   TMPCOMPLETE=$tmp/tmp_complete.txt
+TMPOPT=$tmp/tmp_holding										;   flth=/usr/local/save-changesnew/flth.csv
+																	
+cores=0																	;   max_jobs=0
 
-diffrlt="false" 															; 		nodiff="false"
+cerr=/tmp/cerr															;   OLDSORTED=""
+fmt="%Y-%m-%d %H:%M:%S"                                     
+BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')     
+FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
+
+diffrlt="false"															; 		nodiff="false"
 pstc="false"																;		flsrh="false"
 samerlt="false"															;		nc="false"
 syschg="false"
-BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
-FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
-fmt="%Y-%m-%d %H:%M:%S"
+
+
+F=(/bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var)
+TAIL=(-not -type d -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0')
 
 intst
 mkdir $tmp
@@ -52,49 +59,59 @@ if [ "$2" != "noarguser" ] && [ "$2" != "" ]; then # If a desired time is specif
     	cyan "searching for files newer than $filename "
     	flsrh="true"
     	FEEDFILE=$RECENTNUL
-		fc="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var -newer \"$filename\" -not -type d -print0 "
 		ct=$(date +%s)
 		fmt=$(stat -c %Y "$filename")
 		ag=$(( ct - fmt ))
-		fca="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var \( -cmin -${ag} -o -amin -${ag} \) -not -type d -print0 "
+		MMIN=(-newer "$filename")
+		CMIN=(-cmin "-${ag}")
     fi
 else
 	argone="5" ; tmn=$argone ; cyan "searching for files 5 minutes old or newer"
 fi
 if [ "$tmn" != "" ]; then
 	logf=$RECENT ; FEEDFILE=$COMPLETENUL
-	fc="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var -mmin -${tmn} -not -type d -print0 "
-	fca="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var \( -cmin -${tmn} -o -amin -${tmn} \) -not -type d -print0 "
+	MMIN=(-mmin "-${tmn}")
+	CMIN=(-cmin "-${tmn}")
 fi
-eval "$fc" 2> /dev/null | tee $FEEDFILE > /dev/null 2> /dev/null
-eval "$fca" 2> /dev/null | tee $toutnul > /dev/null 2> /dev/null
-ctimeloop $FEEDFILE $xdata # dont keep xdata
+
+find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $FEEDFILE > /dev/null 2>&1
+find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $toutnul > /dev/null 2>&1
+
+ctimeloop $FEEDFILE $atmp$xdata # dont keep xdata
+#while IFS= read -r -d '' y; do y="$( escf "$y")" ; printf '%s\n' "$y"; done < $FEEDFILE > $xdata
 search $FEEDFILE $SORTCOMPLETE $COMPLETE $checkSUM "main"
 isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE
+
+LCLMODULENAME=${chxzm:1:8}
+
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
 if [ -s $SORTCOMPLETE ]; then
 	syschg="true"
+	
 	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE ; SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') ; PRD=$SRTTIME
 	if [ -s $tout ]; then awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' $tout >> $SORTCOMPLETE ; fi
 	inclusions
+
 	if [ "$flsrh" != "true" ]; then
 		s=$(date -d "$SRTTIME" "+%s")
 		if [ "$2" == "noarguser" ]; then RANGE=$(( s + 300 )) ; else RANGE=$(( s + argone )) ; fi
 		PRD=$(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S')
 		awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' $SORTCOMPLETE > $tout ; mv $tout $SORTCOMPLETE
 	fi
+
 	sort -u -o $SORTCOMPLETE $SORTCOMPLETE
 	if [[ "$updatehlinks" = "true" && "$backend" = "database" && "$STATPST" = "true" ]]; then ulink $SORTCOMPLETE $tout; fi
 	awk '{print $1, $2}' $SORTCOMPLETE > $tout
 	perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' "$SORTCOMPLETE" > "$TMPCOMPLETE"
 	paste -d' ' $tout $TMPCOMPLETE > $TMPOPT
-	sort -o $TMPOPT $TMPOPT
 	cat $TMPOPT | grep ' /tmp/' > $TMPOUTPUT
 	sort -o $TMPOUTPUT $TMPOUTPUT
 	sed -i '/\"\/tmp/d' $SORTCOMPLETE
 	sed -i '/ \/tmp/d' $TMPOPT
+	sort -o $TMPOPT $TMPOPT
 	cp $TMPOPT $RECENT
 fi
+
 if [ "$5" == "filtered" ] || [ "$flsrh" == "true" ]; then
 	logf="$TMPOPT"
 	if [ "$5" == "filtered" ] && [ "$flsrh" == "true" ]; then logf=$RECENT ; fi 
@@ -103,10 +120,9 @@ fi
 
 cd $USRDIR
 MODULENAME=${chxzm:0:9}
-LCLMODULENAME=${chxzm:1:8}
+
 
 if [ -s $SORTCOMPLETE ] ; then
-	cp $SORTCOMPLETE /home/guest/aris
     if [ "$flsrh" == "true" ]; then
 	    flnm="xNewerThan_${parseflnm}"$argone
 	    flnmdff="xDiffFromLast_${parseflnm}"$argone
@@ -127,20 +143,23 @@ if [ -s $SORTCOMPLETE ] ; then
 		cp $TMPOUTPUT $USRDIR$MODULENAME"xSystemTmpfiles${parseflnm}${argone%.txt}"
 		chown $USR $USRDIR$MODULENAME"xSystemTmpfiles${parseflnm}${argone%.txt}"
 	fi
+
     difffile=$USRDIR$MODULENAME"${flnmdff}"
+
     [[ -n "$OLDSORTED" ]] && test -e $OLDSORTED && comm -23 "$OLDSORTED" $logf > "$difffile"
 	[[ "$nodiff" = "false" ]] && test -e $tmp$MODULENAME"$flnm" && { OLDSORTED=$tmp$MODULENAME"$flnm" ; comm -23 "$OLDSORTED" $logf; } > "$difffile" && nodiff="true"
     cp $logf $USRDIR$MODULENAME"$flnm"
     chown $USR $USRDIR$MODULENAME"$flnm"
     isdiff "$difffile" $TMPCOMPLETE
-	backend
+	backend $5
     filterhits $RECENT $flth
     postop $logf $6
 	test -e "$difffile" && chown $USR "$difffile"
 fi
 
 if [ "$ANALYTICS" = "true" ] && [ "$STATPST" = "false" ] ; then stmp $SORTCOMPLETE && [[ ! -f /tmp/rc/full ]] && cyan "Search saved in /tmp" ; fi
-rm -rf $tmp ; rm -rf $atmp
+rm -rf $tmp
+rm -rf $atmp
 if [ "$ANALYTICSECT" = "true" ]; then
     el=$(awk "BEGIN {print $end - $start}")
     printf "Search took %.3f seconds.\n" "$el"
