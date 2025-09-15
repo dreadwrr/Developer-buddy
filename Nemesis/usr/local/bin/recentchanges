@@ -236,7 +236,7 @@ while IFS= read -r -d '' y; do  x=$(escf "$(cut -d' ' -f9- <<< "$y")") ; printf 
 search $RECENTNUL $SORTCOMPLETE $COMPLETE $checkSUM "main"  # mtime append ctimeloop in range later
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
 isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE
-
+isoutput cache1* $CACHE_F
 
 if [ -s $SORTCOMPLETE ]; then
 	syschg="true"
