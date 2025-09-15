@@ -88,7 +88,7 @@ export ANALYTICSECT="true" # provides more feedback
                                             # we dont want too much output on the terminal just a slight bit more
                                             # others stats
 
-export FEEDBACK="false"  # include find output in terminal as well ie scrolling terminal look
+export FEEDBACK="true"  # include find output in terminal as well ie scrolling terminal look
 
 
 export dspEDITOR="xed" # false.  default dont display text editor. launch text editor?
@@ -178,10 +178,12 @@ FOLDERLOG=$tmp/save.totalfolders.tmp					;	THETIME="${arge[0]}" # shift for this
 SORTCOMPLETE=$tmp/list_complete_sorted.txt			;	USRDIR=/home/$USR/Downloads
 log_file=/tmp/file_creation_log.txt
 
+xopt=/mnt/live/tmp													;   cerr=/tmp/cerr # priority
+SRCDIR=""                                           
+
 cores=0																	;   max_jobs=0
 
-xopt=/mnt/live/tmp													;   cerr=/tmp/cerr # priority
-SRCDIR=""                                  								;	CACHE_F=/tmp/ctimecache         
+CACHE_F=/tmp/ctimecache
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 fmt="%Y-%m-%d %H:%M:%S"
@@ -190,6 +192,9 @@ diffrlt="false"															;	pstc="false"
 nodiff="false"															;   samerlt="false"
 syschg="false"															;	validrlt="false"
 approval="true"														;	nc="false"
+
+F=( /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var )
+TAIL=( -not -type d -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' )
 
 mkdir $tmp
 mkdir $tmp$workdir
@@ -207,15 +212,26 @@ else
     cyan "Grabbing files (filtered) and searching for total sys files 5 minutes old or newer"
 	argone="5" ; qtn="5"
 fi
-
-F=( /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var )
 CMIN=( -cmin "-${qtn}" )
 MMIN=( -mmin "-${qtn}" )
-TAIL=( -not -type d -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' )
-find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$RECENTNUL" > /dev/null 2>&1
-find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$toutnul" > /dev/null 2>&1
 
-ctimeloop $RECENTNUL $RECENT # pacman slackpkg downloads ctime > mtime         
+
+[[ "$checkSUM" = "true" ]] && [[ "$ANALYTICS" = "true" || "$STATPST" = "true" ]] && cyan "Running checksum." || checkSUM="false"
+if [ -z "$tout" ]; then
+	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$RECENTNUL" > /dev/null 2>&1
+	find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$toutnul" > /dev/null 2>&1
+	if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi	
+	ctimeloop $RECENTNUL $RECENT # pacman slackpkg downloads ctime > mtime         
+else
+	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$RECENTNUL" > /dev/null 2>&1
+	if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi	
+fi
+
+if [ "$FEEDBACK" == "true" ]; then #scrolling look
+	tr '\0' '\n' < "$RECENTNUL" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=""; sub(/^ +/, ""); print }'
+	#tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=""; sub(/^ +/, ""); print }'  
+fi 
+
 while IFS= read -r -d '' y; do  x=$(escf "$(cut -d' ' -f9- <<< "$y")") ; printf '%s\n' "$x"; done < $RECENTNUL > $RECENT # Used to copy files \n delimited it is the filtered list
 search $RECENTNUL $SORTCOMPLETE $COMPLETE $checkSUM "main"  # mtime append ctimeloop in range later
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
