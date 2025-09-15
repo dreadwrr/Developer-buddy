@@ -79,6 +79,8 @@ export STATPST="true" # persistent storage searches encrypted in /usr/local/save
                                     # Only overhead is gpg compression set compression to off. At large size speeds can increase by as much as 50%.
                                     # if you prefer security turn ANALYTICS false and use this
 
+export xRC="false"	# false - default. run inotifywait for one hour to look for new files where ctime > mtime in /changes.
+									# If true can bypass 1 of 2 search loops and reduce process overhead as the search is already there
 
 #Display
 export ANALYTICSECT="true" # provides more feedback
@@ -174,12 +176,12 @@ TMPOPT=$tmp/tmp_holding										;	flth=/usr/local/save-changesnew/flth.csv
 REJECTLOG=$tmp/list_rejectsrc.txt								;	slog=/tmp/scr # feedback
 FOLDERLOG=$tmp/save.totalfolders.tmp					;	THETIME="${arge[0]}" # shift for this script
 SORTCOMPLETE=$tmp/list_complete_sorted.txt			;	USRDIR=/home/$USR/Downloads
-
-xopt=/mnt/live/tmp													;   cerr=/tmp/cerr # priority
-SRCDIR=""                                           
+log_file=/tmp/file_creation_log.txt
 
 cores=0																	;   max_jobs=0
 
+xopt=/mnt/live/tmp													;   cerr=/tmp/cerr # priority
+SRCDIR=""                                  								;	CACHE_F=/tmp/ctimecache         
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 fmt="%Y-%m-%d %H:%M:%S"
