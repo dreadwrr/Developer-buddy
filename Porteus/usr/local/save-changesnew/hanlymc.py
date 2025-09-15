@@ -1,12 +1,10 @@
 
-# hybrid analysis  9/5/2025
-import codecs
+# hybrid analysis  9/15/2025
 from datetime import datetime, timedelta
-import pwd
 import sqlite3
-import stat
 from pathlib import Path
 from pyfunctions import collision
+from pyfunctions import escf_py
 from pyfunctions import is_integer
 from pyfunctions import is_valid_datetime
 from pyfunctions import increment_fname
@@ -70,14 +68,9 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 			
 
 			recent_sys = None
-			label = record[1]
-			try: 
-				filename=codecs.decode(label, 'unicode_escape')
-				if not filename:
-					raise ValueError("Empty filename")
-			except Exception as e:
-				print(f"Skipping label due to decode file: {label} error: {e}")
-				continue
+			filename = record[1] 
+			label = escf_py(filename) # human readable
+
 			
 			recent_entries = get_recent_changes(label, cursor, 'logs')
 

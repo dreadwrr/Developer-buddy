@@ -76,14 +76,17 @@ if [ "$tmn" != "" ]; then
 	CMIN=(-cmin "-${tmn}")
 fi
 
-find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $FEEDFILE > /dev/null 2>&1
-
-if [ -z "$tout" ]; then
-	find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $toutnul > /dev/null 2>&1
-	ctimeloop $FEEDFILE $atmp$xdata # dont keep xdata
-fi
-if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi	
 [[ "$checkSUM" = "true" ]] && [[ "$ANALYTICS" = "true" || "$STATPST" = "true" ]] && cyan "Running checksum." || checkSUM="false"
+if [ -z "$tout" ]; then
+	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $FEEDFILE > /dev/null 2>&1
+	find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $toutnul > /dev/null 2>&1
+	if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi	
+	ctimeloop $FEEDFILE $atmp$xdata # dont keep xdata
+else
+	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $FEEDFILE > /dev/null 2>&1
+	if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi	
+fi
+
 #while IFS= read -r -d '' y; do y="$( escf "$y")" ; printf '%s\n' "$y"; done < $FEEDFILE > $xdata
 search $FEEDFILE $SORTCOMPLETE $COMPLETE $checkSUM "main"
 isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE

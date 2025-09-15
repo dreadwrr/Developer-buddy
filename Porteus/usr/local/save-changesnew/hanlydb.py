@@ -1,5 +1,4 @@
-# hybrid analysis efficient table queries refined developer buddy  09/5/2025
-import codecs
+# hybrid analysis efficient table queries refined developer buddy  09/15/2025
 import pyfunctions
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -31,6 +30,8 @@ def stealth(filename, label, cer, scr, collision_message, checksum, current_size
 						message=f"COLLISION: {b_filename} | Checksum: {a_checksum} | Sizes: {a_filesize} != {b_filesize}"
 						collision_message.append(message)
 
+
+
 #Hybrid analysis
 def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file, file2, file3, file4):
 
@@ -42,19 +43,21 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 		df=False
 		is_sys=False
 		recent_sys = None
-		label = record[1] # human readable
-		try: 
-			filename=codecs.decode(label, 'unicode_escape')
-			if not filename:
-				raise ValueError("Empty filename")
-		except Exception as e:
-			print(f"Skipping label due to decode file: {label} error: {e}")
-			continue
+		filename = record[1] 
+		label = pyfunctions.escf_py(filename) # human readable
+		# try: 
+		# 	# if label.find("\\") == -1: skip   # str.encode().decode('unicode_escape') 
+		# 	filename=codecs.decode(label, 'unicode_escape')
+		# 	if not filename:
+		# 		raise ValueError("Empty filename")
+		# except Exception as e:
+		# 	print(f"Skipping label due to decode file: {label} error: {e}")
+		# 	continue
 
-		recent_entries = pyfunctions.get_recent_changes(label, c, 'logs')
+		recent_entries = pyfunctions.get_recent_changes(filename, c, 'logs')
 
 		if ps == 'true':
-			recent_sys = pyfunctions.get_recent_changes(label, c, 'sys')
+			recent_sys = pyfunctions.get_recent_changes(filename, c, 'sys')
 		
 		if not recent_entries and not recent_sys:
 			recorddata.append(record) # is copy?
