@@ -355,6 +355,7 @@ hablk() {
 >$TMPCOMPLETE
 while IFS= read -r p || [[ -n "$p" ]]; do
 	found_line=""
+	df="false"
 	tmp="${p#*\"}"
 	y="${tmp%\"*}"
 	current_ln="${p//\"$y\"/}"
@@ -366,7 +367,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 			original_ln="$found_line"
 			if [ "$1" != "A" ]; then original_ln="${found_line//\"$y\"/}" ; fi
 			read -r of1 of2 of3 of4 of5 of6 of7 of8 of9 of10 of11 of12 of13 _ <<< "$original_ln"
-			cFILE="$( unescf "$cFILE")"
+			cFILE="$( unescf "$y")"
 			oat="$of6 $of7" ; cat="$f6 $f7" 
 			is_valid_date "$oat" && is_valid_date "$cat" || continue 
 			if [ "$checkSUM" == "true" ]; then ocs="$of8" ; cs="$f8" ; os="$of9" ; csze="$f9" ; [[ "$cs" != "None" ]] || continue ; fi
@@ -383,25 +384,30 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 							else
 								if (( oin == in )); then
 									if newmeta $f11 $f12 $f13 $of11 $of12 $of13; then
+										df="true"
 										echo "Metadata $dt $ct $y" >> $rout
+										echo "Permissions of file: $y changed $f11 $f12 $f13 → $of11 $of12 $of13" >> $slog
 									fi
 								else
+									df="true"
 									echo "Copy $dt $ct $y" >> $rout
 								fi
 							fi
-                            read a_mod fs a_ct au ag apmr < <(stat --format="%Y %s %Z %U %g %A" "$cFILE" 2>/dev/null)
-							afrm=$(date -d "@$a_mod" +"$fmt" 2>/dev/null)
-							if [ -n "$afrm" ] && [ "$afrm" != "$dt" ]; then
-								a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
-								if [ -n "$a_checksum" ]; then
-									 stealth "$cFILE" "$y" $a_checksum $fs $csze
+							if [ "$df" == "false" ]; then
+		                        read a_mod fs a_ct au ag apmr < <(stat --format="%Y %s %Z %U %g %A" "$cFILE" 2>/dev/null)
+								afrm=$(date -d "@$a_mod" +"$fmt" 2>/dev/null)
+								if [ -n "$afrm" ] && [ "$afrm" != "$dt" ]; then
+									a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
+									if [ -n "$a_checksum" ]; then
+										 stealth "$cFILE" "$y" $a_checksum $fs $csze
+									fi
+									if [ "$cdiag" == "true" ]; then 
+		                                m="File changed during the search."
+										echo "$m $y at ${afrm}. Size was $os, now $fs." >> $slog
+		                            else
+										echo "$m $y. File likely changed. system cache item." >> $slog
+		                            fi
 								fi
-								if [ "$cdiag" == "true" ]; then 
-                                    m="File changed during the search."
-									echo "$m $y at ${afrm}. Size was $os, now $fs." >> $slog
-                                else
-									echo "$m $y. File likely changed. system cache item." >> $slog
-                                fi
 							fi
 						fi
 					fi        
@@ -421,6 +427,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 							else
 								if newmeta $f11 $f12 $f13 $of11 $of12 $of13; then
 									echo "Metadata $dt $ct $y" >> $rout
+									echo "Permissions of file: $y changed $f11 $f12 $f13 → $of11 $of12 $of13" >> $slog
 								else
 									echo "Touched $dt $ct $y" >> $rout
 								fi
@@ -613,7 +620,7 @@ if [ -d /tmp/rc ] && [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; th
     for file in /tmp/rc/*; do
         cat $file >> $atmp$ofile 2> /dev/null
     done
-    if [ -s $ofile ]; then
+    if [ -s $atmp$ofile ]; then
         sort -u -o $atmp$ofile $atmp$ofile
 		hanly $SORTCOMPLETE $atmp$ofile $1
 		ret=$?
@@ -939,10 +946,6 @@ sort -z -o $2 $1
 sort -z -o $tout $toutnul
 comm -z -23 $tout $2 > $TMPCOMPLETE
 
-if [ "$FEEDBACK" == "true" ]; then #scrolling look
-	tr '\0' '\n' < "$1" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=""; sub(/^ +/, ""); print }'
-	tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=""; sub(/^ +/, ""); print }'  
-fi 
 if [ -s $TMPCOMPLETE ]; then	
 	search $TMPCOMPLETE $tout $COMPLETE $checkSUM "ctime" batch2
 	isoutput mainloop3* mainloop4* $tout $COMPLETE
