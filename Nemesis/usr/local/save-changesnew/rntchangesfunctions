@@ -296,7 +296,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 			original_ln="$found_line"
 			if [ "$1" != "A" ]; then original_ln="${found_line//\"$y\"/}" ; fi
 			read -r of1 of2 of3 of4 of5 of6 of7 of8 of9 of10 of11 of12 of13 _ <<< "$original_ln"
-			cFILE="$( unescf "$y")"
+			cFILE="$( unescf "$cFILE")"
 			oat="$of6 $of7" ; cat="$f6 $f7" 
 			is_valid_date "$oat" && is_valid_date "$cat" || continue 
 			if [ "$checkSUM" == "true" ]; then ocs="$of8" ; cs="$f8" ; os="$of9" ; csze="$f9" ; [[ "$cs" != "None" ]] || continue ; fi
@@ -550,7 +550,7 @@ if [ -d /tmp/rc ] && [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; th
     for file in /tmp/rc/*; do
         cat $file >> $atmp$ofile 2> /dev/null
     done
-    if [ -s $atmp$ofile ]; then
+    if [ -s $ofile ]; then
         sort -u -o $atmp$ofile $atmp$ofile
 		hanly $SORTCOMPLETE $atmp$ofile $1
 		ret=$?
@@ -750,7 +750,7 @@ upt_cache() {
     local mtime=$3
     local checksum=$4
     local path=$5
-    echo "$inode|$size|$mtime $checksum $path" >> "$CACHE_F"
+    echo "$inode|$size|$mtime $checksum $path" >> "$6"
 }
 get_cached() {
     local inode=$1
@@ -829,7 +829,7 @@ while IFS= read -r -d '' p ; do
 					if [ -z "$csum" ]; then
 						csum=$(md5sum "$cFILE" 2>/dev/null)
 						csum=${csum%% *}
-						upt_cache "$i" "$fs" "$mt" "$csum" "$y"
+						upt_cache "$i" "$fs" "$mt" "$csum" "$y" "$5"
 					fi
 
 					csum=${csum:-None}
@@ -881,5 +881,6 @@ comm -z -23 $tout $2 > $TMPCOMPLETE
 if [ -s $TMPCOMPLETE ]; then	
 	search $TMPCOMPLETE $tout $COMPLETE $checkSUM "ctime" batch2
 	isoutput mainloop3* mainloop4* $tout $COMPLETE
+	isoutput cache2* $CACHE_F
 fi
 }
