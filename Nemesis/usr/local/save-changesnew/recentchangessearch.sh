@@ -1,5 +1,5 @@
 #!/bin/bash
-#      recentchanges search             Developer Buddy v3.0    9/13/2025
+#      recentchanges search             Developer Buddy v3.0    9/142025
 # If some as root calls the program with 2 arguments thats not intended use so exit
 # we would fail to get our correct username such as they put a second bogus argument
 . /usr/share/porteus/porteus-functions
@@ -23,11 +23,12 @@ RECENTNUL=$tmp/list_recentchanges_filterednul.txt	;		COMPLETE=$tmp/list_complete
 SORTCOMPLETE=$tmp/list_complete_sorted.txt			;		COMPLETENUL=$tmp/list_completenul.txt
 TMPOUTPUT=$tmp/list_tmp_sorted.txt						;		TMPCOMPLETE=$tmp/tmp_complete.txt
 TMPOPT=$tmp/tmp_holding										;		flth=/usr/local/save-changesnew/flth.csv
+log_file=/tmp/file_creation_log.txt
 
 cores=0																	;		max_jobs=0
 
 OLDSORTED=""															;		cerr=/tmp/cerr
-
+CACHE_F=/tmp/ctimecache
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 fmt="%Y-%m-%d %H:%M:%S"
@@ -77,9 +78,13 @@ if [ "$tmn" != "" ]; then
 fi
 
 find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $FEEDFILE > /dev/null 2>&1
-find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $toutnul > /dev/null 2>&1
 
-ctimeloop $FEEDFILE $atmp$xdata # dont keep xdata
+if [ -z "$tout" ]; then
+	find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $toutnul > /dev/null 2>&1
+	ctimeloop $FEEDFILE $atmp$xdata # dont keep xdata
+fi
+[[ "$checkSUM" = "true" ]] && [[ "$ANALYTICS" = "true" || "$STATPST" = "true" ]] && cyan "Running checksum." || checkSUM="false"
+if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi	
 #while IFS= read -r -d '' y; do y="$( escf "$y")" ; printf '%s\n' "$y"; done < $FEEDFILE > $xdata
 search $FEEDFILE $SORTCOMPLETE $COMPLETE $checkSUM "main"
 isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE

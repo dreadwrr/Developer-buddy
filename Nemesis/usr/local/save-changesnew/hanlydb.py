@@ -39,6 +39,7 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 	db=False
 	for record in parsed:
 		print(record)
+		df=False
 		is_sys=False
 		recent_sys = None
 		label = record[1] # human readable
@@ -94,52 +95,56 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 
 				if checksum == 'true':
 	
-
-					try:
-						file_path=Path(filename)
-						if file_path.is_file():
-							
-							st = file_path.stat()
-							a_size = st.st_size
-							a_mod = int(st.st_mtime)
-							afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt) # actual modify time
-							afrm_dt = pyfunctions.parse_datetime(afrm_str, fmt)  
-							if afrm_dt and pyfunctions.is_valid_datetime(record[2], fmt): # stable?
-
-								if afrm_dt == previous_timestamp:
-									md5=pyfunctions.get_md5(file_path)
-									if md5:
+					if record[5] != previous[5]: # checksum
 
 
-										if md5 != record[5]:
-												pyfunctions.log_event("Suspect", record, label, file, file2) # Flag *** 
-												print(f'Suspect file: {label} changed without a new modified time.', file3) 
-															
-								else:
+						pyfunctions.log_event("Suspect", record, label, file, file2) # Flag *** 
+						print(f'Suspect file: {label} changed without a new modified time.', file3) 
 
+					else:
 
-									if cdiag == 'true': 
-										print(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size} ', file=file4)
-									else:
-										print(f'File changed during search. File likely changed. system cache item.', file=file4)
-									stealth(filename, label, file3, file4, collision_message, record[5], a_size, current_size, cdiag, c) # Flag *** ?
-
-					except Exception as e:
-						print(f"Skipping {filename}: {type(e).__name__} - {e}")
-						continue
-
-
-					if record[5] == previous[5]: # checksum
-						if record[3] == previous[3]: 
+						if record[3] == previous[3]:  # inode
 							metadata = (previous[7], previous[8], previous[9])
 
-
 							if pyfunctions.new_meta(record, metadata):
+								df=True
+
 								pyfunctions.log_event("Metadata", record, label, file, file2)
+								print(f'Permissions of file: {label} changed {record[8]} {record[9]} {record[10]} → {metadata[0]} {metadata[1]}  {metadata[2] }', file4)
+						else: 
+							df=True
+							pyfunctions.log_event("Copy", record, label, file, file2) # inode change preserved meta
 
-						else: # inode change preserved meta
-							pyfunctions.log_event("Copy", record, label, file, file2)
+					if not df:
+						try:
+							file_path=Path(filename)
+							if file_path.is_file():
+				
+								st = file_path.stat()
+								a_size = st.st_size
+								a_mod = int(st.st_mtime)
+								afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt) # actual modify time
+								afrm_dt = pyfunctions.parse_datetime(afrm_str, fmt)  
+								if afrm_dt and pyfunctions.is_valid_datetime(record[2], fmt): # stable?
 
+									if afrm_dt != previous_timestamp:
+
+
+										if cdiag == 'true': 
+											print(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size} ', file=file4)
+										else:
+											print(f'File changed during search. File likely changed. system cache item.', file=file4)
+								
+
+										md5=pyfunctions.get_md5(file_path)
+										if md5:
+											if md5 != record[5]:
+												stealth(filename, label, file3, file4, collision_message, md5, a_size, current_size, cdiag, c) # Flag *** ?
+													
+
+						except Exception as e:
+							print(f"Skipping {filename}: {type(e).__name__} - {e}")
+							continue
 
 			else: # Modified.
 

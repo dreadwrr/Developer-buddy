@@ -61,7 +61,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 		collision_message.clear()
 		
 		for record in parsed_chunk:
-
+			df=False
 			is_sys=False
 
 			if len(record) < 11:
@@ -123,50 +123,55 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 				if recent_timestamp == previous_timestamp:
 
 					if checksum == 'true':
-		
 						
-						try:
-							file_path=Path(filename)
-							if file_path.is_file():		
-								st = file_path.stat()
-								a_size = st.st_size
-								a_mod = int(st.st_mtime)
-								afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt) # actual
-								afrm_dt = parse_datetime(afrm_str, fmt)    
-								if afrm_dt and is_valid_datetime(record[3], fmt):
-									if afrm_dt == previous_timestamp:
-										md5=get_md5(file_path)
-										if md5:
-			
-								
-											if md5 != record[5]:
-												entry["flag"].append(f'Suspect {record[0]} {record[2]} {label}')
-												entry["cerr"].append(f'Suspect file: {label} changed without a new modified time.')
-											
-									else:
-
-										if cdiag == 'true': 
-											entry["scr"].append(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size}')
-										else:
-											entry["scr"].append(f'File changed during search. File likely changed. system cache item.')
-										stealth(filename, label, entry, record[5] , a_size, current_size, cdiag, cursor, is_sys)
-
-						except Exception as e:
-							print(f"Skipping {filename}: {type(e).__name__} - {e}")
-							continue
+						if record[5] != previous[5]: # checksum
 
 
-					if record[5] == previous[5]: # checksum
-						if record[3] == previous[3]: 
-							metadata = (previous[7], previous[8], previous[9])
-
-
-							if new_meta(record, metadata):
-								entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
+							entry["flag"].append(f'Suspect {record[0]} {record[2]} {label}')
+							entry["cerr"].append(f'Suspect file: {label} changed without a new modified time.')						
 
 						else:
 
-							entry["flag"].append(f'Copy {record[0]} {record[2]} {label}')
+							if record[3] == previous[3]:  # inode
+								metadata = (previous[7], previous[8], previous[9])
+
+								if new_meta(record, metadata):
+
+
+									df=True
+									entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
+									entry["scr"].append(f'Permissions of file: {label} changed {record[8]} {record[9]} {record[10]} → {metadata[0]} {metadata[1]}  {metadata[2] }')
+							else:
+								df=True
+								entry["flag"].append(f'Copy {record[0]} {record[2]} {label}')
+
+						if not df:
+							try:
+								file_path=Path(filename)
+								if file_path.is_file():		
+									st = file_path.stat()
+									a_size = st.st_size
+									a_mod = int(st.st_mtime)
+									afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt) # actual
+									afrm_dt = parse_datetime(afrm_str, fmt)    
+									if afrm_dt and is_valid_datetime(record[3], fmt):
+										if afrm_dt != previous_timestamp:
+
+											if cdiag == 'true': 
+												entry["scr"].append(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size}')
+											else:
+												entry["scr"].append(f'File changed during search. File likely changed. system cache item.')
+
+											md5=get_md5(file_path)
+											if md5:
+												if md5 != record[5]:
+													stealth(filename, label, entry, md5 , a_size, current_size, cdiag, cursor, is_sys)
+											
+						
+							except Exception as e:
+								print(f"Skipping {filename}: {type(e).__name__} - {e}")
+								continue
+
 
 				else:
 
