@@ -1,6 +1,6 @@
 #!/bin/bash
 #   Analytics NMS5 porteus
-#   recentchanges. Developer buddy      make xzm     9/13/2025  v3.0
+#   recentchanges. Developer buddy      make xzm     9/15/2025  v3.0
 #
 #   Provide ease of pattern finding ie what files to block we can do this a number of ways
 #   1) if a file was there (many as in more than a few) and another search lists them as deleted its either a sys file or not but unwanted nontheless
@@ -82,7 +82,7 @@ export STATPST="false" # persistent storage searches encrypted in /usr/local/sav
                                     # if you prefer security turn ANALYTICS false and use this
 
 export xRC="false"	# false - default. run inotifywait for one hour to look for new files where ctime > mtime in /changes.
-									# If true can bypass 1 of 2 search loops and reduce process overhead as the search is already there
+									# If true can bypass 1 of 2 search loops and reduce process overhead as the search is already there. ie pacman/slackpkg downloads
 
 #Display
 export ANALYTICSECT="true" # provides more feedback
@@ -105,7 +105,7 @@ export cdiag="true"       # Include stealth changes in diff file    a file was c
 									# also run collosion check
 export supbrwr="true"   # supress cache warnings on terminal from known browsers? Mozilla... ect list top of rntfuncions
 export supress="false"  # ..      all cdiag output to terminal except critical events
-export updatehlinks="true"   # scan for accurate hardlinks in db. alternatively use Set hardlinks button
+export updatehlinks="false"   # scan for accurate hardlinks in db. alternatively use Set hardlinks button
 
 
 export POSTOP="false" # Diagnostics. Create file doctrine. Runs post search operation that can only be done at this time as search is relevant
@@ -206,6 +206,9 @@ nodiff="false"															;   samerlt="false"
 syschg="false"															;	validrlt="false"
 approval="true"														;	nc="false"
 
+F=( /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var )
+TAIL=( -not -type d -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' )
+
 mkdir $tmp
 mkdir $tmp$workdir
 mkdir $atmp
@@ -224,20 +227,22 @@ else # Search the default time  5 minutes.
     cyan "Grabbing files (filtered) and searching for total sys files 5 minutes old or newer"
     argone="5" ; tmn="5"
 fi
-
-F=( /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var )
 CMIN=( -cmin "-${tmn}" )
 MMIN=( -mmin "-${tmn}" )
-TAIL=( -not -type d -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' )
-find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$RECENTNUL" > /dev/null 2>&1
 
-if [ -z "$tout" ]; then
-	find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$toutnul" > /dev/null 2>&1
-	ctimeloop $RECENTNUL $RECENT # pacman slackpkg downloads ctime > mtime         
-fi
-if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi	
 
 [[ "$checkSUM" = "true" ]] && [[ "$ANALYTICS" = "true" || "$STATPST" = "true" ]] && cyan "Running checksum." || checkSUM="false"
+if [ -z "$tout" ]; then
+	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$RECENTNUL" > /dev/null 2>&1
+	find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$toutnul" > /dev/null 2>&1
+	if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi	
+	ctimeloop $RECENTNUL $RECENT # pacman slackpkg downloads ctime > mtime         
+else
+	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$RECENTNUL" > /dev/null 2>&1
+	if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi	
+fi
+
+
 while IFS= read -r -d '' y; do  x=$(escf "$(cut -d' ' -f9- <<< "$y")") ; printf '%s\n' "$x"; done < $RECENTNUL > $RECENT # Used to copy files \n delimited it is the filtered list
 search $RECENTNUL $SORTCOMPLETE $COMPLETE $checkSUM "main"  # mtime append ctimeloop in range later
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
