@@ -81,6 +81,8 @@ export STATPST="false" # persistent storage searches encrypted in /usr/local/sav
                                     # Only overhead is gpg compression set compression to off. At large size speeds can increase by as much as 50%.
                                     # if you prefer security turn ANALYTICS false and use this
 
+export xRC="false"	# false - default. run inotifywait for one hour to look for new files where ctime > mtime in /changes.
+									# If true can bypass 1 of 2 search loops and reduce process overhead as the search is already there
 
 #Display
 export ANALYTICSECT="true" # provides more feedback
@@ -98,11 +100,13 @@ export dspEDITOR="false" # false.  default dont display text editor. launch text
 ## Diagnostics
 export checkSUM="true"	# compare file checksums for slight changes
 										# slower useful if you want to check deeper level of stats
+
 export cdiag="true"       # Include stealth changes in diff file    a file was changed but has the same checksum and filesize subtle edit  ie cache items or string was changed
 									# also run collosion check
 export supbrwr="true"   # supress cache warnings on terminal from known browsers? Mozilla... ect list top of rntfuncions
 export supress="false"  # ..      all cdiag output to terminal except critical events
-export updatehlinks="false"   # scan for accurate hardlinks in db. alternatively use Set hardlinks button
+export updatehlinks="true"   # scan for accurate hardlinks in db. alternatively use Set hardlinks button
+
 
 export POSTOP="false" # Diagnostics. Create file doctrine. Runs post search operation that can only be done at this time as search is relevant
                                     # more overhead so recommend off unless one off. output /Downloads
@@ -186,13 +190,13 @@ TMPOPT=$tmp/tmp_holding										;	flth=/usr/local/save-changesnew/flth.csv
 REJECTLOG=$tmp/list_rejectsrc.txt								;	slog=/tmp/scr # feedback
 FOLDERLOG=$tmp/save.totalfolders.tmp					;	THETIME="${arge[0]}" # shift for this script
 SORTCOMPLETE=$tmp/list_complete_sorted.txt			;	USRDIR=/home/$USR/Downloads
-
+log_file=/tmp/file_creation_log.txt
 
 xopt=/mnt/live/tmp													;   cerr=/tmp/cerr # priority
 SRCDIR=""                                           
 
 cores=0																	;   max_jobs=0
-
+CACHE_F=/tmp/ctimecache
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 fmt="%Y-%m-%d %H:%M:%S"
@@ -205,14 +209,14 @@ approval="true"														;	nc="false"
 mkdir $tmp
 mkdir $tmp$workdir
 mkdir $atmp
-if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
-if [ "${arge[0]}" == "" ]; then THETIME="noarguser" ; fi # root call
-[ "$THETIME" == "SRC" ] &&{ SRCDIR=$THETIME; THETIME="${2:-noarguser}"; } # shift
-[ "${arge[1]}" == "SRC" ] && SRCDIR=${arge[1]} || { [ "${arge[1]}" == "SEARCH" ] || [ "${arge[1]}" == "search" ]; } && echo "The SRC tag is for recentchanges only" && exit
+if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi #if [ "$ANALYTICS" == "true" ]; then
+if [ "$1" == "" ]; then THETIME="noarguser" ; fi # root call
+[ "$THETIME" == "SRC" ] &&{ SRCDIR=$THETIME; THETIME="${2:-noarguser}"; } # Handle argument redirection as if we moved this script to another subscript it wouldnt be user friendly
+[ "$2" == "SRC" ] && SRCDIR=$2 || { [ "$2" == "SEARCH" ] || [ "$2" == "search" ]; } && echo "The SRC tag is for recentchanges only" && exit
 intst
-if [ "$THETIME" != "noarguser" ] && [ "$THETIME" != "" ]; then
+if [ "$THETIME" != "noarguser" ] && [ "$THETIME" != "" ]; then # If a desired time is specified we will search for that  (in seconds)
     if [ "$THETIME" -ge 0 ] 2>/dev/null; then argone=$THETIME ; else echo argument specified not a valid integer or valid flag && exit; fi
-	cyan "Grabbing files (filtered) and searching for total sys files ${arge[0]} seconds old or newer"
+	cyan "Grabbing files (filtered) and searching for total sys files $1 seconds old or newer"
     p=60
 	tmn=$( echo "scale=2; $argone /$p" | bc)
 	if [ $(( argone % p )) -eq 0 ]; then tmn=$(( argone / p )); fi
@@ -226,10 +230,14 @@ CMIN=( -cmin "-${tmn}" )
 MMIN=( -mmin "-${tmn}" )
 TAIL=( -not -type d -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' )
 find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$RECENTNUL" > /dev/null 2>&1
-find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$toutnul" > /dev/null 2>&1
 
+if [ -z "$tout" ]; then
+	find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$toutnul" > /dev/null 2>&1
+	ctimeloop $RECENTNUL $RECENT # pacman slackpkg downloads ctime > mtime         
+fi
+if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi	
 
-ctimeloop $RECENTNUL $RECENT # pacman slackpkg downloads ctime > mtime         
+[[ "$checkSUM" = "true" ]] && [[ "$ANALYTICS" = "true" || "$STATPST" = "true" ]] && cyan "Running checksum." || checkSUM="false"
 while IFS= read -r -d '' y; do  x=$(escf "$(cut -d' ' -f9- <<< "$y")") ; printf '%s\n' "$x"; done < $RECENTNUL > $RECENT # Used to copy files \n delimited it is the filtered list
 search $RECENTNUL $SORTCOMPLETE $COMPLETE $checkSUM "main"  # mtime append ctimeloop in range later
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
@@ -423,8 +431,7 @@ if [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then
     stmp $SORTCOMPLETE
     if [ ! -f /tmp/rc/full ]; then cyan "Search saved in /tmp"; fi
 fi
-rm -rf $tmp
-rm -rf $atmp
+rm -rf $tmp ; rm -rf $atmp
 if [ "$ANALYTICSECT" == "true" ]; then
     el=$(awk "BEGIN {print $end - $start}")
     printf "Search took %.3f seconds.\n" "$el"
