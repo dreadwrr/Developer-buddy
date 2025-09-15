@@ -1,9 +1,11 @@
 #!/bin/bash
 
-# Filter modified date: 07/24/2025       SN:049BN6KZ01
+# Filter modified date: 07/25/2025       SN:049BN6KZ01
 #
-#	Notes: Nemesis 25.04
+#	Notes: has porteus 5.01 and 5.1 built in
 #
+#  Full modularity only one filter needed for version 3       used to be a copy in compilesearch.sh you used to have to update as well
+# $1 first file $2 user $3 second file
 
 ## Base var exclusions
 
@@ -29,10 +31,17 @@ sed -i '/\/var\/log/d' $1 $3
 sed -i '/\/opt\/porteus-scripts/d' $1 $3
 # we dont want /usr/share/mime
 sed -i '/\/usr\/share\/mime/d' $1 $3
-# we dont want Xauthority
-sed -i '/\/home\/'"${2}"'\/\.Xauthority/d' $1 $3
-# we dont want wireplumber
-sed -i '/\/home\/'"${2}"'\/\.local\/state\/wireplumber/d' $1 $3
+# we dont want /usr/share/glib-2.0/schemas
+sed -i '/\/usr\/share\/glib-2\.0\/schemas/d' $1 $3
+
+# Porteus 5.01
+sed -i '/\/usr\/lib64\/libXc/d' $1 $3
+sed -i '/\/usr\/lib64\/libudev/d' $1 $3
+sed -i '/\/var\/db\/sudo\/lectured\/1000/d' $1 $3
+sed -i '/\/home\/'"${2}"'\/\.config\/dolphinrc/d' $1 $3
+sed -i '/\/home\/'"${2}"'\/\.config\/konsolerc/d' $1 $3
+sed -i '/\/home\/'"${2}"'\/\.config\/featherpad\/fp\.conf/d' $1 $3
+sed -i '/\.config\/glib-2\.0\/settings\/keyfile/d' $1 $3
 
 # we dont want  .bash_history
 sed -i '/\.bash_history/d' $1 $3
@@ -48,14 +57,13 @@ sed -i '/\.gconf/d' $1 $3
 sed -i '/\.gnupg/d' $1 $3
 # we dont want .local/share
 sed -i '/\.local\/share/d' $1 $3
-# we dont want .local/state   wireplumber
-sed -i '/\.local\/state/d' $1 $3
 # we dont want xsession errors
 sed -i '/\.xsession/d' $1 $3
 
 #Inclusions from script
 # $USR passed from recentchanges argument chaning into root  $3
 # we dont want  USER/.config
+
 sed -i '/\/home\/'"${2}"'\/\.config/d' $1 $3
 #sed -i '/\/home\/'"${2}"'\/\.config\/save-changesnew/d' $1 $3
 #sed -i '/\/home\/'"${2}"'\/Downloads\/rntfiles/d' $1 $3
@@ -63,7 +71,6 @@ sed -i '/\/usr\/local\/save-changesnew\/logs\.gpg/d' $1 $3
 sed -i '/\/usr\/local\/save-changesnew\/recent\.gpg/d' $1 $3
 sed -i '/\/usr\/local\/save-changesnew\/stats\.gpg/d' $1 $3
 sed -i '/\/usr\/local\/save-changesnew\/flth\.csv/d' $1 $3
-
 
 # we dont want   root .auth90
 sed -i '/\/root\/\.auth/d' $1 $3
@@ -75,15 +82,6 @@ sed -i '/\/root\/\.lesshst/d' $1 $3
 sed -i '/\/root\/\.xauth/d' $1 $3
 
 
-#Firefox (Only unwanted files from profile)
-sed -i '/release\/cookies\.sqlite-wal/d' $1 $3
-sed -i '/release\/sessionstore-backups/d' $1 $3
-sed -i '/release\/aborted-session-ping/d' $1 $3
-sed -i '/release\/cache/d' $1 $3
-sed -i '/release\/datareporting/d' $1 $3
-sed -i '/release\/AlternateServices\.bin/d' $1 $3
-#Chromium
-#sed -i '/ungoogled/d' $1 $3
 
 #  Now we get into the important directories. Do we exclude at the risk of deleting our program? Tread carefully
 #

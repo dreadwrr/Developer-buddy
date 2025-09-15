@@ -1,40 +1,36 @@
 #!/bin/bash
-#      recentchanges search             Developer Buddy v3.0    9/142025
-# If some as root calls the program with 2 arguments thats not intended use so exit
-# we would fail to get our correct username such as they put a second bogus argument
+#      recentchanges search             Developer Buddy v3.0     9/15/2025
 . /usr/share/porteus/porteus-functions
 get_colors
-. /usr/local/save-changesnew/comp
 . /usr/local/save-changesnew/rntchangesfunctions
-USR=$3 ; [[ -z "$6" ]] && exit 
+USR=$3
 if [ "$USR" == "" ]; then echo please call from recentchanges; exit; fi
 if [ "$4" == "" ]; then echo "incorrect usage please call from recentchanges"; exit 1; fi
 if [ "$1" != "search" ]; then echo exiting not a search && exit; fi
 
-work=work$$													        ;		atmp=/tmp/atmp$$
-tmp=/tmp/work$$												        ;		rout=$atmp/routput.tmp
-chxzm=/rntfiles.xzm											        ;		tout=$atmp/toutput.tmp
-USRDIR=/home/$USR/Downloads								;		toutnul=$atmp/toutputnul.tmp
-slog=/tmp/scr												            ;		xdata=/logs_stat.log
-UPDATE=$tmp/save.transferlog.tmp							;		xdata2=/logs_log.log
-ABSENT=$tmp/absent.txt										    ;		xdata3=/db_log.log
-RECENT=$tmp/list_recentchanges_filtered.txt				;		pytmp=$atmp/pytmp.tmp
-RECENTNUL=$tmp/list_recentchanges_filterednul.txt	;		COMPLETE=$tmp/list_complete.txt
-SORTCOMPLETE=$tmp/list_complete_sorted.txt			;		COMPLETENUL=$tmp/list_completenul.txt
-TMPOUTPUT=$tmp/list_tmp_sorted.txt						;		TMPCOMPLETE=$tmp/tmp_complete.txt
-TMPOPT=$tmp/tmp_holding										;		flth=/usr/local/save-changesnew/flth.csv
+work=work$$															;   atmp=/tmp/atmp$$
+tmp=/tmp/work$$														;   rout=$atmp/routput.tmp
+chxzm=/rntfiles.xzm													;   tout=$atmp/toutput.tmp
+USRDIR=/home/$USR/Downloads								;   toutnul=$atmp/toutputnul.tmp
+slog=/tmp/scr															;   xdata=/logs_stat.log
+UPDATE=$tmp/save.transferlog.tmp							;   xdata2=/logs_log.log
+ABSENT=$tmp/absent.txt											;   xdata3=/db_log.log
+RECENT=$tmp/list_recentchanges_filtered.txt				;   pytmp=$atmp/pytmp.tmp
+RECENTNUL=$tmp/list_recentchanges_filterednul.txt	;   COMPLETE=$tmp/list_complete.txt
+SORTCOMPLETE=$tmp/list_complete_sorted.txt			;   COMPLETENUL=$tmp/list_completenul.txt
+TMPOUTPUT=$tmp/list_tmp_sorted.txt						;   TMPCOMPLETE=$tmp/tmp_complete.txt
+TMPOPT=$tmp/tmp_holding										;   flth=/usr/local/save-changesnew/flth.csv
 log_file=/tmp/file_creation_log.txt
+																	
+cores=0																	;   max_jobs=0
 
-cores=0																	;		max_jobs=0
-
-OLDSORTED=""															;		cerr=/tmp/cerr
+cerr=/tmp/cerr															;   OLDSORTED=""
 CACHE_F=/tmp/ctimecache
-BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
+fmt="%Y-%m-%d %H:%M:%S"                                     
+BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')     
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
-fmt="%Y-%m-%d %H:%M:%S"
 
-
-diffrlt="false" 															; 		nodiff="false"
+diffrlt="false"															; 		nodiff="false"
 pstc="false"																;		flsrh="false"
 samerlt="false"															;		nc="false"
 syschg="false"
@@ -47,16 +43,19 @@ intst
 mkdir $tmp
 mkdir $atmp
 
-if [ "$2" != "noarguser" ] && [ "$2" != "" ]; then
-	if [ "$2" -ge 0 ] 2>/dev/null; then
-        argone=$2 ; comp $argone ; tmn=$qtn
+if [ "$2" != "noarguser" ] && [ "$2" != "" ]; then # If a desired time is specified we will search for that  (in seconds)
+	if [ "$2" -ge 0 ] 2>/dev/null; then # is it a number
+        argone=$2
+	 	p=60
+        tmn=$( echo "scale=2; $argone /$p" | bc)
+		if [ $(( $argone % $p )) -eq 0 ]; then tmn=$(( $argone / $p )); fi
 		cyan "searching for files $2 seconds old or newer"
     else
         argone=".txt"
     	test -d "$4" || { echo "Invalid argument ${4} . PWD required."; exit 1; }
 		cd "$4"  || exit
     	filename="$2"
-    	test -f "${filename}" || { test -d "$filename" || echo no such directory file or integer; exit 1; }
+    	test -f "$filename" || { test -d "$filename" || echo no such directory file or integer; exit 1; }
     	parseflnm="${2##*/}"
 		if [ "$parseflnm" == "" ]; then parseflnm="$(echo "$2" | sed -e 's/\/$//' -e 's@.*/@@')" ; fi
     	cyan "searching for files newer than $filename "
@@ -77,14 +76,22 @@ if [ "$tmn" != "" ]; then
 	CMIN=(-cmin "-${tmn}")
 fi
 
-find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $FEEDFILE > /dev/null 2>&1
-
-if [ -z "$tout" ]; then
-	find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $toutnul > /dev/null 2>&1
-	ctimeloop $FEEDFILE $atmp$xdata # dont keep xdata
-fi
 [[ "$checkSUM" = "true" ]] && [[ "$ANALYTICS" = "true" || "$STATPST" = "true" ]] && cyan "Running checksum." || checkSUM="false"
-if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi	
+if [ -z "$tout" ]; then
+	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $FEEDFILE > /dev/null 2>&1
+	find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $toutnul > /dev/null 2>&1
+	if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi	
+	ctimeloop $FEEDFILE $atmp$xdata # dont keep xdata
+else
+	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $FEEDFILE > /dev/null 2>&1
+	if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi	
+fi
+
+if [ "$FEEDBACK" == "true" ]; then #scrolling look
+	tr '\0' '\n' < "$FEEDFILE" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=""; sub(/^ +/, ""); print }'
+	#tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=""; sub(/^ +/, ""); print }'  
+fi 
+
 #while IFS= read -r -d '' y; do y="$( escf "$y")" ; printf '%s\n' "$y"; done < $FEEDFILE > $xdata
 search $FEEDFILE $SORTCOMPLETE $COMPLETE $checkSUM "main"
 isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE
@@ -165,8 +172,7 @@ if [ -s $SORTCOMPLETE ] ; then
 fi
 
 if [ "$ANALYTICS" = "true" ] && [ "$STATPST" = "false" ] ; then stmp $SORTCOMPLETE && [[ ! -f /tmp/rc/full ]] && cyan "Search saved in /tmp" ; fi
-rm -rf $tmp
-rm -rf $atmp
+rm -rf $tmp ; rm -rf $atmp
 if [ "$ANALYTICSECT" = "true" ]; then
     el=$(awk "BEGIN {print $end - $start}")
     printf "Search took %.3f seconds.\n" "$el"
@@ -186,3 +192,4 @@ else
 fi
 logic
 display $USRDIR $MODULENAME"$flnm"
+#if [ -n "$AGENT_PID" ]; then kill "$AGENT_PID"; fi

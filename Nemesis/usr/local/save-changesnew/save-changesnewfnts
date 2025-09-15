@@ -1,15 +1,14 @@
 #!/bin/bash
-# save-changesnew functions to move options further up the script             08/31/2025
+# save-changesnew functions to move options further up the script             9/15/2025
 dycmb() {
 TFLD=""
-for x in $FOLDERS; do [[ -e "$ch/$x" ]] && TFLD="$TFLD $x" ; done
-FOLDERS="$TFLD"
+for x in $IFOLDERS; do [[ -e "$ch/$x" ]] && TFLD="$TFLD $x" ; done
+IFOLDERS="$TFLD"
 TFLD=""
-for x in $FOLDERS; do [[ " $IFOLDERS " != *" $x "* ]] && TFLD="$TFLD $x" ; done
-if [[ -n "$TFLD" ]]; then FOLDERS="$TFLD" ;  IFOLDERS="$IFOLDERS $FOLDERS" ; fi
+for x in $IFOLDERS; do [[ " $FOLDERS " != *" $x "* ]] && TFLD="$TFLD $x" ; done
+if [[ -n "$TFLD" ]]; then FOLDERS="$TFLD" ; FOLDERS="$FOLDERS $IFOLDERS" ; fi
 FOLDERS="$(for f in $FOLDERS $IFOLDERS; do echo "$f"; done | awk '!seen[$0]++')"
 }
-#Generate exclude directories changes-commit
 exldir() {
 > $1
 grep ^!/ $CHNEXIT_CONF | fixdir > $EXCL
@@ -23,37 +22,36 @@ fi
 for fld in $EXCLUDE; do if [[ $fld != /* ]]; then fld="*${fld}*"; else fld="${fld#/}" ; fi ; printf "%s\n" $fld ; done >> $EXCLUDED
 grep -Fvxf $trsyncexl $EXCLUDED > $UPDATE; test -s $UPDATE && cat $UPDATE >> $1 && rm $UPDATE
 }
-#generate log file
 dlog() {
-	if [ "$d2drive" == "true" ]; then
-       for fld in $FOLDERS; do
-            fp="$dirSRC/$fld"
-            if [ -d "$fp" ]; then
-                find "$fp" -type f -printf '%P\n' | sed "s|^|/$fld/|" >> "${target}${rlt}${MODULENM}.bak.log"
-            fi
-        done
-        for fld in $EXCLUDE; do
-            fp="$dirSRC/$fld"
-			if [[ "${fp:0:1}" == "/" ]]; then
-			  	e=$(sed 's/[\/&\\]/\\&/g' <<< "$fp")
-				p="^"
-			else
-			  e="$fp" ; p=""
-			fi
-			sed -i "/$p$e/d" "${target}${rlt}${MODULENM}.bak.log"
-		done
-    else
-        find "$dirSRC" -type f -printf '%P\n' >> "${target}${rlt}${MODULENM}.bak.log"
-    fi
-    echo >> "${target}${rlt}${MODULENM}.bak.log"
+if [ "$d2drive" == "true" ]; then
+    for fld in $FOLDERS; do
+        fp="$dirSRC/$fld"
+        if [ -d "$fp" ]; then
+            find "$fp" -type f -printf '%P\n' | sed "s|^|/$fld/|" >> "${target}${rlt}${MODULENM}.bak.log"
+        fi
+    done
+    for fld in $EXCLUDE; do
+        fp="$dirSRC/$fld"
+		if [[ "${fp:0:1}" == "/" ]]; then
+			e=$(sed 's/[\/&\\]/\\&/g' <<< "$fp")
+			p="^"
+		else
+			e="$fp" ; p=""
+		fi
+		sed -i "/$p$e/d" "${target}${rlt}${MODULENM}.bak.log"
+	done
+else
+    find "$dirSRC" -type f -printf '%P\n' >> "${target}${rlt}${MODULENM}.bak.log"
+fi
+echo >> "${target}${rlt}${MODULENM}.bak.log"
 }
 glog() {
 local k
 local p
 if [ -f ${target}${rlt}${MODULENM}.bak.log ]; then
-	b=$( sed -nE 's/.original count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
-	c=$( sed -nE 's/.total count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
-	k=$( sed -nE 's/.*original size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
+	b=$( sed -nE 's/.original count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n1)
+	c=$( sed -nE 's/.total count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n1)
+	k=$( sed -nE 's/.*original size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n1)
 fi
 : "${b:-0}"
 : "${c:-0}"
@@ -76,24 +74,22 @@ fi
 echo  "END ORIGINAL FILES $(date +"%m-%d-%y_%R")" >> "${target}${rlt}${MODULENM}.bak.log"
 nLOG="true"
 }
-autosave() { if [[ "$autobackup" == "true" ]] && { [[ "$bck" == "yes" ]] || [[ "$bck" == "y" ]] ; } ; then z=$( grep -Fm 1 "USR" $chc | awk -F'"' '{print $2}') ; [[ -z "$z" ]] && sed -i "s/USR=.*/USR=\"$USR\"/g" $chc ; zz=$( grep -Fm 1 "target" $chc | awk -F'"' '{print $2}') ; [[ -z "${zz}" ]] && sed -i "s|target=.*|target=\"$target\"|g" $chc ; [[ ! -x $chc ]] && chmod +x $chc ; else [[ -x $chc ]] && chmod -x $chc ; fi ; }
-#r=$( basename "$0") ; val="$r \"$target\" \"$USR\""
-#if ! grep -q "$r" $chc; then 
-#	sed -i "4i $val" $chc
-#else
-#p=$( grep -Fn "$r" $chc | cut -d: -f1) ; lnc=$( grep "$r" $chc | awk -F'"' '{print $2}')
-#if [ "$lnc" == "" ]; then sed -i "${p}c $val" $chc ; fi # only once
-#fi
+autosave() { in=$( sed -n "104p" $chc | grep -o "Remount aufs with 'udba=none'") ; if [ "$autobackup" == "true" ] ; then val="$0 6 \"$USR\" \"yes\" \"$target\"" ; r=$( realpath "$0") ; [[ -n "$in" ]] && { ! grep -q "$r" "$chc" && sed -i "104i $val" $chc ; } || { p=$( grep -Fn "$r" $chc | cut -d: -f1) &&  [[ -z "$p" ]] && sed -i "104c $val" $chc ; } ; [[ ! -x $chc ]] && chmod +x $chc ; else [[ -z "$in" ]] && sed -i '104d' $chc ; fi ; }  #[[ -x $chc ]] && chmod -x $chc
+#else No need to autoupdate as target rarely changes
+#    lnc=$(grep "$0" $chc | awk -F'"' '{print $6}')
+#    if [ "$lnc" != "$target" ]; then
+#        sed -i "${p}c $0 6 \"$USR\" \"yes\" \"$target\"" $chc
+#    fi
 brnd() { BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'` ; echo $BRAND >> $1 ; }
 errmsg() { mount -o remount,udba=none / ; if [ "$1" != "false" ]; then rm -rf "$1" ; fi ; red "Error making the new module in ${instm}: ${2}" >&2 ; cyan "Everything preserved.  Check the script" ; exit 1 ; }
 errblk() { [[ "$trlt" -ne 0 ]] && echo "$trlt" && errmsg "$mtmp" "updating .xzm" ; }
 clog() { tmpdir=$(mktemp -d) && mount -o loop "$1" "$tmpdir" && find "$tmpdir" -type f -printf '%P\n' >> "$2" && umount "$tmpdir" && rmdir "$tmpdir" ; } # print contents of new .xzm
-# try the fast way. If file changes copy to mtmp to freeze fs
+# try the fast way. If file changes copy to mtmp with procxzm
 newxzm() {
 all=() ; keep=()
 while IFS= read -r d; do all+=("$(basename "$d")") ; done < <(find "$ch" -maxdepth 1 -mindepth 1 ) # all folders in changes
-while IFS= read -r l; do [[ -z "$l" ]] && continue ; if [[ "$l" == \** ]]; then echo "$l" ; fi ; done < $EXFILES > $exclfiles # read patterns from $EXCLUDE ie *share/Trash*
-while IFS= read -r p; do [[ -z "$p" || "$p" =~ "^#" ]] && continue ; find "$ch" -path "$ch/$p" -print | sed "s|^$ch/||" ; done < <(cat $trsyncexl $exclfiles ) >> $EXFILES # search the wildcards for mksquashfs
+while IFS= read -r l; do [[ -z "$l" ]] && continue ; if [[ "$l" == \** ]]; then echo "$l" ; fi ; done < $EXFILES > $SFILES # read patterns from $EXCLUDE ie *share/Trash*
+while IFS= read -r p; do [[ -z "$p" || "$p" =~ "^#" ]] && continue ; find "$ch" -path "$ch/$p" -print | sed "s|^$ch/||" ; done < <(cat $trsyncexl $SFILES ) >> $EXFILES # search the wildcards for mksquashfs
 for d in "${all[@]}"; do fd="false" ; for f in $FOLDERS; do [[ "$d" == "$f" ]]  && fd="true" && break ; done ; [[ "$fd" == "false" ]] && keep+=("$d") ; done # generate all folders to exclude ( our list $FOLDERS anything not in it)
 printf "%s\n" "${keep[@]}" >> "$EXFILES"
 createxzm
@@ -101,24 +97,22 @@ trlt=$? # try
 if [ "$trlt" -ne 0 ]; then # or tmp
     test -e "$target$em$rname" && rm "$target$em$rname"
 	echo "Files changed while saving copying to tmp..." ; mkdir $tmp ; mkdir $mtmp ; procxzm $1
-    find $ch -type f -printf '%P\0' | while IFS= read -r -d '' f; do echo "$f" ; done > $exclfiles # We need to insert the .wh.* files
-    sed -i '/^\.wh\./d' $exclfiles
-	base_cmd=(mksquashfs $ch $tmp$rname -comp $cmode -ef $exclfiles) ; "${base_cmd[@]}" > /dev/null # only .wh.*
-	test -e $tmp$rname && xzm2dir $tmp$rname $mtmp 2> /dev/null && $tmp$rname # insert
-    test -e $exclfiles && rm $exclfiles 
+    find $ch -type f -printf '%P\0' | while IFS= read -r -d '' f; do echo "$f" ; done > $SFILES # We need to insert the .wh.* files
+    sed -i '/^\.wh\./d' $SFILES
+	base_cmd=(mksquashfs $ch $tmp$rname -comp $cmode -ef $SFILES) ; "${base_cmd[@]}" > /dev/null # only .wh.*
+	test -e $tmp$rname && xzm2dir $tmp$rname $mtmp 2> /dev/null && rm $tmp$rname # insert
 	base_cmd=(mksquashfs $mtmp "$target$em$rname" -comp $cmode)
     if [ "$FEEDBACK" != "true" ]; then "${base_cmd[@]}" > /dev/null ; else "${base_cmd[@]}" ; fi
 else
     clog "$target$em$rname" $UPDATE ; brnd $UPDATE ; mv $UPDATE $LOGDIR/$LOGFILE # make list
 fi
-test -e $exclfiles && rm $exclfiles
+test -e $SFILES && rm $SFILES
 if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print $end - $start}") ; fi
 }
-# create _uid_ or _uid_L
 createxzm() { cm=(mksquashfs $ch "$target$em$rname" -comp $cmode -ef $EXFILES) ; cpt=$( "${cm[@]}" 2>&1 | grep "changed size while reading" ) ; if [[ -n "$cpt" ]]; then echo "$cpt" ; rm "$target$em$rname" ; return 1 ; fi ; } 
 #supress stat on .wh. for user
-#if [ "$1" == "_uid_L" ]; then cat $trsyncexl > $exclfiles ; else cat $trsyncexl | grep -v "*.wh..*" > $exclfiles  ; fi # include .wh. and .wh.. for _uid_
-run_cmd() { if [ "$FEEDBACK" != "true" ]; then "$@" >>"$UPDATE" 2>/dev/null ; else "$@" | tee -a "$UPDATE" ; fi ; trlt=$?; } # see Merge ln 147
+#if [ "$1" == "_uid_L" ]; then cat $trsyncexl > $SFILES ; else cat $trsyncexl | grep -v "*.wh..*" > $SFILES  ; fi # include .wh. and .wh.. for _uid_
+run_cmd() { if [ "$FEEDBACK" != "true" ]; then "$@" >>"$UPDATE" 2>/dev/null ; else "$@" | tee -a "$UPDATE" ; fi ; trlt=$?; } # see Merge ln 136
 procxzm() {
 adtcmd=(--exclude '.wh.*') ; cd $ch || { mount -o remount,udba=none /; exit; }
 if [[ -z "$1" ]]; then
@@ -130,8 +124,9 @@ if [[ -z "$1" ]]; then
 	  #found="false"
 	  #for file in "$INAME"/*/"$f"; do [ -e "$file" ] && found="true" && break ; done
       #[[ "$found" == "true" ]] || { echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$MNAME/$y" && rm -f "$MNAME/$y"; }
-        test -e "$INAME/*/$f" || { echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }  #  | fixsqh >> $QEXCL; echo "$y" 
+       test -e "$INAME/*/$f" || { echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }  #  | fixsqh >> $QEXCL; echo "$y" 
     done
+	
     #cat $EXCL | unfixwh | fixsqh > $exclfiles   
     #test -s $exclfiles && grep -Fvxf $EXFILES $exclfiles > $UPDATE && rm $exclfiles; test -s $UPDATE && cat $UPDATE >> $EXFILES && rm $UPDATE
     test -s "$EXCL" && { find $FOLDERS -type d | egrep -vf $EXCL || find $FOLDERS -type d; } > $SFOLDERS
@@ -143,10 +138,11 @@ if [[ -z "$1" ]]; then
     find $mtmp -name ".wh.*" -exec rm -r {} \;
     #find . -name ".wh.*" ! -name ".wh..*" -exec rm -r {} \;
 fi  
+
 #base_cmd=(rsync -aHv --from0 --files-from=$SFILES "${adtcmd[@]}" --exclude-from=$trsyncexl) && { run_cmd "${base_cmd[@]}" $ch "$mtmp/" ; trlt=$? ; errblk ; }
 base_cmd=(rsync -aHv "${adtcmd[@]}" --exclude-from=$trsyncexl) && [[ -s "$EXFILES" ]] && base_cmd+=(--exclude-from=$EXFILES)
 #echo "${base_cmd[@]}"
-run_cmd "${base_cmd[@]}" $FOLDERS "$mtmp/" ; errblk # merge
+run_cmd "${base_cmd[@]}" $FOLDERS "$mtmp/" ; errblk
 # for x in $FOLDERS; do run_cmd "${base_cmd[@]}" "${ch}/${x}/" "$mtmp/${x}/" ; done
 # Remove exclusions as there could be new ones
 if [[ -z "$1" ]]; then cd $mtmp || exit ; while IFS= read -r ex; do [ -n "$ex" ] || continue ; ex="${ex%/}"  ; if [[ "$ex" == */* ]]; then find "$mtmp" -mindepth 1 -path "$mtmp/$ex" -exec rm -rf -- {} + ; else find "$mtmp" -mindepth 1 -name "$ex" -exec rm -rf -- {} + ; fi done < <(cat "$trsyncexl" "$EXFILES") ; fi
@@ -158,7 +154,6 @@ elif [ "$linkedLOGPRF" == "incr" ]; then
 	test -e $ch$LOGDIR/$LOGFILE && rm $ch$LOGDIR/$LOGFILE ; cp "$UPDATE" $mtmp$LOGDIR/$LOGFILE && mv "$UPDATE" $LOGDIR/$LOGFILE
 fi
 }
-# used to create one l module from another simple function that is called in different conditions in the script saves lines
 createlmdl () {
 local instm="$1"
     if [ "$instm" != "nolmdl" ]; then
@@ -226,6 +221,28 @@ local instm="$1"
     fi
     cd $pst ; rm -rf $mtmp
 }
+insertmenu() {
+cat > /tmp/block.txt << 'EOF'
+LABEL GRAPHICAL changes 
+MENU LABEL Graphics changes
+KERNEL /boot/syslinux/vmlinuz
+INITRD /boot/syslinux/initrd.xz
+APPEND
+TEXT HELP
+    Run Porteus the best way we can.
+    Try to autoconfigure graphics
+    card and use the maximum allowed
+    resolution. If booting from a
+    non-posix (FAT/NTFS) drive,
+    see the Saving Changes Help
+    below for how to save changes.
+ENDTEXT
+							
+EOF
+
+sed -i "38r /tmp/block.txt" $1
+rm /tmp/block.txt
+} #symlink 
 renmmdl() {
 local oMF=/tmp/flog.log ; local drt=$2
 [[ -z "$drt" ]] && src=".bak" && dst=".xzm"
@@ -251,7 +268,7 @@ for mods in $PWD"/"*_uid_*.xzm; do
 	mount -o loop $mods $dest
 	find "${dest}/" -type f -name '.wh.*' -printf '%P\0' | while IFS= read -r -d '' file; do
         k=$( echo "$file" | sed -e 's/^\.wh\.//')
-    #       p=$( echo "$file" | sed -E 's|(.*\/)\.wh\.|\1|') # keep path remove .wh.
+		#p=$( echo "$file" | sed -E 's|(.*\/)\.wh\.|\1|') # keep path remove .wh.
         test -e "$k" && rm -rf "$k";
         test -e "$INAME/*/$k" || test -e "$file" && rm -f "$file"  #  { echo "y" | fixsqh >> $EXCL; echo "$y" >> $EXFILES; test -e "$y" && rm -f "$y"; }
     done
@@ -274,11 +291,527 @@ unset IFS
 find . -name ".wh.*" -exec rm -r {} \; # works
 cd $pst
 }
+backup() {
+#rm $EXCL egrep and rsync exclude rm $exclfiles spare tmp rm $UPDATE This is available as a tmp file rm $EXFILES  # We need to reuse this as its already done
+if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
+if [ ! -e $target ]; then echo "Target does not exist" && exit 0 ; fi
+[[ "$1" != "c" ]] && rlt=$(cat /proc/cmdline | sed -n 's/.*changes=EXIT:\([^ ]*\).*/\1/p')
+[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt}
+[[ "$rlt" == *"$target"* ]] && { rlt=${rlt%/} && target=""; }
+test -e $target$rlt && osize=$( du -sb "${target}${rlt}${MODULENM}/" | tail -n1 | awk '{print $1}')
+mkdir $tmp ; : > /tmp/incfilter.log
+if [ "$d2drive" == "false" ]; then
+	green "Staging... " ; for x in $IFOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
+else 
+	green "Direct to drive saving" ; for folder in $IFOLDERS; do echo "+ /$folder/" >> /tmp/incfilter.log ; done
+	for fld in $EXCLUDE; do if [[ "${fld:0:1}" == "/" ]]; then fld="${fld#/}" ; else fld="*${fld}*" ; fi ; echo "- /$fld/" >> /tmp/incfilter.log ; done
+	echo "- /*" >> /tmp/incfilter.log
+fi
+if [ "$rlt" != "" ]; then
+    if [ "$rlt" == "/" ]; then rlt="" ; fi
+	if [ "$d2drive" == "true" ]; then dirSRC="$target$rlt/changes" ; else dirSRC=$tmp ; fi
+	pst=$PWD ; cd $dirSRC
+    if [ -d "${target}${rlt}${MODULENM}.bak/" ]; then
+        green "Updating existing backup..."
+        if [ "$LOGGING" == "true" ]; then
+            if [ -f "${target}${rlt}${MODULENM}.bak.log" ]; then
+                m=$(head -n 1 "${target}${rlt}${MODULENM}.bak.log" | grep -c "STOP")
+                if (( m == 0 )); then
+                     adtCMD="--log-file=${target}${rlt}${MODULENM}.bak.log"
+
+                    if grep -B 1 'END ORIGINAL FILES' "${target}${rlt}${MODULENM}.bak.log" | tail -2 | head -1 | grep -q '^PAUSED$'; then
+
+                        glog
+
+                    else
+
+                        l=$(head -n 1 "${target}${rlt}${MODULENM}.bak.log" | grep -c "PAUSED")
+                        size=$( stat -c %s "${target}${rlt}${MODULENM}.bak.log")
+
+                        if [ "$size" -gt $((logSIZE * mbyte)) ]; then
+                        
+                            if [ "$ANALYTICS" == "true" ]; then
+                                cyan "Log file has hit the limit. Clearing..."
+                            fi
+
+                            if [ "$logSPRF" == "delete" ]; then
+
+                                if grep -q "END ORIGINAL FILES" "${target}${rlt}${MODULENM}.bak.log"; then
+
+                                    glog "true"
+
+                                else
+                                    > "${target}${rlt}${MODULENM}.bak.log"
+                                fi
+
+                            elif [ "$logSPRF" == "psv" ]; then
+
+                                c=$( wc -l < "${target}${rlt}${MODULENM}.bak.log") # total count
+                                q=$(awk "BEGIN {print $c * 0.85}")
+
+                                if (( l == 1 )); then
+
+                                    sed -n "${q}, \$p" "${target}${rlt}${MODULENM}.bak.log" > $UPDATE
+
+                                else
+
+                                    h=$( grep -m 1 -n "END ORIGINAL FILES" "${target}${rlt}${MODULENM}.bak.log" | awk -F: '{print $1}') # what line is it on
+                                    b=$(( h + 16 ))
+
+                                    if [ "$h" !=  "" ]; then
+
+                                        if [[ $b -le $c ]]; then
+
+                                            if sed -n "$(( h + 16))p" "${target}${rlt}${MODULENM}.bak.log" | grep -q "total size is"; then
+                                                sed "${b}q" "${target}${rlt}${MODULENM}.bak.log" > $UPDATE
+
+                                            else
+                                                 sed '/END ORIGINAL FILES/q' "${target}${rlt}${MODULENM}.bak.log" > $UPDATE
+                                            fi
+
+                                        else
+
+                                            sed '/END ORIGINAL FILES/q' "${target}${rlt}${MODULENM}.bak.log" > $UPDATE
+                                        fi
+
+                                        sed -n "${q}, \$p" "${target}${rlt}${MODULENM}.bak.log" >> $UPDATE
+
+                                    else
+
+                                        sed -n "${q}, \$p" "${target}${rlt}${MODULENM}.bak.log" > $UPDATE
+                                    fi
+                                fi
+                                
+                                if [ "$ANALYTICS" == "true" ]; then
+                                    size=$( stat -c %s "${target}${rlt}${MODULENM}.bak.log")
+                                    
+                                    if (( size > logSIZE * mbyte )); then
+                                        cyan "Log size limit reached on preserve mode. Please adjust max limit or logging preference."
+                                        cyan "This means the file list is greater than the limit or the limit is too small."
+                                    fi
+                                fi
+
+                                mv $UPDATE "${target}${rlt}${MODULENM}.bak.log"
+                            elif [ "$logSPRF" == "stop" ]; then
+                                adtCMD=""
+                                if [ "$ANALYTICS" == "true" ]; then
+                                    cyan "Log file hit max limit not logging..."
+                                fi
+
+                                if (( l >= 1 )); then
+                                    sed -i '1s/PAUSED/PAUSEDSTOP/g' "${target}${rlt}${MODULENM}.bak.log"
+                                else
+                                    sed -i '1i STOP' "${target}${rlt}${MODULENM}.bak.log"
+                                fi
+                            fi
+                        fi
+                    fi
+
+                    if (( l >= 1 )); then sed -i '0,/PAUSE/ { /PAUSE/ d }' "${target}${rlt}${MODULENM}.bak.log"; fi
+                fi
+
+            else
+		        nsize=$osize
+		        green "There was no logfile generating..." ; > "${target}${rlt}${MODULENM}.bak.log"
+				dlog
+				echo >> "${target}${rlt}${MODULENM}.bak.log"
+				echo "original size(source)=Unkown" >> "${target}${rlt}${MODULENM}.bak.log"
+				echo "new size(source)=$nsize" >> "${target}${rlt}${MODULENM}.bak.log"
+				echo  "END ORIGINAL FILES $(date +"%m-%d-%y_%R")" >> "${target}${rlt}${MODULENM}.bak.log"
+				nLOG="true"
+            fi
+
+        else 
+        
+            if [ -f "${target}${rlt}${MODULENM}.bak.log" ]; then
+
+                if ! grep -B 1 'END ORIGINAL FILES' "${target}${rlt}${MODULENM}.bak.log" | tail -2 | head -1 | grep -q '^PAUSED$'; then
+
+                    if grep -q "END ORIGINAL FILES" "${target}${rlt}${MODULENM}.bak.log"; then
+               
+                        sed -i "/END ORIGINAL FILES/ i\PAUSED" "${target}${rlt}${MODULENM}.bak.log"
+
+                    else 
+
+                        if ! head -n 1 "${target}${rlt}${MODULENM}.bak.log" | grep -q 'PAUSED'; then
+                            if head -n 1 "${target}${rlt}${MODULENM}.bak.log" | grep -q 'STOP'; then
+                                sed -i '1{/STOP/ s/^/PAUSED/}' "${target}${rlt}${MODULENM}.bak.log"
+                            else
+                                  sed -i '1i PAUSED' "${target}${rlt}${MODULENM}.bak.log"
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+        fi
+
+        if [ "$adtCMD" != "" ]; then
+
+            if [ "$FEEDBACK" != "true" ]; then
+               	rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude '.wh.*'  --delete-excluded --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" $adtCMD
+            else
+                rsync -aHv --delete --filter="merge /tmp/incfilter.log" --exclude '.wh.*' --delete-excluded --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
+            fi
+			exc=$?
+		    if [ $exc -eq 1 ]; then
+				mount -o remount,udba=none /
+				red "rsync failed — check log at ${target}${rlt}${MODULENM}.bak.log"
+				if [ "$d2drive" == "false" ]; then
+					cyan "Files left in memory. Copy and paste the following to rsync again:"
+					echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/ --log-file=${target}${rlt}${MODULENM}.bak.log"
+					if [ "$ANALYTICS" == "true" ]; then
+						echo "Then check the logfile for any errors.Then take the last two bytes sent and add it to total count=  at the top of the file if you want to keep exact track."
+						echo "Or"
+						printf 'rsync -aHv "%s" newdirectory/\tto make a new backup\n' "${target}${rlt}${MODULENM}/"
+					fi
+				else
+		  		    if [ "$ANALYTICS" == "true" ]; then
+						echo "Add up the last bytes sent values and add to total count=  at the top of the file before END ORIGINAL FILES.  if you want to keep exact track."
+					fi
+				fi
+				exit 1
+			elif [ $exc -eq 24 ]; then
+				cyan "Some files have vanished. Check for excluding cache files"
+				sed -i '/some files vanished/d' "${target}${rlt}${MODULENM}.bak.log"
+			fi
+        else        
+            if [ "$nLOG" != "" ]; then
+                if [ "$FEEDBACK" != "true" ]; then
+                    rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude '.wh.*'  --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > $UPDATE 2>&1  # capture the log in a sentinal
+                else
+                    rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude '.wh.*'  --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" 2>&1 | tee $UPDATE
+                fi
+
+            else
+                if [ "$FEEDBACK" != "true" ]; then
+                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude '.wh.*'  --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > /dev/null
+                else
+                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude '.wh.*'  --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/"
+                fi
+            fi
+			exc=$?
+		    if [ $exc -eq 1 ]; then
+				mount -o remount,udba=none /
+				red "rsync failed — check log at ${target}${rlt}${MODULENM}.bak.log"
+				if [ "$nLOG" != "" ]; then
+					if [ "$d2drive" == "false" ]; then
+						cyan "Files left in memory. Copy and paste the following to rsync again:"
+				    	echo "rsync -aH --stats --delete --filter=merge /tmp/incfilter.log --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/ --log-file=${target}${rlt}${MODULENM}.bak.log"
+					fi
+					if [ "$ANALYTICS" == "true" ]; then
+				       echo "Then check the logfile for any errors. Add up all the bytes sent values and put total count=  at the top of the file before END ORIGINAL FILES.  if you want to keep exact track."
+				    fi
+				else
+					echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/"
+				fi
+				echo
+				echo "Or failing that"
+				printf 'rsync -aHv "%s" newdirectory/\tto make a new backup\n' "${target}${rlt}${MODULENM}/"
+				exit 1
+		    elif [ $exc -eq 24 ]; then
+				cyan "Some files have vanished. Check for excluding cache files"
+				sed -i '/some files vanished/d' "${target}${rlt}${MODULENM}.bak.log"
+			fi
+            if [ -s $UPDATE ]; then
+                c=$( wc -l < "$UPDATE")
+                if (( c > 17)); then sentinal="true"; cp $UPDATE /tmp/parity.txt; fi
+                sed -n '/Number of files/,$p' $UPDATE >> "${target}${rlt}${MODULENM}.bak.log"
+            fi
+        fi
+		end=$(date +%s.%N)
+        cyan "Changes backup has been updated."
+
+        if [ "$ANALYTICS" == "true" ]; then
+            ossize=$( sed -nE 's/.*original size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n 1)
+            if [ "$ossize" == "" ]; then
+                oput="Unkown"
+            else
+                oput="$(( ossize / mbyte )) MB"
+            fi
+
+            csize=$(du -sb "${target}${rlt}${MODULENM}.bak/" | cut -f1)
+            nsize=$osize
+            c=$( sed -nE 's/.*total count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n 1)
+            c="${c:-0}"
+            
+            if [ "$adtCMD" != "" ]; then
+                z=$( tail -n1 ${target}${rlt}${MODULENM}.bak.log | grep -oP '(?<=sent\s)\d+(?=\s+bytes)' | head -n 1)
+				if (( z == 0 )); then z=$(tail -n 20 ${target}${rlt}${MODULENM}.bak.log | grep -oP '(?<=sent\s)[\d,]+' | tail -n 1 | sed 's/,//g'); fi
+            elif [ "$adtCMD" == "" ] && [ "$nLOG" == "true" ]; then
+                if [ "$ANALYTICS" ==  "true" ]; then
+                    green "A new log file has been made."
+                fi
+                z=$( tail -n2 ${target}${rlt}${MODULENM}.bak.log | head -n1 | grep -oP '(?<=sent\s)[\d,]+' | tr -d ',' )
+            fi
+
+            r=$(( c + z ))
+            grep -q "total count=" "${target}${rlt}${MODULENM}.bak.log" && sed -i "s/total count=[0-9]\+/total count=$r/" ${target}${rlt}${MODULENM}.bak.log || sed -i "/END ORIGINAL FILES/ i\total count=$r" "${target}${rlt}${MODULENM}.bak.log"
+
+            c=$( sed -nE 's/.*original count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n 1)
+            c="${c:-0}"
+            if (( c != 0 )); then
+                cyan " Since the original backup was first made sent" $(( ( c + z ) / mbyte )) "MB worth of data"
+            fi
+
+            if [ "$logSPRF" != "stop" ] && [ "$nLOG" == "true" ]; then
+                size=$( stat -c %s "${target}${rlt}${MODULENM}.bak.log")
+                if (( size > logSIZE * mbyte )); then
+                red "New log file made is greater than the limit. adjust if needed to keep log data on next backup."
+                fi
+            fi
+            cyan "You have sent $(( r / mbyte )) MB worth of data to the ${target}${rlt}${MODULENM}.bak/ backup"
+            green "Sent $(( z / mbyte )) MB to backup. "
+
+            echo
+            if  [ "$adtCMD" != "" ] && [ "$nLOG" == "true" ]; then
+                cyan "Size of source when backup first made: $oput"
+                green "Current size of source: $(( osize / mbyte ))"
+            fi
+
+            green "Current size of backup: $(( csize / mbyte )) MB"
+
+            if [ "$nLOG" == "true" ]; then
+                echo
+                cyan "You saved $(( (nsize - csize) / mbyte )) MB by generating this backup."
+            fi
+            if [ "$ANALYTICSECT" == "true" ] ; then el=$(awk "BEGIN {print $end - $start}") ; printf "Backup took %.3f seconds.\n" "$el" ; fi
+            if [ "$sentinal" == "true" ]; then
+                rm $UPDATE
+                echo -e "\nYou are seeing this message as you have most likely deleted an entire directory on the source."
+                echo "rsyan will not remove a non empty directory on the backup that is empty on the source for safety reasons."
+                echo " check parity.txt in /tmp to see what these directories are and delete them in the backup."
+            fi
+        fi
+    else
+
+		if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
+		mkdir ${target}${rlt}${MODULENM}.bak
+		if [ -f "${target}${rlt}${MODULENM}.bak.log" ]; then
+			glog "true"
+		else
+			dlog
+			if [ "$LOGGING" == "true" ]; then
+				echo "original size(source)=$osize" >> "${target}${rlt}${MODULENM}.bak.log"
+				echo "END ORIGINAL FILES" >> "${target}${rlt}${MODULENM}.bak.log"
+        	fi
+		fi
+		if [ "$LOGGING" == "false" ]; then
+			test -f "${target}${rlt}${MODULENM}.bak.log" && rm "${target}${rlt}${MODULENM}.bak.log"
+		fi
+        cyan "Creating new backup this may take a few minutes."
+
+        if [ "$FEEDBACK" != "true" ]; then
+            rsync -aH --stats --filter="merge /tmp/incfilter.log" --exclude '.wh.*'  --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" >> "${target}${rlt}${MODULENM}.bak.log" 2>&1
+        else
+            rsync -aHv --stats --filter="merge /tmp/incfilter.log" --exclude '.wh.*'  --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
+        fi
+		exc=$?
+		if [ $exc -eq 1 ]; then
+		    mount -o remount,udba=none /
+		    red "rsync failed — check log at ${target}${rlt}${MODULENM}.bak.log"
+		    cyan "Please check the logfile if its a valid backup or try again."
+		    cyan "failing that delete the backup and try again."
+		    rm -rf $tmp
+		    exit 1
+		elif [ $exc -eq 24 ]; then
+			cyan "Some files have vanished. Check for excluding cache files"
+			sed -i '/some files vanished/d' "${target}${rlt}${MODULENM}.bak.log"
+		fi
+		end=$(date +%s.%N)
+        cyan "Your changes backup has been created! in ${target}${rlt}/"
+        cyan "${MODULENM}.bak/"
+
+        if [ "$ANALYTICS" == "true" ]; then
+			if [ "$ANALYTICSECT" == "true" ] ; then el=$(awk "BEGIN {print $end - $start}") ; printf "Backup took %.3f seconds.\n" "$el" ; echo ; fi
+            csize=$( du -sb "${target}${rlt}${MODULENM}.bak/" | cut -f1)
+            tsize=$(( osize - csize ))
+            z=$( grep "Total bytes sent:" "${target}${rlt}${MODULENM}.bak.log" | tail -n 1 | sed -E 's/[^0-9]*([0-9,]+).*/\1/' | tr -d ',')	            
+            sed -i "/END ORIGINAL FILES/ i\total count=$z" "${target}${rlt}${MODULENM}.bak.log" #insert the total byte count
+            green "You have sent $(( z / mbyte )) MB worth of data so far to the ${target}${rlt}${MODULENM}.bak/ backup"
+            cyan "You saved $(( tsize / mbyte )) MB by creating this backup"
+        fi
+        echo
+    fi
+	cd $pst
+fi
+test -e $EXCLUDED && rm $EXCLUDED ; rm -rf $tmp
+}
+cleanup() {
+if [[ "$1" != "6" ]]; then
+	# Remount aufs with 'udba=none' flag:
+	mount -o remount,udba=none /
+	test -e $EXCL && rm $EXCL # parsing rsync
+	#test -e $EXFILES && rm $EXFILES # commit script rsync exclusion list
+	test -e $SFILES && rm $SFILES
+	#test -e $SFOLDERS && rm $SFOLDERS
+	test -e $EXCLUDED && rm $EXCLUDED
+	test -e /tmp/incfilter.log && rm /tmp/incfilter.log
+fi
+#Remove /mnt/live/tmp/changes-exit if called from rc.6 (temporary for legacy initrd where cleanup still has changes=EXIT: routine)
+[[ "$1" == "6" ]] && [[ "$2" != "c" ]] && rm /mnt/live/tmp/changes-exit
+exit
+}
+initf() { FOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e $ch/"$x" && echo "$x"; done)" ; dycmb ; exldir $EXFILES ; }
+savex() {
+msr=${target}${em}"/lscheck"
+cyan "Syncing what's left in buffers" && sync
+if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
+mount -o remount,udba=notify /
+if [ "$d2drive" == "false" ] || { [ "$d2drive" == "true" ] && [ "$d2dmdl" == "false" ]; } ; then
+    #mkdir $tmp
+    green "Staging... "
+else
+    green "Direct to drive saving on d2dmdl"
+    if [ -z "$mdldvc" ]; then xtgt="$thetgt" ; else xtgt="$mdldvc" ; fi
+    #test -d $thetgt/tmp && { mkdir $thetgt/tmp$$; tmp=$thetgt/tmp$$; } || { mkdir $thetgt/tmp; tmp=$thetgt/tmp; }
+    test -d $xtgt/mtmp && mtmp=$xtgt/mtmp$$ || mtmp=$xtgt/mtmp
+    # for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
+fi
+SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`
+line=43 ; pth="/boot/syslinux/porteus.cfg" #Bootloader
+[[ -n "$bootdvc" ]] && thetgt=$bootdvc && [[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; } 
+[[ -z "$grubln" ]] && rltt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'changes=\K[^ ]*') && [[ -n "$rltt" ]] && insertmenu $thetgt$pth
+test -e "$thetgt$pth" && rlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Is there an extramod on ln?  ## Notes returns the value grep 'extramod=[^ ]*')
+epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g')
+if [ "$rlt" != "" ]; then
+    if [[ ! "${rlt}" == *$BASEDIR"/"$emfld* ]]; then
+        test -d "$target$em" || mkdir -p "$target$em" #Bootloader
+	    [[ -n "$grubln" ]] && test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak
+        sed -i "s|\(extramod=\)\([^ ]*\)|\1${epath};\2|" "$thetgt$pth"
+        loadermsg
+        IFS=';' read -ra parts <<< "${rlt}"
+        unset IFS ; u=""
+        for part in "${parts[@]}"; do
+            erlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*')
+            testfile="${part}/.writetest_${$}"
+            if touch "$testfile" 2>/dev/null; then
+                rm -f "$testfile"
+                for file in "${part}"/*_uid_*; do [ -e "$file" ] || continue ; mv "$file" "${target}${em}" ; u="true" ; done
+            else
+                echo "$part was not writable some previous changes modules with _uid_ could not be moved"
+            fi
+            if [ "$u" == "true" ]; then
+			    test -d $part"/archive" && mv $part"/archive" "${target}${em}"
+			    test -e $part"/lscheck" && mv $part"/lscheck" "${target}${em}"
+                test -e $part"/mergemodules" && rm $part"/mergemodules"
+                test -e $part"/createlmodule" && rm $part"/createmodule"
+                test -e $part"/renameLbak" && rm $part"/renameLbak"
+                test -e $part"/renamebak" && rm $part"/renamebak"
+            fi
+            if [ "$u" == "true" ] && [ -d "$part" ] && [ -z "$(ls -A "$part")" ]; then
+                erlt="${erlt//;$part/}"
+                erlt="${erlt//$part;/}"
+                erlt="${erlt//$part/}"
+                erlt=$(printf '%s' "$erlt" | sed 's/[&|]/\\&/g')   #escape | and also & which may appear in a directory so doesnt break sed
+                sed -i "s|\(extramod=\)[^ ]*|\1${erlt}|" "$thetgt$pth"
+                cyan "bootloader updated"
+            fi
+        done
+        if [ "$u" != "" ]; then green "all previous changes modules in other extramod directories moved to new extramod dir" ; fi
+    fi
+else
+    cmd="sed -i \"0,/APPEND/ s|\\(APPEND\\)|\\1 extramod=${epath}|\" \"$thetgt$pth\""
+    if [ -n "$grubln" ]; then test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak ; cmd="sed -i \"${line}s|\\\$| extramod=$epath/|\" \"$thetgt$pth\"" ; fi
+    test -e "$thetgt$pth" && bash -c "$cmd" || echo "Using other bootloader append ${target}${em} to it with extramod="
+fi # END Bootloader
+if [ -s "${target}${em}${MODULENM}${SERIAL}_uid_$$.xzm" ]; then
+    echo ; echo A changes .xzm was detected but nothing was done. ; cyan "${MODULENM}${SERIAL}_uid_$$.xzm already exists" && { sleep 5; exit 0; }
+else
+    test -d "$target$em" || mkdir "$target$em"
+    touch "$target$em/._test1" 2>/dev/null
+    cyan "testing filesystem on ${target} for posix compatibility"
+    ln -s "$target$em"/._test1 "$target$em"/._test2 2>/dev/null && chmod +x "$target$em"/._test1 2>/dev/null && [ -x "$target$em"/._test1 ] && chmod -x "$target$em"/._test1 2>/dev/null && [ ! -x "$target$em"/._test1 ] && rm -f "$target$em"/._test1 "$target$em"/._test2
+    if [ $? -ne 0 ]; then
+        mount -o remount,udba=none /
+        rm -f "$target$em"/._test1 "$target$em"/._test2
+	    echo && echo -e "[1;33m""A Windows filesystem (FAT, NTFS) or other non-posix compatible filesystem\nhas been detected on $target.\nYour changes cannot be saved directly to the specified storage media with this\nsetup. Please use the '[1;36mPorteus save file manager[1;33m' to create a .dat container\nand use it for saving your changes after your next reboot.""[0m"
+        exit
+    fi
+    r=$(find "$target$em" -maxdepth 1 -type f -name '*_uid_*.xzm' | wc -l)
+    if [ "$r" -eq 0 ]; then # if this is the first time running and there isnt a symlink to the merge script create it
+        if [ ! -e "$target$em"/mergemodules ]; then ln -s /usr/local/save-changesnew/mergemodules.sh "$target$em"/mergemodules; fi
+	    if [ ! -e "$target$em"/createlmodule ]; then ln -s /usr/lofind "$mtmp" -type f -name ".wh.*"cal/save-changesnew/createlmdl.sh "$target$em"/createlmodule; fi
+        if [ ! -e "$target$em"/renamebak ]; then ln -s /usr/local/save-changesnew/renamebak "$target$em"/renamebak; fi
+        if [ ! -e "$target$em"/renameLbak ]; then ln -s /usr/local/save-changesnew/renameLbak "$target$em"/renameLbak; fi
+    fi
+    pst=$PWD
+    if [ "$linkedSTATE" == "true" ]; then
+        f=$(find "$target$em" -maxdepth 1 -type f -name '*_uid_L*.xzm' | wc -l)
+        if [ "$f" -gt 1 ]; then
+            echo "Cannot have more than one _uid_L\.\*\.xzm file" && exit 0
+        elif [ "$f" -eq 1 ]; then
+            rlt=""
+            if [ -e $msr ]; then
+                content=$(awk -v RS= '{gsub(/\n+$/, "", $0); print $0}' "$msr")
+                k=$( echo "$content" | sed -n 's/.*bytes:[[:space:]]*\([0-9]\+\).*/\1/p')
+                if [ "$k" != "" ]; then
+                    p=$( echo "$content" | sed -n 's/^file name:[[:space:]]*\(.*\)/\1/p')
+                    if [ "$p" != "" ]; then
+                        if [ -f $target$em"/"$p ]; then
+                            c=$( du -sb "${target}${em}/${p}" | cut -f1)
+                            if [ "$c" -eq "$k" ]; then
+                                ssbn=$( echo $p | sed -n 's/.*_uid_L\(.*\)\.xzm$/\1/p')
+                                if [ "$ssbn" == "" ]; then cyan "failed to parse ssbn in msr"; fi
+                            else
+                                validrlt="false"
+                            fi
+                            fname=$p ; rlt="true"
+                        fi
+                    fi
+                fi
+                if [ "$rlt" == "true" ]; then
+                    createlmdl "msr"
+                else
+                    cyan "Bad msr file. making new serial no. the previous one will be renamed to .bak" ; createlmdl "badmsr"
+                fi
+            else
+                createlmdl "nomsr"
+            fi
+            cd $pst
+        elif [ "$f" -eq 0 ]; then
+            createlmdl "nolmdl"
+        fi
+    else # End linked
+        rname="${MODULENM}${SERIAL}_uid_${$}.xzm" ; newxzm "uid"
+    fi
+    chown $USR $target$em$rname
+    if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then printf "Saving took %.3f seconds.\n" "$el" ; fi
+    cyan "Your changes have been saved. in ${target}${em}/" ; cyan $rname
+    if [ "$mrgMODULES" == "true" ] && [ "$linkedSTATE" == "false" ]; then
+	    cd $target$em ;  r=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' | wc -l)
+        if (( r > mdllmt)); then
+            green "Merging changes modules..." ; sts="true" ; sleep 5
+            if ! /usr/local/save-changesnew/mergemodules.sh $keepMRGED $ROLLBCK $ROLLSUMRY $archLMT; then red "There was problem auto merging. see /tmp/error.log" ; cyan "Everything preserved." ; fi
+            cyan "Modules merged."
+        fi
+	    cd $pst
+    fi
+fi
+mount -o remount,udba=none /
+test -e $QEXCL && rm $QEXCL
+test -e $EXCL && rm $EXCL
+#test -e $EXFILES && rm $EXFILES
+test -e $UPDATE && rm $UPDATE
+test -e $SFILES && rm $SFILES
+# test -e $SFOLDERS && rm $SFOLDERS
+test -d $tmp && rm -rf $tmp
+test -d $mtmp && rm -rf $mtmp
+[[ -z "$sts" ]] && sleep 5
+exit
+}
+pl() { for x in $FOLDERS; do find "$ch/$x" -type f -printf '%P\0' | while IFS= read -r -d '' f; do printf '%s/%s\0' "$x" "$f" ; done ; done > "$SFILES" ; }
 rand_alpha() { letters=( {A..Z} {a..z} ); echo -n "${letters[RANDOM % 52]}${letters[RANDOM % 52]}" ; }
 loadermsg() { green "Updated bootloader in /syslinux/"; cyan "if you use a different loader use cheatcode extramod=${target}${em} include changes modules" ; }
+# Fix folder names and make `egrep' interpret wildcards
 fixdir() { sed -e 's_\._\\._g' -e 's_?_._g' -e 's_*_.*_g' -e 's@..@^@'; }
-fixsqh() {  sed -e 's|^/||' -e 's/^\^//' ; }
+# Fix EXCL to work with mksquashfs and rsync exclusion file
+fixsqh() {  sed -e 's|^/||' -e 's/^\^//' ; } # change note remove leading ^ and / if present
+# Fix whiteout names so `egrep' doesn't interpret special characters as regex
+#fixwh() { sed -e '/^\^/!s@^@^@' -e 's_\\_\\\\_g' -e 's_\._\\._g' -e 's_?_\\?_g' -e 's_+_\\+_g' -e 's_*_\\*_g' -e 's_\$_\\$_g' -e 's_\[_\\[_g'  -e 's_]_\\]_g' -e 's_(_\\(_g' -e 's_)_\\)_g' -e 's_{_\\{_g' -e 's_}_\\}_g' -e 's_|_\\|_g' -e 's_\&_\\&_g' -e 's_\(^.\)\^\(.*\)_\1\\^\2_'; } # escape \ infilenames  ] { } |
 fixwh() { sed -e '/^\^/!s@^@^@' -e 's_\._\\._g' -e 's_?_\\?_g' -e 's_+_\\+_g' -e 's_*_\\*_g' -e 's_\$_\\$_g' -e 's_\[_\\[_g' -e 's_(_\\(_g' -e 's_\&_\\&_g' -e 's_\(^.\)\^\(.*\)_\1\\^\2_'; } # Translating
+# Fix regarding ^^ doesnt break egrep but wont match a pattern  ^/thisdir/^myfile or ^/thisdir/my^file
+#fixwh() { sed -e 's_\._\\._g' -e 's_?_\\?_g' -e 's_+_\\+_g' -e 's_*_\\*_g' -e 's_\$_\\$_g' -e 's_\[_\\[_g' -e 's_(_\\(_g'  -e 's_\&_\\&_g' -e 's@^@^@'; } Original
 unfixwh() { sed -e 's/\\//g' -e 's/\(^.\)\^\(.*\)/\1^\2/' ; }
-fixcmp() { sed -e 's_|_\\|_g' -e 's_ _\\ _g' -e 's_\._\\\._g' -e 's_\]_\\]_g' -e 's_\[_\\[_g' -e 's_(_\\(_g' -e 's_)_\\)_g' ; } # -e 's_\/_\\\/_g' 
+#fixexcl() {  sed -e 's|\^||g' -e 's| |\\ |g' -e 's|]|\\]|g' -e 's|)|\\)|g'; } Original
+fixcmp() { sed -e 's_|_\\|_g' -e 's_ _\\ _g' -e 's_\._\\\._g' -e 's_\]_\\]_g' -e 's_\[_\\[_g' -e 's_(_\\(_g' -e 's_)_\\)_g' ; } # -e 's_\/_\\\/_g' cache clear script
 fixOT() { sed -e 's_?_\\?_g'  -e 's_\^_\\^_g' -e 's_+_\\+_g' -e 's_*_\\*_g' -e 's_\$_\\$_g'  -e 's_\&_\\&_g' ; }

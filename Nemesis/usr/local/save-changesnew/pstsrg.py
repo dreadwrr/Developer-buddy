@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       9/5/2025
-from cProfile import label
-from time import ctime
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       9/15/2025
 import pyfunctions
 import os
 import shutil
@@ -220,10 +218,10 @@ def parselog(file, list, checksum, type):
       with open(file, 'r') as file: 
             for line in file:
                   inputln = parse_line(line)
-                  if not inputln:
+
+                  if not inputln or not inputln[1].strip():
                         continue
-                  if not inputln[1].strip():
-                        continue
+            
                   timestamp = None if inputln[0] in ("None", "") else inputln[0]
                   filename    = None if inputln[1] in ("", "None") else inputln[1]
                   changetime  = None if inputln[2] in ("", "None") else inputln[2]
@@ -231,22 +229,17 @@ def parselog(file, list, checksum, type):
                   accesstime = None if inputln[4] in ("", "None") else inputln[4]
                   checks      = None if len(inputln) > 5 and inputln[5] in ("", "None") else (inputln[5] if len(inputln) > 5 else None)
                   filesize    = None if len(inputln) > 6 and inputln[6] in ("", "None") else (inputln[6] if len(inputln) > 6 else None)
-                  if checksum == 'true':
-                        sym   = None if len(inputln) <= 7 or inputln[7] in ("", "None") else inputln[7]
-                        onr   = None if len(inputln) <= 8 or inputln[8] in ("", "None") else inputln[8]
-                        gpp   = None if len(inputln) <= 9 or inputln[9] in ("", "None") else inputln[9]
-                        pmr   = None if len(inputln) <= 10 or inputln[10] in ("", "None") else inputln[10]
+                  sym   = None if len(inputln) <= 7 or inputln[7] in ("", "None") else inputln[7]
+                  onr   = None if len(inputln) <= 8 or inputln[8] in ("", "None") else inputln[8]
+                  gpp   = None if len(inputln) <= 9 or inputln[9] in ("", "None") else inputln[9]
+                  pmr   = None if len(inputln) <= 10 or inputln[10] in ("", "None") else inputln[10]
+                  cam   = None if len(inputln) <= 11 or inputln[11] in ("", "None") else inputln[11]
+                  hardlink_count = None if len(inputln) <= 12 or inputln[12] in ("", "None") else inputln[12]
 
-                        cam   = None if len(inputln) <= 11 or inputln[11] in ("", "None") else inputln[11]
-                        hardlink_count = None if len(inputln) <= 12 or inputln[12] in ("", "None") else inputln[12]
-                  else:
-                        sym = None
-                        onr = None
-                        gpp = None
-                        pmr = None
-                        cam = None
+                  if checksum == 'false':
                         hardlink_count = None if type == "sys" else checks
                         checks=None
+
                   list.append((timestamp, filename, changetime, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, cam, hardlink_count))
 def main():
       xdata=sys.argv[1] # data source
@@ -343,7 +336,6 @@ def main():
                                                       result = pyfunctions.detect_copy(label, inode, checksum, c, table)
                                                       if result:
                                                             print(f'Copy {record[0]} {record[2]} {label}', file=file)
-                                                            print(f'Copy {record[0]} {label}', file=file2)	
                                                       
 
                         except Exception as e:

@@ -1,4 +1,3 @@
-import codecs
 import fnmatch
 import hashlib
 import re
@@ -77,7 +76,10 @@ def detect_copy(filename, inode, checksum, cursor, sys_table):
         '''
     else:
         query = '''
-            SELECT filename, inode
+            SELECT filename, inode    # try:
+    #     filepath = codecs.decode(raw_filepath.encode(), 'unicode_escape')
+    # except UnicodeDecodeError:
+    #     filepath = raw_filepath
             FROM logs
             WHERE checksum = ?
         '''
@@ -152,15 +154,31 @@ def parse_datetime(value, fmt):
 	except (ValueError, TypeError, AttributeError):
 		return None
 
+def escf_py(filename):
+    filename = filename.replace('\\', '\\\\')
+    filename = filename.replace('\n', '\\n')
+    filename = filename.replace('"', '\\"')
+    filename = filename.replace('$', '\\$')
+    return filename
+
+def unescf_py(escaped):
+    s = escaped
+    s = s.replace('\\\\', '\\')
+    s = s.replace('\\n', '\n')
+    s = s.replace('\\"', '"') 
+    s = s.replace('\\$', '$')     
+    return s
+
 def parse_line(line):
     quoted_match = re.search(r'"((?:[^"\\]|\\.)*)"', line)
     if not quoted_match:
         return None
     raw_filepath = quoted_match.group(1)
-    try:
-        filepath = codecs.decode(raw_filepath.encode(), 'unicode_escape')
-    except UnicodeDecodeError:
-        filepath = raw_filepath
+    # try:
+    #     filepath = codecs.decode(raw_filepath.encode(), 'unicode_escape')
+    # except UnicodeDecodeError:
+    #     filepath = raw_filepath
+    filepath = unescf_py(raw_filepath)
 
     # Remove quoted path 
     line_without_file = line.replace(quoted_match.group(0), '').strip()
@@ -176,6 +194,7 @@ def parse_line(line):
     rest = other_fields[7:]
 
     return [timestamp1, filepath, timestamp2, inode, timestamp3] + rest
+
 def get_md5(file_path):
     try:
         with open(file_path, "rb") as f:
