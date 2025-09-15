@@ -1,5 +1,5 @@
 #!/bin/bash
-shopt -s nullglob										# 9/13/2025
+shopt -s nullglob										# 9/14/2025
 . /usr/local/save-changesnew/rntchangesfunctions
 atmp=/tmp/ztmp$$ 					;	ch=/mnt/live/memory/images/
 xdata3=$atmp/db_log.log			;	SORTCOMPLETE=$atmp/list_complete_sorted.txt
@@ -52,6 +52,10 @@ sort -z -o $systemf $systemf
 sort -z -o $xdata3 $xdata3 #files to hash Already escaped
 comm -z -23 $systemf $xdata3 > $xdata # all other files not hashed
 
+desired_chunks=200  
+min_chunk_size=10 
+
+
 ## hash the selected files and convert
 x=$(tr -cd '\0' < $xdata3 | wc -c) 
 if [ "$md" == "mc" ]; then
@@ -60,29 +64,35 @@ if [ "$md" == "mc" ]; then
 	y=$(( (x + max_jobs - 1) / max_jobs ))
 	opts=(-P"$max_jobs")
 else
-	y=$(( (x + 3) / 4 ))
-	[ $y -lt 10 ] && y=10    
-	opts=(-n1)
+    y=$(( (x + desired_chunks - 1) / desired_chunks ))  # chunk size approx
+    [ "$y" -lt "$min_chunk_size" ] && y=$min_chunk_size
+#	y=$(( (x + 3) / 4 ))
+#	[ $y -lt 10 ] && y=10    
+	opts=()
 fi
 split -l "$y" --numeric-suffixes=1 --suffix-length=4 "$xdata3" "$atmp/hashchunk_"
 tail=(/usr/local/save-changesnew/mainloop "$atmp" "{}" "$SORTCOMPLETE" "$TMPF" "true" "main")
 find "$atmp" -type f -name "hashchunk_*" -print0 | sort -z | xargs -0 "${opts[@]}" -I{} "${tail[@]}"
 isoutput "mainloop1*" $SORTCOMPLETE
 
+
  #remaining dont hash but convert
 x=$(tr -cd '\0' < $xdata | wc -c) 
 if [ "$md" == "mc" ]; then
 	y=$(( (x + max_jobs - 1) / max_jobs ))
-	opts=(-P"$max_jobs")
+    opts=(-P"$max_jobs")
 else
-	y=$(( (x + 3) / 4 ))
-	[ $y -lt 10 ] && y=10    
-	opts=(-n1)
+    y=$(( (x + desired_chunks - 1) / desired_chunks ))  # chunk size approx
+    [ "$y" -lt "$min_chunk_size" ] && y=$min_chunk_size
+#	y=$(( (x + 3) / 4 ))
+#	[ $y -lt 10 ] && y=10    
+	opts=()
 fi
 split -l "$y" --numeric-suffixes=1 --suffix-length=4 "$xdata" "$atmp/profilechunk_"
 tail=(/usr/local/save-changesnew/mainloop "$atmp" "{}" "$SORTCOMPLETE" "$TMPF" "false" "main" "batch2") 
 find "$atmp" -type f -name "profilechunk_*" -print0 | sort -z | xargs -0 "${opts[@]}" -I{} "${tail[@]}"
 isoutput "mainloop3*" $SORTCOMPLETE
+
 
 sort -o $SORTCOMPLETE $SORTCOMPLETE
 [[ -s "$SORTCOMPLETE" ]] && echo "$SORTCOMPLETE" || return 1

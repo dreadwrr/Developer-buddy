@@ -20,10 +20,12 @@ RECENTNUL=$tmp/list_recentchanges_filterednul.txt	;   COMPLETE=$tmp/list_complet
 SORTCOMPLETE=$tmp/list_complete_sorted.txt			;   COMPLETENUL=$tmp/list_completenul.txt
 TMPOUTPUT=$tmp/list_tmp_sorted.txt						;   TMPCOMPLETE=$tmp/tmp_complete.txt
 TMPOPT=$tmp/tmp_holding										;   flth=/usr/local/save-changesnew/flth.csv
+log_file=/tmp/file_creation_log.txt
 																	
 cores=0																	;   max_jobs=0
 
 cerr=/tmp/cerr															;   OLDSORTED=""
+CACHE_F=/tmp/ctimecache
 fmt="%Y-%m-%d %H:%M:%S"                                     
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')     
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
@@ -75,9 +77,13 @@ if [ "$tmn" != "" ]; then
 fi
 
 find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $FEEDFILE > /dev/null 2>&1
-find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $toutnul > /dev/null 2>&1
 
-ctimeloop $FEEDFILE $atmp$xdata # dont keep xdata
+if [ -z "$tout" ]; then
+	find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $toutnul > /dev/null 2>&1
+	ctimeloop $FEEDFILE $atmp$xdata # dont keep xdata
+fi
+if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi	
+[[ "$checkSUM" = "true" ]] && [[ "$ANALYTICS" = "true" || "$STATPST" = "true" ]] && cyan "Running checksum." || checkSUM="false"
 #while IFS= read -r -d '' y; do y="$( escf "$y")" ; printf '%s\n' "$y"; done < $FEEDFILE > $xdata
 search $FEEDFILE $SORTCOMPLETE $COMPLETE $checkSUM "main"
 isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE
@@ -158,8 +164,7 @@ if [ -s $SORTCOMPLETE ] ; then
 fi
 
 if [ "$ANALYTICS" = "true" ] && [ "$STATPST" = "false" ] ; then stmp $SORTCOMPLETE && [[ ! -f /tmp/rc/full ]] && cyan "Search saved in /tmp" ; fi
-rm -rf $tmp
-rm -rf $atmp
+rm -rf $tmp ; rm -rf $atmp
 if [ "$ANALYTICSECT" = "true" ]; then
     el=$(awk "BEGIN {print $end - $start}")
     printf "Search took %.3f seconds.\n" "$el"

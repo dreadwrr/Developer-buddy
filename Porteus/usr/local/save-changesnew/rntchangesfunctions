@@ -1,5 +1,5 @@
 #!/bin/bash
-#   Developer buddy 3.0 core                                               9/13/2025
+#   Developer buddy 3.0 core                                               9/15/2025
 
 # Filter terminal and hardlinks
 sbwr() {
@@ -187,25 +187,28 @@ if [ "$STATPST" == "true" ]; then
 			unset IFS
 
 		else # its a log
-			c=$( grep -c '^$' $source)
-			if  (( c == logCT )); then
-				sed -i '1,/^$/d' $source
-			fi
+		    c=$( grep -c '^$' $source)
+		    if  (( c == logCT )); then
+		        sed -i '1,/^$/d' $source
+		    fi
 			while IFS= read -r p || [[ -n "$p" ]]; do
 				cFILE=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$p")
 				y=$cFILE
 				current_ln="${p//\"$y\"/}"
-				read -r f1 f2 f3 f4 _ <<< "$current_ln"
+				read -r f1 f2 f3 f4 _ _ _ _ _ _ _ _ _ _ f15 <<< "$current_ln"
 				dt="$f1 $f2"
 				ct="$f3 $f4"
-				r=$( grep -F "$dt \"$y\" $ct" $source)
-				[[ -z "$r" ]] && echo "$p" >> $source
+				cFILE="$f15"
+				if [[ "$cFILE" != "None" ]]; then
+					r=$( grep -F "$dt \"$y\" $ct" $source)
+					[[ -z "$r" ]] &&  echo "$p" >> $source
+				fi
 			done < $1
 			unset IFS
-			echo >> $source # end of log
+		    echo >> $source # end of log
 		fi
 
-		t=(e -r $email -o $2 $source)
+		t=(--encrypt -r $email -o $2 $source)
 		if which gpg2 > /dev/null 2>&1; then 
 			cmmd=(gpg2 --yes) # 5.01 with 2.0
 		else
@@ -271,25 +274,31 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 	ct="$f3 $f4"
 	copy_record=$(grep -F -v "\"$y\"" $1 | tail -n 1)
 	if [[ -n "$copy_record" ]]; then
-		oct=$( awk '{ print $(NF-10), $(NF-9) }' <<< "$copy_record")
+		tmp="${copy_record#*\"}"
+		y="${tmp%\"*}"
+		original="${copy_record//\"$y\"/}"
+		read -r of1 of2 of3 of4 _  <<< "$original"
+		oct="$f3 $f4"
+		#oct=$( awk '{ print $(NF-10), $(NF-9) }' <<< "$copy_record")
 		if date -d "$ct" "+$fmt" >/dev/null 2>&1 && date -d "$oct" "+$fmt" >/dev/null 2>&1; then
-			echo "Copy $dt $ct $y" | tee -a $rout
+			echo "Copy $dt $ct $y" >> $rout
 		fi
 	fi
 done < $TMPCOMPLETE
 }
 collision() {
-local f=7 
 local label="$1"
 local chksum="$2"
 local filesize="$3"
 local type=$4
 local arr
-if [ "$checkSUM" == "false" ]; then fld=3 ; fi
 while IFS= read -r line; do
 	os=""
 	cFILE=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$line")
-	read record_c os < <(awk '{ print $(NF-6), $(NF-5) }' <<< "$line")
+	y=$cFILE
+	current_ln="${line//\"$y\"/}"
+	read -r _ _ _ _ _ _ _ record_c os _ <<< "$current_ln"
+	#read record_c os < <(awk '{ print $(NF-6), $(NF-5) }' <<< "$line")
     if [[ "$cFILE" != "$label" && "$record_c" != "None" && "$os" != "None" ]]; then
         if [[ "$chksum" == "$record_c" && "$filesize" != "$os" ]]; then 
 			if [ "$os" -ge 0 ] 2>/dev/null; then
@@ -340,15 +349,19 @@ if [ -f "$file" ] && [ -n "$current_size" ] && [ "$current_size" != "None" ] && 
 	if [ "$cdiag" == "true" ]; then collision "$label" $cksum $current_size $7 ; fi
 fi
 }
+#cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p") orig
+#cFILE=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$p") 
+#y=$cFILE
+#current_ln="${p//\"$y\"/}"
+#cFILE="$( unescf "$cFILE")"
 hablk() {
 >$TMPCOMPLETE
 while IFS= read -r p || [[ -n "$p" ]]; do
 	found_line=""
-	#cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p") orig
-    cFILE=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$p") 
-	y=$cFILE
+	tmp="${p#*\"}"
+	y="${tmp%\"*}"
 	current_ln="${p//\"$y\"/}"
-	read -r f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 _ <<< "$current_ln"
+	read -r f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 f14 f15 <<< "$current_ln"
 	in="$f5"
 	if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then 	
 		if [ "$1" == "A" ]; then found_line="${ref_map[$y]}" ; else found_line=$( grep -F "$y" "$ofile" | tail -n 1) ; fi # for line in "${ref_lines[@]}"; do if [[ "$line" == *"$y"* ]]; then found_line="$line" ; fi ; done regular array old multicore
@@ -356,7 +369,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 			original_ln="$found_line"
 			if [ "$1" != "A" ]; then original_ln="${found_line//\"$y\"/}" ; fi
 			read -r of1 of2 of3 of4 of5 of6 of7 of8 of9 of10 of11 of12 of13 _ <<< "$original_ln"
-			cFILE="$( unescf "$cFILE")"
+			cFILE="$f15"
 			oat="$of6 $of7" ; cat="$f6 $f7" 
 			is_valid_date "$oat" && is_valid_date "$cat" || continue 
 			if [ "$checkSUM" == "true" ]; then ocs="$of8" ; cs="$f8" ; os="$of9" ; csze="$f9" ; [[ "$cs" != "None" ]] || continue ; fi
@@ -365,35 +378,33 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 				dt="$f1 $f2" ; omt="$of1 $of2" ; ct="$f3 $f4"
 				if [ "$dt" == "$omt" ]; then
 					if [ "$checkSUM" == "true" ]; then
-						if [ -f "$cFILE" ]; then                     		
-                            read a_mod fs a_ct au ag apmr < <(stat --format="%Y %s %Z %U %g %A" "$cFILE" 2>/dev/null)
-							afrm=$(date -d "@$a_mod" +"$fmt" 2>/dev/null)
-							if [ -n "$afrm" ]; then
-								if [ "$afrm" == "$dt" ]; then
-									a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
-									if  [ -n "$a_checksum" ] && [ "$a_checksum" != "$cs" ]; then
-										echo "Suspect $dt $ct $y" >> $rout
-                                        echo "Suspect file: $y changed without a new modified time." >> $cerr
-                                        csm="true"
+						if [ -f "$cFILE" ]; then
+							if [[ "$cs" != "$ocs" ]]; then
+								echo "Suspect $dt $ct $y" >> $rout
+				                echo "Suspect file: $y changed without a new modified time." >> $cerr
+				                csm="true"
+							else
+								if (( oin == in )); then
+									if newmeta $f11 $f12 $f13 $of11 $of12 $of13; then
+										echo "Metadata $dt $ct $y" >> $rout
 									fi
 								else
-									if [ "$cdiag" == "true" ]; then 
-                                        m="File changed during the search."
-										echo "$m $y at ${afrm}. Size was $os, now $fs." >> $slog
-                                    else
-										echo "$m $y. File likely changed. system cache item." >> $slog
-                                    fi
-                                    stealth "$cFILE" "$y" $cs $fs $csze
+									echo "Copy $dt $ct $y" >> $rout
 								fi
 							fi
-						fi
-						if [[ "$cs" == "$ocs" ]]; then
-							if (( oin == in )); then
-								if newmeta $f11 $f12 $f13 $of11 $of12 $of13; then
-									echo "Metadata $dt $ct $y" >> $rout
+                            read a_mod fs a_ct au ag apmr < <(stat --format="%Y %s %Z %U %g %A" "$cFILE" 2>/dev/null)
+							afrm=$(date -d "@$a_mod" +"$fmt" 2>/dev/null)
+							if [ -n "$afrm" ] && [ "$afrm" != "$dt" ]; then
+								a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
+								if [ -n "$a_checksum" ]; then
+									 stealth "$cFILE" "$y" $a_checksum $fs $csze
 								fi
-							else
-								echo "Copy $dt $ct $y" >> $rout
+								if [ "$cdiag" == "true" ]; then 
+                                    m="File changed during the search."
+									echo "$m $y at ${afrm}. Size was $os, now $fs." >> $slog
+                                else
+									echo "$m $y. File likely changed. system cache item." >> $slog
+                                fi
 							fi
 						fi
 					fi        
@@ -600,8 +611,7 @@ fi
 }
 backend() { 
 ofile=/tmpinfo ; tfile=$atmp/tmpd
- TMPDIR=$(mktemp -d $xopt/tmpda.XXXXXX)  
-
+ TMPDIR=$(mktemp -d $xopt/tmpda.XXXXXX) 
 if [ -d /tmp/rc ] && [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then
     for file in /tmp/rc/*; do
         cat $file >> $atmp$ofile 2> /dev/null
@@ -621,7 +631,6 @@ if [ "$STATPST" == "true" ]; then
 			if [ -s $logpst ]; then
 
              # decypt once perform ha and save
-            
              chmod 600 $TMPDIR
              xdata2=$TMPDIR$xdata2
              ofile=$TMPDIR$ofile
@@ -672,7 +681,6 @@ if [ "$STATPST" == "true" ]; then
 				fi
 			fi
 		else
-			cores=""
 			if ! gpg --list-keys | grep -q $email; then generatekey ; fi	
 			python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $pydbpst $rout $tfile $checkSUM $cdiag $email $mMODE $ANALYTICSECT $proteusSHIELD $nc
 			ret=$?
@@ -694,9 +702,32 @@ fi
 test -e $TMPDIR && rm -rf "${TMPDIR:?}"
 test -f $slog && rm $slog ; test -f $rout && rm $rout
 }
+strup() { /usr/local/save-changesnew/start_inotify $log_file $CACHE_F "$checkSUM" "ctime" 3600 ; }
 
 intst() {
 if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi 
+
+#Init
+if [[ "$mMODE" == "mc" ]]; then
+	cores=$( nproc 2>/dev/null || echo 1)
+	max_jobs=$(( cores > 16 ? 16 : cores ))
+fi	
+if [ "$xRC" == "true" ]; then
+	if pgrep -af 'inotify' > /dev/null; then
+		if [ -n "$log_file" ]; then
+			cp $log_file $tout
+			if pkill -f inotifywait; then
+				rm $log_file		
+				strup
+			else
+				rm $tout
+				> $log_file
+			fi
+		fi		
+	else
+		strup	
+	fi
+fi
 if [ "$STATPST" == "true" ]; then
     if [ -f $logpst ]; then
         sz=$( stat -c %s "$logpst")
@@ -777,7 +808,23 @@ for inode in "${inodes_array[@]}"; do
 done > $TMPOPT
 paste -d' ' $1 $TMPOPT > $2 ; mv $2 $SORTCOMPLETE
 }
-sblk() {
+upt_cache() {
+    local inode=$1
+    local size=$2
+    local mtime=$3
+    local checksum=$4
+    local path=$5
+    echo "$inode|$size|$mtime $checksum $path" >> "$CACHE_F"
+}
+get_cached() {
+    local inode=$1
+    local size=$2
+    local mtime=$3
+    local key="$inode|$size|$mtime"
+    grep -m1 "^$key " "$CACHE_F" | awk '{print $2}'
+}
+# Used for sysprofile as you dont want to cache the checksum
+rblk() {
 local sl=""
 local cFILE
 local csum
@@ -815,35 +862,90 @@ while IFS= read -r -d '' p ; do
 	fi
 done < $1
 }
+# Mainloop do cache files over 1MB. Add unescaped filename at the end.
+sblk() {
+local sl=""
+local cFILE
+local csum
+local y
+local r
+while IFS= read -r -d '' p ; do
+	r=""
+	sl=""
+	csum=""
+	read -r mtime atime itime i fs onr grp pmr path <<< "$p" || continue
+	cFILE="$path"
+	y="$( escf "$cFILE")" 
+	mt=$(date -d "@${mtime%%.*}" +"%Y-%m-%d %H:%M:%S")
+	ct=$(date -d "@${itime%%.*}" +"%Y-%m-%d %H:%M:%S")
+	if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
+		if [ -n "$mt" ]; then
+        	if { [[ "$4" = "ctime" ]] && (( ${itime%%.*} > ${mtime%%.*} )); } || [[ "$4" = "main" ]]; then
+				if [ "$checkSUM" == "true" ]; then
+					[[ "$1" = "ctime" ]] && cam="y" && mt=$ct || cam="None"
+
+					if (( fs > 1000000 )); then
+						if [ -e "$CACHE_F" ]; then
+							r=$(get_cached "$i" "$fs" "$mt")
+							[ -n "$r" ] && csum="$r"
+						fi
+					fi
+					if [ -z "$csum" ]; then
+						csum=$(md5sum "$cFILE" 2>/dev/null)
+						csum=${csum%% *}
+						upt_cache "$i" "$fs" "$mt" "$csum" "$y"
+					fi
+
+					csum=${csum:-None}
+					fs=${fs:-None} 
+					[[ -L "$cFILE" ]] && sl="y" ; sl=${sl:-None}
+					wnr=${onr:-None} ; grp=${grp:-None} ; pmn=${pmr:-None}
+					adtcmd="$csum $fs $sl $wnr $grp $pmn $cam"
+				else
+			    	adtcmd=""
+				fi
+    			ats=$(date -d "@${atime%%.*}" +"%Y-%m-%d %H:%M:%S")			
+				ct=${ct:-None None}
+				ats=${ats:-None None}
+				if [[ "$cFILE" == *$'\n'* ]]; then cFILE="None" ; fi # add unescaped 
+				output="$mt \"$y\" $ct $i $ats $adtcmd $cFILE"
+				printf '%s\n' "$output" >> $2
+			fi
+		fi
+	else
+		printf "%s,,,%s\n" "Nosuchfile" "$y" >> $3
+	fi
+done < $1
+}
+
 # load balance for if there is over 1000 files
 search() {
+desired_chunks=200   # Target number of chunks
+min_chunk_size=10    # Minimum lines per chunk
 x=$(tr -cd '\0' < "$1" | wc -c)
 if [[ "$mMODE" = "default" ]]; then     
-	y=$(( (x + 3) / 4 ))
-	[ $y -lt 10 ] && y=10    
-	opts=(-n1)
+    y=$(( (x + desired_chunks - 1) / desired_chunks ))  # chunk size approx
+    [ "$y" -lt "$min_chunk_size" ] && y=$min_chunk_size
+    opts=()
 else
 	y=$(( (x + max_jobs - 1) / max_jobs ))
 	opts=(-P"$max_jobs")
 fi
 split -l "$y" --numeric-suffixes=1 --suffix-length=4 "$1" "$atmp/${5}chunk_"
-tail=(/usr/local/save-changesnew/mainloop "$atmp" "{}" "$2" "$3" "$4" "$5" "$6")
+tail=(/usr/local/save-changesnew/mainloop "$atmp" "{}" "$2" "$3" "$4" "$5" "$6" "$CACHE_F")
 find "$atmp" -type f -name "${5}chunk_*" -print0 | sort -z | xargs -0 "${opts[@]}" -I{} "${tail[@]}"
+
 }
 ctimeloop() {
-#Init
-if [[ "$mMODE" == "mc" ]]; then
-	cores=$( nproc 2>/dev/null || echo 1)
-	max_jobs=$(( cores > 16 ? 16 : cores ))
-fi	
-[[ "$checkSUM" = "true" ]] && [[ "$ANALYTICS" = "true" || "$STATPST" = "true" ]] && cyan "Running checksum." || checkSUM="false"
-if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi
 # what is not in the main search
 sort -z -o $2 $1                
 sort -z -o $tout $toutnul
 comm -z -23 $tout $2 > $TMPCOMPLETE
 
-if [ "$FEEDBACK" == "true" ]; then tr '\0' '\n' < $1; tr '\0' '\n' < $toutnul; fi #scrolling look
+if [ "$FEEDBACK" == "true" ]; then #scrolling look
+	tr '\0' '\n' < "$1" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=""; sub(/^ +/, ""); print }'
+	tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=""; sub(/^ +/, ""); print }'  
+fi 
 if [ -s $TMPCOMPLETE ]; then	
 	search $TMPCOMPLETE $tout $COMPLETE $checkSUM "ctime" batch2
 	isoutput mainloop3* mainloop4* $tout $COMPLETE

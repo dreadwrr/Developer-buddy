@@ -7,11 +7,16 @@ IN="$2"
 #NFS="$4"
 checkSUM="$5"
 xmode="$6"
+CACHE_F=$8
 prefix=mainloop1
 prefixt=mainloop2
 [[ "$7" = "batch2" ]] && prefix=mainloop3 && prefixt=mainloop4
 SORTCOMPLETE="${atmp}/${prefix}_${RANDOM}$(rand_alpha)$$_tmp.log"
 NFS="${atmp}/${prefixt}_${RANDOM}$(rand_alpha)$$_tmp.log"
-sblk $IN $SORTCOMPLETE $NFS $xmode
+if [[ -n "$CACHE_F" ]]; then
+	sblk $IN $SORTCOMPLETE $NFS $xmode
+else
+	rblk $IN $SORTCOMPLETE $NFS $xmode
+fi
 #files=("$@") ; for x in "${files[@]}"; do sblk $xmode $OUTPUT $NFS; done
 
