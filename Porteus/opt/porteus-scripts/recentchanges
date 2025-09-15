@@ -90,7 +90,7 @@ export ANALYTICSECT="true" # provides more feedback
                                             # we dont want too much output on the terminal just a slight bit more
                                             # others stats
 
-export FEEDBACK="false"  # include find output in terminal as well ie scrolling terminal look
+export FEEDBACK="true"  # include find output in terminal as well ie scrolling terminal look
 
 export dspEDITOR="false" # false.  default dont display text editor. launch text editor?
 										# featherpad
@@ -242,6 +242,10 @@ else
 	if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi	
 fi
 
+if [ "$FEEDBACK" == "true" ]; then #scrolling look
+	tr '\0' '\n' < "$RECENTNUL" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=""; sub(/^ +/, ""); print }'
+	#tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=""; sub(/^ +/, ""); print }'  
+fi 
 
 while IFS= read -r -d '' y; do  x=$(escf "$(cut -d' ' -f9- <<< "$y")") ; printf '%s\n' "$x"; done < $RECENTNUL > $RECENT # Used to copy files \n delimited it is the filtered list
 search $RECENTNUL $SORTCOMPLETE $COMPLETE $checkSUM "main"  # mtime append ctimeloop in range later
