@@ -1,7 +1,7 @@
 #                               09/15/2025
-Currently working on a windows edition with python and using powershell find file feature. Then build in linux support so it can be run on any system with either linux or windows.
-This would use arrays as the main method of manipulation and see some speed improvements.
-Then make a standalone python only version of developer buddy. This would bring the filesize down to 30kb as its less lines than bash.
+Currently working on a standalone python edition
+This would use arrays as the main method of manipulation and see some speed improvements. mostly for if there are many new files
+the filesize down would be smaller around 40kb
 
 ![Logo](https://i.imgur.com/sbZa1r3.png)
 
