@@ -167,7 +167,9 @@ def unescf_py(escaped):
     return s
 
 def parse_line(line):
-    quoted_match = re.search(r'"((?:[^"\\]|\\.)*)"', line)
+    quoted_match = re.search(r'"((?:[^"\\]|\\.)*)"', line)    #     filepath = codecs.decode(raw_filepath.encode(), 'unicode_escape')
+    # except UnicodeDecodeError:
+    #     filepath = raw_filepath
     if not quoted_match:
         return None
     raw_filepath = quoted_match.group(1)
