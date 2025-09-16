@@ -296,7 +296,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 			original_ln="$found_line"
 			if [ "$1" != "A" ]; then original_ln="${found_line//\"$y\"/}" ; fi
 			read -r of1 of2 of3 of4 of5 of6 of7 of8 of9 of10 of11 of12 of13 _ <<< "$original_ln"
-			cFILE="$( unescf "$cFILE")"
+			cFILE="$( unescf "$y")"
 			oat="$of6 $of7" ; cat="$f6 $f7" 
 			is_valid_date "$oat" && is_valid_date "$cat" || continue 
 			if [ "$checkSUM" == "true" ]; then ocs="$of8" ; cs="$f8" ; os="$of9" ; csze="$f9" ; [[ "$cs" != "None" ]] || continue ; fi
