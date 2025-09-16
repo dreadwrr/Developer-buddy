@@ -76,10 +76,7 @@ def detect_copy(filename, inode, checksum, cursor, sys_table):
         '''
     else:
         query = '''
-            SELECT filename, inode    # try:
-    #     filepath = codecs.decode(raw_filepath.encode(), 'unicode_escape')
-    # except UnicodeDecodeError:
-    #     filepath = raw_filepath
+            SELECT filename, inode
             FROM logs
             WHERE checksum = ?
         '''
