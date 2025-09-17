@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # pstsrg.py - Process and store logs in a SQLite database, encrypting the database       9/15/2025
+import processha
 import pyfunctions
 import os
 import shutil
@@ -241,27 +242,17 @@ def parselog(file, list, checksum, type):
                         checks=None
 
                   list.append((timestamp, filename, changetime, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, cam, hardlink_count))
-def main():
-      xdata=sys.argv[1] # data source
-      dbtarget=sys.argv[2]  # the target
-      rout=sys.argv[3]  # tmp holds action
-      tfile=sys.argv[4] # tmp file
-      checksum=sys.argv[5] # important
-      cdiag=sys.argv[6] # setting
-      email=sys.argv[7]
-      turbo=sys.argv[8] #mc
-      ANALYTICSECT=sys.argv[9]
-      ps=sys.argv[10] # proteusshield
-      nc=sys.argv[11] # no compression
-      user="guest"
+                  
+def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, turbo, ANALYTICSECT, ps, nc, user='guest'):
+
       table="logs"
-      stats = []
       parsed = []
       parsedsys=[]
-      recorddata=[]
+      recorddata= []
       dbe=False
       goahead=True                
       conn=None
+
 
       root, ext = os.path.splitext(dbtarget)
       dbopt=root + ".db" # generic output database
@@ -283,7 +274,7 @@ def main():
             c = conn.cursor()
 
 
-            parselog(xdata, parsed, checksum, 'sortcomplete') #SORTCOMPLETE/Log
+            parsed=xdata # parselog(xdata, parsed, checksum, 'sortcomplete') #SORTCOMPLETE/Log
 
             #initial Sys profile
             if ps != 'false':
@@ -314,17 +305,17 @@ def main():
                                     print('sys db failed insert', e)
                                     dbe=True
 
-
+            # Log
             if parsed:
                   if goahead: # #Hybrid analysis. Skip first pass ect.
 
                         try: 
 
                               if turbo == 'mc':
-                                    hanly_parallel(rout, tfile, parsed, checksum, cdiag, dbopt, ps, user, dbtarget, table)
+                                    hanly_parallel(rout, parsed, checksum, cdiag, dbopt, ps, user, dbtarget, table)
                               else:
-                                    with open(rout, 'a') as file, open(tfile, 'a') as file2, open('/tmp/cerr', 'a') as file3, open('/tmp/scr', 'a') as file4:
-                                          hanly(parsed, recorddata, checksum, cdiag, conn, c,  ps, user, dbtarget, file, file2, file3, file4)
+                                    with open(rout, 'a') as file, open('/tmp/cerr', 'a') as file3, open('/tmp/scr', 'a') as file4:
+                                          hanly(parsed, recorddata, checksum, cdiag, conn, c,  ps, user, dbtarget, file, file3, file4)
                                           if recorddata:
                                                 for record in recorddata:
                                                       timestamp = record[0]
@@ -336,7 +327,11 @@ def main():
                                                       result = pyfunctions.detect_copy(label, inode, checksum, c, table)
                                                       if result:
                                                             print(f'Copy {record[0]} {record[2]} {label}', file=file)
-                                                      
+
+                              
+
+                              if COMPLETE: # store no such files
+                                    rout.extend(COMPLETE)
 
                         except Exception as e:
                               print(f"hanlydb failed to process on mode {turbo}: {e}", file=sys.stderr)
@@ -353,8 +348,8 @@ def main():
                               if ANALYTICSECT:
                                     print(f'{pyfunctions.GREEN}Hybrid analysis on{pyfunctions.RESET}')
 
-            # Log
-            if parsed: 
+            
+
                   try: 
                         insert(parsed, conn, c, "logs", "hardlinks")
                         if count % 10 == 0:
@@ -365,38 +360,16 @@ def main():
                         dbe=True
 
             # Stats
-            if os.path.isfile(rout): 
-
+            if rout: 
                   try:
+                        for record in rout:
+                              parts = record.strip().split(None, 3)
+                              if len(parts) < 4:
+                                    continue
 
-                        with open(rout, 'r', newline='') as record:
-                              for line in record:
-                                    parts = line.strip().split(maxsplit=5)
-                                    if len(parts) < 6:
-                                          continue
-                                    action = parts[0]
-                                    date = None if parts[1] == "None" else parts[1]
-                                    time = None if parts[2] == "None" else parts[2]
-                                    cdate = None if parts[3] == "None" else parts[3]
-                                    ctime = None if parts[4] == "None" else parts[4]
-                                    fp = parts[5]
-                                    filename = fp.strip()
+                              action, timestamp, changetime, fp = parts
 
-                                    timestamp = None if date is None or time is None else f"{date} {time}"
-                                    changetime = None if cdate is None or ctime is None else f"{cdate} {ctime}"
-
-                                    if filename:
-                                          stats.append((action, timestamp, changetime, filename))
-
-                        if stats:
-
-                              for record in stats:
-                                    action = record[0]
-                                    timestamp = record[1]
-                                    changetime = record[2]
-                                    fp = record[3]
-
-                                    insert_if_not_exists(action, timestamp, fp, changetime, conn, c)
+                              insert_if_not_exists(action, timestamp, fp, changetime, conn, c)
 
                   except Exception as e:
                         print('stats db failed to insert', e)
@@ -422,4 +395,4 @@ def main():
                   return 4 #db problem
 
 if __name__ == "__main__":
-      sys.exit(main())
+      main()

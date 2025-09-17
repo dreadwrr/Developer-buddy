@@ -7,6 +7,17 @@ RED = "\033[31m"
 GREEN = "\033[1;32m"
 YELLOW = "\033[33m"
 RESET = "\033[0m"
+
+def sbwr(lclmodule):
+    webb = [
+        'mozilla',
+        '.mozilla',
+        'chromium-ungoogled',
+        # 'google-chrome',  # commented out in your bash
+        lclmodule # make sure this is defined globally or passed in
+    ]
+    return webb
+
 def get_delete_patterns(usr, dbp): # db cache clr
     return [
         "%caches%",
@@ -76,7 +87,10 @@ def detect_copy(filename, inode, checksum, cursor, sys_table):
         '''
     else:
         query = '''
-            SELECT filename, inode
+            SELECT filename, inode    # try:
+    #     filepath = codecs.decode(raw_filepath.encode(), 'unicode_escape')
+    # except UnicodeDecodeError:
+    #     filepath = raw_filepath
             FROM logs
             WHERE checksum = ?
         '''

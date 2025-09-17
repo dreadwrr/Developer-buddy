@@ -5,8 +5,8 @@ import sqlite3
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from hanlymc import hanly
 from pyfunctions import detect_copy
-
-def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt="/usr/local/save-changesnew/recent.db", table="logs"):
+															# tfile
+def logger_process(results, rout, scr="/tmp/scr", cerr="/tmp/cerr", dbopt="/usr/local/save-changesnew/recent.db", table="logs"):
 	key_to_files = {
 		"flag": [rout],
 		"cerr": [cerr],
@@ -63,23 +63,23 @@ def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt
 			except IOError as e:
 				print(f"Error logger to {fpath}: as {e}")
 
-			if fpath == rout:
-				try:
-					with open(rout, "r") as rf, open(tfile, "a") as tf:
-						for line in rf:
-							parts = line.strip().split()
-							filtered = [parts[i] for i in range(len(parts)) if i not in (3, 4)]
-							tf.write(' '.join(filtered) + '\n')
-				except IOError as e:
-					print(f"Error copying from {rout} to {tfile}: {e}")
+			# if fpath == rout:
+			# 	try:
+			# 		with open(rout, "r") as rf, open(tfile, "a") as tf:
+			# 			for line in rf:
+			# 				parts = line.strip().split()
+			# 				filtered = [parts[i] for i in range(len(parts)) if i not in (3, 4)]
+			# 				tf.write(' '.join(filtered) + '\n')
+			# 	except IOError as e:
+			# 		print(f"Error copying from {rout} to {tfile}: {e}")
                               
 						
-def hanly_parallel(rout, tfile, parsed, checksum, cdiag, dbopt, ps, user, dbtarget, table):
+def hanly_parallel(rout, parsed, checksum, cdiag, dbopt, ps, user, dbtarget, table):
     max_workers = min(16, os.cpu_count() or 1, len(parsed) if parsed else 1)
     all_results = []
 
     if not parsed:
-        logger_process([], rout, tfile)
+        logger_process([], rout)
         return
 
     chunk_size = max(1, (len(parsed) + max_workers - 1) // max_workers)
@@ -100,4 +100,4 @@ def hanly_parallel(rout, tfile, parsed, checksum, cdiag, dbopt, ps, user, dbtarg
             except Exception as e:
                 logging.error("Worker error: %s\n%s", e, traceback.format_exc())
 
-    logger_process(all_results, rout, tfile, '/tmp/scr', '/tmp/cerr', dbopt, table)
+    logger_process(all_results, rout, '/tmp/scr', '/tmp/cerr', dbopt, table)
