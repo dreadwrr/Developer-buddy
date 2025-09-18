@@ -55,6 +55,7 @@ from rntchangesfunctions import epoch_to_date
 from pyfunctions import green
 from pyfunctions import cprint
 from pyfunctions import escf_py
+from pyfunctions import unescf_py
 from pyfunctions import parse_datetime
 
 from ulink import ulink
@@ -161,18 +162,18 @@ def process_line(line, CACHE_F, CSZE):
     atime = epoch_to_date(access_time, fmt)
     ctime = epoch_to_date(change_time, fmt)
 
-    return (
-            mtime,
-            atime,
-            ctime,
-            inode,
-            checksum,
-            str(size),
-            user,
-            group,
-            mode,
-            file_path
-    )
+    return [
+        mtime,
+        file_path,
+        ctime,
+        atime,
+        inode,
+        checksum,
+        str(size),
+        user,
+        group,
+        mode
+    ]
     
 
 def process_lines(lines, CACHE_F, CSZE):
@@ -395,74 +396,72 @@ def main():
             print(file_info)
 
 
-    parsed_lines = []
 
-    # merge all times from ctime >= to SORTCOMPLETE into same
-    for l in SORTCOMPLETE:
-        ts = parse_datetime(timestamp_from_line(l), fmt)
-        if ts:
-            parsed_lines.append((ts, l))
 
-    parsed_lines.sort(key=lambda x: x[0])
-
-    SRTTIME = timestamp_from_line(parsed_lines[0][1]) if parsed_lines else datetime.now().strftime(fmt)
+    SORTCOMPLETE.sort(key=lambda x: x[0])
+    SRTTIME = datetime.fromtimestamp(SORTCOMPLETE[0][0]).strftime(fmt)
     parsed_PRD = parse_datetime(SRTTIME, fmt)
 
-    for l in tout:
-        ts = parse_datetime(timestamp_from_line(l), fmt)
-        if ts and ts >= parsed_PRD:
-            parsed_lines.append((ts, l))
+    merged = SORTCOMPLETE[:]
+    for entry in tout:
+        ctime_dt = datetime.fromtimestamp(entry[2])
+        if ctime_dt >= parsed_PRD:
+            merged.append(entry)
 
-    # Deduplicate
     seen = set()
-    TMPOUTPUT = []
-    for ts, line in parsed_lines:
-        if line not in seen:
-            seen.add(line)
-            TMPOUTPUT.append((ts, line))
+    deduped = []
+    for entry in merged:
+        entry_tuple = tuple(entry)
+        if entry_tuple not in seen:
+            seen.add(entry_tuple)
+            deduped.append(entry)
 
-    # inclusions from this script
     exclude_patterns = get_runtime_exclude_list(USR, logpst, statpst, dbtarget)
-    filtered_lines = [line for ts, line in TMPOUTPUT if line_included(line, exclude_patterns)]
 
+    def line_included(filepath, exclude_patterns):
+        for pattern in exclude_patterns:
+            if pattern in filepath:
+                return False
+        return True
 
+    SORTCOMPLETE = [
+        entry for entry in deduped
+        if line_included(entry[1], exclude_patterns)
+    ]
+
+    # hardlinks?
     if updatehlinks:
         green('Updating hardlinks')
         SORTCOMPLETE = ulink(SORTCOMPLETE, LCLMODULENAME, supbrw)
 
-    # <=
+
+    filtered_lines = []
+    for entry in SORTCOMPLETE:
+        ts_str = datetime.fromtimestamp(entry[0]).strftime(fmt)
+        filepath = entry[1]
+        escaped_path = escf_py(filepath)
+        filtered_lines.append(f"{ts_str} {escaped_path}")
+
     if flsrh != "true":
         start_dt = parse_datetime(SRTTIME, fmt)
         range_sec = 300 if argone == 'noarguser' else int(argone)
         end_dt = start_dt + timedelta(seconds=range_sec)
-        lines = [l for ts, l in TMPOUTPUT if parse_datetime(timestamp_from_line(l), fmt) <= end_dt]
+
+        def get_ts(line):
+            return parse_datetime(line.split(" ", 2)[0] + " " + line.split(" ", 2)[1], fmt)
+
+        lines = [l for l in filtered_lines if get_ts(l) <= end_dt]
     else:
         lines = filtered_lines
 
-    # preprocess
-    final_output = []
-    for line in filtered_lines:
-        parts = line.strip().split(maxsplit=2)
-        if len(parts) < 3:
-            continue
-        ts_str = f"{parts[0]} {parts[1]}"
-
-        filepath = parts[2]
-        escaped_path = escf_py(filepath)
-        final_output.append(f"{ts_str} {escaped_path}")
+    tmp_lines = [l for l in lines if l.split(" ", 2)[2].startswith("/tmp")]
+    non_tmp_lines = [l for l in lines if not l.split(" ", 2)[2].startswith("/tmp")]
 
 
-    tmp_lines = [l for l in final_output if l.split(" ", 2)[2].startswith("/tmp")]
-    non_tmp_lines = [l for l in final_output if not l.split(" ", 2)[2].startswith("/tmp")]
-
-     # 'recentchanges search'
-    if method != "rnt": 
-        SORTCOMPLETE = [l for l in lines if not l.split(maxsplit=2)[2].startswith("/tmp")]
+    if method != "rnt":
         TMPOPT = non_tmp_lines
-    else:  # 'recentchanges'
-        SORTCOMPLETE = lines
+    else:
         TMPOPT = tmp_lines
-
 
     RECENT = TMPOPT[:]
 
@@ -473,30 +472,33 @@ def main():
         if argf == "filtered" and flsrh == "true": # Inv
             logf = RECENT # dont filter
 
+
+
     TMPOPT = filter_lines_from_list(TMPOPT, USR)  # Apply filter used for results, copying. RECENT is stored in db.
 
-
-
+    # Copy files
+ 
+    copyln = "list_recentchanges_filtered.txt"
+    copynul = "toutput.tmp"
+    cpath = os.path.join(TEMPDIR, copyln)
+    cnpath= os.path.join(TEMPDIR,  copynul)
 
     records = RECENT.strip().splitlines()
-
-    with open(TEMPDIR + "/list_recentchanges_filtered.txt", "w") as f_filtered:
+    
+    with open(cpath, "w") as f_filtered, open(cnpath , "wb") as f_tout:
         for record in records:
-            fields = record.strip().split(" ", 9) 
+            fields = record.strip().split(" ", 9)
             if len(fields) > 9:
                 path_rest = fields[9]
-                
-                # $RECENT
-                f_filtered.write(path_rest + "\n")
+
+                f_filtered.write(path_rest + "\n") # RECENT
+
+                unescaped_path = unescf_py(path_rest)
+                f_tout.write(unescaped_path.encode('utf-8') + b"\0") # tout
     
-    
-    # Copy here? save escaping...     
-    #
-    #
-   # Copy logic re changes .xzm
     try:
         copyres = subprocess.run(
-            ['/usr/local/save-changesnew/recentchanges', THETIME, argone, USR, TEMPDIR, archivesrh, cmode], # 
+            ['/usr/local/save-changesnew/recentchanges', THETIME, argone, USR, TEMPDIR, copyln, copynul, archivesrh, cmode], # 
             capture_output=True,
             text=True
         )
@@ -514,13 +516,6 @@ def main():
     except Exception as e:
         print(f"Error running script: {e}")
 
-    # 'recentchanges'             /tmp                   logic in /usr/local/save-changesnew/recentchanges  --> moves
-    # 'recentchanges search'  USRDIR              logic here  -->  moves
-    #
-    #
-    #
-    #
-    #
 
     #Merge/Move
     if SORTCOMPLETE:
@@ -575,7 +570,7 @@ def main():
                     
                 os.chown(target_path, uid, -1)
 
-        # Is diff?
+        # diff file
         if OLDSORT:
             nodiff = True
             toutnul = [line.strip() for line in OLDSORT]
@@ -594,6 +589,7 @@ def main():
             else:
                 samerlt = True
 
+
             # Send search result SORTCOMPLETE to user
             with open(filepath, 'w') as f:
                 f.write("\n".join(logf) + "\n")
@@ -608,8 +604,9 @@ def main():
 
 
     csum=processha(rout, ABSENT, diffnm, cerr, TMPOPT, flsrh, LCLMODULENAME, argf, parsed_PRD, USR, supbrw, supress)
+
     # filter hits
-    update_filter_csv(TMPOPT, USR, flth) 
+    update_filter_csv(RECENT, USR, flth) 
 
     # terminal opt
     if not csum and os.path.exists(slog) and supress:

@@ -4,26 +4,29 @@
 [[ "$2" = "SRC" ]] && SRCDIR="$2"
 USR="$3"
 tmp="$4"
-archivesrh=$5
-cmode=$6
-[[ -s $RECENT ]] || return 3
-                                       
-RECENT=$tmp/list_recentchanges_filtered.txt		;    TMPCOMPLETE=$tmp/tmp_complete.txt
-RECENTAPP=$tmp/list_recentapp_filtered.txt		;   TMPOPT=$tmp/tmp_holding
-RSYNCEXCL=$tmp/list_filesexclude.txt				;   tout=$tmp/toutput.tmp
-SORTCOMPLETE=$tmp/list_complete_sorted.txt	;   UPDATE=$tmp/save.transferlog.tmp
-SVFILES=$tmp/save.rncfilesmanifest.tmp			;   SVFOLDERS=$tmp/save.rncfoldersmanifest.tmp
 
+RECENT=$tmp/"$5"
+[[ -s $RECENT ]] || return 3
+
+tout=$tmp/"$6"
+archivesrh=$7
+cmode=$8
+
+#work=work$$                                       
+TMPCOMPLETE=$tmp/tmp_complete.txt				;   TMPOPT=$tmp/tmp_holding
+RECENTAPP=$tmp/list_recentapp_filtered.txt		;	UPDATE=$tmp/save.transferlog.tmp
+RSYNCEXCL=$tmp/list_filesexclude.txt				;   SVFOLDERS=$tmp/save.rncfoldersmanifest.tmp
+SORTCOMPLETE=$tmp/list_complete_sorted.txt	;   SVFILES=$tmp/save.rncfilesmanifest.tmp	
 
 chxzm=/rntfiles.xzm     
 workdir=/myfiles   
-
 xdata=/logs_stats.log
 xdata2=/logs.log.log
+
 atmp=/tmp/atmp$$
 tfile=$atmp$xdata
 tfile2=$atmp$xdata2
-#work=work$$
+
 
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
@@ -33,11 +36,10 @@ validrlt="false"
 mkdir $tmp$workdir
 mkdir $atmp
 
-
 # Copy files
 #> $tout
 #while IFS= read -r x; do  ; printf '%s\0' "$x"; done < $RECENT >> $tout
-while IFS= read -r x; do y="$( unescf "$x")" ; if cp -a --parents "$y" "$tmp$workdir" > /dev/null 2>> $tfile; then printf '%s %s\n' "$x" "success" >> $UPDATE; else echo "Failed to copy: $x" >&2; echo "ERROR: $x" >> $UPDATE; fi; done < $RECENT
+while IFS= read -r -d '' x; do if cp -a --parents "$x" "$tmp$workdir" > /dev/null 2>> $tfile; then printf '%s %s\n' "$x" "success" >> $UPDATE; else echo "Failed to copy: $x" >&2; echo "ERROR: $x" >> $UPDATE; fi; done < $tout
 unset IFS
 if [ -s $tfile ]; then echo > $UPDATE ; cat $tfile $UPDATE; fi
 test -e $tfile && rm $tfile

@@ -27,22 +27,19 @@ def ulink(input_array, LCLMODULENAME, supbrwr):
     # Step 1: extract inode or mark None
     for line in input_array:
         ck = False
-        cFILE = re.search(r'"((?:[^"\\]|\\.)*)"', line)
+        cFILE = line[1]
         inode = None
 
         if cFILE:
-            y = cFILE.group(1)
-            cln = line.replace(f'"{y}"', "")
-            parts = cln.split()
-            if len(parts) >= 5:
-                inode_candidate = parts[4]
 
-                if supbrwr == "true":
-                    if any(item and re.search(item, y) for item in webb):
-                        ck = True
+            inode_candidate = line[4]
 
-                if not ck:
-                    inode = inode_candidate
+            if supbrwr == "true":
+                if any(item and re.search(item, cFILE) for item in webb):
+                    ck = True
+
+            if not ck:
+                inode = inode_candidate
 
         if inode is None or ck:
             inodes_array.append(None)
@@ -75,9 +72,9 @@ def ulink(input_array, LCLMODULENAME, supbrwr):
             else:
                 counts_result.append(str(count))
 
-    # Step 4: append counts to original lines
     output_array = [
-        f"{line.strip()} {count}" for line, count in zip(input_array, counts_result)
+        " ".join(map(str, line)) + " " + count
+        for line, count in zip(input_array, counts_result)
     ]
 
     return output_array
