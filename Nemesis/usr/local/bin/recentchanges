@@ -8,6 +8,7 @@ get_colors
 eval "$(python3 /usr/local/save-changesnew/get_exports.py)"
 
 # END CHANGEABLE
+echo $BACKEND_BACKEND
 [[ "$mMODE" != "default" ]] && [[ "$mMODE" != "mc" ]] && echo incorrect mMODE && exit 
 [[ "$STATPST" == "true" ]] && [[ "$ANALYTICS" == "true" ]] && { echo With STATPST cant run with ANALYTICS. for security reasons as its stored in gpg. ; echo you can modify to run both if wanted. ; } && exit
 [[ "$STATPST" == "false" ]] && [[ "$backend" == "database" ]] && echo cant run database with ANALYTICS. && exit
@@ -47,7 +48,6 @@ if  ! id $USR>/dev/null 2>&1; then echo "user: $USR not found"; exit 1; fi
 #Fork
 if [ "${arge[0]}" == "search" ]; then
    	test -d "${passdir}" || { echo  "not a valid directory. usage recentchanges search time."; exit 1; }
-	'recentchanges search'
    	python3 /usr/local/save-changesnew/recentchangessearch.py "${arge[0]}" "$THETIME" $USR "$passdir" $argf "$0"
    	exit
 elif [ "${arge[0]}" == "query" ]; then
@@ -60,6 +60,6 @@ if [ "${arge[0]}" == "" ]; then THETIME="noarguser" ; fi # root call
 [ "${arge[1]}" == "SRC" ] && SRCDIR=${arge[1]} || { [ "${arge[1]}" == "SEARCH" ] || [ "${arge[1]}" == "search" ]; } && echo "The SRC tag is for recentchanges only" && exit
 
 # 'recentchanges'
-python3 /usr/local/save-changesnew/recentchangessearch.py "${arge[0]}" "$THETIME" $USR "$passdir" $argf "rnt" "Refer to /rntfiles_MDY folder for the previous search"
+python3 /usr/local/save-changesnew/recentchangessearch.py "${arge[0]}" "$THETIME" $USR "$passdir" $argf "$0" "rnt" "Refer to /rntfiles_MDY folder for the previous search"
 exit
 
