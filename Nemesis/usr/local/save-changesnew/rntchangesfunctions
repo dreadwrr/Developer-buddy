@@ -1,0 +1,176 @@
+#!/bin/bash
+#   Developer buddy 3.0 core                                               9/16/2025
+
+get_colors(){
+txtyellow=${txtbld}$(tput setaf 3)
+txtblue=${txtbld}$(tput setaf 4)
+function yellow() { echo -e $txtyellow "$1" $rst; }
+function blue(){ echo $txtblue "$1" $rst; }
+}
+
+postop() {
+if [ "$POSTOP" == "true" ]; then
+	while IFS= read -r x; do x="$(unescf "$x")" ; printf '%s\0' "$x"; done < $1 >> $xdata
+    if [ -f $USRDIR/doctrine.tsv ]; then
+        sed -i 's/^export POSTOP="true"/export POSTOP="false"/' $2
+    else
+        echo -e "Datetime\tFile\tSize(kb)\tType\tModified\tAccessed\tOwner" > $atmp/doctrine
+        while IFS= read -r -d '' x; do
+            f="$(cut -d' ' -f3- <<< "$x")"
+            dt=$(cut -d' ' -f1-2 <<< "$x")
+            if [ -e "$f" ] && [ -f "$f" ]; then
+                onr=$( stat -c "%U" "$f")
+                mtyp=$( file --brief --mime-type "$f")
+                if [ "$mtyp" == "application/octet-stream" ]; then mtyp="Unknown"; fi
+                if [ -L "$f" ]; then mtyp="Symlink"; fi
+                sz=$( stat -c %s "$f")
+                md=$( stat -c '%Y' "$f") ; x=$(date -d "@$md" +'%Y-%m-%d %H:%M:%S')
+                ae=$( stat -c '%X' "$f") ; y=$(date -d "@$ae" +'%Y-%m-%d %H:%M:%S')
+                echo -e "$dt\t$f\t$(( sz / 1024 ))\t$mtyp\t$x\t$y\t$onr" >> $atmp/doctrine
+            fi
+        done < $xdata
+        unset IFS
+        head -1 $atmp/doctrine > $USRDIR/doctrine.tsv
+        tail -n +2 $atmp/doctrine | sort -t$'\t' -k7,7 -k3,3n >> $USRDIR/doctrine.tsv
+        green "File doctrine.tsv created in $USRDIR"
+    fi
+fi
+}
+
+filterhits() {
+local lt=$atmp/patterns.txt
+local fl=/usr/local/save-changesnew/filter
+test -f $2 || echo "Entry,Hits" >> $2
+sed -n '/^[[:space:]]*#/!s|sed -i '\''/\(.*\)/d'\''.*|\1|p' "$fl" > $lt
+while IFS= read -r pattern; do
+    k=$( echo "$pattern" | sed -e 's/\\//g' -e "s|'\"\${2}\"'|$USR|g")
+    x=$( grep -Fc -- "$k" $1)
+    if grep -Fq "sed -i '/$pattern/d" $2; then
+        if (( x > 0 )); then
+            y=$( grep -F "sed -i '/$pattern/d" $2 | cut -d',' -f2)
+            b=$(( y + x ))
+            lno=$(grep -Fn "sed -i '/$pattern/d" "$2" | cut -d: -f1)
+            sed -i "${lno}s/,[0-9]\+\$/,$b/" $2
+        fi
+    else
+        line=$(grep -F "sed -i '/$pattern/d" "$fl" | grep -v '^[[:space:]]*#')
+        if [ "$line" != "" ]; then
+            echo "\"$line\",$x" >> $2
+        fi
+    fi
+done < $lt
+unset IFS
+rm $lt
+}
+
+generatekey() {
+        read -sp "Enter passphrase for new GPG key: " p
+        echo
+cat > /tmp/keyparams.conf <<EOF
+%echo Generating a GPG key
+Key-Type: RSA
+Key-Length: 4096
+Subkey-Type: RSA
+Subkey-Length: 4096
+Name-Real: John Doe
+Name-Email: $email
+Expire-Date: 0
+Passphrase: $p
+%commit
+%echo done
+EOF
+    gpg --batch --pinentry-mode loopback  --passphrase "$p" --generate-key /tmp/keyparams.conf
+    shred -u /tmp/keyparams.conf
+    echo "GPG key generated for ${email}."
+}
+
+escf() {
+local o="$1"
+o="${o//\\/\\\\}" ; o="${o//$'\n'/\\n}"; o="${o//\"/\\\"}" ; o="${o//$/\\\$}"
+printf '%s' "$o"
+}
+unescf() {
+local k="$1"
+k="${k//\\n/$'\n'}" ; k="${k//\\\"/\"}" ; k="${k//\\\$/\$}" ; k="${k//\\\\/\\}" 
+printf '%s' "$k"
+}
+
+
+pyerrblk() {
+if [ "$ret" -ne 0 ]; then
+	if [ "$ret" -eq 2 ] || [ "$ret" -eq 3 ]; then
+		echo "Problem with GPG refer to instructions on setting up pinentry ect. Database preserved."
+	elif [ "$ret" -eq 4 ]; then
+		echo "Problem with database in psysrg.py"
+	elif [ "$ret" -eq 7 ]; then
+		echo "mem failed in pstsrg.py"
+	elif [ "$ret" -eq 87 ]; then
+		echo "failed to parse from mMODE=\"mem\""
+	else
+		echo "Pstsrg.py failed. exitcode ${ret}"
+	fi
+fi
+}
+
+
+isoutput() {
+local y=$#
+if (( y >= 7 )); then
+	c=4
+elif (( y == 4)); then
+	c=2
+elif (( y == 2 )); then
+	c=1
+else
+	echo either 2 4 or 8 args
+fi
+for ((i = 1; i <= c; i++)); do
+    files=($atmp/${!i})
+    x=$((i + c))
+    if [[ ${#files[@]} -gt 0 ]] && [[ " ${files[@]} " != *"${!i}"* ]]; then
+        output="${!x}"
+        cat "${files[@]}" >> $output
+    fi
+done
+}
+
+# Used for sysprofile as you dont want to cache the checksum
+rblk() {
+local sl=""
+local cFILE
+local csum
+local y
+while IFS= read -r -d '' p ; do
+	read -r mtime atime itime i fs onr grp pmr path <<< "$p"
+	cFILE="$path"
+	y="$( escf "$cFILE")" 
+	mt=$(date -d "@${mtime%%.*}" +"%Y-%m-%d %H:%M:%S")
+	ct=$(date -d "@${itime%%.*}" +"%Y-%m-%d %H:%M:%S")
+	if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
+		if [ -n "$mt" ]; then
+        	if { [[ "$4" = "ctime" ]] && (( ${itime%%.*} > ${mtime%%.*} )); } || [[ "$4" = "main" ]]; then
+				if [ "$checkSUM" == "true" ]; then
+					[[ "$1" = "ctime" ]] && cam="y" && mt=$ct || cam="None"
+					csum=$(md5sum "$cFILE" 2> /dev/null)
+					csum=${csum%% *}
+					csum=${csum:-None}
+					fs=${fs:-None} 
+					[[ -L "$cFILE" ]] && sl="y" ; sl=${sl:-None}
+					wnr=${onr:-None} ; grp=${grp:-None} ; pmn=${pmr:-None}
+					adtcmd="$csum $fs $sl $wnr $grp $pmn $cam"
+				else
+			    	adtcmd=""
+				fi
+    			ats=$(date -d "@${atime%%.*}" +"%Y-%m-%d %H:%M:%S")			
+				ct=${ct:-None None}
+				ats=${ats:-None None}
+				output="$mt \"$y\" $ct $i $ats $adtcmd"
+				printf '%s\n' "$output" >> $2
+			fi
+		fi
+	else
+		printf "%s,,,%s\n" "Nosuchfile" "$y" >> $3
+	fi
+done < $1
+}
+

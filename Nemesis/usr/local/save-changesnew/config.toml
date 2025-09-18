@@ -1,0 +1,120 @@
+[backend]
+# default normal    bash 2 gpg and queries text based stable tested
+											# database   binary database faster queries 1 gpg and python (easier ha)
+backend = "database"
+
+# default for asymmetrical gpg auth for STATPST
+                                                        # asks for paraphrase and caches for 15 minutes
+                                                        # leave default
+email = "john.doe@email.com"
+
+
+[logs]
+# default 50mb for persistent storage pst
+logSIZE = 50
+
+# Max searches to store in pst storage before removing one
+logCT = 300
+
+# del delete and stop    what to do on max logSIZE
+                                # stop leave in place
+                                # rfh refresh clear and log again
+logPRF = "del"
+
+# default 200mb to disable compression on logpst size
+compLVL = 200
+
+
+[search]
+                   # default nothing. uses gzip compression level balanced. This is for recentchanges .xzm and SRC tag
+                                           # xz        best compression
+                                           # zstd     faster bootup
+                                            # lzo      faster bootup
+cmode = "gzip"
+
+						# How many old searches to save and rnt.xzm in /tmp(all filtered files) pulled. These can be grabbed by recentchanges search and recentchanges 
+archivesrh = 2
+
+# Default 7 store most recent searches in /tmp try 30 and then nrun recentchanges query with STATPST false
+                                # for hybrid analysis in diff file
+                                 # also queries ie recentchanges query stats
+tmpSRHS = 7
+
+#  default. regular search
+								   		# mc      turbo mode run the search in parallel or multiple cores.
+mMODE = "mc"
+
+# false - default. run inotifywait for one hour to look for new files where ctime > mtime in /changes.
+									# If true can bypass 1 of 2 search loops and reduce process overhead as the search is already there
+xRC = false  
+
+
+[analytics]
+# store recent searches in /tmp       default false
+                                        # gives hybrid analysis in diff file more files to compare no overhead as only checks modified
+                                        # makes more sense to work off of /tmp than to decrypt everytime
+                                        # for that reason you can choose /tmp or STATPST or both and recentchanges query
+                                        # if you want your searches to be encrypted just use STATPST
+
+                                        # if you start decrypting here searching there running post ops and everything else its a bad idea
+                                        # for that reason I put protections in place for POSTOP
+
+                                        # useful for quickly checking system filess
+                                        # not as secure but still owned by root in /tmp but its temporary anyway and can be turned off
+ANALYTICS = false
+
+# persistent storage searches encrypted in /usr/local/save-changesnew for recentchanges query see logSIZE / logCT
+                                    # Only overhead is gpg compression set compression to off. At large size speeds can increase by as much as 50%.
+                                    # if you prefer security turn ANALYTICS false and use this
+STATPST = true
+
+# provides more feedback
+                                            # total search time ect
+                                            # we dont want too much output on the terminal just a slight bit more
+                                            # others stats
+ANALYTICSECT = true
+
+# include find output in terminal as well ie scrolling terminal look
+
+FEEDBACK = true
+
+
+[display]
+# false default don't display text editor; launch text editor?
+# featherpad
+# xed
+dspEDITOR = "xed"
+
+
+[diagnostics]
+# compare file checksums for slight changes
+										# slower useful if you want to check deeper level of stats
+checkSUM = true
+ # Include stealth changes in diff file    a file was changed but has the same checksum and filesize subtle edit  ie cache items or string was changed
+
+cdiag = true
+
+# supress cache warnings on terminal from known browsers? Mozilla... ect list top of rntfuncions
+supbrw = true
+
+# ..      all cdiag output to terminal except critical events
+supress = false
+
+# scan for accurate hardlinks in db. alternatively use Set hardlinks button
+updatehlinks = false
+
+# Diagnostics. Create file doctrine. Runs post search operation that can only be done at this time as search is relevant
+                                    # more overhead so recommend off unless one off. output /Downloads
+                                    #
+                                    # if it is run again and a file is still there it will not run the POSTOP and the script will set POSTOP to false to itself
+POSTOP = false
+
+# take initial hash of base modules 001-core.. ect database mode
+proteusSHIELD = false
+
+
+[paths]
+logpst = "/usr/local/save-changesnew/logs.gpg"
+statpst = "/usr/local/save-changesnew/stats.gpg"
+pydbpst = "/usr/local/save-changesnew/recent.gpg"
+
