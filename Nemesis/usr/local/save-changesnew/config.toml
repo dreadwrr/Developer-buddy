@@ -83,7 +83,7 @@ FEEDBACK = true
 # false default don't display text editor; launch text editor?
 # featherpad
 # xed
-dspEDITOR = "xed"
+dspEDITOR = "false"
 
 
 [diagnostics]

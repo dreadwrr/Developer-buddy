@@ -14,7 +14,6 @@ def logger_process(results, rout, scr="/tmp/scr", cerr="/tmp/cerr", dbopt="/usr/
 	}
 	conn = sqlite3.connect(dbopt)
 
-	#with open('/tmp/logger', 'a') as file7:
 	with conn:
 		c = conn.cursor()
 
@@ -26,54 +25,49 @@ def logger_process(results, rout, scr="/tmp/scr", cerr="/tmp/cerr", dbopt="/usr/
 					if not isinstance(messages, list):
 						messages = [messages]
 					for fpath in files:
-						file_messages.setdefault(fpath, []).extend(messages)
+						if fpath is rout:
+							rout.extend(messages)
+						else:
+							file_messages.setdefault(fpath, []).extend(messages)
 
-
+		
 		if "dcp" in entry:
 			dcp_messages = entry["dcp"]
 			if not isinstance(dcp_messages, list):
 				dcp_messages = [dcp_messages]
 
 			if dcp_messages:
-				# open(tfile, 'a') as file2:
-				with open(rout, 'a') as file:
-						for msg in dcp_messages:
-							try:
-								timestamp = msg[0]
-								label = msg[1]
-								ct = msg[2]
-								#inode = msg[3]   
-								checksum = msg[5]
-								result = detect_copy(label, checksum, c, table)
-								if result:
-									print(f'Copy {timestamp} {ct} {label}', file=file)
-									#print(f'Copy {timestamp} {label}', file=file2)
+
+				for msg in dcp_messages:
+					try:
+						timestamp = msg[0]
+						label = msg[1]
+						ct = msg[2]
+						#inode = msg[3]   
+						checksum = msg[5]
+						result = detect_copy(label, checksum, c, table)
+						if result:
+							rout.append(f'Copy {timestamp} {ct} {label}')
 
 
-							except Exception as e:
-								print(f"Error updating DB for sys entry '{msg}': {e}")
+					except Exception as e:
+						print(f"Error updating DB for sys entry '{msg}': {e}")
+						
 						
 	for fpath, messages in file_messages.items():
 		if messages:
 			try:
+				if fpath is rout:
+					rout.extend(str(msg) for msg in messages)
+				else:
+					with open(fpath, "a") as f:
+						f.write('\n'.join(str(msg) for msg in messages) + '\n')
 
-				with open(fpath, "a") as f:
-					f.write('\n'.join(str(msg) for msg in messages) + '\n')
-					#file7.write('\n'.join(str(msg) for msg in messages) + '\n')
 			except IOError as e:
 				print(f"Error logger to {fpath}: as {e}")
 
-			# if fpath == rout:
-			# 	try:
-			# 		with open(rout, "r") as rf, open(tfile, "a") as tf:
-			# 			for line in rf:
-			# 				parts = line.strip().split()
-			# 				filtered = [parts[i] for i in range(len(parts)) if i not in (3, 4)]
-			# 				tf.write(' '.join(filtered) + '\n')
-			# 	except IOError as e:
-			# 		print(f"Error copying from {rout} to {tfile}: {e}")
-                              
-						
+
+
 def hanly_parallel(rout, parsed, checksum, cdiag, dbopt, ps, user, dbtarget, table):
     max_workers = min(16, os.cpu_count() or 1, len(parsed) if parsed else 1)
     all_results = []

@@ -7,9 +7,11 @@ import time
 import tomllib
 
 from pyfunctions import cprint
-from pyfunctions import green
 from pyfunctions import sbwr
 from filter import get_exclude_patterns
+
+
+
 
 # toml
 def load_config(confdir):
@@ -38,7 +40,7 @@ def logic(syschg, samerlt, nodiff, diffrlt, validrlt, copyres,MODULENAME, THETIM
 
     else:
         if flsrh:
-            cprint.cyan(f'All files newer than{filename} in /Downloads')
+            cprint.cyan(f'All files newer than {filename} in /Downloads')
         elif argf:
             cprint.cyan('All new filtered files are listed in /Downloads')
         else:
@@ -49,8 +51,9 @@ def logic(syschg, samerlt, nodiff, diffrlt, validrlt, copyres,MODULENAME, THETIM
     if samerlt and syschg and nodiff:
         cprint.cyan('The sys search was the same as before.')
     if not diffrlt and nodiff:
-        green('Nothing in the sys diff file. That is the results themselves are true.')
+        cprint.green('Nothing in the sys diff file. That is the results themselves are true.')
     if imsg:
+        print('mega')
         print(imsg)
 
 # if [ "$syschg" == "false" ]; then  cyan "No sys files to report." ; fi

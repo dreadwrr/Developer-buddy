@@ -48,6 +48,7 @@ def stealth(filename, label, entry, checksum, current_size, original_size, cdiag
 						
 
 def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
+
 	global collision_message
 	results = []
 	fmt = "%Y-%m-%d %H:%M:%S"

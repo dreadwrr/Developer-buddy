@@ -1,5 +1,4 @@
 #!/usr/bin/env python3                  
-#!/bin/bash
 #   NMS5                                                                            09/16/2025  v3.0
 #   recentchanges. Developer buddy      make xzm
 #   Provide ease of pattern finding ie what files to block we can do this a number of ways
@@ -22,7 +21,6 @@ import glob
 import hashlib
 import multiprocessing
 import os
-import re
 import sys
 import time
 import processha
@@ -50,9 +48,8 @@ from rntchangesfunctions import gettime
 from rntchangesfunctions import get_runtime_exclude_list
 from rntchangesfunctions import load_config
 from rntchangesfunctions import openrc
-from rntchangesfunctions import epoch_to_date
 
-from pyfunctions import green
+from pyfunctions import epoch_to_date
 from pyfunctions import cprint
 from pyfunctions import escf_py
 from pyfunctions import unescf_py
@@ -90,7 +87,7 @@ def intst(dbtarget, logSIZE, CSZE, compLVL):
 # def read_file_lines(path):
 #     p = Path(path)
 #     return [line.rstrip() for line in p.open()] if p.is_file() and p.stat().st_size > 0 else []
-
+#
 # def extract_quoted(line):
 #     m = re.search(r'"((?:[^"\\]|\\.)*)"', line)
 #     return m.group(1) if m else ""
@@ -135,9 +132,14 @@ def get_cached(CACHE_F, inode, size, mtime):
     return None
 
 
-def process_line(line, CACHE_F, CSZE):
+def process_line(line, checksum, type, CACHE_F, CSZE):
     fmt="%Y-%m-%d %H:%M:%S"
-    parts = line.split('\0')
+    hardlink=None
+    sym=""
+    cam=""
+    checks=""
+    # print(repr(line))
+    parts = line.split(maxsplit=9)
     if len(parts) < 9:
         return None
 
@@ -150,36 +152,58 @@ def process_line(line, CACHE_F, CSZE):
             "COMPLETE": f"Nosuchfile {now_str} {now_str} {file_path}"
         }
 
-    if size > CSZE:
-        checksum = get_cached(CACHE_F, inode, size, mod_time)
-        if checksum is None:
-            checksum = calculate_checksum(file_path)
-            upt_cache(inode, size, mod_time, checksum, file_path, CACHE_F)
-    else:
-        checksum = calculate_checksum(file_path)
+    if checksum:
+        if size > CSZE:
+            checks = get_cached(CACHE_F, inode, size, mod_time)
+            if checks is None:
+                checks= calculate_checksum(file_path)
+                upt_cache(inode, size, mod_time, checks, file_path, CACHE_F)
+        else:
+            checks = calculate_checksum(file_path)
 
     mtime = epoch_to_date(mod_time, fmt)
     atime = epoch_to_date(access_time, fmt)
     ctime = epoch_to_date(change_time, fmt)
 
-    return [
-        mtime,
+    if type == "ctime":
+        if ctime > mtime:
+            mtime=ctime
+            cam="y"
+
+    if os.path.islink(file_path):
+        sym="y"
+
+    return { 
+        "SORTCOMPLETE":[
+        str(mtime),
         file_path,
-        ctime,
-        atime,
+        str(ctime),
         inode,
-        checksum,
+        str(atime),
+        checks,
         str(size),
+        sym,
         user,
         group,
-        mode
-    ]
-    
+        mode,
+        cam,
+        hardlink
+        ]
+    }
 
-def process_lines(lines, CACHE_F, CSZE):
-    worker = partial(process_line, CACHE_F=CACHE_F, CSZE=CSZE)
-    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-        results = pool.map(worker, lines)
+
+def process_line_worker(args):
+    line, checksum, type, CACHE_F, CSZE = args
+    return process_line(line, checksum, type, CACHE_F, CSZE)
+
+def process_lines(lines, checksum, type, CACHE_F, CSZE):
+    args = [(line, checksum, type, CACHE_F, CSZE) for line in lines]
+
+    if len(lines) < 100:
+        results = [process_line_worker(arg) for arg in args]
+    else:
+        with multiprocessing.Pool() as pool:
+            results = pool.map(process_line_worker, args)
 
     entry = {
         "SORTCOMPLETE": [],
@@ -201,15 +225,15 @@ def process_lines(lines, CACHE_F, CSZE):
     return entry
 
 
-
-def process_find_lines(lines, CACHE_F, CSZE):
-    entry = process_lines(lines, CACHE_F, CSZE)
+def process_find_lines(lines, checksum, type, CACHE_F, CSZE):
+    entry = process_lines(lines, checksum, type, CACHE_F, CSZE)
     return entry["SORTCOMPLETE"], entry["COMPLETE"]
                                                                                             #
                                                                     #End parallel #    
 
 
 def hsearch(OLDSORT, MODULENAME, argone):
+
     folders = sorted(glob.glob(f'/tmp/{MODULENAME}_MDY*'), reverse=True)
 
     for folder in folders:
@@ -228,7 +252,11 @@ def hsearch(OLDSORT, MODULENAME, argone):
 def main():
 
     THETIME=sys.argv[1]
-    method=sys.argv[6]
+    method=""
+
+    if len(sys.argv) > 7:
+        method=sys.argv[7]
+
 
     if THETIME != 'search' and method != "rnt":
         print('exiting not a search')
@@ -238,7 +266,12 @@ def main():
     toutnul = [] # ctime input
     SORTCOMPLETE = [] # main results
     tout = [] # ctime results
+    
+    RECENT = []
+
     COMPLETE = [] # nsf
+    COMPLETE_1 = [] 
+    COMPLETE_2 = []
 
     difff_file = [] # diff file
     ABSENT = [] # diff file actions
@@ -250,11 +283,17 @@ def main():
     argone=sys.argv[2] # range
     USR=sys.argv[3]
     pwrd=sys.argv[4]
-    argf=sys.argv[5] # filtered?  
-    imsg=sys.argv[7]
+    argf=sys.argv[5] # filtered?
+    #sptlocale=sys.argv[6]  
+    if len(sys.argv) > 8:
+        imsg=sys.argv[8]
+    else:
+        imsg=None
 
-
-    cstart, cend = 0
+    start = 0 
+    end = 0
+    cstart = 0
+    cend = 0
     CSZE = 1024 * 1024  # >= 1MB in bytes to cache
 
     diffrlt = False
@@ -263,12 +302,14 @@ def main():
     syschg = False
     flsrh = "false"
     validrlt = ""
+    copyres = ""
+    parseflnm = ""
     fmt="%Y-%m-%d %H:%M:%S"
 
     chxzm="/rntfiles.xzm"
     filename = os.path.basename(chxzm)  
     LCLMODULENAME = os.path.splitext(filename)[0]
-    MODULENAME= os.path.splitext(chxzm)[0]
+    MODULENAME= os.path.splitext(filename)[0]
     USRDIR =  f'/home/{USR}/Downloads'    
 
     flth="/usr/local/save-changesnew/flth.csv"
@@ -293,12 +334,14 @@ def main():
     updatehlinks = config['diagnostics']['updatehlinks']
     logpst  = config['paths']['logpst'] # for inclusions
     statpst = config['paths']['statpst']
-    dbtarget = config['paths']['dbtarget']
+    dbtarget = config['paths']['pydbpst']
     archivesrh = config['search']['archivesrh'] 
     cmode = config['search']['cmode'] 
     turbo = config['search']['mMODE']
     xRC = config ['search']['xRC']
-   
+
+    F="find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var"
+    TAIL="-not -type d -printf '%T@ %A@ %C@ %i %s %u %g %m %p\\0'"
 
     start = gettime(ANALYTICSECT, start)
     # start inotifywait?
@@ -311,7 +354,8 @@ def main():
     TEMPDIR = tempfile.mkdtemp()
     #tfile=TEMPDIR + '/' + 'tmpd' formerly copy of rout with 3 fields
 
-    # user arguments mode time/file
+
+    # search criteria
     if argone != "noarguser" and argone != "":
         try:
             argone = int(argone)
@@ -339,7 +383,7 @@ def main():
                 parseflnm = filename.rstrip('/').split('/')[-1]
 
             cprint.cyan(f"Searching for files newer than {filename}")
-
+            print("no")
             flsrh = "true"
             ct = int(time.time())
             fmt = int(os.stat(filename).st_mtime)
@@ -353,61 +397,66 @@ def main():
         cprint.cyan('Searching for files 5 minutes old or newer')
 
     if tmn:
-        logf=RECENT
         mmin = f'-mmin -{tmn}'
         cmin = f'-cmin -{tmn}'
 
 
+    def findmtime(find_command_mmin, RECENT, COMPLETE_1, init, checksum, ANALYTICSECT, end, cstart):
 
-    if not tout: # is there xRC? if not both mtime and ctime (toutnul)
+        proc = subprocess.Popen(find_command_mmin,  stdout=subprocess.PIPE, shell=True)
+        output = proc.stdout.read()
+        proc.stdout.close()
+        proc.wait()
+        RECENTNUL = [entry.decode() for entry in output.split(b'\0') if entry]
+        end, cstart = gettime(ANALYTICSECT, checksum, init, start, cstart)
 
-        directories = ["/bin", "/etc", "/home", "/lib", "/lib64", "/opt", "/root", "/sbin", "/tmp", "/usr", "/var"]
+        RECENT, COMPLETE_1 = process_find_lines(RECENTNUL, checksum, "main", CACHE_F, CSZE)
+        
+        return RECENT, COMPLETE_1, end, cstart
 
-        find_base_command = ['find'] + directories + ['-not', '-type', 'd', '-printf', '%T@ %A@ %C@ %i %s %u %g %m %p\0']
+    def findctime(find_command_cmin, tout, COMPLETE_2, init, checksum, ANALYTICSECT, end, cstart):
 
-        find_command_mmin = find_base_command + [mmin]
-        find_command_cmin = find_base_command + [cmin]
+        proc = subprocess.Popen(find_command_cmin,  stdout=subprocess.PIPE, shell=True)
+        output = proc.stdout.read()
+        proc.stdout.close()
+        proc.wait()
+        toutnul =  [entry.decode() for entry in output.split(b'\0') if entry]
+        end, cstart = gettime(ANALYTICSECT, checksum, init, start, cstart)
 
-        mmin_lines = subprocess.run(find_command_mmin, capture_output=True, text=True, check=True)
-        cmin_lines = subprocess.run(find_command_cmin, capture_output=True, text=True, check=True)
+        tout, COMPLETE_2 = process_find_lines(toutnul, checksum, "ctime", CACHE_F, CSZE) # ctime > mtime files
 
-        end, cstart = gettime(ANALYTICSECT, checksum, start, cstart)
-        toutnul = cmin_lines.stdout.splitlines()
+        return tout, COMPLETE_2, end, cstart
 
-        tout, COMPLETE_2 = process_find_lines(toutnul, CACHE_F, CSZE) # ctime > mtime files
+     
+    find_command_cmin =f"{F} {cmin} {TAIL}"
+    find_command_mmin =f"{F} {mmin} {TAIL}"
 
-    # bypass ctime loop
+    if not tout: 
+        tout, COMPLETE_2, end, cstart = findctime(find_command_cmin, tout, COMPLETE_2, "init", checksum, ANALYTICSECT, end, cstart)
+        RECENT, COMPLETE_1, end, cstart = findmtime(find_command_mmin, RECENT, COMPLETE_1, "false", checksum, ANALYTICSECT, end, cstart)
     else:
-
-        find_command_mmin = find_base_command + [mmin]
-
-        end, cstart = gettime(ANALYTICSECT, checksum, "init", start, cstart)
-        end, cstart = gettime(ANALYTICSECT, checksum, "init", start, cstart)
-
-    RECENTNUL = mmin_lines.stdout.splitlines()
-
-    SORTCOMPLETE, COMPLETE_1 = process_find_lines(RECENTNUL, CACHE_F, CSZE) # mtime files main
+        RECENT, COMPLETE_1, end, cstart = findmtime(find_command_mmin, RECENT, COMPLETE_1, "init", checksum, ANALYTICSECT, end, cstart) # bypass ctime loop if xRC 
     cend = gettime(ANALYTICSECT, cend)
-
-    COMPLETE = COMPLETE_1 + COMPLETE_2 # nsf system cache items
+        
+ 
+    COMPLETE = COMPLETE_1 + COMPLETE_2 # nsf append to rout
 
     if FEEDBACK: # scrolling terminal look
         for file_info in RECENTNUL:
             print(file_info)
 
 
-
-
+    SORTCOMPLETE = RECENT
     SORTCOMPLETE.sort(key=lambda x: x[0])
-    SRTTIME = datetime.fromtimestamp(SORTCOMPLETE[0][0]).strftime(fmt)
+    SRTTIME = datetime.strptime(SORTCOMPLETE[0][0], fmt)
     parsed_PRD = parse_datetime(SRTTIME, fmt)
-
     merged = SORTCOMPLETE[:]
     for entry in tout:
-        ctime_dt = datetime.fromtimestamp(entry[2])
-        if ctime_dt >= parsed_PRD:
+        tout_dt = datetime.strptime(entry[0].strip(), fmt)
+        if tout_dt >= parsed_PRD:
             merged.append(entry)
-
+ 
+    merged.sort(key=lambda x: x[0])
     seen = set()
     deduped = []
     for entry in merged:
@@ -430,17 +479,18 @@ def main():
     ]
 
     # hardlinks?
-    if updatehlinks:
-        green('Updating hardlinks')
-        SORTCOMPLETE = ulink(SORTCOMPLETE, LCLMODULENAME, supbrw)
+    #if updatehlinks:
+        #cprint.green('Updating hardlinks')
+     #   SORTCOMPLETE = ulink(SORTCOMPLETE, LCLMODULENAME, supbrw)
 
 
     filtered_lines = []
     for entry in SORTCOMPLETE:
-        ts_str = datetime.fromtimestamp(entry[0]).strftime(fmt)
+        ts_str = datetime.strptime(entry[0].strip(), fmt)
         filepath = entry[1]
         escaped_path = escf_py(filepath)
         filtered_lines.append(f"{ts_str} {escaped_path}")
+
 
     if flsrh != "true":
         start_dt = parse_datetime(SRTTIME, fmt)
@@ -449,7 +499,7 @@ def main():
 
         def get_ts(line):
             return parse_datetime(line.split(" ", 2)[0] + " " + line.split(" ", 2)[1], fmt)
-
+        
         lines = [l for l in filtered_lines if get_ts(l) <= end_dt]
     else:
         lines = filtered_lines
@@ -457,70 +507,70 @@ def main():
     tmp_lines = [l for l in lines if l.split(" ", 2)[2].startswith("/tmp")]
     non_tmp_lines = [l for l in lines if not l.split(" ", 2)[2].startswith("/tmp")]
 
-
-    if method != "rnt":
-        TMPOPT = non_tmp_lines
-    else:
-        TMPOPT = tmp_lines
-
+    
+    TMPOPT = non_tmp_lines
+    TMPOUTPUT = tmp_lines
     RECENT = TMPOPT[:]
 
+    if tmn:
+        logf = RECENT
+    elif method == "rnt":
+        logf = TMPOPT
 
-    # invert flag from filteredsearch.sh "inv"
     if argf == "filtered" or flsrh == "true":
         logf = TMPOPT # filter the search
-        if argf == "filtered" and flsrh == "true": # Inv
-            logf = RECENT # dont filter
-
+        if argf == "filtered" and flsrh == "true":
+            logf = RECENT # dont filter inv
 
 
     TMPOPT = filter_lines_from_list(TMPOPT, USR)  # Apply filter used for results, copying. RECENT is stored in db.
+  
 
     # Copy files
- 
-    copyln = "list_recentchanges_filtered.txt"
-    copynul = "toutput.tmp"
-    cpath = os.path.join(TEMPDIR, copyln)
-    cnpath= os.path.join(TEMPDIR,  copynul)
+    if method == "rnt":
+        copyln = "list_recentchanges_filtered.txt"
+        copynul = "toutput.tmp"
+        cpath = os.path.join(TEMPDIR, copyln)
+        cnpath= os.path.join(TEMPDIR,  copynul)
 
-    records = RECENT.strip().splitlines()
-    
-    with open(cpath, "w") as f_filtered, open(cnpath , "wb") as f_tout:
-        for record in records:
-            fields = record.strip().split(" ", 9)
-            if len(fields) > 9:
-                path_rest = fields[9]
-
-                f_filtered.write(path_rest + "\n") # RECENT
-
-                unescaped_path = unescf_py(path_rest)
-                f_tout.write(unescaped_path.encode('utf-8') + b"\0") # tout
-    
-    try:
-        copyres = subprocess.run(
-            ['/usr/local/save-changesnew/recentchanges', THETIME, argone, USR, TEMPDIR, copyln, copynul, archivesrh, cmode], # 
-            capture_output=True,
-            text=True
-        )
-
-        if copyres.returncode == 7:
-            validrlt = "nofiles"
-        elif copyres.returncode ==3:
-            print(f'RECENT is missing exiting from recentchanges.')
-        elif copyres.returncode != 0:
-            print(f'/rntfiles.xzm failed to unable to make xzm. {copyres.returncode}')
-            #print("STDERR:", result.stderr)
+        if isinstance(TMPOPT, str):
+            records = TMPOPT.strip().splitlines(0)
         else:
-            validrlt = "True"
+            records = TMPOPT
+        
+        with open(cpath, "w") as f_filtered, open(cnpath , "wb") as f_tout:
+            for record in records:
+                fields = record.strip().split(" ", 9)
+                if len(fields) > 9:
+                    path_rest = fields[9]
+                    unescaped_path = unescf_py(path_rest)
+                    
+                    f_filtered.write(path_rest + "\n") # RECENT
+                    f_tout.write(unescaped_path.encode('utf-8') + b"\0") # tout
+        
+        try:
+            copyres = subprocess.run(
+                ['/usr/local/save-changesnew/recentchanges', THETIME, argone, USR, TEMPDIR, copyln, copynul, archivesrh, cmode], # 
+                capture_output=True,
+                text=True
+            )
+            if copyres.returncode == 7:
+                validrlt = "nofiles"
+            elif copyres.returncode ==3:
+                print(f'RECENT is missing exiting from recentchanges.')
+            elif copyres.returncode != 0:
+                print(f'/rntfiles.xzm failed to unable to make xzm. {copyres.returncode}')
+                #print("STDERR:", result.stderr)
+            else:
+                validrlt = "True"
 
-    except Exception as e:
-        print(f"Error running script: {e}")
+        except Exception as e:
+            print(f"Error in recentchangest: {e}")
 
 
     #Merge/Move
     if SORTCOMPLETE:
         OLDSORT = []
-
         if flsrh == "true":
             flnm = f'xNewerThan_{parseflnm}{argone}'
             flnmdff = f'xDiffFromLast_{parseflnm}{argone}'
@@ -532,115 +582,102 @@ def main():
             flnmdff = f'xSystemDiffFromLastSearch{argone}'
 
         if method == "rnt":
-            DIRSRC="/tmp"
+            DIRSRC="/tmp"  # 'recentchanges'
         else:
-            DIRSRC=USRDIR
-
-            filepath = os.path.join(DIRSRC, f'{MODULENAME}{flnm}')
-
-        if os.path.exists(filepath):
+            DIRSRC=USRDIR # 'search'
+        # try
+        filepath = os.path.join(DIRSRC, f'{MODULENAME}{flnm}')
+        print(filepath)
+        if os.path.isfile(filepath):
             with open(filepath, 'r') as f:
                 OLDSORT = f.readlines()
-
+        # try /tmp
         if not OLDSORT and flsrh != "true" and argf != "filtered" and method != "rnt":
             fallback_path = f'/tmp/{MODULENAME}{flnm}'
-            if os.path.exists(fallback_path):
+            if os.path.isfile(filepath):
                 with open(fallback_path, 'r') as f:
                     OLDSORT = f.readlines()
 
             if not OLDSORT:
-                    hsearch(MODULENAME, argone) # look through `recentchanges` /tmp/MODULENAME_MDY*
+                    hsearch(OLDSORT, MODULENAME, argone) # look through `recentchanges` /tmp/MODULENAME_MDY*
 
         uid = pwd.getpwnam(USR).pw_uid
 
+        # /tmp files
         if method != "rnt":
             # Reset
             clear_logs(USRDIR, MODULENAME)
-
             # send /tmp results to user
             if TMPOUTPUT:
-
-                b_argone = argone.replace('.txt', '') if argone.endswith('.txt') else argone
-                target_filename = f"{MODULENAME}xSystemTmpfiles{flnm}{b_argone}"
+                b_argone = str(argone).replace('.txt', '') if str(argone).endswith('.txt') else str(argone)
+                target_filename = f"{MODULENAME}xSystemTmpfiles{parseflnm}{b_argone}"
                 target_path = os.path.join(USRDIR, target_filename)
-
-
                 with open(target_path, 'w') as dst:
-                    dst.write('\n'.join(TMPOUTPUT) + '\n')  # join lines with newlines
-                    
+                    dst.write('\n'.join(TMPOUTPUT) + '\n') 
                 os.chown(target_path, uid, -1)
+   
+        diffnm=DIRSRC + '/' + MODULENAME + flnmdff
 
         # diff file
         if OLDSORT:
             nodiff = True
             toutnul = [line.strip() for line in OLDSORT]
             sortcomplete_stripped = [line.strip() for line in logf]
+            clean_toutnul = [line.strip() for line in toutnul]
+            clean_sortcomplete = set(line.strip() for line in sortcomplete_stripped)
 
-            diffnm=f'{DIRSRC}{MODULENAME}{flnmdff}'
-            difff_file = [line for line in toutnul if line not in sortcomplete_stripped]
+            difff_file = [line for line in clean_toutnul if line not in clean_sortcomplete]
 
             if difff_file:
                 diffrlt = True
-                with open(diffnm, 'w') as f:
-                    for line in difff_file:
-                        f.write(line + '\
-                                n')
-                os.chown(diffnm, uid, -1)
+
+                # postprocess before db/ha and then send to processha
+                isdiff(logf, ABSENT, rout, diffnm, difff_file, flsrh, parsed_PRD, uid, fmt) 
+                
             else:
                 samerlt = True
 
 
-            # Send search result SORTCOMPLETE to user
-            with open(filepath, 'w') as f:
-                f.write("\n".join(logf) + "\n")
+        # Send search result SORTCOMPLETE to user
+        with open(filepath, 'w') as f:  
+            f.write("\n".join(logf) + "\n")
 
-            os.chown(filepath, uid, -1)
-       
-            # postprocess before db/ha and then send to processha
-            isdiff(RECENT, ABSENT, rout, diffnm, difff_file, parsed_PRD, fmt)
-
+        os.chown(filepath, uid, -1)
     # Backend
     pstsrg.main(SORTCOMPLETE, COMPLETE, dbtarget, rout, checksum, cdiag, email, turbo, ANALYTICSECT, ps, nc, USR)
-
-
-    csum=processha(rout, ABSENT, diffnm, cerr, TMPOPT, flsrh, LCLMODULENAME, argf, parsed_PRD, USR, supbrw, supress)
-
-    # filter hits
+    # Diff output
+    csum=processha.processha(rout, ABSENT, diffnm, cerr, flsrh, LCLMODULENAME, argf, parsed_PRD, USR, supbrw, supress)
+    # Filter hits
     update_filter_csv(RECENT, USR, flth) 
-
-    # terminal opt
+    # Terminal output
     if not csum and os.path.exists(slog) and supress:
         with open(slog, 'r') as src, open(diffnm, 'a') as dst:
             dst.write(f"\ncdiag\n")
             dst.write(src.read())
-
     elif not csum and not supress and os.path.exists(slog):
         filter_output(slog, LCLMODULENAME, 'Checksum', 'no', 'blue', 'yellow', 'scr')
         with open(slog, 'r') as src, open(diffnm, 'a') as dst:
             dst.write(f"\ncdiag\n")
             dst.write(src.read())
-
     elif csum:
         with open(cerr, 'r') as src, open(diffnm, 'a') as dst:
             dst.write(f"\ncdiag alert\n")
             dst.write(src.read())
-
     if ANALYTICSECT:
         el = end - start  
         print(f'Search took {el:.3f} seconds')
         if checksum:
             el = cend - cstart
             print(f'Checksum took {el:.3f} seconds')
-
-    #cleanup
-    
+    #Cleanup
     try:
         shutil.rmtree(TEMPDIR)
     except FileNotFoundError:
         pass
     except Exception as e:
         print(f"Error removing temporary directory {TEMPDIR}: {e}")
-
-    logic(syschg, samerlt, nodiff, diffrlt, validrlt, copyres, MODULENAME, THETIME, argone, argf, filename, flsrh, imsg)
+    logic(syschg, samerlt, nodiff, diffrlt, validrlt, copyres, MODULENAME, THETIME, argone, argf, filename, flsrh, imsg, method)
     display(dspEDITOR, USRDIR, MODULENAME, flnm)
+if __name__ == "__main__":
+    main()
 

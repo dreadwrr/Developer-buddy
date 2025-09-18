@@ -11,7 +11,7 @@ from hanlydb import hanly
 from hanlyparallel import hanly_parallel
 from pyfunctions import getcount
 from pyfunctions import parse_line
-from recentchangessearch import cprint
+from pyfunctions import cprint
 
 count=0
 def encr(database, opt, email, nc, md):
@@ -331,7 +331,6 @@ def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, turbo, ANALYTI
                                                             print(f'Copy {record[0]} {record[2]} {label}', file=file)
 
                               
-
                               if COMPLETE: # store no such files
                                     rout.extend(COMPLETE)
 
