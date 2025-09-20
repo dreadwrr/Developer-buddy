@@ -36,7 +36,7 @@ fmt="%Y-%m-%d %H:%M:%S"
 diffrlt="false" 															; 		nodiff="false"
 pstc="false"																;		flsrh="false"
 samerlt="false"															;		nc="false"
-syschg="false"
+syschg="false"															;		csm="false"
 
 
 F=(/bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var)
@@ -95,6 +95,7 @@ fi
 #while IFS= read -r -d '' y; do y="$( escf "$y")" ; printf '%s\n' "$y"; done < $FEEDFILE > $xdata
 search $FEEDFILE $SORTCOMPLETE $COMPLETE $checkSUM "main"
 isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE
+isoutput cache1* $CACHE_F
 
 LCLMODULENAME=${chxzm:1:8}
 
@@ -104,12 +105,13 @@ if [ -s $SORTCOMPLETE ]; then
 	
 	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE ; SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') ; PRD=$SRTTIME
 	if [ -s $tout ]; then awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' $tout >> $SORTCOMPLETE ; fi
+
 	inclusions
 
 	if [ "$flsrh" != "true" ]; then
 		s=$(date -d "$SRTTIME" "+%s")
 		if [ "$2" == "noarguser" ]; then RANGE=$(( s + 300 )) ; else RANGE=$(( s + argone )) ; fi
-		PRD=$(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S')
+		PRD=$(date -d "@$RANGE" +"$fmt")
 		awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' $SORTCOMPLETE > $tout ; mv $tout $SORTCOMPLETE
 	fi
 

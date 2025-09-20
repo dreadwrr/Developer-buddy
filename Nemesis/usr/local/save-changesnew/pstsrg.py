@@ -13,14 +13,6 @@ from pyfunctions import parse_line
 count=0
 def encr(database, opt, email, nc, md):
     try:
-      #   subprocess.run([
-      #       "gpg",
-      #       "--yes",
-      #       "--encrypt",
-      #       "-r", email,
-      #       "-o", opt,
-      #       database
-      #   ], check=True)
             cmd =       [
                   "gpg",
                   "--yes",
@@ -166,7 +158,6 @@ def insert(log, conn, c, table, last_column): # Log, sys
       # ''', blank_row)
       # conn.commit()
       # if table == 'logs':
-
             # for record in log:                  logic without UNIQUE fields
             #       filename = record[1]
             #       changetime = record[10]
@@ -241,18 +232,38 @@ def parselog(file, list, checksum, type):
                         checks=None
 
                   list.append((timestamp, filename, changetime, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, cam, hardlink_count))
+
+def statparse(line, outputlist):
+      parts = line.strip().split(maxsplit=5)
+      if len(parts) < 6:
+            return
+      action = parts[0]
+      date = None if parts[1] == "None" else parts[1]
+      time = None if parts[2] == "None" else parts[2]
+      cdate = None if parts[3] == "None" else parts[3]
+      ctime = None if parts[4] == "None" else parts[4]
+      fp = parts[5]
+      filename = fp.strip()
+
+      timestamp = None if date is None or time is None else f"{date} {time}"
+      changetime = None if cdate is None or ctime is None else f"{cdate} {ctime}"
+
+      if filename:
+            outputlist.append((action, timestamp, changetime, filename))
+
 def main():
       xdata=sys.argv[1] # data source
-      dbtarget=sys.argv[2]  # the target
-      rout=sys.argv[3]  # tmp holds action
-      tfile=sys.argv[4] # tmp file
-      checksum=sys.argv[5] # important
-      cdiag=sys.argv[6] # setting
-      email=sys.argv[7]
-      turbo=sys.argv[8] #mc
-      ANALYTICSECT=sys.argv[9]
-      ps=sys.argv[10] # proteusshield
-      nc=sys.argv[11] # no compression
+      COMPLETE=sys.argv[2] # nsf
+      dbtarget=sys.argv[3]  # the target
+      rout=sys.argv[4]  # tmp holds action
+      tfile=sys.argv[5] # tmp file
+      checksum=sys.argv[6] # important
+      cdiag=sys.argv[7] # setting
+      email=sys.argv[8]
+      turbo=sys.argv[9] #mc
+      ANALYTICSECT=sys.argv[10]
+      ps=sys.argv[11] # proteusshield
+      nc=sys.argv[12] # no compression
       user="guest"
       table="logs"
       stats = []
@@ -336,7 +347,7 @@ def main():
                                                       result = pyfunctions.detect_copy(label, inode, checksum, c, table)
                                                       if result:
                                                             print(f'Copy {record[0]} {record[2]} {label}', file=file)
-                                                      
+                                                            
 
                         except Exception as e:
                               print(f"hanlydb failed to process on mode {turbo}: {e}", file=sys.stderr)
@@ -371,22 +382,13 @@ def main():
 
                         with open(rout, 'r', newline='') as record:
                               for line in record:
-                                    parts = line.strip().split(maxsplit=5)
-                                    if len(parts) < 6:
-                                          continue
-                                    action = parts[0]
-                                    date = None if parts[1] == "None" else parts[1]
-                                    time = None if parts[2] == "None" else parts[2]
-                                    cdate = None if parts[3] == "None" else parts[3]
-                                    ctime = None if parts[4] == "None" else parts[4]
-                                    fp = parts[5]
-                                    filename = fp.strip()
+                                    statparse(line, stats)
 
-                                    timestamp = None if date is None or time is None else f"{date} {time}"
-                                    changetime = None if cdate is None or ctime is None else f"{cdate} {ctime}"
+                        if os.path.isfile(COMPLETE) and os.path.getsize(COMPLETE) > 0:
+                              with open(COMPLETE, 'r', newline='') as records:
+                                    for line in records:
+                                          statparse(line, stats)
 
-                                    if filename:
-                                          stats.append((action, timestamp, changetime, filename))
 
                         if stats:
 

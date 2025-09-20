@@ -1,5 +1,5 @@
 #!/bin/bash
-#   Developer buddy 3.0 core                                               9/15/2025
+#   Developer buddy 3.0 core                                               9/19/2025
 
 # Filter terminal and hardlinks
 sbwr() {
@@ -34,8 +34,8 @@ if [ "$POSTOP" == "true" ]; then
                 if [ "$mtyp" == "application/octet-stream" ]; then mtyp="Unknown"; fi
                 if [ -L "$f" ]; then mtyp="Symlink"; fi
                 sz=$( stat -c %s "$f")
-                md=$( stat -c '%Y' "$f") ; x=$(date -d "@$md" +'%Y-%m-%d %H:%M:%S')
-                ae=$( stat -c '%X' "$f") ; y=$(date -d "@$ae" +'%Y-%m-%d %H:%M:%S')
+                md=$( stat -c '%Y' "$f") ; x=$(date -d "@$md" +"$fmt")
+                ae=$( stat -c '%X' "$f") ; y=$(date -d "@$ae" +"$fmt")
                 echo -e "$dt\t$f\t$(( sz / 1024 ))\t$mtyp\t$x\t$y\t$onr" >> $atmp/doctrine
             fi
         done < $xdata
@@ -130,7 +130,7 @@ local c
 			if [ "$msg" == " stats" ]; then
 				declare -A ref_map
 				while IFS= read -r line || [ -n "$line" ]; do
-					key=${line#*,*,*,}
+					key="${line#*,*,*,}"
 					[[ -n "$key" ]] && ref_map["$key"]="$line"
 				done < $source
 		        while IFS="" read -r p || [ -n "$p" ]; do
@@ -140,7 +140,7 @@ local c
 						echo "$p" >> $source
 					else
 						ct=$(echo "$p" | cut -d',' -f3 | tr -d '"')
-						filepath=${p#*,*,*,} # format action,"date time","change time", file name 
+						filepath="${p#*,*,*,}" # format action,"date time","change time", file name 
 						if [[ ! -v ref_map["$filepath"] ]]; then
 				            echo "$p" >> $source
 						else
@@ -193,7 +193,7 @@ decrypt(){	if ! gpg --yes -d -o $1 $2; then return 1; fi; }
 iscopy() {
 while IFS= read -r p || [[ -n "$p" ]]; do
     cFILE=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$p")
-	y=$cFILE
+	y="$cFILE"
 	current_ln="${p//\"$y\"/}"
 	read -r f1 f2 f3 f4 _ _ _ f8 _ <<< "$current_ln"
 	dt="$f1 $f2" ; cs="$f8"
@@ -205,7 +205,6 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 		original="${copy_record//\"$y\"/}"
 		read -r of1 of2 of3 of4 _  <<< "$original"
 		oct="$f3 $f4"
-		#oct=$( awk '{ print $(NF-10), $(NF-9) }' <<< "$copy_record")
 		if date -d "$ct" "+$fmt" >/dev/null 2>&1 && date -d "$oct" "+$fmt" >/dev/null 2>&1; then
 			echo "Copy $dt $ct $y" >> $rout
 		fi
@@ -221,12 +220,11 @@ local arr
 while IFS= read -r line; do
 	os=""
 	cFILE=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$line")
-	y=$cFILE
+	y="$cFILE"
 	current_ln="${line//\"$y\"/}"
 	read -r _ _ _ _ _ _ _ record_c os _ <<< "$current_ln"
-	#read record_c os < <(awk '{ print $(NF-6), $(NF-5) }' <<< "$line")
     if [[ "$cFILE" != "$label" && "$record_c" != "None" && "$os" != "None" ]]; then
-        if [[ "$chksum" == "$record_c" && "$filesize" != "$os" ]]; then 
+        if [[ "$chksum" == "$record_c" && "$filesize" != "$os" && "$filesize" -ne 0 && "$os" -ne 0 ]]; then 
 			if [ "$os" -ge 0 ] 2>/dev/null; then
 				collisions+=("COLLISION: $label vs $cFILE | Checksum: ${chksum} && ${record_c} | Sizes: $filesize != $os") ; csm="true"
 			fi
@@ -284,6 +282,7 @@ hablk() {
 >$TMPCOMPLETE
 while IFS= read -r p || [[ -n "$p" ]]; do
 	found_line=""
+	a_checksum=""
 	df="false"
 	tmp="${p#*\"}"
 	y="${tmp%\"*}"
@@ -306,11 +305,17 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 				if [ "$dt" == "$omt" ]; then
 					if [ "$checkSUM" == "true" ]; then
 						if [ -f "$cFILE" ]; then
-							if [[ "$cs" != "$ocs" ]]; then
-								echo "Suspect $dt $ct $y" >> $rout
-				                echo "Suspect file: $y changed without a new modified time." >> $cerr
-				                csm="true"
-							else
+							if [[ "$cs" != "$ocs" && "$cs" -ne 0 && "$os" -ne 0 ]]; then
+								a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
+								if [ -n "$a_checksum" && ]; then
+									if [ "$a_checksum" != "$ocs" ]; then
+										echo "Suspect $dt $ct $y" >> $rout
+									    echo "Suspect file: $y changed without a new modified time." >> $cerr
+									    csm="true"
+										echo hi
+									fi
+								fi
+								else
 								if (( oin == in )); then
 									if newmeta $f11 $f12 $f13 $of11 $of12 $of13; then
 										df="true"
@@ -326,8 +331,8 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 		                        read a_mod fs a_ct au ag apmr < <(stat --format="%Y %s %Z %U %g %A" "$cFILE" 2>/dev/null)
 								afrm=$(date -d "@$a_mod" +"$fmt" 2>/dev/null)
 								if [ -n "$afrm" ] && [ "$afrm" != "$dt" ]; then
-									a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
-									if [ -n "$a_checksum" ]; then
+									if [ -z "$a_checksum" ]; then a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}') ; fi
+									if [[ -n "$a_checksum" && "$os" -ne 0 && "$cs" -ne 0 ]]; then
 										 stealth "$cFILE" "$y" $a_checksum $fs $csze
 									fi
 									if [ "$cdiag" == "true" ]; then 
@@ -381,11 +386,10 @@ if [ "$csm" == "true" ]; then
 fi
 }
 hanly(){
-	local csm=""
 	local y=8
     declare -a collisions=()
-	if [ "$mMODE" == "mc" ]; then
-		x=$(wc -l < "$SORTCOMPLETE")
+	x=$(wc -l < "$SORTCOMPLETE")
+	if [ "$mMODE" == "mc" ] && (( x > 100 )); then
 		y=$(( (x + max_jobs - 1) / max_jobs )) 
 		split -l $y --numeric-suffixes=1 --suffix-length=4 "$SORTCOMPLETE" "$atmp/sortchunk_"
 		find "$atmp" -type f -name 'sortchunk_*' -print0 | sort -z | xargs -0 -P"$max_jobs" -I{} /usr/local/save-changesnew/haloop $atmp "{}" $2 $checkSUM $cdiag
@@ -428,10 +432,10 @@ done < $1
 processha() {
 local invr="$3" ; [[ -z "$invr" ]] && invr="$1"
 if [ -s $rout ]; then
-	sed -E 's/^(([^[:space:]]+[[:space:]]+){3})([^[:space:]]+[[:space:]]+){2}(.*)/\1\4/' "$rout" | grep -v "^Deleted" > $tfile
+	sed -E 's/^(([^[:space:]]+[[:space:]]+){3})([^[:space:]]+[[:space:]]+){2}(.*)/\1\4/' "$rout" | grep -v -E "^(Deleted|Nosuchfile)" > $tfile
     { echo ; echo "Hybrid analysis" ; echo ; } >> "$difffile"
-	sort -o $tfile $tfile
-	if [ -s $ABSENT ]; then sort -o $ABSENT $ABSENT; comm -23 $tfile $ABSENT > $TMPCOMPLETE ; else sort -k2,2 -k3,3 -o $TMPCOMPLETE $tfile ; fi
+	sort -u -o $tfile $tfile
+	if [ -s $ABSENT ]; then sort -u -o $ABSENT $ABSENT; comm -23 $tfile $ABSENT > $TMPCOMPLETE ; else sort -k2,2 -k3,3 -o $TMPCOMPLETE $tfile ; fi
 
 	if [ "$flsrh" == "true" ] || [ "$invr" == "filtered" ]; then
 		if ! { [ "$flsrh" == "true" ] && [ "$invr" == "filtered" ]; } ; then /usr/local/save-changesnew/filter $TMPCOMPLETE $USR ; fi
@@ -499,7 +503,7 @@ if [ -s "$1" ]; then
 	CDATE=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')
     if [ "$flsrh" == "false" ]; then awk -v tme="$CDATE" '$0 >= tme' "$difffile" > $2 ; else cat "${difffile}" > $2; fi
 	echo >> "${difffile}"
-	while IFS="" read -r p || [ -n "$p" ]; do cFILE=$( echo "$p" | cut -d " " -f3-) ; dt="$( echo "$p" | cut -d " " -f1,2)" ; grep -Fqs "$cFILE" $SORTCOMPLETE && echo "Modified" "$p" >> $ABSENT || { echo "Deleted" "$p" >> $ABSENT ;  echo "Deleted" "$dt" "$p" >> $rout ; } ; done < $2
+	while IFS="" read -r p || [ -n "$p" ]; do cFILE=$( echo "$p" | cut -d " " -f3-) ; dt="$( echo "$p" | cut -d " " -f1,2)" ; grep -Fqs "$cFILE" $SORTCOMPLETE && echo "Modified" "$p" >> $ABSENT || { echo "Deleted " "$p" >> $ABSENT ;  echo "Deleted" "$dt" "$p" >> $rout ; } ; done < $2
 	test -f $ABSENT  && { echo Applicable to your search ; cat $ABSENT ; } >> "$1" || { echo "None of above is applicable to search. It is the previous search"; } >> "$1"
 else
     samerlt="true" # test -e "$1" && rm "$1"
@@ -544,13 +548,12 @@ fi
 }
 backend() { 
 ofile=/tmpinfo ; tfile=$atmp/tmpd
- TMPDIR=$(mktemp -d $xopt/tmpda.XXXXXX)  
-
+TMPDIR=$(mktemp -d $xopt/tmpda.XXXXXX)  
 if [ -d /tmp/rc ] && [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then
     for file in /tmp/rc/*; do
         cat $file >> $atmp$ofile 2> /dev/null
     done
-    if [ -s $ofile ]; then
+    if [ -s $atmp$ofile ]; then
         sort -u -o $atmp$ofile $atmp$ofile
 		hanly $SORTCOMPLETE $atmp$ofile $1
 		ret=$?
@@ -563,18 +566,14 @@ if [ "$STATPST" == "true" ]; then
 	if [ "$ANALYTICS" == "false" ]; then
 		if [ "$backend" == "default" ]; then
 			if [ -s $logpst ]; then
-
-             # decypt once perform ha and save
-            
-             chmod 600 $TMPDIR
+             chmod 600 $TMPDIR # decypt once perform ha and save
              xdata2=$TMPDIR$xdata2
              ofile=$TMPDIR$ofile
-
 				if decrypt $xdata2 $logpst; then
 					awk 'NF' $xdata2 > $ofile
 					 if [ -s $ofile ]; then
-						sort -u -o $ofile $ofile
-						hanly $SORTCOMPLETE $ofile $5
+						#sort -u -o $ofile $ofile
+						hanly $SORTCOMPLETE $ofile $1
 						ret=$?
 						if [ "$ret" -ne 0 ]; then
 							echo "failure in STATPST hanyl subprocess"
@@ -600,25 +599,24 @@ if [ "$STATPST" == "true" ]; then
 					fi
 				fi
 				if [ -s $rout ]; then
-					sort -u -o $rout $rout
-					sed -i -E '/^Deleted/ s/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2","\2",\3/' "$rout" # input action date time file name -->  action,"date time", "date time", file name
-					sed -i -E '/^Deleted/! s/^([^ ]+) ([^ ]+ [^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2","\3",\4/' $rout  # input Action,"date time","date time", file name spaces   
 					if [ -s $COMPLETE ]; then cat $COMPLETE >> $rout; fi
-					if [ "$pstc" == "true" ]; then
-						imsg="$(storeenc $rout $statpst)" # decrypt store encrypt
-						ret=$?
-						if [ "$ret" -ne 0 ]; then
-							echo "$imsg"
-						else
-							if [ "$imsg" != "" ]; then green "Persistent stats file created."; imsg=""; fi
-						fi
+					sort -u -o $rout $rout
+					#sed -i -E '/^Deleted/ s/^([^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2","\2",\3/' "$rout" # input action date time file name -->  action,"date time", "date time", file name
+					#sed -i -E '/^Deleted/! s/^([^ ]+) ([^ ]+ [^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2","\3",\4/' $rout  # input Action,"date time","date time", file name spaces   
+					sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2","\3",\4/' $rout
+					imsg="$(storeenc $rout $statpst)" # decrypt store encrypt
+					ret=$?
+					if [ "$ret" -ne 0 ]; then
+						echo "$imsg"
+					else
+						if [ "$imsg" != "" ]; then green "Persistent stats file created."; imsg=""; fi
 					fi
 				fi
 			fi
 		else
 			cores=""
 			if ! gpg --list-keys | grep -q $email; then generatekey ; fi	
-			python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $pydbpst $rout $tfile $checkSUM $cdiag $email $mMODE $ANALYTICSECT $proteusSHIELD $nc
+			python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $COMPLETE $pydbpst $rout $tfile $checkSUM $cdiag $email $mMODE $ANALYTICSECT $proteusSHIELD $nc
 			ret=$?
 			pyerrblk
 			processha $argf
@@ -642,7 +640,6 @@ strup() { /usr/local/save-changesnew/start_inotify $log_file $CACHE_F "$checkSUM
 
 intst() {
 if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi 
-
 #Init
 if [[ "$mMODE" == "mc" ]]; then
 	cores=$( nproc 2>/dev/null || echo 1)
@@ -710,12 +707,11 @@ done
 ulink() {
 sbwr
 green "Updating hardlinks"
-#if [ "$checkSUM" == "false" ]; then fld=3 ; fi
 while IFS= read -r p || [[ -n "$p" ]]; do 
     ck="false"
 	#cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")
     cFILE=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$p")
-	y=$cFILE
+	y="$cFILE"
 	cln="${p//\"$y\"/}"
 	read -r _ _ _ _ of5 _ <<< "$cln"
 	inode="$of5"
@@ -761,6 +757,7 @@ get_cached() {
 }
 # Used for sysprofile as you dont want to cache the checksum
 rblk() {
+local fmt="%Y-%m-%d %H:%M:%S"
 local sl=""
 local cFILE
 local csum
@@ -769,8 +766,8 @@ while IFS= read -r -d '' p ; do
 	read -r mtime atime itime i fs onr grp pmr path <<< "$p"
 	cFILE="$path"
 	y="$( escf "$cFILE")" 
-	mt=$(date -d "@${mtime%%.*}" +"%Y-%m-%d %H:%M:%S")
-	ct=$(date -d "@${itime%%.*}" +"%Y-%m-%d %H:%M:%S")
+	mt=$(date -d "@${mtime%%.*}" +"$fmt")
+	ct=$(date -d "@${itime%%.*}" +"$fmt")
 	if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 		if [ -n "$mt" ]; then
         	if { [[ "$4" = "ctime" ]] && (( ${itime%%.*} > ${mtime%%.*} )); } || [[ "$4" = "main" ]]; then
@@ -786,7 +783,7 @@ while IFS= read -r -d '' p ; do
 				else
 			    	adtcmd=""
 				fi
-    			ats=$(date -d "@${atime%%.*}" +"%Y-%m-%d %H:%M:%S")			
+    			ats=$(date -d "@${atime%%.*}" +"$fmt")			
 				ct=${ct:-None None}
 				ats=${ats:-None None}
 				output="$mt \"$y\" $ct $i $ats $adtcmd"
@@ -794,12 +791,14 @@ while IFS= read -r -d '' p ; do
 			fi
 		fi
 	else
-		printf "%s,,,%s\n" "Nosuchfile" "$y" >> $3
+		[[ -z "$mt" ]] && { crt=$(date +"$fmt") ; mt=$crt; }
+		printf "%s %s %s %s\n" "Nosuchfile" "$mt" "$mt" "$y" >> $3
 	fi
 done < $1
 }
 # Mainloop do cache files over 1MB. Add unescaped filename at the end.
 sblk() {
+local fmt="%Y-%m-%d %H:%M:%S"
 local sl=""
 local cFILE
 local csum
@@ -812,8 +811,8 @@ while IFS= read -r -d '' p ; do
 	read -r mtime atime itime i fs onr grp pmr path <<< "$p" || continue
 	cFILE="$path"
 	y="$( escf "$cFILE")" 
-	mt=$(date -d "@${mtime%%.*}" +"%Y-%m-%d %H:%M:%S")
-	ct=$(date -d "@${itime%%.*}" +"%Y-%m-%d %H:%M:%S")
+	mt=$(date -d "@${mtime%%.*}" +"$fmt")
+	ct=$(date -d "@${itime%%.*}" +"$fmt")
 	if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 		if [ -n "$mt" ]; then
         	if { [[ "$4" = "ctime" ]] && (( ${itime%%.*} > ${mtime%%.*} )); } || [[ "$4" = "main" ]]; then
@@ -840,16 +839,16 @@ while IFS= read -r -d '' p ; do
 				else
 			    	adtcmd=""
 				fi
-    			ats=$(date -d "@${atime%%.*}" +"%Y-%m-%d %H:%M:%S")			
+    			ats=$(date -d "@${atime%%.*}" +"$fmt")			
 				ct=${ct:-None None}
 				ats=${ats:-None None}
-				if [[ "$cFILE" == *$'\n'* ]]; then cFILE="None" ; fi # add unescaped 
 				output="$mt \"$y\" $ct $i $ats $adtcmd"
 				printf '%s\n' "$output" >> $2
 			fi
 		fi
 	else
-		printf "%s,,,%s\n" "Nosuchfile" "$y" >> $3
+		[[ -z "$mt" ]] && { crt=$(date +"$fmt") ; mt=$crt; }
+		printf "%s %s %s %s\n" "Nosuchfile" "$mt" "$mt" "$y" >> $3
 	fi
 done < $1
 }
