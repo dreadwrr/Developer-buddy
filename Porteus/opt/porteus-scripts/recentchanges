@@ -1,6 +1,6 @@
 #!/bin/bash
 #   Analytics NMS5 porteus
-#   recentchanges. Developer buddy      make xzm     9/15/2025  v3.0
+#   recentchanges. Developer buddy      make xzm     9/19/2025  v3.0
 #
 #   Provide ease of pattern finding ie what files to block we can do this a number of ways
 #   1) if a file was there (many as in more than a few) and another search lists them as deleted its either a sys file or not but unwanted nontheless
@@ -116,6 +116,14 @@ export POSTOP="false" # Diagnostics. Create file doctrine. Runs post search oper
 export proteusSHIELD="false"	# take initial hash of base modules 001-core.. ect database mode
 ## End Diagnostics
 
+
+#
+#-SRC options
+#this script
+xzmname="Application${$}"
+autooutput="false"
+#
+
 export logpst="/usr/local/save-changesnew/logs.gpg"
 export statpst="/usr/local/save-changesnew/stats.gpg"
 export pydbpst="/usr/local/save-changesnew/recent.gpg"
@@ -190,12 +198,14 @@ TMPOPT=$tmp/tmp_holding										;	flth=/usr/local/save-changesnew/flth.csv
 REJECTLOG=$tmp/list_rejectsrc.txt								;	slog=/tmp/scr # feedback
 FOLDERLOG=$tmp/save.totalfolders.tmp					;	THETIME="${arge[0]}" # shift for this script
 SORTCOMPLETE=$tmp/list_complete_sorted.txt			;	USRDIR=/home/$USR/Downloads
-log_file=/tmp/file_creation_log.txt
-
-xopt=/mnt/live/tmp													;   cerr=/tmp/cerr # priority
+log_file=/tmp/file_creation_log.txt								;   cerr=/tmp/cerr # priority
+xopt=/mnt/live/tmp		
+											
 SRCDIR=""                                           
+csm=""
 
 cores=0																	;   max_jobs=0
+
 CACHE_F=/tmp/ctimecache
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
@@ -230,7 +240,6 @@ fi
 CMIN=( -cmin "-${tmn}" )
 MMIN=( -mmin "-${tmn}" )
 
-
 [[ "$checkSUM" = "true" ]] && [[ "$ANALYTICS" = "true" || "$STATPST" = "true" ]] && cyan "Running checksum." || checkSUM="false"
 if [ -z "$tout" ]; then
 	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$RECENTNUL" > /dev/null 2>&1
@@ -253,6 +262,7 @@ if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
 isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE
 isoutput cache1* $CACHE_F
 
+LCLMODULENAME=${chxzm:1:8}
 
 if [ -s $SORTCOMPLETE ]; then
 	syschg="true"
@@ -297,7 +307,7 @@ cat $SVFILES | sed -e 's![^/]*$!!g' > $SVFOLDERS
 if [ "$SRCDIR" == "SRC" ]; then 
     arrfiles=()
     arrreject=()
-    appname="Application"
+    appname=$xzmname
     FLTOUT="/tmp/${appname}ItemsFilteredout"
     test -e "/tmp/${appname}.xzm" && rm "/tmp/${appname}.xzm"
     rm "/tmp/"*"_xdata" 2> /dev/null
@@ -318,7 +328,7 @@ if [ "$SRCDIR" == "SRC" ]; then
 	    srcpath="${rlt#?}"
 		> $tfile
 		r=$( find "${rlt}" -type f | wc -l)  # system
-		s=$(grep -n 'MDY' "/tmp/${appname}_xdata" | head -n 1 | cut -d: -f1)arrreject
+		s=$(grep -n 'MDY' "/tmp/${appname}_xdata" | head -n 1 | cut -d: -f1)
 		if [[ -n "$s" ]]; then s=$(( s - 1 )) ; else s=0 ; fi
 		x=0
 		y=$( wc -l < $RECENTAPP) # copied
@@ -339,45 +349,51 @@ if [ "$SRCDIR" == "SRC" ]; then
         if [ -s $TMPCOMPLETE ]; then { echo ; echo "Items filterout from filtered files."; echo ; cat $TMPCOMPLETE; }  >> "/tmp/${appname}_xdata" ; else echo "No items filtered out from filter."  >>"/tmp/${appname}_xdata" ; fi
         find "$tmp$workdir$rlt" -type f -print0 > $TMPCOMPLETE
         while IFS= read -r -d '' f; do  f="$( escf "$f")" ; arrfiles=("${arrfiles[@]}" "${f##*/}"); done < $TMPCOMPLETE
-        x=${#arrfiles[@]}
-        y=0
-        echo ""
-        for i in "${arrfiles[@]}" ; do
-            p=$(( y + 1 ))
-            printf "%2d %-40s\t\t" "$p" "${i}"
-            (( y++ ))
-            if  [ $(( y % 2 )) -eq 0 ]; then
-                echo -en "\n"
-            else
-                if (( y == x )); then
-                    echo -en "\n"
-                fi
-            fi
-            if (( y > 70 )); then
-                break
-            fi
-        done
-        echo "Root folder" "${rlt##*/}"
-        echo  "Press enter for default filename"
-        read  -p 'Filename or Selection: ' usrslc
-        if [ "$usrslc" != "" ]; then
-            if [ "$usrslc" -ge 0 ]  2>/dev/null; then
-                echo selected "$usrslc"
-                if [ "${#arrfiles[@]}" -ge "$usrslc" ]; then
-                    filename="${arrfiles[$(( usrslc - 1 ))]}"
-                else
-                    echo
-                    echo "Using default filename."
-                    filename="$appname"
-                fi
-            else
-                filename="$usrslc" #User
-            fi
-        else
-            filename="$appname" #Default
-        fi
-		fn=$(printf '%b' "$filename") ; fn=$( echo "$fn" | sed -e 's/\...$//' -e 's/\....$//' -e 's/ /_/g')
-        if [ "$fn" != "${appname}" ]; then mv /tmp/"$appname".xzm /tmp/"$fn".xzm ; mv /tmp/"$appname"_xdata /tmp/"$fn"_xdata ; fi
+
+		if [ "$autooutput" == "false" ]; then
+		    x=${#arrfiles[@]}
+		    y=0
+		    echo
+		    for i in "${arrfiles[@]}" ; do
+		        p=$(( y + 1 ))
+		        printf "%2d %-40s\t\t" "$p" "${i}"
+		        (( y++ ))
+		        if  [ $(( y % 2 )) -eq 0 ]; then
+		            echo -en "\n"
+		        else
+		            if (( y == x )); then
+		                echo -en "\n"
+		            fi
+		        fi
+		        if (( y > 70 )); then
+		            break
+		        fi
+		    done
+		    echo "Root folder" "${rlt##*/}"
+		    echo  "Press enter for default filename"
+		    read  -p 'Filename or Selection: ' usrslc
+		    if [ "$usrslc" != "" ]; then
+		        if [ "$usrslc" -ge 0 ]  2>/dev/null; then
+		            echo selected "$usrslc"
+		            if [ "${#arrfiles[@]}" -ge "$usrslc" ]; then
+		                filename="${arrfiles[$(( usrslc - 1 ))]}"
+		            else
+		                echo
+		                echo "Using default filename."
+		                filename="$appname"
+		            fi
+		        else
+		            filename="$usrslc" #User
+		        fi
+		    else
+		        filename="$appname" #Default
+		    fi
+		else
+			filename="$appname"
+		fi
+
+		fn=$(printf '%b' "$filename") ; fn=$(basename "$fn") ; fn=$(echo "$fn" | sed -E 's/(.*)\.[^./]{3,4}$/\1/') ; fn="${fn// /_}" #fn=$( echo "$fn" | sed -e 's/\...$//' -e 's/\....$//' -e 's/ /_/g')
+        if [ "$fn" != "$appname" ]; then mv /tmp/"$appname".xzm /tmp/"$fn".xzm ; mv /tmp/"$appname"_xdata /tmp/"$fn"_xdata ; fi
         chown $USR /tmp/"$fn".xzm
         chown $USR /tmp/"$fn"_xdata
     fi
@@ -386,7 +402,6 @@ fi
 echo $BRAND >> $SVFILES
 cd /tmp || exit
 MODULENAME=${chxzm:0:9}
-LCLMODULENAME=${chxzm:1:8}
 chxzmnm=$MODULENAME"manifest.txt"
 moduledir=$MODULENAME"_"$FLBRAND
 FLTOUT="/tmp"$MODULENAME"ItemsFilteredout"
@@ -405,7 +420,7 @@ if [ -z "$k" ]; then
     if [ "$SRCDIR" != "SRC" ]; then # make rntfiles.xzm from all filtered
 	    mksquashfs $tmp$workdir "/tmp"$chxzm -comp $cmode
 	    cp $SVFILES "/tmp"$chxzmnm
-	    cp $UPDATE  "/tmp"$MODULENAME"Transferlog"
+	    cp $UPDATE "/tmp"$MODULENAME"Transferlog"
         if [ "$validrlt" == "true" ]; then
             sort -o $RECENT $RECENT
             cat $TMPOPT | grep -Fvf $RECENT > $FLTOUT ; echo $BRAND >> $FLTOUT
@@ -441,7 +456,8 @@ if [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then
     stmp $SORTCOMPLETE
     if [ ! -f /tmp/rc/full ]; then cyan "Search saved in /tmp"; fi
 fi
-rm -rf $tmp ; rm -rf $atmp
+rm -rf $tmp 
+rm -rf $atmp
 if [ "$ANALYTICSECT" == "true" ]; then
     el=$(awk "BEGIN {print $end - $start}")
     printf "Search took %.3f seconds.\n" "$el"
