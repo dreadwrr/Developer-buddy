@@ -280,7 +280,7 @@ def main() :
 							top_3 = counter.most_common(3)
 							print(f"{pyfunctions.CYAN}Top extensions{pyfunctions.RESET}")
 							for ext, count in top_3:
-								print(f"{ext}")
+								print(f"{count:>4} {ext}")
 						print() ; directories = [os.path.dirname(filename[0]) for filename in filenames] # top directories
 						directory_counts = Counter(directories)
 						top_3_directories = directory_counts.most_common(3)

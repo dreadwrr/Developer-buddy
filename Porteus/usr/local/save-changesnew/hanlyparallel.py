@@ -14,7 +14,6 @@ def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt
 	}
 	conn = sqlite3.connect(dbopt)
 
-	#with open('/tmp/logger', 'a') as file7:
 	with conn:
 		c = conn.cursor()
 
@@ -29,29 +28,26 @@ def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt
 						file_messages.setdefault(fpath, []).extend(messages)
 
 
-		if "dcp" in entry:
-			dcp_messages = entry["dcp"]
-			if not isinstance(dcp_messages, list):
-				dcp_messages = [dcp_messages]
+			if "dcp" in entry:
+				dcp_messages = entry["dcp"]
+				if not isinstance(dcp_messages, list):
+					dcp_messages = [dcp_messages]
 
-			if dcp_messages:
-				# open(tfile, 'a') as file2:
-				with open(rout, 'a') as file:
-						for msg in dcp_messages:
-							try:
-								timestamp = msg[0]
-								label = msg[1]
-								ct = msg[2]
-								#inode = msg[3]   
-								checksum = msg[5]
-								result = detect_copy(label, checksum, c, table)
-								if result:
-									print(f'Copy {timestamp} {ct} {label}', file=file)
-									#print(f'Copy {timestamp} {label}', file=file2)
+				if dcp_messages:
+					with open(rout, 'a') as file:
+							for msg in dcp_messages:
+								try:
+									timestamp = msg[0]
+									label = msg[1]
+									ct = msg[2]
+									checksum = msg[5]
+									result = detect_copy(label, checksum, c, table)
+									if result:
+										print(f'Copy {timestamp} {ct} {label}', file=file)
 
 
-							except Exception as e:
-								print(f"Error updating DB for sys entry '{msg}': {e}")
+								except Exception as e:
+									print(f"Error updating DB for sys entry '{msg}': {e}")
 						
 	for fpath, messages in file_messages.items():
 		if messages:
@@ -59,7 +55,7 @@ def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt
 
 				with open(fpath, "a") as f:
 					f.write('\n'.join(str(msg) for msg in messages) + '\n')
-					#file7.write('\n'.join(str(msg) for msg in messages) + '\n')
+
 			except IOError as e:
 				print(f"Error logger to {fpath}: as {e}")
 

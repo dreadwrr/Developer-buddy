@@ -1,5 +1,5 @@
 #!/bin/bash
-# save-changesnew functions to move options further up the script             9/13/2025
+# save-changesnew functions to move options further up the script             9/15/2025
 dycmb() {
 TFLD=""
 for x in $IFOLDERS; do [[ -e "$ch/$x" ]] && TFLD="$TFLD $x" ; done

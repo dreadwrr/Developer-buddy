@@ -1,5 +1,5 @@
 #!/bin/bash
-#      recentchanges search             Developer Buddy v3.0     9/13/2025
+#      recentchanges search             Developer Buddy v3.0     9/19/2025
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/rntchangesfunctions
@@ -20,11 +20,14 @@ RECENTNUL=$tmp/list_recentchanges_filterednul.txt	;   COMPLETE=$tmp/list_complet
 SORTCOMPLETE=$tmp/list_complete_sorted.txt			;   COMPLETENUL=$tmp/list_completenul.txt
 TMPOUTPUT=$tmp/list_tmp_sorted.txt						;   TMPCOMPLETE=$tmp/tmp_complete.txt
 TMPOPT=$tmp/tmp_holding										;   flth=/usr/local/save-changesnew/flth.csv
-log_file=/tmp/file_creation_log.txt
-																	
+log_file=/tmp/file_creation_log.txt								;	cerr=/tmp/cerr
+
+OLDSORTED=""
+csm=""
+																
 cores=0																	;   max_jobs=0
 
-cerr=/tmp/cerr															;   OLDSORTED=""
+OLDSORTED=""
 CACHE_F=/tmp/ctimecache
 fmt="%Y-%m-%d %H:%M:%S"                                     
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')     
@@ -87,9 +90,15 @@ else
 	if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi	
 fi
 
+if [ "$FEEDBACK" == "true" ]; then #scrolling look
+	tr '\0' '\n' < "$FEEDFILE" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=""; sub(/^ +/, ""); print }'
+	#tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=""; sub(/^ +/, ""); print }'  
+fi 
+
 #while IFS= read -r -d '' y; do y="$( escf "$y")" ; printf '%s\n' "$y"; done < $FEEDFILE > $xdata
 search $FEEDFILE $SORTCOMPLETE $COMPLETE $checkSUM "main"
 isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE
+isoutput cache1* $CACHE_F
 
 LCLMODULENAME=${chxzm:1:8}
 
@@ -99,12 +108,13 @@ if [ -s $SORTCOMPLETE ]; then
 	
 	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE ; SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') ; PRD=$SRTTIME
 	if [ -s $tout ]; then awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' $tout >> $SORTCOMPLETE ; fi
+
 	inclusions
 
 	if [ "$flsrh" != "true" ]; then
 		s=$(date -d "$SRTTIME" "+%s")
 		if [ "$2" == "noarguser" ]; then RANGE=$(( s + 300 )) ; else RANGE=$(( s + argone )) ; fi
-		PRD=$(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S')
+		PRD=$(date -d "@$RANGE" +"$fmt")
 		awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' $SORTCOMPLETE > $tout ; mv $tout $SORTCOMPLETE
 	fi
 
@@ -167,7 +177,8 @@ if [ -s $SORTCOMPLETE ] ; then
 fi
 
 if [ "$ANALYTICS" = "true" ] && [ "$STATPST" = "false" ] ; then stmp $SORTCOMPLETE && [[ ! -f /tmp/rc/full ]] && cyan "Search saved in /tmp" ; fi
-rm -rf $tmp ; rm -rf $atmp
+rm -rf $tmp
+rm -rf $atmp
 if [ "$ANALYTICSECT" = "true" ]; then
     el=$(awk "BEGIN {print $end - $start}")
     printf "Search took %.3f seconds.\n" "$el"
