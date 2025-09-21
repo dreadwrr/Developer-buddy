@@ -73,7 +73,7 @@ logSPRF="delete"                         # When log size limit reached what to d
                                             #
                                             # stop      dont log anymore
 
-mdllmt=2                             # Auto Graphics mode module merging default 7
+mdllmt=7                             # Auto Graphics mode module merging default 7
                                                 # when reached will automatically merge if mrgMODULES is set to true below
                                                 # see mrgMODULES boolean
 
@@ -82,7 +82,7 @@ linkedLOGPRF="incr"          # default incr  new log of only changes keeps log s
                                             # no      dont log the linked module
 
 # CHANGABLE BOOLEANS
-linkedSTATE="true"             #This is precendence for changes:EXIT only on graphics mode. Default false
+linkedSTATE="false"             #This is precendence for changes:EXIT only on graphics mode. Default false
                                            # This implies that you want changes made INCLUDING deletes to another
                                            # modules in /tmp for now. We do this to prove that its working so everything
                                            # is still done the same just you have a module with deletions included in /tmp
