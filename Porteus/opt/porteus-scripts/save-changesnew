@@ -97,7 +97,7 @@ logSPRF="delete"           # When log size limit reached what to do default dele
                             #
                             # stop      dont log anymore
 
-mdllmt=2                             # Auto Graphics mode module merging default 5
+mdllmt=7                             # Auto Graphics mode module merging default 5
                                                 # when reached will automatically merge if mrgMODULES is set to true below
                                                 # see mrgMODULES boolean
 linkedLOGPRF="incr"          # default incr  new log of only changes keeps log size down
@@ -105,7 +105,7 @@ linkedLOGPRF="incr"          # default incr  new log of only changes keeps log s
                                             # no      dont log the linked module
 
 # CHANGABLE BOOLEANS
-linkedSTATE="true"             #This is precendence for changes:EXIT only on graphics mode. Default false
+linkedSTATE="false"             #This is precendence for changes:EXIT only on graphics mode. Default false
                                            # This implies that you want changes made INCLUDING deletes to another
                                            # modules in /tmp for now. We do this to prove that its working so everything
                                            # is still done the same just you have a module with deletions included in /tmp
@@ -190,11 +190,7 @@ initf
 rlt=$(sed -n 's/.*changes=EXIT:\([^ ]*\).*/\1/p' /proc/cmdline)
 [[ -n "$rlt" ]] && [[ "$bck" == "backup" ]] && backup && cleanup "$1"
 DEST="$(cat /mnt/live/tmp/changes-exit)"	; 	NAME="$(basename "${DEST:-}")"
-if [[ $(grep ".dat" /mnt/live/tmp/changes-exit 2>/dev/null) ]]; then
-	Dest="Save.dat file"
-else
-	Dest="Save folder partition"
-fi
+
 if [[ "$1" != "6" ]]; then
 	if [ "$ANALYTICS" == "true" ] && [ "$BACKUP" == "false" ]; then start=$(date +%s.%N); fi
 	if [[ $(grep ".dat" /mnt/live/tmp/changes-exit 2>/dev/null) ]]; then
