@@ -97,7 +97,7 @@ logSPRF="delete"           # When log size limit reached what to do default dele
                             #
                             # stop      dont log anymore
 
-mdllmt=7                             # Auto Graphics mode module merging default 5
+mdllmt=15                            # Auto Graphics mode module merging default 5
                                                 # when reached will automatically merge if mrgMODULES is set to true below
                                                 # see mrgMODULES boolean
 linkedLOGPRF="incr"          # default incr  new log of only changes keeps log size down
