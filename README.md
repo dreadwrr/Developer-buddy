@@ -1,4 +1,4 @@
-#                               09/19/2025
+#                               09/23/2025
 Currently working on a standalone python edition
 This would use arrays as the main method of manipulation and see some speed improvements. mostly for if there are many new files
 the filesize down would be smaller around 40kb
