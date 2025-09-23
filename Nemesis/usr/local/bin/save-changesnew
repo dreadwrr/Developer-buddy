@@ -73,7 +73,7 @@ logSPRF="delete"                         # When log size limit reached what to d
                                             #
                                             # stop      dont log anymore
 
-mdllmt=7                             # Auto Graphics mode module merging default 7
+mdllmt=15                            # Auto Graphics mode module merging default 7
                                                 # when reached will automatically merge if mrgMODULES is set to true below
                                                 # see mrgMODULES boolean
 
@@ -101,7 +101,7 @@ mrgMODULES="true"           # Automatically merge changes modules if over limit 
                                         #change this to automatically merge changes.xzm modules  ( applies to Graphics mode)
                                         # see $BASEDIR/extramod for mergemodule script to merge changes modules
 
-keepMRGED="false"       # default is false so delete the old ones after merging
+keepMRGED="true"       # default is false so delete the old ones after merging
 # End Non linked state options
 
 
@@ -525,8 +525,7 @@ else # Graphics mode
     if [ -s "${target}${em}${MODULENM}${SERIAL}_uid_$$.xzm" ]; then
 		echo ; echo A changes .xzm was detected but nothing was done. ; cyan "${MODULENM}${SERIAL}_uid_$$.xzm already exists" && { sleep 5; exit 0; }
     else
-        echo "$target$em" is
-        test -d "$target$em" || mkdir "$target$em"+
+        test -d "$target$em" || mkdir "$target$em"
         touch "$target$em/._test1" 2>/dev/null
         cyan "testing filesystem on ${target} for posix compatibility"
         ln -s "$target$em"/._test1 "$target$em"/._test2 2>/dev/null && chmod +x "$target$em"/._test1 2>/dev/null && [ -x "$target$em"/._test1 ] && chmod -x "$target$em"/._test1 2>/dev/null && [ ! -x "$target$em"/._test1 ] && rm -f "$target$em"/._test1 "$target$em"/._test2
@@ -590,14 +589,21 @@ else # Graphics mode
         	cd $target$em ; r=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' | wc -l)
             if (( r > mdllmt)); then
                 green "Merging changes modules..." ; sleep 5
-                if ! /usr/local/save-changesnew/mergemodules.sh $keepMRGED $ROLLBCK $ROLLSUMRY $archLMT; then red "There was problem auto merging. see /tmp/error.log" ; cyan "Everything preserved." ; fi
-                cyan "Modules merged."
+                if ! /usr/local/save-changesnew/mergemodules.sh $keepMRGED $ROLLBCK $ROLLSUMRY $archLMT; then
+                    rel=$?
+                    if [ "$rel" -eq 1 ]; then
+                        red "There was problem auto merging. see /tmp/error.log" ; cyan "Everything preserved."
+                    fi
+                else
+                    cyan "Modules merged."
+                fi
             fi
         	cd $pst
         fi
     fi
 fi
 mount -o remount,udba=none /
+test -e $oMF && rm $oMF
 test -e $EXCL && rm $EXCL
 test -e $QEXCL && rm $QEXCL
 test -e $UPDATE && rm $UPDATE
