@@ -120,6 +120,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 						
 						if record[5] != previous[5] and record[6] != 0 and previous[6] != 0: # checksum
 
+							file_path=Path(filename)
 							md5=get_md5(file_path)
 
 							if md5 != previous[5]:
