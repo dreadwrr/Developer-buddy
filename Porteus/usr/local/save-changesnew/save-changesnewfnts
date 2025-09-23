@@ -91,19 +91,14 @@ rsync -anu --out-format="%f" "$1/" "$2" --exclude '.wh.*' --exclude-from=$EXFILE
 rsync -anvu "$1/" "$2" --exclude '.wh.*' --exclude-from=$EXFILES > $4 # rsync log
 }
 
-# send session log
-tranlog() {
-brnd $1
-test -e $ch$LOGDIR/$LOGFILE && rm $ch$LOGDIR/$LOGFILE
-mv $1 $LOGDIR/$LOGFILE    
-}
 
 # Labelling before making .xzm from $ch
 labelmk() {
+brnd $1
 if [ "$linkedLOGPRF" == "full" ]; then
-    { echo ; cat $1; } >> $ch$LOGDIR/$LOGFILE
+    { echo ; cat $1; } >> $LOGDIR/$LOGFILE
 elif [ "$linkedLOGPRF" == "incr" ]; then
-    cp $1 $ch$LOGDIR/$LOGFILE    
+    cp $1 $LOGDIR/$LOGFILE    
 fi
 }
 
@@ -112,7 +107,7 @@ fi
 newuid() {
 shopt -s globstar
 
-keep=/tmp/outfile # perishable
+keep=$tmp/outfile # perishable
 remove=$tmp/deletre # ..
 
 cd $mtmp || exit
@@ -126,12 +121,15 @@ if [[ -n "$h" && -f "$h" && -f /dev/shm/xsc ]]; then
 
     # total current files
     rsync -a "$ch/" "$mtmp" --exclude '.wh.*' --exclude-from=$EXFILES
+
+    test -e $LOGDIR/$LOGFILE && rm $LOGDIR/$LOGFILE # dont exclude from changes from $mtmp
     find $mtmp -type f -printf '%P\n' > $tmp/contents 
 
     createlog $mtmp $tmp $UPDATE $SFILES
     c="${mtmp#/}"  # --out-format="%f" consistent log depends on version of rsync **
     sed -i -e "\|$c/\.|d" -e "s|$c/||" -e '/^\./d' $UPDATE
     cp $UPDATE $keep
+
 
     #$tmp/contents # changes
     #$keep # what needs to be transfered
@@ -142,13 +140,16 @@ if [[ -n "$h" && -f "$h" && -f /dev/shm/xsc ]]; then
     labelmk $SFILES # Copy log before .xzm
 
     base_cmd=(mksquashfs $ch "$target$em$rname" -comp $cmode -ef $EXFILES)
+
     if [ "$FEEDBACK" != "true" ]; then "${base_cmd[@]}" > /dev/null ; else "${base_cmd[@]}" ; fi
-     
-    tranlog $SFILES # Add to session
+
+    #tranlog $SFILES # Add to session
 
 else
     touch /dev/shm/xsc
-    createxzm
+    if ! createxzm; then
+        echo "Changes not saved either a file changed while saving or something went wrong."
+    fi
 fi 
 cd $pst
 }
@@ -163,7 +164,6 @@ if [[ -n "$cpt" ]]; then
     test -e "$target$em$rname" && rm "$target$em$rname"
     return 1
 fi 
-tranlog $SFILES
 } 
 
 # mksquash doesnt recognize wildcards and exclusions together
@@ -181,7 +181,7 @@ cp $EXFILES $QEXCL
 
 # Process wildcards for mksquashfs
 while IFS= read -r l; do [[ -z "$l" ]] && continue ; if [[ "$l" == \** ]]; then echo "$l" ; fi ; done < $EXFILES > $exclfiles # read patterns from $EXCLUDE ie *share/Trash* 
-while IFS= read -r p; do [[ -z "$p" || "$p" =~ "^#" ]] && continue ; find "$ch" -path "$ch/$(echo $p)" -print | sed "s|^$ch/||" ; done < <(cat $trsyncexl $exclfiles ) >> $EXFILES  # search the wildcards for mksquashfs
+while IFS= read -r p; do [[ -z "$p" || "$p" =~ ^# ]] && continue ; find "$ch" -path "$ch"/$p \( -type f -o -type d \) -print | sed "s|^$ch/||" ; done < <(cat $trsyncexl $exclfiles ) >> $EXFILES  # search the wildcards for mksquashfs
 
 # all base folders in changes
 while IFS= read -r d; do all+=("$(basename "$d")") ; done < <(find "$ch" -maxdepth 1 -mindepth 1 ) # ! -name ".wh.*"  
@@ -894,11 +894,17 @@ else
     if [ "$mrgMODULES" == "true" ] && [ "$linkedSTATE" == "false" ]; then
 	    cd $target$em ;  r=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' | wc -l)
         if (( r > mdllmt)); then
-            green "Merging changes modules..." ; sts="true" ; sleep 5
-            if ! /usr/local/save-changesnew/mergemodules.sh $keepMRGED $ROLLBCK $ROLLSUMRY $archLMT; then red "There was problem auto merging. see /tmp/error.log" ; cyan "Everything preserved." ; fi
-            cyan "Modules merged."
+            green "Merging changes modules..." ; sleep 5
+            if ! /usr/local/save-changesnew/mergemodules.sh $keepMRGED $ROLLBCK $ROLLSUMRY $archLMT; then
+                rel=$?
+                if [ "$rel" -eq 1 ]; then
+                    red "There was problem auto merging. see /tmp/error.log" ; cyan "Everything preserved."
+                fi
+            else
+                cyan "Modules merged."
+            fi
         fi
-	    cd $pst
+    	cd $pst
     fi
 fi
 mount -o remount,udba=none /

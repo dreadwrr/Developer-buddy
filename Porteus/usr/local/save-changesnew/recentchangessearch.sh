@@ -42,9 +42,9 @@ syschg="false"
 F=(/bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var)
 TAIL=(-not -type d -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0')
 
-intst
 mkdir $tmp
 mkdir $atmp
+intst
 
 if [ "$2" != "noarguser" ] && [ "$2" != "" ]; then # If a desired time is specified we will search for that  (in seconds)
 	if [ "$2" -ge 0 ] 2>/dev/null; then # is it a number

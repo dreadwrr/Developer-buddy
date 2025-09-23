@@ -1,5 +1,5 @@
 #!/bin/bash
 # supress output helper script to launch inotifywait optional logging   09/15/2025
-nohup /usr/local/save-changesnew/inotify "$@" > /dev/null 2>&1 &
-#nohup /usr/local/save-changesnew/inotify "$@" > /tmp/inotify.log 2>&1 &
-#echo $! > /tmp/inotify_watcher.pid 
+#nohup /usr/local/save-changesnew/inotify "$@" > /dev/null 2>&1 &
+nohup /usr/local/save-changesnew/inotify "$@" > /tmp/inotify.log 2>&1 &
+echo $! > /tmp/inotify_watcher.pid 

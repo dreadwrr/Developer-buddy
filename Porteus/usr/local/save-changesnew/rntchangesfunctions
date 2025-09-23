@@ -711,7 +711,6 @@ strup() { /usr/local/save-changesnew/start_inotify $log_file $CACHE_F "$checkSUM
 
 intst() {
 if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi 
-
 #Init
 if [[ "$mMODE" == "mc" ]]; then
 	cores=$( nproc 2>/dev/null || echo 1)
@@ -719,39 +718,54 @@ if [[ "$mMODE" == "mc" ]]; then
 fi	
 if [ "$xRC" == "true" ]; then
 	if pgrep -af 'inotify' > /dev/null; then
-		if [ -n "$log_file" ]; then
+		if [ -f "$log_file" ]; then
 			cp $log_file $tout
-			if pkill -f inotifywait; then
-				rm $log_file		
-				strup
-			else
-				rm $tout
-				> $log_file
-			fi
+			rm $log_file		
 		fi		
+        if pkill -f inotifywait; then
+            > $log_file
+            strup
+        else
+			test -e $tout && rm $tout
+			test -e $log_file	&& rm $log_file
+        fi
 	else
 		strup	
 	fi
+else
+    if pgrep -af 'inotify' > /dev/null; then
+        pkill -f inotifywait
+        test -e $log_file && rm $log_file
+    fi
 fi
 if [ "$STATPST" == "true" ]; then
-    if [ -f $logpst ]; then
-        sz=$( stat -c %s "$logpst")
-        if [ $(( sz / 1048576 )) -gt $logSIZE ]; then
-            if [ "$logPRF" == "del" ]; then
-               : > $logpst
-            elif [ "$logPRF" == "stop" ]; then
-                cyan "persist log saving stopped on size limit"
+    if [ "$backend" == "database" ]; then
+        if [ -f $pydbpst ]; then
+            sz=$( stat -c %s "$pydbpst")
+            if [ $(( sz / 1048576 )) -ge $compLVL ]; then
+                nc="true"
             fi
-            STATPST="false"
-            if [ "$logPRF" == "rfh" ]; then
-                rm $logpst
-                STATPST="true"
+        fi
+    else
+        if [ -f $logpst ]; then
+            sz=$( stat -c %s "$logpst")
+            if [ $(( sz / 1048576 )) -gt $logSIZE ]; then
+                if [ "$logPRF" == "del" ]; then
+                   : > $logpst
+                elif [ "$logPRF" == "stop" ]; then
+                    cyan "persist log saving stopped on size limit"
+                fi
+                STATPST="false"
+                if [ "$logPRF" == "rfh" ]; then
+                    rm $logpst
+                    STATPST="true"
+                fi
+		    elif [ $(( sz / 1048576 )) -ge $compLVL ]; then
+			    nc="true"
+            elif [ $sz -eq 0 ]; then
+                cyan "$logpst is 0 bytes. to resume persistent logging delete file"
+                STATPST="false"
             fi
-		elif [ $(( sz / 1048576 )) -ge $compLVL ]; then
-			nc="true"
-        elif [ $sz -eq 0 ]; then
-            cyan "$logpst is 0 bytes. to resume persistent logging delete file"
-            STATPST="false"
         fi
     fi
 fi
@@ -869,7 +883,7 @@ while IFS= read -r -d '' p ; do
 	fi
 done < $1
 }
-# Mainloop do cache files over 1MB. Add unescaped filename at the end.
+# Mainloop do cache files over 1MB.
 sblk() {
 local fmt="%Y-%m-%d %H:%M:%S"
 local sl=""
@@ -882,42 +896,41 @@ while IFS= read -r -d '' p ; do
 	sl=""
 	csum=""
 	read -r mtime atime itime i fs onr grp pmr path <<< "$p" || continue
+    if ! { [[ "$4" = "ctime" ]] && (( ${itime%%.*} > ${mtime%%.*} )); } && [[ "$4" != "main" ]]; then echo "continued $path" >> /tmp/output ; continue ; fi
 	cFILE="$path"
 	y="$( escf "$cFILE")" 
 	mt=$(date -d "@${mtime%%.*}" +"$fmt")
 	ct=$(date -d "@${itime%%.*}" +"$fmt")
 	if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 		if [ -n "$mt" ]; then
-        	if { [[ "$4" = "ctime" ]] && (( ${itime%%.*} > ${mtime%%.*} )); } || [[ "$4" = "main" ]]; then
-				if [ "$checkSUM" == "true" ]; then
-					[[ "$1" = "ctime" ]] && cam="y" && mt=$ct || cam="None"
+			if [ "$checkSUM" == "true" ]; then
+				[[ "$1" = "ctime" ]] && cam="y" && mt=$ct || cam="None"
 
-					if (( fs > 1000000 )); then
-						if [ -e "$CACHE_F" ]; then
-							r=$(get_cached "$i" "$fs" "$mt")
-							[ -n "$r" ] && csum="$r"
-						fi
+				if (( fs > 1000000 )); then
+					if [ -e "$CACHE_F" ]; then
+						r=$(get_cached "$i" "$fs" "$mt")
+						[ -n "$r" ] && csum="$r"
 					fi
-					if [ -z "$csum" ]; then
-						csum=$(md5sum "$cFILE" 2>/dev/null)
-						csum=${csum%% *}
-						upt_cache "$i" "$fs" "$mt" "$csum" "$y" "$5"
-					fi
-
-					csum=${csum:-None}
-					fs=${fs:-None} 
-					[[ -L "$cFILE" ]] && sl="y" ; sl=${sl:-None}
-					wnr=${onr:-None} ; grp=${grp:-None} ; pmn=${pmr:-None}
-					adtcmd="$csum $fs $sl $wnr $grp $pmn $cam"
-				else
-			    	adtcmd=""
 				fi
-    			ats=$(date -d "@${atime%%.*}" +"$fmt")			
-				ct=${ct:-None None}
-				ats=${ats:-None None}
-				output="$mt \"$y\" $ct $i $ats $adtcmd"
-				printf '%s\n' "$output" >> $2
+				if [ -z "$csum" ]; then
+					csum=$(md5sum "$cFILE" 2>/dev/null)
+					csum=${csum%% *}
+					upt_cache "$i" "$fs" "$mt" "$csum" "$y" "$5"
+				fi
+
+				csum=${csum:-None}
+				fs=${fs:-None} 
+				[[ -L "$cFILE" ]] && sl="y" ; sl=${sl:-None}
+				wnr=${onr:-None} ; grp=${grp:-None} ; pmn=${pmr:-None}
+				adtcmd="$csum $fs $sl $wnr $grp $pmn $cam"
+			else
+		    	adtcmd=""
 			fi
+			ats=$(date -d "@${atime%%.*}" +"$fmt")			
+			ct=${ct:-None None}
+			ats=${ats:-None None}
+			output="$mt \"$y\" $ct $i $ats $adtcmd"
+			printf '%s\n' "$output" >> $2
 		fi
 	else
 		[[ -z "$mt" ]] && { crt=$(date +"$fmt") ; mt=$crt; }
@@ -925,7 +938,6 @@ while IFS= read -r -d '' p ; do
 	fi
 done < $1
 }
-
 # load balance for if there is over 1000 files
 search() {
 desired_chunks=200   # Target number of chunks
