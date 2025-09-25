@@ -181,15 +181,16 @@ def matches_any_pattern(s, patterns):
             return True
     return False
 
-def epoch_to_date(epoch, fmt):
-    return datetime.fromtimestamp(float(epoch)).strftime(fmt)
+def epoch_to_date(epoch):
+    return datetime.fromtimestamp(float(epoch))
 
 def parse_datetime(value, fmt):
-	try:
-		return datetime.strptime(str(value).strip(), fmt)
-		#return dt.strftime(fmt)
-	except (ValueError, TypeError, AttributeError):
-		return None
+    if isinstance(value, datetime):
+        return value
+    try:
+        return datetime.strptime(str(value).strip(), fmt)
+    except (ValueError, TypeError, AttributeError):
+        return None
 
 def escf_py(filename):
     filename = filename.replace('\\', '\\\\')
@@ -253,12 +254,6 @@ def is_valid_datetime(value, fmt):
 		return True
 	except (ValueError, TypeError, AttributeError):
 		return False
-     
-def log_event(event, record, label, file_full, file_short):
-    msg_full = f'{event} {record[0]} {record[2]} {label}'
-    print(msg_full, file=file_full)
-    #print(msg_short, file=file_short)
-     #msg_short = f'{event} {record[0]} {label}'
 
 def new_meta(record, metadata):
     return (

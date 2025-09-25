@@ -1,45 +1,56 @@
 #!/bin/bash
-#	rntfiles.xzm or -SRC application.xzm to /tmp																						09/17/2025
-[[ "$1" = "SRC" ]] && SRCDIR="$1"
-[[ "$2" = "SRC" ]] && SRCDIR="$2"
-USR="$3"
-tmp="$4"
+#	rntfiles.xzm or -SRC application.xzm to /tmp																						09/20/2025
+. /usr/local/save-changesnew/rntchangesfunctions
+. /usr/local/save-changesnew/validprogram.sh
+                 
+tmp=/tmp/tmp$$  															;	work=work$$
+workdir=/myfiles															;	chxzm=/rntfiles.xzm   
+TMPCOMPLETE=$tmp/tmp_complete.txt							;   TMPOPT=$tmp/tmp_holding
+RECENTAPP=$tmp/list_recentapp_filtered.txt					;	atmp=/tmp/atmp$$
+RSYNCEXCL=$tmp/list_filesexclude.txt							;	UPDATE=$tmp/save.transferlog.tmp
+SORTCOMPLETE=$tmp/list_complete_sorted.txt				;   SVFOLDERS=$tmp/save.rncfoldersmanifest.tmp
+xdata=/logs_stats.log													;   SVFILES=$tmp/save.rncfilesmanifest.tmp	
+xdata2=/logs.log.log														;	RECENT=$tmp/list_recentchanges_filtered
+BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')	;	tout=$atmp/toutput.tmp
+FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 
-RECENT=$tmp/"$5"
-[[ -s $RECENT ]] || return 3
+validrlt="false"
 
-tout=$tmp/"$6"
-archivesrh=$7
-cmode=$8
-
-#work=work$$                                       
-TMPCOMPLETE=$tmp/tmp_complete.txt				;   TMPOPT=$tmp/tmp_holding
-RECENTAPP=$tmp/list_recentapp_filtered.txt		;	UPDATE=$tmp/save.transferlog.tmp
-RSYNCEXCL=$tmp/list_filesexclude.txt				;   SVFOLDERS=$tmp/save.rncfoldersmanifest.tmp
-SORTCOMPLETE=$tmp/list_complete_sorted.txt	;   SVFILES=$tmp/save.rncfilesmanifest.tmp	
-
-chxzm=/rntfiles.xzm     
-workdir=/myfiles   
-xdata=/logs_stats.log
-xdata2=/logs.log.log
-
-atmp=/tmp/atmp$$
 tfile=$atmp$xdata
 tfile2=$atmp$xdata2
 
+argone="$1"
+[[ "$2" = "SRC" ]] && SRCDIR="$2"
+USR="$3"
+ptmp="$4"
+fo="$5"
+[[ -s /tmp/"$fo" ]] || { rm -rf $tmp ; rm -rf $atmp ; echo "recentchanges main list not found" && exit 3 ; }
+ft="$6"
+[[ -s /tmp/"$ft" ]] || { rm -rf $tmp ; rm -rf $atmp ; echo "recentchanges recent list not found" && exit 3 ; }
+fth="$7"
+[[ -s /tmp/"$fth" ]] || { rm -rf $tmp ; rm -rf $atmp ; echo "recentchanges null list not found" && exit 3 ; }
+archivesrh=$8
+cmode=$9      
 
-BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
-FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
-							
-validrlt="false"
 
+chown root:root -R $ptmp
+chmod 777 $ptmp
+mkdir $tmp
 mkdir $tmp$workdir
 mkdir $atmp
+mv "/tmp/$fo" $tmp/
+mv "/tmp/$ft" $tmp/
+mv "/tmp/$fth" $atmp/
+
+awk '{$1=$2=""; sub(/^ +/, ""); print}' $TMPOPT > $RECENT # filepath
+
 
 # Copy files
 #> $tout
 #while IFS= read -r x; do  ; printf '%s\0' "$x"; done < $RECENT >> $tout
+
 while IFS= read -r -d '' x; do if cp -a --parents "$x" "$tmp$workdir" > /dev/null 2>> $tfile; then printf '%s %s\n' "$x" "success" >> $UPDATE; else echo "Failed to copy: $x" >&2; echo "ERROR: $x" >> $UPDATE; fi; done < $tout
+#cat $UPDATE
 unset IFS
 if [ -s $tfile ]; then echo > $UPDATE ; cat $tfile $UPDATE; fi
 test -e $tfile && rm $tfile
@@ -50,8 +61,6 @@ while IFS= read -r -d '' x; do x="$( escf "$x")"; echo "$x" ; done < $SVFILES >>
 mv $tout $SVFILES
 sed -i -e "s|$tmp$workdir||g" $SVFILES
 cat $SVFILES | sed -e 's![^/]*$!!g' > $SVFOLDERS
-
-
 
 # make .xzm from root folder
 if [ "$SRCDIR" == "SRC" ]; then 
@@ -70,15 +79,15 @@ if [ "$SRCDIR" == "SRC" ]; then
         test -s $tfile && mksquashfs $tmp$workdir "/tmp/${appname}.xzm" -comp $cmode -ef $tfile || { [[ ! -s "$tfile" ]] && mksquashfs $tmp$workdir "/tmp/${appname}.xzm" -comp $cmode ; }
         cp $RECENTAPP "/tmp/${appname}_xdata" ; echo $BRAND >> "/tmp/${appname}_xdata"
         sort -o $RECENTAPP $RECENTAPP
-        cat $SORTCOMPLETE | grep -Ff $RECENTAPP | grep -v 'NOTA-FI-LE 77:77:77'  | tee $TMPCOMPLETE > /dev/null
-        endtm=$( gettime "$TMPCOMPLETE" "/tmp/${appname}_xdata")
+        cat $SORTCOMPLETE | grep -Ff $RECENTAPP | tee $TMPCOMPLETE > /dev/null
+        endtm=$( gettime $SORTCOMPLETE "$TMPCOMPLETE" "/tmp/${appname}_xdata" )
         printf "\n\n" >> "/tmp/${appname}_xdata"
-        cat $TMPOPT  | grep -Fvf $RECENTAPP > $TMPCOMPLETE
+        cat $SORTCOMPLETE | grep -Fvf $RECENTAPP > $TMPCOMPLETE
 	    cd $tmp$workdir || exit
 	    srcpath="${rlt#?}"
 		> $tfile
 		r=$( find "${rlt}" -type f | wc -l)  # system
-		s=$(grep -n 'MDY' "/tmp/${appname}_xdata" | head -n 1 | cut -d: -f1)arrreject
+		s=$(grep -n 'MDY' "/tmp/${appname}_xdata" | head -n 1 | cut -d: -f1)
 		if [[ -n "$s" ]]; then s=$(( s - 1 )) ; else s=0 ; fi
 		x=0
 		y=$( wc -l < $RECENTAPP) # copied
@@ -156,7 +165,7 @@ k=$( head -n1 $SVFILES | grep "MDY")
 if [ -z "$k" ]; then
 	validrlt="true"
     r=$(find . -maxdepth 1 -type d -name '*rntfiles_MDY*' | wc -l) #Move
-    if (( r == archivesrh )); then for folder in "/tmp"$MODULENAME_MDY* ;  do rm -r $folder ; break ; done ; fi
+    if (( r == archivesrh )); then for folder in "/tmp"${MODULENAME}_MDY* ;  do rm -r $folder ; break ; done ; fi
     mkdir "/tmp"$moduledir && chown $USR "/tmp"$moduledir
     test -e /tmp"$chxzm" && mv /tmp"$chxzm" "/tmp"$moduledir ; test -e "/tmp"$chxzmnm && mv "/tmp"$chxzmnm "/tmp"$moduledir; test -e "/tmp"$MODULENAME"Transferlog" && mv "/tmp"$MODULENAME"Transferlog" "/tmp"$moduledir
     mv $LCLMODULENAME"xSystemchanges"* "/tmp"$moduledir 2> /dev/null ; mv $LCLMODULENAME"xSystemDiffFromLastSearch"* "/tmp"$moduledir 2> /dev/null
@@ -168,10 +177,10 @@ if [ -z "$k" ]; then
 	    cp $UPDATE  "/tmp"$MODULENAME"Transferlog"
         if [ "$validrlt" == "true" ]; then
             sort -o $RECENT $RECENT
-            cat $TMPOPT | grep -Fvf $RECENT > $FLTOUT ; echo $BRAND >> $FLTOUT
-            cat $TMPOPT | grep -Ff $RECENT | tee $TMPCOMPLETE > /dev/null
+            cat $SORTCOMPLETE | grep -Fvf $RECENT > $FLTOUT ; echo $BRAND >> $FLTOUT
+            cat $SORTCOMPLETE | grep -Ff $RECENT | tee $TMPCOMPLETE > /dev/null
             sed -i '/^[[:space:]]*$/d' $TMPCOMPLETE
-            endtm=$( gettime $TMPCOMPLETE "/tmp"$chxzmnm)
+            endtm=$( gettime $SORTCOMPLETE $TMPCOMPLETE "/tmp"$chxzmnm)
         fi
         chown $USR "/tmp"$chxzm ; chown $USR "/tmp"$chxzmnm ; chown $USR "/tmp"$MODULENAME"Transferlog" ; chown $USR $FLTOUT
         test -e "/tmp"$moduledir && chown $USR "/tmp"$moduledir
@@ -199,5 +208,5 @@ EOF
     fi
     printf "%b\n" "$imsg"
 else
-    return 7
+    exit 7
 fi

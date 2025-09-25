@@ -37,22 +37,14 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 
 	fmt = "%Y-%m-%d %H:%M:%S"
 	collision_message=[]
+	md5=""
 	db=False
 	for record in parsed:
-		print(record)
 		df=False
 		is_sys=False
 		recent_sys = None
 		filename = record[1] 
 		label = pyfunctions.escf_py(filename) # human readable
-		# try: 
-		# 	# if label.find("\\") == -1: skip   # str.encode().decode('unicode_escape') 
-		# 	filename=codecs.decode(label, 'unicode_escape')
-		# 	if not filename:
-		# 		raise ValueError("Empty filename")
-		# except Exception as e:
-		# 	print(f"Skipping label due to decode file: {label} error: {e}")
-		# 	continue
 
 		recent_entries = pyfunctions.get_recent_changes(filename, c, 'logs')
 
@@ -98,12 +90,15 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 
 				if checksum == 'true':
 	
-					if record[5] != previous[5]: # checksum
+					if record[5] != previous[5] and record[6] != 0 and previous[6] != 0: # checksum, filesize
 
+						file_path=Path(filename)
+						md5=pyfunctions.get_md5(file_path)
 
-						pyfunctions.log_event("Suspect", record, label, file, file2) # Flag *** 
-						print(f'Suspect file: {label} changed without a new modified time.', file3) 
-
+						if md5 != previous[5]:
+							pyfunctions.log_event("Suspect", record, label, file, file2) # Flag *** 
+							print(f'Suspect file: {label} changed without a new modified time.', file3) 
+						
 					else:
 
 						if record[3] == previous[3]:  # inode
@@ -124,22 +119,24 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 							if file_path.is_file():
 				
 								st = file_path.stat()
-								a_size = st.st_size
 								a_mod = int(st.st_mtime)
 								afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt) # actual modify time
 								afrm_dt = pyfunctions.parse_datetime(afrm_str, fmt)  
-								if afrm_dt and pyfunctions.is_valid_datetime(record[2], fmt): # stable?
+								if afrm_dt and pyfunctions.is_valid_datetime(record[3], fmt): # stable?
+
+									a_size = st.st_size
 
 									if afrm_dt != previous_timestamp:
 
+										if record[6] != 0 and previous[6] != 0:
+											if not md5:
+												md5=pyfunctions.get_md5(file_path)
 
 										if cdiag == 'true': 
 											print(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size} ', file=file4)
 										else:
 											print(f'File changed during search. File likely changed. system cache item.', file=file4)
-								
 
-										md5=pyfunctions.get_md5(file_path)
 										if md5:
 											if md5 != record[5]:
 												stealth(filename, label, file3, file4, collision_message, md5, a_size, current_size, cdiag, c) # Flag *** ?
@@ -206,3 +203,13 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 	if collision_message:
 		for entry in collision_message:
 			print(entry, file=file3)
+
+
+# try: 
+# 	# if label.find("\\") == -1: skip   # str.encode().decode('unicode_escape') 
+# 	filename=codecs.decode(label, 'unicode_escape')
+# 	if not filename:
+# 		raise ValueError("Empty filename")
+# except Exception as e:
+# 	print(f"Skipping label due to decode file: {label} error: {e}")
+# 	continue

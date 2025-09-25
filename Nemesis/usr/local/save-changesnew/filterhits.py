@@ -21,7 +21,7 @@ def update_filter_csv(TMPOPT, user, csv_file):
     # Count matches in TMPOPT for each pattern
     for pattern in patterns:
         regex = re.compile(pattern)
-        count = sum(1 for line in TMPOPT if regex.search(line))
+        count = sum(1 for line in TMPOPT if len(line) >= 2 and regex.search(line[1]))
         hits_dict[pattern] += count  # increment if exists, or add new
 
     # Ensure patterns not matched at all are in CSV with 0

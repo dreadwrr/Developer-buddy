@@ -15,8 +15,6 @@ from pstsrg import encr
 from pyfunctions import getcount
 from pyfunctions import get_delete_patterns
 from pyfunctions import is_integer
-from rntchangesfunctions import cprint
-
 sort_directions = {}
 def hardlinks(database, target, email, conn, cur):
 	cur.execute("SELECT COUNT(*) FROM logs WHERE hardlinks IS NOT NULL AND hardlinks != ''")
@@ -232,7 +230,7 @@ def main() :
 						cur.execute("DELETE FROM logs WHERE filename = ?", ('/home/guest/Downloads/Untitled' ,))
 						conn.commit()
 						atime=averagetm(conn, cur)
-						cprint.cyan("Search breakdown")
+						print(f"{pyfunctions.CYAN}Search breakdown{pyfunctions.RESET}")
 						cur.execute("""
 							SELECT
 							datetime(AVG(strftime('%s', accesstime)), 'unixepoch') AS average_accesstime
@@ -280,27 +278,27 @@ def main() :
 						if extensions:
 							counter = Counter(extensions)
 							top_3 = counter.most_common(3)
-							cprint.cyan("Top extensions")
+							print(f"{pyfunctions.CYAN}Top extensions{pyfunctions.RESET}")
 							for ext, count in top_3:
-								print(f"{ext}")
+								print(f"{count:>4} {ext}")
 						print() ; directories = [os.path.dirname(filename[0]) for filename in filenames] # top directories
 						directory_counts = Counter(directories)
 						top_3_directories = directory_counts.most_common(3)
-						cprint.cyan("Top 3 directories")
+						print(f"{pyfunctions.CYAN}Top 3 directories{pyfunctions.RESET}")
 						for directory, count in top_3_directories:
 							print(f'{count}: {directory}')
 						print() ; cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''") # common file 5
 						filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines
 						filename_counts = Counter(filenames)
 						top_5_filenames = filename_counts.most_common(5)
-						cprint.cyan("Top 5 created")
+						print(f"{pyfunctions.CYAN}Top 5 created{pyfunctions.RESET}")
 						for file, count in top_5_filenames:
 							print(f'{count} {file}')
 						top_5_modified = dexec(cur,'Modified', 5)
 						filenames = [row[3] for row in top_5_modified]
 						filename_counts = Counter(filenames)
 						top_5_filenames = filename_counts.most_common(5)
-						cprint.cyan("Top 5 modified")
+						print(f"{pyfunctions.CYAN}Top 5 modified{pyfunctions.RESET}")
 						for filename, count in top_5_filenames:
 							filename = filename.strip()
 							print(f'{count} {filename}')
@@ -308,7 +306,7 @@ def main() :
 						filenames = [row[3] for row in top_7_deleted]
 						filename_counts = Counter(filenames)
 						top_7_filenames = filename_counts.most_common(7)
-						cprint.cyan("Top 7 deleted")
+						print(f"{pyfunctions.CYAN}Top 7 deleted{pyfunctions.RESET}")
 						for filename, count in top_7_filenames:
 							filename = filename.strip()
 							print(f'{count} {filename}')
@@ -316,7 +314,7 @@ def main() :
 						filenames = [row[3] for row in top_7_writen]
 						filename_counts = Counter(filenames)
 						top_7_filenames = filename_counts.most_common(7)
-						cprint.cyan("Top 7 overwritten")
+						print(f"{pyfunctions.CYAN}Top 7 overwritten{pyfunctions.RESET}")
 						for filename, count in top_7_filenames:
 							filename = filename.strip()
 							print(f'{count} {filename}')
@@ -325,10 +323,10 @@ def main() :
 						filename_counts = Counter(filenames)
 						if filename_counts:
 							top_5_filenames = filename_counts.most_common(5)
-							cprint.cyan("Not actually a file")
+							print(f"{pyfunctions.CYAN}Not actually a file{pyfunctions.RESET}")
 							for filename, count in top_5_filenames:
 								print(f'{count} {filename}')
-						print() ; cprint.green("Filter hits")
+						print() ; print(f"{pyfunctions.GREEN}Filter hits{pyfunctions.RESET}")
 						with open('/usr/local/save-changesnew/flth.csv', 'r') as file:
 							for line in file:
 								print(line, end='')

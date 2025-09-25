@@ -31,27 +31,27 @@ def logger_process(results, rout, scr="/tmp/scr", cerr="/tmp/cerr", dbopt="/usr/
 							file_messages.setdefault(fpath, []).extend(messages)
 
 		
-		if "dcp" in entry:
-			dcp_messages = entry["dcp"]
-			if not isinstance(dcp_messages, list):
-				dcp_messages = [dcp_messages]
+			if "dcp" in entry:
+				dcp_messages = entry["dcp"]
+				if not isinstance(dcp_messages, list):
+					dcp_messages = [dcp_messages]
 
-			if dcp_messages:
+				if dcp_messages:
 
-				for msg in dcp_messages:
-					try:
-						timestamp = msg[0]
-						label = msg[1]
-						ct = msg[2]
-						#inode = msg[3]   
-						checksum = msg[5]
-						result = detect_copy(label, checksum, c, table)
-						if result:
-							rout.append(f'Copy {timestamp} {ct} {label}')
+					for msg in dcp_messages:
+						try:
+							timestamp = msg[0]
+							label = msg[1]
+							ct = msg[2]
+							#inode = msg[3]   
+							checksum = msg[5]
+							result = detect_copy(label, checksum, c, table)
+							if result:
+								rout.append(f'Copy {timestamp} {ct} {label}')
 
 
-					except Exception as e:
-						print(f"Error updating DB for sys entry '{msg}': {e}")
+						except Exception as e:
+							print(f"Error updating DB for sys entry '{msg}': {e}")
 						
 						
 	for fpath, messages in file_messages.items():

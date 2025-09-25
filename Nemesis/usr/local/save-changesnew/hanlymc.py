@@ -48,9 +48,9 @@ def stealth(filename, label, entry, checksum, current_size, original_size, cdiag
 						
 
 def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
-
 	global collision_message
 	results = []
+	md5=""
 	fmt = "%Y-%m-%d %H:%M:%S"
 	db=False
 	conn = sqlite3.connect(dbopt)
@@ -118,11 +118,15 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 
 					if checksum == 'true':
 						
-						if record[5] != previous[5]: # checksum
+						if record[5] != previous[5] and record[6] != 0 and previous[6] != 0: # checksum
 
+							file_path=Path(filename)
+							md5=get_md5(file_path)
 
-							entry["flag"].append(f'Suspect {record[0]} {record[2]} {label}')
-							entry["cerr"].append(f'Suspect file: {label} changed without a new modified time.')						
+							if md5 != previous[5]:
+
+								entry["flag"].append(f'Suspect {record[0]} {record[2]} {label}')
+								entry["cerr"].append(f'Suspect file: {label} changed without a new modified time.')						
 
 						else:
 
@@ -144,19 +148,24 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 								file_path=Path(filename)
 								if file_path.is_file():		
 									st = file_path.stat()
-									a_size = st.st_size
 									a_mod = int(st.st_mtime)
 									afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt) # actual
 									afrm_dt = parse_datetime(afrm_str, fmt)    
 									if afrm_dt and is_valid_datetime(record[3], fmt):
+
+										a_size = st.st_size
+
 										if afrm_dt != previous_timestamp:
+
+											if record[5] != 0 and previous[6] != 0:
+												if not md5:
+													md5=get_md5(file_path)
 
 											if cdiag == 'true': 
 												entry["scr"].append(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size}')
 											else:
 												entry["scr"].append(f'File changed during search. File likely changed. system cache item.')
 
-											md5=get_md5(file_path)
 											if md5:
 												if md5 != record[5]:
 													stealth(filename, label, entry, md5 , a_size, current_size, cdiag, cursor, is_sys)

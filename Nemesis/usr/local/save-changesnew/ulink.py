@@ -1,16 +1,9 @@
 import os
 import re
 import multiprocessing
+from rntchangesfunction import sbwr
 from collections import defaultdict
 
-def sbwr(LCLMODULENAME):
-    return [
-        'mozilla',
-        '.mozilla',
-        'chromium-ungoogled',
-        # 'google-chrome',
-        LCLMODULENAME
-    ]
 
 def count_inodes_for_dirs(directories):
     inode_map = defaultdict(int)

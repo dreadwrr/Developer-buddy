@@ -7,7 +7,6 @@ import shutil
 import sqlite3
 import subprocess
 import sys
-from hanlydb import hanly
 from hanlyparallel import hanly_parallel
 from pyfunctions import getcount
 from pyfunctions import parse_line
@@ -16,14 +15,6 @@ from pyfunctions import cprint
 count=0
 def encr(database, opt, email, nc, md):
     try:
-      #   subprocess.run([
-      #       "gpg",
-      #       "--yes",
-      #       "--encrypt",
-      #       "-r", email,
-      #       "-o", opt,
-      #       database
-      #   ], check=True)
             cmd =       [
                   "gpg",
                   "--yes",
@@ -158,35 +149,6 @@ def create_db(database, action=None):
 def insert(log, conn, c, table, last_column): # Log, sys
       global count
       count = getcount(c)
-      # c.executemany('''            original
-      #       INSERT OR IGNORE INTO logs (timestamp, filename, changetime, inode, accesstime, checksum, filesize, symlink, owner, `group`, permissions, casmod, hardlinks)
-      #       VALUES (Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?), Trim(?))
-      # ''', log)
-      # blank_row = (None, None, None, None, None, None, None, None, None, None, None, None, None,)  # Blank values for each column in 'logs' table
-      # c.execute('''
-      #       INSERT INTO logs (timestamp, filename, changetime, inode, accesstime, checksum, filesize, symlink, owner, `group`, permissions, casmod, hardlinks)
-      #       VALUES (?, ?, ?, ?, ?, ?, ?, ? ,? ,? ,? ,? ,?)
-      # ''', blank_row)
-      # conn.commit()
-      # if table == 'logs':
-
-            # for record in log:                  logic without UNIQUE fields
-            #       filename = record[1]
-            #       changetime = record[10]
-            #       timestamp = record[0]
-
-            #       c.execute(
-            #             "SELECT timestamp FROM logs WHERE filename=? AND changetime=? ORDER BY timestamp DESC LIMIT 1",
-            #             (filename, changetime)
-            #       )
-            #       row = c.fetchone()
-
-            #       if not row or timestamp > row[0]:
-            #             # No entry exists, or timestamp is newer → insert
-            #             c.execute(
-            #                   f"INSERT INTO {table} ({col_str}) VALUES ({', '.join(['?']*len(columns))})",
-            #                   record
-            #             )
       
       columns = [
             'timestamp', 'filename', 'changetime', 'inode', 'accesstime', 
@@ -250,14 +212,12 @@ def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, turbo, ANALYTI
       table="logs"
       parsed = []
       parsedsys=[]
-      recorddata= []
       dbe=False
       goahead=True                
       conn=None
 
-
       root, ext = os.path.splitext(dbtarget)
-      dbopt=root + ".db" # generic output database
+      dbopt=root + ".db"
       if os.path.isfile(dbtarget):
             sts=decr(dbtarget, dbopt)
             if not sts:
@@ -276,7 +236,7 @@ def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, turbo, ANALYTI
             c = conn.cursor()
 
 
-            parsed=xdata # parselog(xdata, parsed, checksum, 'sortcomplete') #SORTCOMPLETE/Log
+            parsed=xdata
 
             #initial Sys profile
             if ps != 'false':
@@ -313,30 +273,9 @@ def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, turbo, ANALYTI
 
                         try: 
 
-                              if turbo == 'mc':
-                                    hanly_parallel(rout, parsed, checksum, cdiag, dbopt, ps, user, dbtarget, table)
-                              else:
-                                    with open(rout, 'a') as file, open('/tmp/cerr', 'a') as file3, open('/tmp/scr', 'a') as file4:
-                                          hanly(parsed, recorddata, checksum, cdiag, conn, c,  ps, user, dbtarget, file, file3, file4)
-                                          if recorddata:
-                                                for record in recorddata:
-                                                      timestamp = record[0]
-                                                      label = record[1]
-                                                      changetime = record[2]
-                                                      inode = record[3]   
-                                                      checksum = record[5]
-                                        
-                                                      result = pyfunctions.detect_copy(label, inode, checksum, c, table)
-                                                      if result:
-                                                            print(f'Copy {record[0]} {record[2]} {label}', file=file)
+            
+                              hanly_parallel(rout, parsed, checksum, cdiag, dbopt, ps, user, dbtarget, table)
 
-                              
-                              if COMPLETE: # store no such files
-                                    rout.extend(COMPLETE)
-
-                        except Exception as e:
-                              print(f"hanlydb failed to process on mode {turbo}: {e}", file=sys.stderr)
-                        if  turbo == 'mc':
                               x=os.cpu_count()
                               if x:
                                     if os.path.isfile('/tmp/cerr'):
@@ -349,8 +288,11 @@ def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, turbo, ANALYTI
                               if ANALYTICSECT:
                                     cprint.green('Hybrid analysis on')
 
-            
 
+                        except Exception as e:
+                              print(f"hanlydb failed to process : {e}", file=sys.stderr)
+
+              
                   try: 
                         insert(parsed, conn, c, "logs", "hardlinks")
                         if count % 10 == 0:
@@ -362,6 +304,10 @@ def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, turbo, ANALYTI
 
             # Stats
             if rout: 
+
+                  if COMPLETE: # store no such files
+                        rout.extend(" ".join(map(str, item)) for item in COMPLETE)
+
                   try:
                         for record in rout:
                               parts = record.strip().split(None, 3)

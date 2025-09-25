@@ -91,27 +91,27 @@ local s				;	local f
 local ENDTM		;	local RANGE
 local PRD			;	local ST
 local FN
-SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')
+SRTTIME=$( head -n1 $1 | awk '{print $1 " " $2}')
 s=$( echo $(date -d "$SRTTIME" "+%s"))
 RANGE=$(( s + argone ))
 if [ "$THETIME" == "noarguser" ]; then
 	RANGE=$(( s + 300 ))
 fi
 PRD=$(date -d "@$RANGE" +'%Y-%m-%d %H:%M:%S')
-FINTIME=$( awk -F" " -v tme="$PRD" '$0 < tme' $SORTCOMPLETE | sort -sr | head -n 1 | awk -F ' ' '{print $1 " " $2}')
+FINTIME=$( awk -F" " -v tme="$PRD" '$0 < tme' $1 | sort -sr | head -n 1 | awk -F ' ' '{print $1 " " $2}')
 f=$(date -d "$FINTIME" "+%s")
 DIFFTIME=$(( f - s ))
 ENDTM=$(date -d "@$DIFFTIME" -u +'%H:%M:%S')
-FN=$( tail -n1 $1 | awk '{print $2}') ; f=$(date -d "$FN" "+%s")
-ST=$( head -n1 $1 | awk '{print $2}') ; sSRC=$( date -d "$ST" "+%s")
+FN=$( tail -n1 $2 | awk '{print $2}') ; f=$(date -d "$FN" "+%s")
+ST=$( head -n1 $2 | awk '{print $2}') ; sSRC=$( date -d "$ST" "+%s")
 eSRC=$(( f - sSRC ))
 srcE=$(date -d "@$eSRC" -u +'%H:%M:%S')
 if [ "$DIFFTIME" == "0" ]; then ENDTM=$ENDTM" file(s) created at: "$SRTTIME ; fi
-{ echo ; echo ; }>> $2
-if [ "$THETIME" == "noarguser" ]; then echo "Specified: "$argone "minutes" >> $2 ; else echo "Specified: "$argone "seconds" >> $2 ; fi
-{ echo ; echo "Batch analysis and stats:"; } >> $2
-echo -e $ST" Start" >> $2
-echo -e $FN" Finish" >> $2
-echo -e $srcE" Compile time" >> $2
+{ echo ; echo ; }>> $3
+if [ "$THETIME" == "noarguser" ]; then echo "Specified: "$argone "minutes" >> $2 ; else echo "Specified: "$argone "seconds" >> $3 ; fi
+{ echo ; echo "Batch analysis and stats:"; } >> $3
+echo -e $ST" Start" >> $3
+echo -e $FN" Finish" >> $3
+echo -e $srcE" Compile time" >> $3
 echo "${ENDTM}"
 }

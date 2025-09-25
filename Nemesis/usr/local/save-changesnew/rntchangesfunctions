@@ -136,6 +136,7 @@ done
 
 # Used for sysprofile as you dont want to cache the checksum
 rblk() {
+local fmt="%Y-%m-%d %H:%M:%S"
 local sl=""
 local cFILE
 local csum
@@ -144,8 +145,8 @@ while IFS= read -r -d '' p ; do
 	read -r mtime atime itime i fs onr grp pmr path <<< "$p"
 	cFILE="$path"
 	y="$( escf "$cFILE")" 
-	mt=$(date -d "@${mtime%%.*}" +"%Y-%m-%d %H:%M:%S")
-	ct=$(date -d "@${itime%%.*}" +"%Y-%m-%d %H:%M:%S")
+	mt=$(date -d "@${mtime%%.*}" +"$fmt")
+	ct=$(date -d "@${itime%%.*}" +"$fmt")
 	if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 		if [ -n "$mt" ]; then
         	if { [[ "$4" = "ctime" ]] && (( ${itime%%.*} > ${mtime%%.*} )); } || [[ "$4" = "main" ]]; then
@@ -161,7 +162,7 @@ while IFS= read -r -d '' p ; do
 				else
 			    	adtcmd=""
 				fi
-    			ats=$(date -d "@${atime%%.*}" +"%Y-%m-%d %H:%M:%S")			
+    			ats=$(date -d "@${atime%%.*}" +"$fmt")			
 				ct=${ct:-None None}
 				ats=${ats:-None None}
 				output="$mt \"$y\" $ct $i $ats $adtcmd"
@@ -169,7 +170,8 @@ while IFS= read -r -d '' p ; do
 			fi
 		fi
 	else
-		printf "%s,,,%s\n" "Nosuchfile" "$y" >> $3
+		[[ -z "$mt" ]] && { crt=$(date +"$fmt") ; mt=$crt; }
+		printf "%s %s %s %s\n" "Nosuchfile" "$mt" "$mt" "$y" >> $3
 	fi
 done < $1
 }
