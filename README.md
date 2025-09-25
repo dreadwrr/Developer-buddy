@@ -1,7 +1,7 @@
 #                               09/25/2025
 Currently working on a standalone python edition
-This would use arrays as the main method of manipulation and see some speed improvements. mostly for if there are many new files
-the filesize down would be smaller around 40kb
+This would use arrays as the main method see some speed improvements. mostly for if there are many new files
+. the filesize would be smaller ect around 45kb
 
 ![Logo](https://i.imgur.com/sbZa1r3.png)
 
