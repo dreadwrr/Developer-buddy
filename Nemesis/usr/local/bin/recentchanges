@@ -4,11 +4,14 @@ get_colors
 . /usr/local/save-changesnew/versionquery
 . /usr/local/save-changesnew/validprogram.sh
 . /usr/local/save-changesnew/rntchangesfunctions
-
 eval "$(python3 /usr/local/save-changesnew/get_exports.py)"
+# mMODE
+# STATPST
+# backend
+# pydbpst
+# logpst
+# statpst
 
-# END CHANGEABLE
-echo $BACKEND_BACKEND
 [[ "$mMODE" != "default" ]] && [[ "$mMODE" != "mc" ]] && echo incorrect mMODE && exit 
 [[ "$STATPST" == "true" ]] && [[ "$ANALYTICS" == "true" ]] && { echo With STATPST cant run with ANALYTICS. for security reasons as its stored in gpg. ; echo you can modify to run both if wanted. ; } && exit
 [[ "$STATPST" == "false" ]] && [[ "$backend" == "database" ]] && echo cant run database with ANALYTICS. && exit
@@ -26,7 +29,7 @@ if [ `whoami` != "root" ]; then #if [[ $(whoami) != "root" ]]; su -c "$0"; exit 
 		su - -c "/usr/local/bin/recentchanges $argone '$argtwo' $argthree '$PWD' $argf"
 	#else
 	#	sudo -k
-	#	exec sudo "$0" $argone "$argtwo" $argthree "$PWD"
+	#	exec sudo "$0" $argone "$argtwo" $argthree "$PWD"         
 	#fi
     exit
 fi
@@ -45,21 +48,28 @@ if [ "${arge[1]}" == "" ]; then THETIME="noarguser" ; fi
 if [ "${arge[2]}" == "" ] || [ "${arge[3]}" == "" ]; then USR="guest" ; passdir=$PWD ; fi #Default user
 if [ "${arge[2]}" == "SRC" ]; then echo "Incorrect usage please use recentchanges SRC s , s SRC or SRC" && exit 1; fi
 if  ! id $USR>/dev/null 2>&1; then echo "user: $USR not found"; exit 1; fi
+
+SRCDIR="noarguser"
 #Fork
 if [ "${arge[0]}" == "search" ]; then
-   	test -d "${passdir}" || { echo  "not a valid directory. usage recentchanges search time."; exit 1; }
-   	python3 /usr/local/save-changesnew/recentchangessearch.py "${arge[0]}" "$THETIME" $USR "$passdir" $argf "$0"
+   	test -d "$passdir" || { echo  "not a valid directory. usage recentchanges search time."; exit 1; }
+   	python3 /usr/local/save-changesnew/recentchangessearch.py "${arge[0]}" "$THETIME" "$SRCDIR" "$USR" "$passdir" $argf
    	exit
 elif [ "${arge[0]}" == "query" ]; then
 	python3 /usr/local/save-changesnew/query.py $pydbpst $email $USR $pydbpst $logpst $statpst
+	exit
 fi
 
 THETIME="${arge[0]}" # shift for this script
 if [ "${arge[0]}" == "" ]; then THETIME="noarguser" ; fi # root call
 [ "$THETIME" == "SRC" ] &&{ SRCDIR=$THETIME; THETIME="${2:-noarguser}"; } # shift
-[ "${arge[1]}" == "SRC" ] && SRCDIR=${arge[1]} || { [ "${arge[1]}" == "SEARCH" ] || [ "${arge[1]}" == "search" ]; } && echo "The SRC tag is for recentchanges only" && exit
+
+
+[ "${arge[1]}" == "SRC" ] && SRCDIR=${arge[1]} || { [[ "${arge[1],,}" == "search" ]] && echo "The SRC tag is for recentchanges only" && exit; }
 
 # 'recentchanges'
-python3 /usr/local/save-changesnew/recentchangessearch.py "${arge[0]}" "$THETIME" $USR "$passdir" $argf "$0" "rnt" "Refer to /rntfiles_MDY folder for the previous search"
+argf="bnk"
+
+python3 /usr/local/save-changesnew/recentchangessearch.py "$THETIME" "$SRCDIR" $USR "$passdir" $argf "rnt" "Refer to /rntfiles_MDY folder for the previous search"
 exit
 
