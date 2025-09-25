@@ -87,8 +87,8 @@ errblk() { [[ "$trlt" -ne 0 ]] && echo "$trlt" && errmsg "$mtmp" "updating .xzm"
 
 # Find out the files that have changed with dry run
 createlog() {
-rsync -anu --out-format="%f" "$1/" "$2" --exclude '.wh.*' --exclude-from=$EXFILES > $3 # what changed
-rsync -anvu "$1/" "$2" --exclude '.wh.*' --exclude-from=$EXFILES > $4 # rsync log
+rsync -an --out-format="%f" "$1/" "$2" --exclude '.wh.*' --exclude-from=$EXFILES > $3 # what changed
+rsync -anv "$1/" "$2" --exclude '.wh.*' --exclude-from=$EXFILES > $4 # rsync log
 }
 
 
@@ -387,7 +387,7 @@ for mods in $PWD"/"*_uid_*.xzm; do
         #test -e "$INAME/*/$k" || test -e "$file" && rm -f "$file"  #  { echo "y" | fixsqh >> $EXCL; echo "$y" >> $EXFILES; test -e "$y" && rm -f "$y"; }
     done
     unset IFS
-    cp -aufv $dest/* $1 2> >(tee /tmp/error.log >&2)
+    cp -afv $dest/* $1 2> >(tee /tmp/error.log >&2)
     if [ $? -ne 0 ]; then
         if grep -v '\.wh\.' /tmp/error.log > /dev/null; then
             red "Error processing one of the modules ${mods}"
@@ -402,7 +402,7 @@ for mods in $PWD"/"*_uid_*.xzm; do
     rm -rf $dest
 done
 unset IFS
-find . -name ".wh.*" -exec rm -r {} \; # works
+#find . -name ".wh.*" -exec rm -r {} \; # works
 cd $pst
 }
 backup() {
@@ -899,6 +899,8 @@ else
                 rel=$?
                 if [ "$rel" -eq 1 ]; then
                     red "There was problem auto merging. see /tmp/error.log" ; cyan "Everything preserved."
+                else
+                    echo "err ${rel} "
                 fi
             else
                 cyan "Modules merged."
