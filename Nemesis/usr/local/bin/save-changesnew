@@ -593,6 +593,8 @@ else # Graphics mode
                     rel=$?
                     if [ "$rel" -eq 1 ]; then
                         red "There was problem auto merging. see /tmp/error.log" ; cyan "Everything preserved."
+                    else
+                        echo "err: ${rel} "
                     fi
                 else
                     cyan "Modules merged."
