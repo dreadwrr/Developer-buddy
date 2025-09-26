@@ -2,9 +2,8 @@
 import hashlib
 import multiprocessing
 import os
-from pyfunctions import epoch_to_date
 from datetime import datetime
-
+from pyfunctions import epoch_to_date
 from pyfunctions import escf_py
 
 # Parallel SORTCOMPLETE search and  ctime hashing
@@ -36,27 +35,31 @@ def get_cached(CACHE_F, inode, size, mtime):
     return None
 
 
-def process_line(line, checksum, type, CACHE_F, CSZE):
+def process_line(line, checksum, type, table, CACHE_F, CSZE):
     fmt = "%Y-%m-%d %H:%M:%S"
     hardlink = None
-    cam = ""
-    sym = ""
-    cam = ""
-    checks = ""
+    cam = None
+    sym = None
+    cam = None
+    checks = None
+    hardlink =None
     parts = line.split(maxsplit=9)
     if len(parts) < 9:
         return None
 
     mod_time, access_time, change_time, inode, size, user, group, mode, file_path = parts[:9]
-
-    mod_time = int(mod_time)
-    change_time = int(change_time)
-    if not (type == "ctime" and change_time > mod_time) and type != "main": 
+    mtime = epoch_to_date(mod_time)
+    ctime = epoch_to_date(change_time)
+    if not (type == "ctime" and ctime > mtime) and type != "main": 
         return
     mtime = epoch_to_date(mod_time)
     if mtime is None:
         return
-    
+    if table == "sys":
+        hardlink = "0"
+
+
+    atime = epoch_to_date(access_time)
     size = int(size)
 
     if not os.path.exists(file_path):
@@ -64,6 +67,12 @@ def process_line(line, checksum, type, CACHE_F, CSZE):
         return ("Nosuchfile", now_str, now_str, file_path)
 
     if checksum:
+        if type == "ctime":
+            mtime = ctime
+            cam = "y"
+        if os.path.islink(file_path):
+            sym = "y"
+
         if size > CSZE:
             checks = get_cached(CACHE_F, inode, size, mod_time)
             if checks is None:
@@ -72,20 +81,9 @@ def process_line(line, checksum, type, CACHE_F, CSZE):
         else:
             checks = calculate_checksum(file_path)
 
-    mtime = epoch_to_date(mod_time)
-    atime = epoch_to_date(access_time)
-    ctime = epoch_to_date(change_time)
-
-    if type == "ctime":
-        mtime = ctime
-        cam = "y"
-
-    if os.path.islink(file_path):
-        sym = "y"
-
     # Return tuple with all metadata
     return (
-        mtime,
+        mtime.replace(microsecond=0),
         file_path,
         ctime.strftime(fmt),
         inode,
@@ -102,17 +100,17 @@ def process_line(line, checksum, type, CACHE_F, CSZE):
 
 
 def process_line_worker(args):
-    line, checksum, type, CACHE_F, CSZE = args
-    return process_line(line, checksum, type, CACHE_F, CSZE)
+    line, checksum, type, table, CACHE_F, CSZE = args
+    return process_line(line, checksum, type, table, CACHE_F, CSZE)
 
 
-def process_lines(lines, checksum, type, CACHE_F, CSZE):
-    args = [(line, checksum, type, CACHE_F, CSZE) for line in lines]
+def process_lines(lines, checksum, type, table, CACHE_F, CSZE):
+    args = [(line, checksum, type, table, CACHE_F, CSZE) for line in lines]
 
     if len(lines) < 100:
         results = [process_line_worker(arg) for arg in args]
     else:
-        with multiprocessing.Pool() as pool:
+        with multiprocessing.Pool(processes=os.cpu_count() or 4) as pool:
             results = pool.map(process_line_worker, args)
 
     sortcomplete = []
@@ -132,7 +130,7 @@ def process_lines(lines, checksum, type, CACHE_F, CSZE):
     return sortcomplete, complete
 
 
-def process_find_lines(lines, checksum, type, CACHE_F, CSZE):
-    return process_lines(lines, checksum, type, CACHE_F, CSZE)
+def process_find_lines(lines, checksum, type, table, CACHE_F, CSZE):
+    return process_lines(lines, checksum, type, table, CACHE_F, CSZE)
                                                                                             #
                                                                     #End parallel #    

@@ -76,6 +76,7 @@ def intst(dbtarget, logSIZE, CSZE, compLVL):
             return False
     return False
 
+RECENTNUL = b""  # filepaths `recentchanges`
 
 def main():
 
@@ -125,7 +126,6 @@ def main():
 
     TMPOUTPUT = [] # holding   
     # Searches
-    RECENTNUL = b""  # filepaths `recentchanges`
     RECENT = [] # main results
     tout = [] # ctime results
     SORTCOMPLETE = [] # combined
@@ -171,7 +171,7 @@ def main():
         "/bin", "/etc", "/home", "/lib", "/lib64", "/opt", "/root", "/sbin", "/tmp", "/usr",  "/var"
     ]
     
-    TAIL = ["-not", "-type", "d", "-printf", "%T@ %A@ %C@ %i %s %u %g %m %p\0"]
+    TAIL = ["-not", "-type", "d", "-printf", "%T@ %A@ %C@ %i %s %u %g %m %p\\0"]
 
     #F= "find /bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var"
     #TAIL="-not -type d -printf '%T@ %A@ %C@ %i %s %u %g %m %p\\0'"
@@ -245,7 +245,7 @@ def main():
 
         def find_files(find_command, file_type, RECENT, COMPLETE, init, checksum, ANALYTICSECT, end, cstart):
             global RECENTNUL
-
+            table = "logs"
             proc = subprocess.Popen(find_command, stdout=subprocess.PIPE)
             output, _ = proc.communicate()
             # output = proc.stdout.read()
@@ -264,9 +264,9 @@ def main():
                         print(file_path)
                         RECENTNUL += (file_path.encode() + b'\0')
 
-                RECENT, COMPLETE = process_find_lines(file_entries, checksum, "main", CACHE_F, CSZE)
+                RECENT, COMPLETE = process_find_lines(file_entries, checksum, "main", table, CACHE_F, CSZE)
             elif file_type == "ctime":
-                RECENT, COMPLETE = process_find_lines(file_entries, checksum, "ctime", CACHE_F, CSZE)
+                RECENT, COMPLETE = process_find_lines(file_entries, checksum, "ctime", table, CACHE_F, CSZE)
             else:
                 raise ValueError(f"Unknown file type: {file_type}")
 
@@ -371,6 +371,8 @@ def main():
 
         TMPOPT = filter_lines_from_list(TMPOPT, USR)  # Apply filter used for results, copying. RECENT is stored in db.
     
+
+
         if tmn:
             logf = RECENT # all files
         elif method == "rnt":
@@ -421,7 +423,8 @@ def main():
                 if not OLDSORT:
                     hsearch(OLDSORT, MODULENAME, argone) # look through `recentchanges` /tmp/MODULENAME_MDY*
 
-            
+
+
             # move/output /tmp file results 
             if method != "rnt":
                 # Reset
@@ -432,7 +435,10 @@ def main():
                     target_filename = f"{MODULENAME}xSystemTmpfiles{parseflnm}{b_argone}"
                     target_path = os.path.join(USRDIR, target_filename)
                     with open(target_path, 'w') as dst:
-                        dst.write('\n'.join(TMPOUTPUT) + '\n') 
+                        for entry in TMPOUTPUT:
+                            tss = entry[0].strftime(fmt)
+                            fp = entry[1]
+                            dst.write(f'{tss} {fp}\n')
                     changeperm(target_path, uid)
     
             diffnm = os.path.join(DIRSRC, MODULENAME +  flnmdff)
@@ -442,7 +448,8 @@ def main():
                 nodiff = True
 
                 clean_oldsort = [line.strip() for line in OLDSORT]
-                clean_logf_set = set(line.strip() for line in logf)
+
+                clean_logf_set = set(f'{entry[0].strftime(fmt)} {entry[1]}' for entry in logf)
 
                 difff_file = [line for line in clean_oldsort if line not in clean_logf_set]
 
@@ -460,17 +467,33 @@ def main():
                 else:
                     samerlt = True
 
+
             #Send search result SORTCOMPLETE to user
             with open(filepath, 'w') as f:
-                for entry in logf:
-                    f.write(" ".join(str(item) for item in entry) + "\n")
+                    for entry in logf:
+                        tss = entry[0].strftime(fmt)
+                        fp = entry[1]
+                        f.write(f'{tss} {fp}\n')
             changeperm(filepath, uid)
 
 
             # Backend
-            pstsrg.main(SORTCOMPLETE, COMPLETE, dbtarget, rout, checksum, cdiag, email, turbo, ANALYTICSECT, ps, nc, USR)
+            rlt = pstsrg.main(SORTCOMPLETE, COMPLETE, dbtarget, rout, checksum, cdiag, email, turbo, ANALYTICSECT, ps, nc, USR)
+            if rlt != 0:
+                if rlt == 2 or rlt == 3:
+                    print("Problem with GPG refer to instructions on setting up pinentry ect. Database preserved.")
+                elif rlt == 4:
+                    print("Problem with database in psysrg.py")
+                # elif rlt == 7:
+                #     print("mem failed in pstsrg.py")
+                # elif rlt == 87:
+                #     print("failed to parse from mMODE=\"mem\"")
+                else:
+                    print(f'Pstsrg.py failed. exitcode ${rlt}')
+
+
             # Diff output
-            csum=processha.processha(rout, ABSENT, diffnm, cerr, flsrh, MODULENAME, argf, SRTTIME, USR, supbrw, supress)
+            csum=processha.processha(rout, ABSENT, diffnm, cerr, flsrh, MODULENAME, argf, SRTTIME, USR, supbrw, supress, fmt)
             # Filter hits
             update_filter_csv(RECENT, USR, flth) 
 
@@ -488,6 +511,12 @@ def main():
                 with open(cerr, 'r') as src, open(diffnm, 'a') as dst:
                     dst.write(f"\ncdiag alert\n")
                     dst.write(src.read())
+                try:
+                    os.remove(cerr)
+                except Exception as e:
+                    print(f'Problem removing {cerr}')
+                except FileNotFoundError:
+                    pass
 
             if ANALYTICSECT:
                 el = end - start  
@@ -501,6 +530,16 @@ def main():
                 display(dspEDITOR, USRDIR, MODULENAME, flnm)
             except Exception as e:
                 print(f"Error in logic or display: {e}")
+
+            #Cleanup
+            try:
+                if os.path.isfile(slog):
+                    os.remove(slog)
+            except FileNotFoundError:
+                 pass
+            except Exception as e:
+                 print(f"Error removing scr feedback {slog}: {e}")               
+
 
 
 if __name__ == "__main__":

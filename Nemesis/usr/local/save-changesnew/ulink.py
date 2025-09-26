@@ -1,9 +1,8 @@
 import os
 import re
 import multiprocessing
-from rntchangesfunction import sbwr
+from rntchangesfunctions import sbwr
 from collections import defaultdict
-
 
 def count_inodes_for_dirs(directories):
     inode_map = defaultdict(int)
@@ -17,7 +16,6 @@ def ulink(input_array, LCLMODULENAME, supbrwr):
     inode_map = defaultdict(int)
     inodes_array = []
 
-    # Step 1: extract inode or mark None
     for line in input_array:
         ck = False
         cFILE = line[1]
@@ -39,7 +37,6 @@ def ulink(input_array, LCLMODULENAME, supbrwr):
         else:
             inodes_array.append(inode)
 
-    # Step 2: count inodes system-wide
     chunks = [
         ['/bin', '/etc', '/home'],
         ['/lib', '/lib64', '/opt'],
@@ -53,7 +50,7 @@ def ulink(input_array, LCLMODULENAME, supbrwr):
         for inode, count in result.items():
             inode_map[inode] += count
 
-    # Step 3: assign counts (None if ≤1)
+
     counts_result = []
     for inode in inodes_array:
         if inode is None:

@@ -7,6 +7,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import sysprofile
 from hanlyparallel import hanly_parallel
 from pyfunctions import getcount
 from pyfunctions import parse_line
@@ -179,35 +180,8 @@ def insert_if_not_exists(action, timestamp, filename, changetime, conn, c): # St
       ''', (action, timestamp, filename, changetime))
       conn.commit()
 
-def parselog(file, list, checksum, type):
-      with open(file, 'r') as file: 
-            for line in file:
-                  inputln = parse_line(line)
 
-                  if not inputln or not inputln[1].strip():
-                        continue
-            
-                  timestamp = None if inputln[0] in ("None", "") else inputln[0]
-                  filename    = None if inputln[1] in ("", "None") else inputln[1]
-                  changetime  = None if inputln[2] in ("", "None") else inputln[2]
-                  inode       = None if inputln[3] in ("", "None") else inputln[3]
-                  accesstime = None if inputln[4] in ("", "None") else inputln[4]
-                  checks      = None if len(inputln) > 5 and inputln[5] in ("", "None") else (inputln[5] if len(inputln) > 5 else None)
-                  filesize    = None if len(inputln) > 6 and inputln[6] in ("", "None") else (inputln[6] if len(inputln) > 6 else None)
-                  sym   = None if len(inputln) <= 7 or inputln[7] in ("", "None") else inputln[7]
-                  onr   = None if len(inputln) <= 8 or inputln[8] in ("", "None") else inputln[8]
-                  gpp   = None if len(inputln) <= 9 or inputln[9] in ("", "None") else inputln[9]
-                  pmr   = None if len(inputln) <= 10 or inputln[10] in ("", "None") else inputln[10]
-                  cam   = None if len(inputln) <= 11 or inputln[11] in ("", "None") else inputln[11]
-                  hardlink_count = None if len(inputln) <= 12 or inputln[12] in ("", "None") else inputln[12]
-
-                  if checksum == 'false':
-                        hardlink_count = None if type == "sys" else checks
-                        checks=None
-
-                  list.append((timestamp, filename, changetime, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, cam, hardlink_count))
-                  
-def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, turbo, ANALYTICSECT, ps, nc, user='guest'):
+def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, turbo, ANALYTICSECT, ps, nc, CACHE_F, user='guest'):
 
       table="logs"
       parsed = []
@@ -243,21 +217,25 @@ def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, turbo, ANALYTI
                   table="sys"
                   if not table_exists_and_has_data(conn, 'sys') and checksum == 'true':
                         cprint.cyan('Generating system profile from base .xzms.') # hash base xzms
-                        result=subprocess.run(["/usr/local/save-changesnew/sysprofile", turbo],capture_output=True,text=True)
-                        if result.returncode == 1:
-                              print("Bash failed to hash profile.")
-                        
-                        else:
-                              try:
-                                    dir_path = result.stdout.strip()
 
-                                    parselog(dir_path, parsedsys, checksum, 'sys') #sys
+                        try:
+                              parsedsys = sysprofile.main(CACHE_F)
+                        except Exception as e:
+                              print(f'sysprofile.py failed to hash.')
+                              parsedsys = None
 
-                                    if os.path.isdir(dir_path):
-                                          shutil.rmtree(dir_path)
-                              except Exception as e:
-                                    print(f"bash sysprofile failed missing SORTCOMPLETE: {e}")
-
+                        # Bash xargs
+                        # result=subprocess.run(["/usr/local/save-changesnew/sysprofile", turbo],capture_output=True,text=True)
+                        # if result.returncode == 1:
+                        #       print("Bash failed to hash profile.")               
+                        # else:
+                        #       try:
+                        #             dir_path = result.stdout.strip()
+                        #             parselog(dir_path, parsedsys, checksum, 'sys') #sys
+                        #             if os.path.isdir(dir_path):
+                        #                   shutil.rmtree(dir_path)
+                        #       except Exception as e:
+                        #             print(f"bash sysprofile failed missing SORTCOMPLETE: {e}")
 
                         if parsedsys:
                               try: 
@@ -269,7 +247,7 @@ def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, turbo, ANALYTI
 
             # Log
             if parsed:
-                  if goahead: # #Hybrid analysis. Skip first pass ect.
+                  if goahead: # Hybrid analysis. Skip first pass ect.
 
                         try: 
 

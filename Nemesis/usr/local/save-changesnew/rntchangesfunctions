@@ -1,12 +1,5 @@
 #!/bin/bash
-#   Developer buddy 3.0 core                                               9/16/2025
-
-get_colors(){
-txtyellow=${txtbld}$(tput setaf 3)
-txtblue=${txtbld}$(tput setaf 4)
-function yellow() { echo -e $txtyellow "$1" $rst; }
-function blue(){ echo $txtblue "$1" $rst; }
-}
+#   Developer buddy 3.0 core                                               9/26/2025
 
 postop() {
 if [ "$POSTOP" == "true" ]; then
@@ -37,32 +30,6 @@ if [ "$POSTOP" == "true" ]; then
 fi
 }
 
-filterhits() {
-local lt=$atmp/patterns.txt
-local fl=/usr/local/save-changesnew/filter
-test -f $2 || echo "Entry,Hits" >> $2
-sed -n '/^[[:space:]]*#/!s|sed -i '\''/\(.*\)/d'\''.*|\1|p' "$fl" > $lt
-while IFS= read -r pattern; do
-    k=$( echo "$pattern" | sed -e 's/\\//g' -e "s|'\"\${2}\"'|$USR|g")
-    x=$( grep -Fc -- "$k" $1)
-    if grep -Fq "sed -i '/$pattern/d" $2; then
-        if (( x > 0 )); then
-            y=$( grep -F "sed -i '/$pattern/d" $2 | cut -d',' -f2)
-            b=$(( y + x ))
-            lno=$(grep -Fn "sed -i '/$pattern/d" "$2" | cut -d: -f1)
-            sed -i "${lno}s/,[0-9]\+\$/,$b/" $2
-        fi
-    else
-        line=$(grep -F "sed -i '/$pattern/d" "$fl" | grep -v '^[[:space:]]*#')
-        if [ "$line" != "" ]; then
-            echo "\"$line\",$x" >> $2
-        fi
-    fi
-done < $lt
-unset IFS
-rm $lt
-}
-
 generatekey() {
         read -sp "Enter passphrase for new GPG key: " p
         echo
@@ -83,96 +50,3 @@ EOF
     shred -u /tmp/keyparams.conf
     echo "GPG key generated for ${email}."
 }
-
-escf() {
-local o="$1"
-o="${o//\\/\\\\}" ; o="${o//$'\n'/\\n}"; o="${o//\"/\\\"}" ; o="${o//$/\\\$}"
-printf '%s' "$o"
-}
-unescf() {
-local k="$1"
-k="${k//\\n/$'\n'}" ; k="${k//\\\"/\"}" ; k="${k//\\\$/\$}" ; k="${k//\\\\/\\}" 
-printf '%s' "$k"
-}
-
-
-pyerrblk() {
-if [ "$ret" -ne 0 ]; then
-	if [ "$ret" -eq 2 ] || [ "$ret" -eq 3 ]; then
-		echo "Problem with GPG refer to instructions on setting up pinentry ect. Database preserved."
-	elif [ "$ret" -eq 4 ]; then
-		echo "Problem with database in psysrg.py"
-	elif [ "$ret" -eq 7 ]; then
-		echo "mem failed in pstsrg.py"
-	elif [ "$ret" -eq 87 ]; then
-		echo "failed to parse from mMODE=\"mem\""
-	else
-		echo "Pstsrg.py failed. exitcode ${ret}"
-	fi
-fi
-}
-
-
-isoutput() {
-local y=$#
-if (( y >= 7 )); then
-	c=4
-elif (( y == 4)); then
-	c=2
-elif (( y == 2 )); then
-	c=1
-else
-	echo either 2 4 or 8 args
-fi
-for ((i = 1; i <= c; i++)); do
-    files=($atmp/${!i})
-    x=$((i + c))
-    if [[ ${#files[@]} -gt 0 ]] && [[ " ${files[@]} " != *"${!i}"* ]]; then
-        output="${!x}"
-        cat "${files[@]}" >> $output
-    fi
-done
-}
-
-# Used for sysprofile as you dont want to cache the checksum
-rblk() {
-local fmt="%Y-%m-%d %H:%M:%S"
-local sl=""
-local cFILE
-local csum
-local y
-while IFS= read -r -d '' p ; do
-	read -r mtime atime itime i fs onr grp pmr path <<< "$p"
-	cFILE="$path"
-	y="$( escf "$cFILE")" 
-	mt=$(date -d "@${mtime%%.*}" +"$fmt")
-	ct=$(date -d "@${itime%%.*}" +"$fmt")
-	if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
-		if [ -n "$mt" ]; then
-        	if { [[ "$4" = "ctime" ]] && (( ${itime%%.*} > ${mtime%%.*} )); } || [[ "$4" = "main" ]]; then
-				if [ "$checkSUM" == "true" ]; then
-					[[ "$1" = "ctime" ]] && cam="y" && mt=$ct || cam="None"
-					csum=$(md5sum "$cFILE" 2> /dev/null)
-					csum=${csum%% *}
-					csum=${csum:-None}
-					fs=${fs:-None} 
-					[[ -L "$cFILE" ]] && sl="y" ; sl=${sl:-None}
-					wnr=${onr:-None} ; grp=${grp:-None} ; pmn=${pmr:-None}
-					adtcmd="$csum $fs $sl $wnr $grp $pmn $cam"
-				else
-			    	adtcmd=""
-				fi
-    			ats=$(date -d "@${atime%%.*}" +"$fmt")			
-				ct=${ct:-None None}
-				ats=${ats:-None None}
-				output="$mt \"$y\" $ct $i $ats $adtcmd"
-				printf '%s\n' "$output" >> $2
-			fi
-		fi
-	else
-		[[ -z "$mt" ]] && { crt=$(date +"$fmt") ; mt=$crt; }
-		printf "%s %s %s %s\n" "Nosuchfile" "$mt" "$mt" "$y" >> $3
-	fi
-done < $1
-}
-

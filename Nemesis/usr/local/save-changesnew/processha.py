@@ -11,8 +11,15 @@ def get_timestamp(line):
     parts = line.strip().split(None, 2)
     if len(parts) < 2:
         return None
-    return parse_datetime(parts[1]) 
+    tsmp=f'{parts[0]} {parts[1]}'
+    return parse_datetime(tsmp) 
 
+def get_trout(line):
+    parts = line.strip().split(None, 3)
+    if len(parts) < 3:
+        return None
+    tsmp=f'{parts[1]} {parts[2]}'
+    return parse_datetime(tsmp) 
 
 # preprocess diff file
 def isdiff(RECENT, ABSENT, rout, diffnm, difff_file, flsrh, parsed_PRD, uid, fmt):
@@ -22,11 +29,11 @@ def isdiff(RECENT, ABSENT, rout, diffnm, difff_file, flsrh, parsed_PRD, uid, fmt
     if flsrh == "false":
 
         for line in difff_file:
-            parts = line.strip().split(" ", 1)
+            parts = line.strip().split(None, 2)
             if not parts:
                 continue
-
-            timestp = parse_datetime(parts[0], fmt)
+            tsmp = f'{parts[0]} {parts[1]}'
+            timestp = parse_datetime(tsmp, fmt)
             if timestp is None:
                 continue
 
@@ -36,11 +43,11 @@ def isdiff(RECENT, ABSENT, rout, diffnm, difff_file, flsrh, parsed_PRD, uid, fmt
         ranged = difff_file[:]
 
     if ranged:
-        d_paths = set(line.strip().split(" ", 2)[-1] for line in RECENT)
+        d_paths = set(entry[1] for entry in RECENT)
 
         with open(diffnm, 'a') as file2:
             for line in ranged:
-                parts = line.strip().split(" ", 2)
+                parts = line.strip().split(None, 2)
                 if len(parts) < 3:
                     continue
                 timestamp_str = parts[0] + " " + parts[1]
@@ -70,59 +77,61 @@ def isdiff(RECENT, ABSENT, rout, diffnm, difff_file, flsrh, parsed_PRD, uid, fmt
 
    
 # post ha to diff
-def processha(rout, ABSENT, diffnm, cerr, flsrh, lclmodule, argf, parsed_PRD, USR, supbrwr, supress):
+def processha(rout, ABSENT, diffnm, cerr, flsrh, lclmodule, argf, parsed_PRD, USR, supbrwr, supress, fmt):
     cleaned_rout = []
     outline = []
 
     if rout:
+
         for line in rout:
-            parts = line.strip().split(None, 3)
+            print(line)
+            parts = line.strip().split()
             if len(parts) < 4:
                 continue
             if parts[0] in ("Deleted", "Nosuchfile"):
                 continue
-
-            action, timestamp, _, filepath = parts
-            cleaned_line = f"{action} {timestamp} {filepath}"
+            action = parts[0]
+            ts1 = f'{parts[1]} {parts[2]}'
+            fpath = ' '.join(parts[3:])
+            cleaned_line = f'{action} {ts1} {fpath}'
             cleaned_rout.append(cleaned_line)
 
 
-        if ABSENT:
-            absent_paths = {line.strip().split(None, 3)[-1] for line in ABSENT}
-            DIFFMATCHED = [
-                line for line in cleaned_rout
-                if line.strip().split(None, 3)[-1] not in absent_paths
-            ]
-        else:
-            DIFFMATCHED = cleaned_rout[:]
 
-     
+        absent_paths = {line.strip().split(None, 3)[-1] for line in ABSENT}
         DIFFMATCHED = [
-            line for line in DIFFMATCHED
-            if get_timestamp(line) is not None
+            line for line in cleaned_rout
+            if line.strip().split(None, 3)[-1] not in absent_paths
         ]
 
-
         if (flsrh == "true" or argf == "filtered") and not (flsrh == "true" and argf == "filtered"):
+
             DIFFMATCHED = filter_lines_from_list(DIFFMATCHED, USR)
 
 
-        if flsrh:
+        if flsrh == "true":
             DIFFMATCHED = [
                 line for line in DIFFMATCHED
-                if (ts := get_timestamp(line)) and ts >= parsed_PRD
+                if (ts := get_trout(line)) and ts >= parsed_PRD
             ]
 
 
-        DIFFMATCHED.sort(key=get_timestamp)
+        DIFFMATCHED.sort(key=get_trout)
 
         for line in DIFFMATCHED:
-            fields = line.split(None, 2)
-            if len(fields) < 3:
+            print(line)
+            fields = line.split()
+            if len(fields) < 4:
                 continue
-            field1, field2_3, rest = fields
-            formatted_line = f"{field1:<9}\t{field2_3:<19} {rest}\n"
+
+            status = fields[0]         
+            date = fields[1]           
+            time = fields[2]             
+            path = " ".join(fields[3:]) 
+
+            formatted_line = f"{status:<9} {date} {time} {path}\n"
             outline.append(formatted_line)
+
 
     if outline:
         with open(diffnm, 'a') as f:

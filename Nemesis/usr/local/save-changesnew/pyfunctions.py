@@ -168,7 +168,7 @@ def increment_fname(conn, c, record):
     ))
     c.execute('''
         UPDATE sys
-        SET count = count + 1
+        SET count = CAST(count AS INTEGER) + 1
         WHERE filename = ? AND timestamp != ? AND changetime != ?
     ''', (filename, record[0], record[2]))
     
@@ -182,9 +182,12 @@ def matches_any_pattern(s, patterns):
     return False
 
 def epoch_to_date(epoch):
-    return datetime.fromtimestamp(float(epoch))
+    try:
+        return datetime.fromtimestamp(float(epoch))
+    except(TypeError, ValueError):
+        return None
 
-def parse_datetime(value, fmt):
+def parse_datetime(value, fmt="%Y-%m-%d %H:%M:%S"):
     if isinstance(value, datetime):
         return value
     try:
