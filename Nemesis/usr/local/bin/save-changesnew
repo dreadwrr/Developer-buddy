@@ -485,6 +485,7 @@ else # Graphics mode
     test -e "$thetgt$pth" && rltt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Avoid confusion we initially stored rlt and can reference it. so use rltt
     epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g')
     if [ "$rltt" != "" ]; then  
+
         if [[ ! "${rltt}" == *$BASEDIR"/"$emfld* ]]; then
             test -d "$target$em" || mkdir -p "$target$em"
 			[[ -n "$grubln" ]] && test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak
@@ -594,7 +595,7 @@ else # Graphics mode
                     if [ "$rel" -eq 1 ]; then
                         red "There was problem auto merging. see /tmp/error.log" ; cyan "Everything preserved."
                     else
-                        echo "err: ${rel} "
+                        echo "err: ${rel}"
                     fi
                 else
                     cyan "Modules merged."
@@ -611,5 +612,7 @@ test -e $QEXCL && rm $QEXCL
 test -e $UPDATE && rm $UPDATE
 #test -e $SFOLDERS && rm $SFOLDERS
 test -e /tmp/incfilter.log && rm /tmp/incfilter.log
-test -e $tmp && rm -rf $tmp ; sleep 5 && exit
+test -e $tmp && rm -rf ${tmp:?} 
+test -e $mtmp && rm -rf ${mtmp:?}
+sleep 5 && exit
 
