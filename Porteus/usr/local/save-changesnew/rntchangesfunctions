@@ -378,7 +378,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 						if [ -f "$cFILE" ]; then
 							if [[ "$cs" != "$ocs" && "$cs" -ne 0 && "$os" -ne 0 ]]; then
 								a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
-								if [ -n "$a_checksum" && ]; then
+								if [ -n "$a_checksum" ]; then
 									if [ "$a_checksum" != "$ocs" ]; then
 										echo "Suspect $dt $ct $y" >> $rout
 									    echo "Suspect file: $y changed without a new modified time." >> $cerr

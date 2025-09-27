@@ -1,5 +1,5 @@
 #!/bin/bash
-# save-changesnew functions to move options further up the script             9/15/2025
+# save-changesnew functions to move options further up the script             9/26/2025
 dycmb() {
 TFLD=""
 for x in $IFOLDERS; do [[ -e "$ch/$x" ]] && TFLD="$TFLD $x" ; done
@@ -106,30 +106,45 @@ fi
 # so we have a small .xzm if still in session. for _uid_
 newuid() {
 shopt -s globstar
-
 keep=$tmp/outfile # perishable
 remove=$tmp/deletre # ..
-
 cd $mtmp || exit
 h=$(find $target$em -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' -print0 | xargs -0 ls -t | head -n 1)
+r=0
 if [[ -n "$h" && -f "$h" && -f /dev/shm/xsc ]]; then
-   
-    # previous changes
-    tmpdirt=$(mktemp -d) && mount -o loop $h $tmpdirt
-    rsync -a "$tmpdirt/" "$tmp" --exclude '.wh.*'
-    umount $tmpdirt && rmdir $tmpdirt
+    tfile=$( cat /dev/shm/xsc)
+    if [ -f $tfile ]; then # still there?
+        for mods in $target$em"/"*_uid_*.xzm; do # ext prev changes
+            [[ "$mods" == *_uid_L* ]] && continue
+            if (( r == 0 )); then
+                if [ "$mods" == "$tfile" ]; then
+                    r=1 # everything after and including tfile
+                fi
+            fi
+            if (( r )); then
+                startmnt
+                mount -o loop $mods $dest
+                rsync -a "$dest/" "$tmp" --exclude '.wh.*'
+                rlt=$?
+                if [ "$rlt" -ne 0 ]; then clea ; echo "failed to extract in newuid(). if unable resolve remove /dev/shm/xsc" && exit 1 ; fi
+                clea
+            fi
+        done
+    else # use the last one
+        tmpdirt=$(mktemp -d) && mount -o loop $h $tmpdirt
+        rsync -a "$tmpdirt/" "$tmp" --exclude '.wh.*'
+        umount $tmpdirt && rmdir $tmpdirt
+    fi
 
     # total current files
     rsync -a "$ch/" "$mtmp" --exclude '.wh.*' --exclude-from=$EXFILES
 
     test -e $LOGDIR/$LOGFILE && rm $LOGDIR/$LOGFILE # dont exclude from changes from $mtmp
     find $mtmp -type f -printf '%P\n' > $tmp/contents 
-
     createlog $mtmp $tmp $UPDATE $SFILES
     c="${mtmp#/}"  # --out-format="%f" consistent log depends on version of rsync **
     sed -i -e "\|$c/\.|d" -e "s|$c/||" -e '/^\./d' $UPDATE
     cp $UPDATE $keep
-
 
     #$tmp/contents # changes
     #$keep # what needs to be transfered
@@ -140,13 +155,10 @@ if [[ -n "$h" && -f "$h" && -f /dev/shm/xsc ]]; then
     labelmk $SFILES # Copy log before .xzm
 
     base_cmd=(mksquashfs $ch "$target$em$rname" -comp $cmode -ef $EXFILES)
-
     if [ "$FEEDBACK" != "true" ]; then "${base_cmd[@]}" > /dev/null ; else "${base_cmd[@]}" ; fi
 
-    #tranlog $SFILES # Add to session
-
 else
-    touch /dev/shm/xsc
+    echo "$target$em$rname" > /dev/shm/xsc
     if ! createxzm; then
         echo "Changes not saved either a file changed while saving or something went wrong."
     fi
@@ -192,6 +204,9 @@ printf "%s\n" "${keep[@]}" >> "$EXFILES"
 test -e $exclfiles && rm $exclfiles
 
 if [ "$1" == "uid" ]; then
+    if [ "$d2dmdl" == "true" ]; then
+        tmp=$(mktemp -d "$xtgt/tmp.XXXXXX")
+    fi
     newuid
 
 else #uid_L
@@ -332,7 +347,7 @@ local instm="$1"
     else
         { echo "bytes:"$xsize ; echo "file name:${fname}" ; echo ; } > $msr
     fi
-    cd $pst ; rm -rf $mtmp
+    cd $pst ; rm -rf ${mtmp:?}
 }
 
 insertmenu() {
@@ -370,21 +385,29 @@ else
     cyan "no ${src} $1"
 fi
 }
+startmnt() {
+dest="/mnt/loop-$(basename "$mods" .xzm)"
+[[ -d $dest ]] && { echo "Error: $dest mount dir already exists. remove and try again." && exit; } || mkdir $dest
+if mountpoint -q $dest; then echo "Error: $dest already mounted. Everything preserved."; exit 1; fi
+if [ ! -f "$mods" ]; then echo "Error: In wrong directory. '$dest' not found."; exit 1; fi
+}
+clea() { umount $dest && rm -rf $dest; }
 unpack() {
 for mods in $PWD"/"*_uid_*.xzm; do
     (( x == 0 )) && { cd $1 || exit ; } ; (( x++ ))
     [[ "$mods" == *_uid_L* ]] && continue
     echo $mods >> $oMF
-    dest="/mnt/loop-$(basename "$mods" .xzm)"
-    mkdir $dest
-    if mountpoint -q $dest; then echo "Error: $dest already mounted. Everything preserved."; exit 1; fi
-	if [ ! -f "$mods" ]; then echo "Error: In wrong directory. '$mods' not found."; exit 1; fi
+    startmnt
 	mount -o loop $mods $dest
 	find "${dest}/" -type f -name '.wh.*' -printf '%P\0' | while IFS= read -r -d '' file; do
+        #found="false"
         k=$( echo "$file" | sed -e 's/^\.wh\.//')
 		#p=$( echo "$file" | sed -E 's|(.*\/)\.wh\.|\1|') # keep path remove .wh.
         test -e "$k" && rm -rf "$k";
-        #test -e "$INAME/*/$k" || test -e "$file" && rm -f "$file"  #  { echo "y" | fixsqh >> $EXCL; echo "$y" >> $EXFILES; test -e "$y" && rm -f "$y"; }
+
+	    #for f in "$INAME"/*/"$k"; do [ -e "$file" ] && found="true" && break ; done
+        #[[ "$found" = "true" ]] || { test -e "$file" && rm -f "$file"; }  #  | fixsqh >> $QEXCL; echo "$y" 
+        #test -e "$INAME/"*"/$k" || test -e "$file" && rm -f "$file"  #  { echo "y" | fixsqh >> $EXCL; echo "$y" >> $EXFILES; test -e "$y" && rm -f "$y"; }            # echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; 
     done
     unset IFS
     cp -afv $dest/* $1 2> >(tee /tmp/error.log >&2)
@@ -392,17 +415,16 @@ for mods in $PWD"/"*_uid_*.xzm; do
         if grep -v '\.wh\.' /tmp/error.log > /dev/null; then
             red "Error processing one of the modules ${mods}"
             cyan "Everything preserved. Check the script and try again. check /tmp/error.log"
-            umount $dest
-            rm -rf $dest ; rm $oMF ; rm -rf $1 ; exit 1
+            clea ; rm $oMF ; rm -rf $1 ; exit 1
         else
             cyan "White out file detected and processed"  >&2
         fi
     fi
-    umount $dest
-    rm -rf $dest
+    clea
 done
 unset IFS
-#find . -name ".wh.*" -exec rm -r {} \; # works
+
+#find . -name ".wh.*" -exec rm -r {} \;
 cd $pst
 }
 backup() {
@@ -916,8 +938,8 @@ test -e $EXCL && rm $EXCL
 test -e $UPDATE && rm $UPDATE
 test -e $SFILES && rm $SFILES
 # test -e $SFOLDERS && rm $SFOLDERS
-test -d $tmp && rm -rf $tmp
-test -d $mtmp && rm -rf $mtmp
+test -d $tmp && rm -rf ${tmp:?}
+test -d $mtmp && rm -rf ${mtmp:?}
 [[ -z "$sts" ]] && sleep 5
 exit
 }

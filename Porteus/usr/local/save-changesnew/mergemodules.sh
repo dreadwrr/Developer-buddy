@@ -1,5 +1,5 @@
 #!/bin/bash
-# Merge modules                                                                                 9/6/2025
+# Merge modules                                                                                 9/26/2025
 # only merges  *_uid_*.xzm  in $PWD and only deletes the old on successful completion.
 . /usr/share/porteus/porteus-functions
 get_colors
@@ -22,11 +22,27 @@ if [ "$1" != "" ]; then keepMRGED="$1"; fi
 pst=$PWD
 r=$( ls -l | grep -c '.*_uid_.*.xzm')
 if [ "$r" -gt 1 ]; then
+    p=$(df --output=avail $PWD | tail -1)
+    w=$(df --output=avail /tmp | tail -1)
+    u=0
+    for mods in $PWD"/"*_uid_*.xzm; do
+        [[ "$mods" == *_uid_L* ]] && continue
+        sz=$(du -sk "$mods" | cut -f1)
+        u=$(( u + sz ))
+    done
+    req=$(( u * 215 / 100 ))
+    if (( req >= w )); then
+        ms="Not enough space in"
+        echo "${ms} /tmp. ${w} free and ${req} required." ; exit 1
+    elif (( p < u )); then
+        echo "${ms} ${PWD}. need $(( u / 1024)) MB." ; exit 1
+    fi
+
     mkdir $tmp ; > $oMF ; x=0
     unpack $tmp
     SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`
     rand2d=$(printf "%02d" $((RANDOM % 100)))
-    while IFS= read -r ofile; do [[ -z "$ofile" || "$ofile" == \#* ]] && continue ; fname="$( basename "${ofile%.xzm}").bak" ; mv "$ofile" "/tmp/$fname" ; done < "$oMF"
+    while IFS= read -r ofile; do [[ -z "$ofile" || "$ofile" == \#* ]] && continue ; fname="$( basename "${ofile%.xzm}").bak" ; mv "$ofile" "$fname" ; done < "$oMF"
     unset IFS
     mksquashfs $tmp "${PWD}/${MODULENM}${SERIAL}_uid_${$}${rand2d}.xzm" -comp $cmode
     if [ $? -ne 0 ]; then
@@ -51,7 +67,7 @@ if [ "$r" -gt 1 ]; then
 		cp ${MODULENM}${SERIAL}_uid_${$}${rand2d}.xzm archive/_uid_/${MODULENM}${SERIAL}_uid_${$}${rand2d}.bak
 		[[ "$3" == "true" ]] && BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'` && { find "$tmp" -type f -printf '%P\n' ; echo ; echo $BRAND ; } >> archive/_uid_/${MODULENM}${SERIAL}_uid_${$}${rand2d}.bak.txt
 	fi
-    while IFS= read -r ofile; do [[ -z "$ofile" || "$ofile" == \#* ]] && continue ; fname="$( basename "${ofile%.xzm}").bak" ; [[ "$keepMRGED" == "true" ]] && cmd=(mv "/tmp/$fname" "$PWD") || cmd=(rm "/tmp/$fname") ; "${cmd[@]}" ; done < "$oMF"
+    while IFS= read -r ofile; do [[ -z "$ofile" || "$ofile" == \#* ]] && continue ; fname="$( basename "${ofile%.xzm}").bak" ; [[ "$keepMRGED" = "false" ]] && cmd=(rm "$fname") ; "${cmd[@]}" ; done < "$oMF"
 	unset IFS
     rm $oMF
 elif [ "$r" -eq 0 ]; then
