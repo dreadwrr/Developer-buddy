@@ -1,0 +1,91 @@
+[backend]
+# database   binary database faster queries 1 gpg and python (easier ha)
+											# leave set
+backend = "database"
+
+# default for asymmetrical gpg auth for STATPST
+                                                        # asks for paraphrase and caches for 15 minutes
+                                                        # leave default
+email = "john.doe@email.com"
+
+
+[logs]
+
+# default 200mb to disable compression on pydbpst size
+compLVL = 200
+
+
+[search]
+# -SRC auto .xzm `recentchanges` customname in /save-changesnew/recentchanges
+autooutput = false
+
+                   # default nothing. uses gzip compression level balanced. This is for recentchanges .xzm and SRC tag
+                                           # xz        best compression
+                                           # zstd     faster bootup
+                                            # lzo      faster bootup
+cmode = "gzip"
+
+						# How many old searches to save and rnt.xzm in /tmp(all filtered files) pulled. These can be grabbed by `recentchanges search` and `recentchanges`
+archivesrh = 2
+
+# Default 7 store most recent searches in /tmp try 30 and then nrun recentchanges query with STATPST false
+                                # for hybrid analysis in diff file
+                                 # also queries ie recentchanges query stats
+tmpSRHS = 7
+
+
+[analytics]
+
+# provides more feedback
+                                            # total search time ect
+                                            # we dont want too much output on the terminal just a slight bit more
+                                            # others stats
+ANALYTICSECT = true
+
+# include find output in terminal as well ie scrolling terminal look
+
+FEEDBACK = true
+
+
+[display]
+# "false" default don't display text editor; launch text editor?
+# featherpad
+# xed
+dspEDITOR = "xed"
+
+
+[diagnostics]
+# compare file checksums for slight changes
+										# slower useful if you want to check deeper level of stats
+checkSUM = true
+ # Include stealth changes in diff file    a file was changed but has the same checksum and filesize subtle edit  ie cache items or string was changed
+									# also check for hash collisions
+cdiag = true
+
+# supress cache warnings on terminal from known browsers? Mozilla... ect list top of rntfuncions
+supbrw = true
+
+# ..      all cdiag output to terminal except critical events
+supress = false
+
+# scan for accurate hardlinks in db. alternatively use Set hardlinks button
+updatehlinks = true
+
+# Diagnostics. Create file doctrine. Runs post search operation that can only be done at this time as search is relevant
+                                    # more overhead so recommend off unless one off. output /Downloads
+                                    #
+                                    # if it is run again and a file is still there it will not run the POSTOP and the script will set POSTOP to false to itself
+POSTOP = false
+
+# take initial hash of base modules 001-core.. ect database mode
+proteusSHIELD = false
+
+
+[paths]
+# filter hits
+flth = "/usr/local/save-changesnew/flth.csv" 
+logpst = "/usr/local/save-changesnew/logs.gpg"
+statpst = "/usr/local/save-changesnew/stats.gpg"
+pydbpst = "/usr/local/save-changesnew/recent.gpg"
+CACHE_F = "/usr/local/save-changesnew/ctimecache.gpg" 
+
