@@ -1,5 +1,5 @@
 #                               09/27/2025
-Release developer buddy py edition
+Release developer buddy py edition <br>
 https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0
 
 ![Logo](https://i.imgur.com/sbZa1r3.png)
