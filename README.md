@@ -1,7 +1,6 @@
-#                               09/26/2025
-Currently working on a standalone python edition
-This would use arrays as the main method see some speed improvements. mostly for if there are many new files
-. the filesize would be smaller ect around 45kb
+#                               09/27/2025
+Release developer buddy py edition
+https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0
 
 ![Logo](https://i.imgur.com/sbZa1r3.png)
 
