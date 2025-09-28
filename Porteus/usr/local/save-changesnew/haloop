@@ -1,0 +1,9 @@
+#!/bin/bash
+. /usr/local/save-changesnew/rntchangesfunctions
+. /usr/local/save-changesnew/save-changesnewfnts
+atmp="$1" ; SORTCOMPLETE="$2" ; ofile="$3" ; checkSUM="$4" ; cdiag="$5" 
+fmt="%Y-%m-%d %H:%M:%S"
+rout="$atmp/haloop1_${RANDOM}$(rand_alpha)$$_tmp.log" ; slog="$atmp/haloop2_${RANDOM}$(rand_alpha)$$_tmp.log" ; cerr="$atmp/haloop3_${RANDOM}$(rand_alpha)$$_tmp.log" ; TMPCOMPLETE="$atmp/haloop4_${RANDOM}$(rand_alpha)$$_tmp.log"
+declare -a collisions=()
+#mapfile -t ref_lines < "$ofile"
+hablk "null" $TMPCOMPLETE

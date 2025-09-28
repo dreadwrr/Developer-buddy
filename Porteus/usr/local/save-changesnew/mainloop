@@ -1,0 +1,24 @@
+#!/bin/bash
+. /usr/local/save-changesnew/rntchangesfunctions
+. /usr/local/save-changesnew/save-changesnewfnts
+atmp="$1"
+IN="$2"
+#SORTCOMPLETE="$3"
+#NFS="$4"
+checkSUM="$5"
+xmode="$6"
+CACHE_F=$8
+prefix=mainloop1
+prefixt=mainloop2
+prefixth=cache1
+[[ "$7" = "batch2" ]] && prefix=mainloop3 && prefixt=mainloop4 && prefixth=cache2
+SORTCOMPLETE="${atmp}/${prefix}_${RANDOM}$(rand_alpha)$$_tmp.log"
+NFS="${atmp}/${prefixt}_${RANDOM}$(rand_alpha)$$_tmp.log"
+CACHE="${atmp}/${prefixth}_${RANDOM}$(rand_alpha)$$_tmp.log"
+if [[ -n "$CACHE_F" ]]; then
+	sblk $IN $SORTCOMPLETE $NFS $xmode $CACHE
+else
+	rblk $IN $SORTCOMPLETE $NFS $xmode
+fi
+#files=("$@") ; for x in "${files[@]}"; do sblk $xmode $OUTPUT $NFS; done
+
