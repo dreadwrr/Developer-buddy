@@ -73,7 +73,7 @@ logSPRF="delete"                         # When log size limit reached what to d
                                             #
                                             # stop      dont log anymore
 
-mdllmt=15                            # Auto Graphics mode module merging default 7
+mdllmt=5                            # Auto Graphics mode module merging default 7
                                                 # when reached will automatically merge if mrgMODULES is set to true below
                                                 # see mrgMODULES boolean
 
@@ -612,5 +612,7 @@ test -e $QEXCL && rm $QEXCL
 test -e $UPDATE && rm $UPDATE
 #test -e $SFOLDERS && rm $SFOLDERS
 test -e /tmp/incfilter.log && rm /tmp/incfilter.log
-test -e $tmp && rm -rf $tmp ; sleep 5 && exit
+test -e $tmp && rm -rf ${tmp:?} 
+test -e $mtmp && rm -rf ${mtmp:?}
+sleep 5 && exit
 
