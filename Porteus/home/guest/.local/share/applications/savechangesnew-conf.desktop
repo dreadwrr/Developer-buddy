@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Comment=Opens the config directory
+Exec=dolphin /home/guest/.config/save-changesnew
+Icon=folder
+Terminal=false
+Categories=Network
+Name=Save changes new-conf
