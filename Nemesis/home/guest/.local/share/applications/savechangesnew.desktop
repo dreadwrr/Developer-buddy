@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=save/backup changes
+Exec=/usr/local/bin/save-changesnew
+Comment=
+Terminal=true
+PrefersNonDefaultGPU=false
+Icon=/home/guest/.config/save-changesnew/icons/flatpak.svg
+Type=Application
+Name=save changes new
+Categories=Network
+
