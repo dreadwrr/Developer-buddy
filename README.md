@@ -1,7 +1,5 @@
-#                               09/25/2025
-Currently working on a standalone python edition
-This would use arrays as the main method of manipulation and see some speed improvements. mostly for if there are many new files
-the filesize down would be smaller around 40kb
+#                               09/27/2025
+Python edition
 
 ![Logo](https://i.imgur.com/sbZa1r3.png)
 
