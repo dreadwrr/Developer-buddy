@@ -1,5 +1,0 @@
-#!/bin/bash 
-target="" # echo $BASEDIR is null set manually  ie /mnt/sda3 
-USR="" # defaults to guest if unset
-save-changesnew $target $USR
-chmod -x $0 #makes non executable so wont be called on shutdown after boot
