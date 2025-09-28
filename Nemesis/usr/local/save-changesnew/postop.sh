@@ -11,13 +11,15 @@ k1="$1"
 USRDIR="$2"
 toml=$3
 rnul=$( basename $k1)
-while IFS= read -r x; do y="$(unescf "$x")" ; printf '%s\0' "$y"; done < $atmp/$rnul >> $xdata
+#while IFS= read -r x; do  ; printf '%s\0' "$y"; done < $atmp/$rnul >> $xdata
+mv $atmp/$rnul $xdata
 if [ -f $USRDIR/doctrine.tsv ]; then
     sed -i 's/^POSTOP = true/POSTOP = false/' $toml
 else
     echo -e "Datetime\tFile\tSize(kb)\tType\tModified\tAccessed\tOwner" > $atmp/doctrine
-    while IFS= read -r -d '' x; do
+    while IFS= read -r x; do
         f="$(cut -d' ' -f3- <<< "$x")"
+		f="$(unescf "$f")"
         dt=$(cut -d' ' -f1-2 <<< "$x")
         if [ -e "$f" ] && [ -f "$f" ]; then
             onr=$( stat -c "%U" "$f")
@@ -25,9 +27,9 @@ else
             if [ "$mtyp" == "application/octet-stream" ]; then mtyp="Unknown"; fi
             if [ -L "$f" ]; then mtyp="Symlink"; fi
             sz=$( stat -c %s "$f")
-            md=$( stat -c '%Y' "$f") ; x=$(date -d "@$md" +'%Y-%m-%d %H:%M:%S')
+            md=$( stat -c '%Y' "$f") ; m=$(date -d "@$md" +'%Y-%m-%d %H:%M:%S')
             ae=$( stat -c '%X' "$f") ; y=$(date -d "@$ae" +'%Y-%m-%d %H:%M:%S')
-            echo -e "$dt\t$f\t$(( sz / 1024 ))\t$mtyp\t$x\t$y\t$onr" >> $atmp/doctrine
+            echo -e "$dt\t$f\t$(( sz / 1024 ))\t$mtyp\t$m\t$y\t$onr" >> $atmp/doctrine
         fi
     done < $xdata
     unset IFS
