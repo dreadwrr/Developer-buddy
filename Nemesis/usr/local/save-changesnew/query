@@ -1,0 +1,464 @@
+#!/bin/bash
+#   recentchanges query                recentchanges v3.0                                                                               9/6/2025
+#   retrieval of data  from  /tmp  or  logpst and statpst
+. /usr/share/porteus/porteus-functions
+get_colors
+. /usr/local/save-changesnew/heuristics
+# CHANGABLE
+# CHANGABLE booleans
+outputTFILE="false"            # show the report in /tmp?
+
+outputPSTFILE="false"       # .   .               /home/guest/Downloads
+genPSTTFILE="false"           # Run heuristics on PST and include in the report?
+# End CHANGABLE
+rtmp=/tmp/rtmp$$						;	trc=/tmp/rc
+xdata=$rtmp/logs_decrypted.log			;	report=/query_$timestamp
+dr=/usr/local/save-changesnew			;	TOPT=$rtmp/tmpfile.log
+logpst=$dr/logs.gpg						;	output_file=$rtmp/output.log
+statpst=$dr/stats.gpg					;	flth=$dr/flth.csv
+timestamp=$(date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_')
+mkdir $rtmp
+if [ "$STATPST" == "true" ]; then
+    if [ -s $logpst ]; then
+        cyan "Pulling logs from persistent storage"
+        if gpg -d -o $xdata $logpst; then #decrypt
+            #cp $xdata /tmp/logdebug
+			sed -i '/NOTA-FI-LE 77:77:77/d' $xdata
+			cd /home/$2/Downloads || exit
+			rm query_MDY* > /dev/null 2>&1
+			srhc=$(grep -c '^[[:space:]]*$' $xdata) ; (( srhc++ )) ; echo "Searches: $srhc"
+			{
+            green "Logs archive"
+			cyan "Top 3(1) directories(dir)"
+			dirs=$(awk '
+			{
+				# Match quoted file path in the line
+				match($0, /"[^"]+"/, m)
+				if (m[0] != "") {
+					gsub(/"/, "", m[0])
+					path = m[0]
+
+					# Extract directory by removing final component
+					if (path ~ /\//) {
+						sub(/\/[^/]+$/, "", path)
+					} else {
+						path = "[no dir]"
+					}
+
+					dirs[path]++
+				}
+			}
+			END {
+				for (d in dirs) {
+					printf "%d %s\n", dirs[d], d
+				}
+			}' "$xdata" | sort -nr | head -n 3)
+			tc=$(echo "$dirs" | awk 'NR==3 {print $1}')
+			if [[ -n "$tc" && "$tc" -gt 3 ]]; then
+				echo "$dirs"
+			else
+				echo "$dirs" | head -n 1
+			fi
+            echo ; cyan "Most common extensions" ; echo
+            ext $xdata
+			green "Please wait..."
+            cyan "Search statistics:"
+            echo Access time
+			aat $xdata
+			srhc=$(grep -c '^[[:space:]]*$' $xdata) ; (( srhc++ )) ; echo ; echo "Searches: $srhc"
+			hr $xdata
+			asz $xdata
+			} 2>&1 | tee $output_file
+			echo
+			[ "$genPSTTFILE" == "true" ] && { green "Generating heuristics..." ; { echo; echo "Heuristics"; echo; } >> $TOPT; } && /usr/local/save-changesnew/heuristics $xdata $TOPT && { echo; green "Heuristics complete"; }
+            #shred -u $xdata
+            rm $xdata
+			perl -pe 's/\e(\[[0-9;?]*[a-zA-Z]|[\(\)][AB])//g' -i "$output_file"   # remove ASCII text
+            if [ -s $statpst ]; then
+                cyan "Pulling from stats archive"
+                if gpg -d -o $xdata $statpst; then
+					#cp $xdata /tmp/statdebut
+					{
+                     green "Stats gpg" ; echo ; cyan "Most Modified"
+					awk -F',' '
+					{
+						action = $1
+						gsub(/^[ \t"]+|[ \t"]+$/, "", action)
+
+						if (action == "Modified") {
+							# Remove quotes from the path
+							path = $4
+							gsub(/^"|"$/, "", path)
+
+							counts[path]++
+							found = 1
+						}
+					}
+					END {
+						if (found) {
+							for (f in counts)
+								print counts[f], f
+						} else {
+							print "No entries found"
+						}
+					}
+					' "$xdata" | sort -k1,1nr | head -5
+					echo ; cyan "Top 5 Deleted"
+					awk -F',' '
+					{
+						action = $1
+						gsub(/^[ \t"]+|[ \t"]+$/, "", action)
+
+						if (action == "Deleted") {
+							# Remove quotes from the path
+							path = $4
+							gsub(/^"|"$/, "", path)
+
+							counts[path]++
+							found = 1
+						}
+					}
+					END {
+						if (found) {
+							for (f in counts)
+								print counts[f], f
+						} else {
+							print "No entries found"
+						}
+					}
+					' "$xdata" | sort -k1,1nr | head -5
+				echo ; cyan "Top 7 Most replaced"
+					awk -F',' '
+					{
+						action = $1
+						gsub(/^[ \t"]+|[ \t"]+$/, "", action)
+
+						if (action == "Replaced") {
+							# Remove quotes from the path
+							path = $4
+							gsub(/^"|"$/, "", path)
+
+							counts[path]++
+							found = 1
+						}
+					}
+					END {
+						if (found) {
+							for (f in counts)
+								print counts[f], f
+						} else {
+							print "No entries found"
+						}
+					}
+					' "$xdata" | sort -k1,1nr | head -7
+				echo ; cyan "Top 3 Overwitten"
+					awk -F',' '
+					{
+						action = $1
+						gsub(/^[ \t"]+|[ \t"]+$/, "", action)
+
+						if (action == "Overwrite") {
+							# Remove quotes from the path
+							path = $4
+							gsub(/^"|"$/, "", path)
+
+							counts[path]++
+							found = 1
+						}
+					}
+					END {
+						if (found) {
+							for (f in counts)
+								print counts[f], f
+						} else {
+							print "No entries found"
+						}
+					}
+					' "$xdata" | sort -k1,1nr | head -3
+				echo
+				cyan "Top 5 Thats not actually a file"
+
+					awk -F',' '
+					{
+						action = $1
+						gsub(/^[ \t"]+|[ \t"]+$/, "", action)
+
+						if (action == "Nosuchfile") {
+							# Remove quotes from the path
+							path = $4
+							gsub(/^"|"$/, "", path)
+
+							counts[path]++
+							found = 1
+						}
+					}
+					END {
+						if (found) {
+							for (f in counts)
+								print counts[f], f
+						} else {
+							print "No entries found"
+						}
+					}
+					' "$xdata" | sort -k1,1nr | head -5
+					} 2>&1 | tee -a $output_file
+					echo >> $output_file
+				echo
+                    rm $xdata
+                else
+                    echo "Error decrypting ${statpst} stat file. Skipping"
+                fi
+				[ -s "$TOPT" ] && cat $TOPT >> $output_file && rm $TOPT #Append any heuristics Search statistics
+				perl -pe 's/\e(\[[0-9;?]*[a-zA-Z]|[\(\)][AB])//g' -i "$output_file"   # remove ASCII text
+                ### End Stat queries
+            fi
+        else
+            echo "Error decrypting ${logpst} log file. Skipping"
+        fi
+    fi
+fi
+ofile=$rtmp/tmpinfo
+if [ -d $trc ] && [ "$STATPST" == "false" ]; then
+    fs=$(find $trc -maxdepth 1 -type f | wc -l)
+    if (( fs > 0 )); then
+        x=0
+        for file in $trc/*; do ((x++)) ; cat "$file" >> $ofile ;  if [[ $x -lt $fs ]]; then echo >> $ofile; fi ; done
+		sed -i '/NOTA-FI-LE 77:77:77/d' $ofile
+		cd /tmp || exit
+		rm query_MDY* > /dev/null 2>&1
+		srhc=$( sed -n '/^[[:space:]]*$/p' $ofile | wc -l) ; (( srhc++ ))
+		(
+        echo "Top 5 files created"
+		awk '
+		{
+			match($0, /"([^"]+)"/, arr)
+			if (arr[1] != "") print arr[1]
+		}' "$ofile" | sort | uniq -c | sort -nr | head -n 5
+        echo ; echo ; echo "Initiating recursive checks..." ; echo
+        echo Access time
+		aat $ofile ; echo
+		hr $ofile
+		asz $ofile
+		read -r -p "any key continue..."
+		srhc=$( sed -n '/^[[:space:]]*$/p' $ofile | wc -l) ; (( srhc++ ))
+		echo ; echo "Searches: $srhc"
+		
+		echo ; echo "Detecting deleted files if overlap"
+		(cat "$ofile"; echo) | awk -v RS="" -v OFILE="$ofile" '
+		function toNumTimestamp(date, time) {
+    		gsub(/[-:]/, "", date)
+    		gsub(/[:]/, "", time)
+    		return date time
+		}
+
+		{
+    		n = split($0, lines, "\n")
+    		delete files
+    		min_ts = ""
+    		max_ts = ""
+
+    		for (i = 1; i <= n; i++) {
+        		split(lines[i], parts, /[ \t]+/)
+        		ts_num = toNumTimestamp(parts[1], parts[2])
+        		if (min_ts == "" || ts_num < min_ts) min_ts = ts_num
+        		if (max_ts == "" || ts_num > max_ts) max_ts = ts_num
+
+        		pos = match(lines[i], /"[^"]+"/)
+        		if (pos > 0) {
+            		filepath = substr(lines[i], RSTART, RLENGTH)
+            		gsub(/\r/, "", filepath)
+            		gsub(/"/, "", filepath)
+        		} else {
+            		filepath = ""
+        		}
+
+        		if (filepath != "") {
+            		files[filepath] = 1
+        		}
+    		}
+
+    		snapshot_num = NR
+    		min_times[snapshot_num] = min_ts
+    		max_times[snapshot_num] = max_ts
+
+    		for (k in snapshots) {
+        		split(k, arr, SUBSEP)
+        		if (arr[1] == snapshot_num) {
+            		delete snapshots[k]
+        		}
+    		}
+
+    		for (f in files) {
+        		key = snapshot_num SUBSEP f
+        		snapshots[key] = 1
+    		}
+
+    		if (snapshot_num > 1) {
+        		if (min_ts <= max_times[snapshot_num-1] && min_times[snapshot_num-1] <= max_ts) {
+            		print "Snapshots " snapshot_num-1 " and " snapshot_num " overlap in time."
+            		print "Deleted files between snapshots " snapshot_num-1 " and " snapshot_num ":"
+
+            		deleted_found = 0
+            		for (k in snapshots) {
+                		split(k, arr, SUBSEP)
+                		if (arr[1] == snapshot_num-1) {
+                    		file_prev = arr[2]
+                    		key2 = snapshot_num SUBSEP file_prev
+                    		if (!(key2 in snapshots)) {
+                        		print "  " file_prev
+                        		deleted_found = 1
+                    		}
+                		}
+            		}
+            		if (!deleted_found) print "  None"
+            		print ""
+        		} else {
+            		print "Snapshots " snapshot_num-1 " and " snapshot_num " do NOT overlap in time. Skipping deletion check."
+            		print ""
+        		}
+    		}
+
+    		print "===END_OF_SNAPSHOT==="
+    		# fflush()
+		}
+		'
+        echo ; echo "Type" 
+		awk -v RS="" '
+		function to_epoch(ts,    cmd, epoch) {
+		  cmd = "date -d \"" ts "\" +%s"
+		  cmd | getline epoch
+		  close(cmd)
+		  return epoch
+		}
+
+		{
+		  n = split($0, lines, "\n")
+		  delete times
+		  first_ts = ""
+		  last_ts = ""
+
+		  for (i = 1; i <= n; i++) {
+			split(lines[i], parts, " ")
+
+			# Extract timestamp: first two fields
+			timestamp = parts[1] " " parts[2]
+			times[i] = to_epoch(timestamp)
+
+			if (i == 1) first_ts = timestamp
+			if (i == n) last_ts = timestamp
+
+			match(lines[i], /"[^"]+"/, match_arr)
+			filepath = match_arr[0]
+			if (filepath != "")
+			  files[filepath]++
+		  }
+
+		  # Calculate time gaps
+		  gaps_sum = 0
+		  gaps_count = 0
+		  max_gap = 0
+
+		  for (i = 2; i <= n; i++) {
+			gap = times[i] - times[i-1]
+			gaps_sum += gap
+			gaps_count++
+			if (gap > max_gap) max_gap = gap
+		  }
+
+		  avg_gap = (gaps_count > 0) ? gaps_sum / gaps_count : 0
+		  threshold = 60
+
+		  session_type = (max_gap > threshold) ? "Separate session" : "Burst session"
+			left_str = session_type " (" max_gap "s max gap)"
+			printf "Snapshot %d: %-35s\tfrom %s to %s\n", NR, left_str, first_ts, last_ts
+		 	#print "Snapshot " NR ": " session_type " (" max_gap "s max gap)\tfrom " first_ts " to " last_ts
+
+		  delete files
+		}
+		' "$ofile"
+        echo ;  cyan "Most common extensions"
+        ext $ofile
+
+#			rest = substr(lines[i], RSTART + RLENGTH)
+#      		if (match(rest, /[0-9]+/, ino_match)) {
+#        		inode = ino_match[0]
+#      		} else {
+#        		inode = ""
+#      		}
+		echo ; echo "Most Replaced by inode (awk generated)"
+
+		awk -v RS="" -v max=7 '
+		function process_snapshot(snapshot,   i, lines, m, path, rest, inode) {
+			n = split(snapshot, lines, "\n")
+			for (i = 1; i <= n; i++) {
+				# Match quoted filename
+				if (match(lines[i], /"([^"]+)"/, m)) {
+				    path = m[1]
+
+				    # Everything after the quoted filename
+				    rest = substr(lines[i], RSTART + RLENGTH)
+
+				    # Split remaining fields by whitespace
+				    split(rest, fields, /[ \t]+/)
+
+				    # inode is the first numeric field after the filename
+				    inode = ""
+				    for (j = 1; j <= length(fields); j++) {
+				        if (fields[j] ~ /^[0-9]+$/) {
+				            inode = fields[j]
+				            break
+				        }
+				    }
+
+				    if (path == "" || inode == "") continue
+
+				    # Track changes
+				    if (prev_inode[path] && prev_inode[path] != inode) {
+				        changes[path]++
+				        found = 1
+				    }
+				    prev_inode[path] = inode
+				}
+			}
+		}
+
+		{
+			snapshots[NR] = $0
+		}
+
+		END {
+			start = (NR > max) ? NR - max + 1 : 1
+			for (i = start; i <= NR; i++) {
+				process_snapshot(snapshots[i])
+			}
+			if (found) {
+				for (p in changes) print changes[p], p
+			} else {
+				print "No results"
+			}
+		}
+		' "$ofile" | sort -rn | head -7
+        ) 2>&1 | tee "$output_file"
+        rm $ofile
+    fi
+fi
+if [ -s $flth ]; then
+	(
+    echo
+    cyan "Accessing filter"
+    green "Filter"
+    cat $flth
+	) 2>&1 | tee -a $output_file
+	if [ "$outputTFILE" = "true" ]  && [ "$STATPST" == "false" ] && [ -d $trc ]; then test -e $output_file && green "Report in /tmp" ; cp $output_file /tmp$report ; fi
+	z="Cache items can be cleared with cache clear script /usr/local/save-changesnew/"
+	[[ "$ANALYTICS" == "true" ]] && (( srhc % 5 == 0 )) && echo "$z"
+	[[ "$STATPST" == "true" ]] && (( srhc % 50 == 0 )) && echo "$z"
+	if [ "$outputPSTFILE" == "true" ] && [ "$STATPST" == "true" ]  && [ "$genPSTTFILE" == "true" ] && [ -s $logpst ]; then
+		green "Report in /Downloads along with heuristics"
+		cp $output_file /home/$2/Downloads$report
+	elif [ "$outputPSTFILE" == "true" ] && [ "$STATPST" == "true" ] && [ -s $logpst ]; then
+		green "Report in /Downloads"
+		cp $output_file /home/$2/Downloads$report
+	fi
+fi
+rm -rf $rtmp

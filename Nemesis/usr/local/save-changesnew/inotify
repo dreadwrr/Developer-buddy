@@ -1,0 +1,45 @@
+#!/bin/bash
+#inotify db3 					09/23/2025
+. /usr/local/save-changesnew/rntchangesfunctions
+#atmp=/tmp/myfld$$
+#tmp_input="/tmp/inotify_input_$$.tmp"
+ch="/mnt/live/memory/changes"
+LCLMODULENAME="/dev/null"
+log_file=$1
+CACHE_F="$2"
+time="$5"
+checkSUM="$3"
+xMODE="$4"
+
+match_found=0
+dpaths=()
+
+#> "$tmp_input"
+
+while IFS= read -r d; do dpaths+=("$d") ; done < <(find /tmp -type d ) 
+#while IFS= read -r d; do dpaths+=("$d") ; done < <(find /var -maxdepth 5 -type d )
+
+sbwr # exclusions
+timeout "$time" inotifywait -m -r -e create -e moved_to --format '%w%f' /tmp "${dpaths[@]}"| while read -r o; do 
+
+    if [[ -f "$o" && "$o" != *.part ]]; then 
+        echo "$o" >> /tmp/output
+        if [[ "$o" =~ \.(tmp|swp|bak|part|crdownload|partial|lock)$ ]]; then continue ; fi  
+        match_found=0
+        for item in "${webb[@]}"; do
+            if [[ "$o" =~ $item ]]; then
+                match_found=1
+                break
+            fi
+        done
+        if (( match_found == 0 )); then
+            echo "$o passed" >> /tmp/output
+            { stat --format="%Y %X %Z %i %s %U %G %a %n" "$o" 2>/dev/null; printf '\0'; } | sblk /dev/stdin "$log_file" "/dev/null" "$xMODE"
+        fi
+    fi
+
+done
+test -e $log_file && rm $log_file
+
+
+

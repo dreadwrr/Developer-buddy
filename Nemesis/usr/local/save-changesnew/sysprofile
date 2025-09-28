@@ -1,0 +1,103 @@
+#!/bin/bash
+shopt -s nullglob										# 9/14/2025
+. /usr/local/save-changesnew/rntchangesfunctions
+atmp=/tmp/ztmp$$ 					;	ch=/mnt/live/memory/images/
+xdata3=$atmp/db_log.log			;	SORTCOMPLETE=$atmp/list_complete_sorted.txt
+md="$1"									;	xdata=$atmp/log.log
+systemf=$atmp/filelist				;	TMPF=$atmp/structure
+mkdir $atmp
+
+y=50
+k1="binary"
+k2="sects"
+k3="library"
+
+for folder in "$ch"{000..003} "$ch"{000..003}-*; do
+
+	[ ! -d "$folder" ]  && continue
+	find "$folder" -type f -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' >> $systemf
+	if [[ "$folder" == "$ch"000 ]]; then continue ; fi # dont hash kernel firmware
+
+	#binaries                  # ! -path '*/usr/share/*' 
+	for subdir in bin etc sbin usr opt/porteus-scripts; do
+		dir="$folder/$subdir"
+		if [ -d "$dir" ]; then
+			find "$dir" -type f -executable -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' > $xdata
+			/usr/local/save-changesnew/sysprofileloop $atmp $xdata $folder $k1
+		fi
+	done
+
+	# configs
+	for subdir in $folder/etc $folder/home/guest $folder/root; do
+		if [ -d "$subdir" ]; then
+			find "$subdir" -type f -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' > $xdata
+			/usr/local/save-changesnew/sysprofileloop $atmp $xdata $folder $k2
+		fi
+	done
+
+	# *.so*
+	for subdir in $folder/lib $folder/lib64 $folder/usr/lib $folder/usr/lib64 $folder/var/lib; do
+		if [ -d "$subdir" ]; then
+			find "$subdir" -type f -name '*.so*' -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' > $xdata
+			/usr/local/save-changesnew/sysprofileloop $atmp $xdata $folder $k3
+		fi
+	done
+done
+
+isoutput "*1_*_tmp.log" $xdata3 # There will be 3-5 of each k1 k2 and k3
+
+# Escape filenames
+while IFS= read -r -d '' x; do x="$( escf "$x")" ;  printf "%s\0" "$x" ; done < $systemf > $TMPF ; mv $TMPF $systemf 
+sort -z -o $systemf $systemf 
+sort -z -o $xdata3 $xdata3 #files to hash Already escaped
+comm -z -23 $systemf $xdata3 > $xdata # all other files not hashed
+
+desired_chunks=200  
+min_chunk_size=10 
+
+
+## hash the selected files and convert
+x=$(tr -cd '\0' < $xdata3 | wc -c) 
+if [ "$md" == "mc" ]; then
+	cores=$( nproc 2>/dev/null || echo 1)
+	max_jobs=$(( cores > 16 ? 16 : cores ))
+	y=$(( (x + max_jobs - 1) / max_jobs ))
+	opts=(-P"$max_jobs")
+else
+    y=$(( (x + desired_chunks - 1) / desired_chunks ))  # chunk size approx
+    [ "$y" -lt "$min_chunk_size" ] && y=$min_chunk_size
+#	y=$(( (x + 3) / 4 ))
+#	[ $y -lt 10 ] && y=10    
+	opts=()
+fi
+split -l "$y" --numeric-suffixes=1 --suffix-length=4 "$xdata3" "$atmp/hashchunk_"
+tail=(/usr/local/save-changesnew/mainloop "$atmp" "{}" "$SORTCOMPLETE" "$TMPF" "true" "main")
+find "$atmp" -type f -name "hashchunk_*" -print0 | sort -z | xargs -0 "${opts[@]}" -I{} "${tail[@]}"
+isoutput "mainloop1*" $SORTCOMPLETE
+
+
+ #remaining dont hash but convert
+x=$(tr -cd '\0' < $xdata | wc -c) 
+if [ "$md" == "mc" ]; then
+	y=$(( (x + max_jobs - 1) / max_jobs ))
+    opts=(-P"$max_jobs")
+else
+    y=$(( (x + desired_chunks - 1) / desired_chunks ))  # chunk size approx
+    [ "$y" -lt "$min_chunk_size" ] && y=$min_chunk_size
+#	y=$(( (x + 3) / 4 ))
+#	[ $y -lt 10 ] && y=10    
+	opts=()
+fi
+split -l "$y" --numeric-suffixes=1 --suffix-length=4 "$xdata" "$atmp/profilechunk_"
+tail=(/usr/local/save-changesnew/mainloop "$atmp" "{}" "$SORTCOMPLETE" "$TMPF" "false" "main" "batch2") 
+find "$atmp" -type f -name "profilechunk_*" -print0 | sort -z | xargs -0 "${opts[@]}" -I{} "${tail[@]}"
+isoutput "mainloop3*" $SORTCOMPLETE
+
+
+sort -o $SORTCOMPLETE $SORTCOMPLETE
+[[ -s "$SORTCOMPLETE" ]] && echo "$SORTCOMPLETE" || return 1
+
+# Just get the filename
+#while IFS= read -r -d '' y; do  x=$(escf "$(cut -d' ' -f9- <<< "$y")") ; printf '%s\0' "$x"; done < $xdata3 > $TMPF
+#sort -z -o $TMPF $TMPF
+#comm -z -23 $systemf $TMPF > $xdata # all other files not hashed

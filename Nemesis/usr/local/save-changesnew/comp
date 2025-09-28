@@ -1,0 +1,36 @@
+#!/bin/bash
+comp() {
+p=60
+w=".0"$(( $1 * 166667 ))
+if [ $1 -gt 5 ]; then
+    w="."$(( $1 * 166667 ))
+fi
+qtn=$(( $1 / p ))
+if [ "$qtn" == "0" ]; then #Its less than 60 seconds
+    qtn=$(printf '%.3s\n' $w)
+fi
+if [ $1 -gt $p ]; then #It could have a remainder
+    if [ ! $(( $1 % p )) -eq 0 ]; then
+		x=$1
+		j=$qtn
+		while [ $x -gt 0 ]; do #We dont know if it divides by 60
+			rem=$x
+			x=$(( $x - $p ))
+			if [ $x -eq 0 ]; then
+				rem=0
+				break
+			fi
+			if [ $x -lt 0 ]; then
+				break
+			fi
+		done
+		if [ ! $rem -eq 0 ]; then
+			decmn=".0"$(( rem * 166667 ))
+		fi
+		if [ $rem -gt 5 ]; then
+			decmn="."$(( rem * 166667 ))
+		fi
+		qtn=$( printf '%.2f\n' $j$decmn)
+	fi
+fi
+}
