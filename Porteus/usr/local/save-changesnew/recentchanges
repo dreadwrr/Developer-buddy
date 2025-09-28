@@ -17,6 +17,7 @@ FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 
 validrlt="false"																;   validpdt="false"                                                  
 smsg="false"                                                                ;   autooutput="false"                                                                    
+goahead="true"
 
 tfile=$atmp$xdata
 tfile2=$atmp$xdata2
@@ -46,6 +47,9 @@ mv "/tmp/$fo" $tmp/
 mv "/tmp/$ft" $tmp/
 mv "/tmp/$fth" $atmp/
 
+if ! grep -Eiq "artix|porteus" /etc/os-release; then goahead="false" ; fi
+
+
 awk '{$1=$2=""; sub(/^ +/, ""); print}' $TMPOPT > $RECENT # filepath
 
 
@@ -67,7 +71,7 @@ sed -i -e "s|$tmp$workdir||g" $SVFILES
 cat $SVFILES | sed -e 's![^/]*$!!g' > $SVFOLDERS
 
 # make .xzm from root folder
-if [ "$SRCDIR" == "SRC" ]; then 
+if [ "$SRCDIR" == "SRC" ] && [ "$goahead" == "true" ]; then 
     arrfiles=()
     arrreject=()
     appname=$xzmname
@@ -182,7 +186,7 @@ if [ -z "$k" ]; then
     
     test -e  "/tmp"$MODULENAME"ItemsFilteredout" && rm  "/tmp"$MODULENAME"ItemsFilteredout"
 
-    if [ "$SRCDIR" != "SRC" ]; then # make rntfiles.xzm from all filtered
+    if [ "$SRCDIR" != "SRC" ] && [ "$goahead" == "true" ]; then # make rntfiles.xzm from all filtered
 	    if mksquashfs $tmp$workdir "/tmp"$chxzm -comp $cmode; then validpdt="true"; fi
 	    cp $SVFILES "/tmp"$chxzmnm
 	    cp $UPDATE  "/tmp"$MODULENAME"Transferlog"
@@ -205,7 +209,7 @@ fi
 rm -rf $tmp 
 rm -rf $atmp
 
-if [ "$validrlt" == "true" ] && [ "$validpdt" == "true" ]; then
+if [ "$validrlt" == "true" ] && [ "$validpdt" == "true" ] && [ "$goahead" == "true" ]; then
     imsg="Your module has been created. in /tmp"
     echo
     if [ "$SRCDIR" == "SRC" ]; then
