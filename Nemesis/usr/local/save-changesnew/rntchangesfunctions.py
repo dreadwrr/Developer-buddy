@@ -22,8 +22,7 @@ def logic(syschg, nodiff, diffrlt, validrlt, MODULENAME, THETIME, argone, argf, 
     
     if method == "rnt":
         if validrlt == "prev":
-            if imsg:
-                print(imsg)
+            print("Refer to /rntfiles_MDY folder for the previous search")
         elif validrlt == "nofiles":
             cprint.cyan('There were no files to grab.')
             print()
@@ -208,11 +207,34 @@ def changeperm(path, uid, gid=0, mode=0o644):
         print(f"chown error {path}: {e}")
 
 
+def get_linux_distro():
+    os_release_path = "/etc/os-release"
+    distro_info = {}
+    try:
+        with open(os_release_path, "r") as file:
+            for line in file:
+                if "=" in line:
+                    key, value = line.strip().split("=", 1)
+                    value = value.strip('"')
+                    distro_info[key] = value
+        distro_id = distro_info.get("ID", "").lower()
+        distro_name = distro_info.get("NAME", "").lower()
+        for target in ("porteus", "artix"):
+            if target in distro_id or target in distro_name:
+                return True
+        return False
+    except FileNotFoundError:
+        print("The file /etc/os-release was not found.")
+    except Exception as e:
+        print(f'An error occurred: {e}')
+    return False
+
 #`recentchanges`
 # 
 def copyfiles(RECENT, RECENTNUL, TMPOPT, method, argone, argtwo, USR, TEMPDIR, archivesrh, autooutput, cmode, fmt):
 
     if method == "rnt":
+
 
         copynewln = 'tmp_holding' # TMPOPT filtered list
         copynul = 'toutput.tmp' # tout temp file
