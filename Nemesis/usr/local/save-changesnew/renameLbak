@@ -1,0 +1,8 @@
+#!/bin/bash    
+# We rename them in batches so no filename conflicts are checked first.  -r to reverse .xzm to .bak July 17, 2025
+. /usr/share/porteus/porteus-functions
+get_colors
+. /usr/local/save-changesnew/save-changesnewfnts
+# -r flag reverses
+if [[ $(whoami) != "root" ]]; then echo Please run script as root; exit; fi
+renmmdl "_uid_L" $1
