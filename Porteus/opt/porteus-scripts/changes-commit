@@ -1,0 +1,112 @@
+#!/bin/bash
+# Commits live session to the active changes folder or .dat file.
+# Script takes action only when 'changes=EXIT' cheatcode is used.
+# Can be fine tuned by adjusting /etc/changes-exit.conf to in/exclude files and folders.
+# Author: fanthom <fanthom@porteus.org>
+# Modifications proposed by: abelM -- forum.porteus.org
+# Further adjustments by: ncmprhnsbl -- forum.porteus.org
+
+. /usr/share/porteus/porteus-functions
+get_colors
+
+# Check if 'changes=EXIT' cheatcode is active and not run from rc.6:
+if [[ "$1" != "6" ]]; then
+	test -f /mnt/live/tmp/changes-exit || { echo "'changes=EXIT:' cheatcode is not active - exiting..."; exit; }
+	# Run as root if not run from rc.6:
+	if [[ $(whoami) != "root" ]]; then
+		yellow "Please enter root's password below:"
+		su -c "$0"
+		exit
+	fi
+fi
+
+## Variables:
+DEST="$(cat /mnt/live/tmp/changes-exit)"; NAME="$(basename $DEST)"
+MNAME=/mnt/live/memory/images/changes   ; INAME=/mnt/live/memory/images
+CHNEXIT_CONF=/etc/changes-exit.conf     ; EXCL=/tmp/save.excl.tmp
+SFILES=/tmp/save.sfiles.tmp             ; UPDATE=/tmp/save.update.tmp
+
+if [[ $(grep ".dat" /mnt/live/tmp/changes-exit 2>/dev/null) ]]; then
+	Dest="Save.dat file"
+else
+	Dest="Save folder partition"
+fi
+
+SDspace=$(df -BM -h --output=size,used,avail,pcent /mnt/live/memory/images/changes | tail -n1)
+read size used avail percent <<< "$SDspace"
+cyan "Checking for space in your $Dest .."
+if [[ ${percent%\%} -gt  85 ]]; then
+  echo
+  red "Warning! $Dest $percent full.  Used: $used  Free: $avail"
+  x=5
+  echo
+else
+  echo
+  green "$Dest $percent full.  Used: $used  Free: $avail"
+  echo
+fi
+
+# Fix folder names and make `egrep' interpret wildcards
+fixdir() { sed -e 's_\._\\._g' -e 's_?_._g' -e 's_*_.*_g' -e 's@..@^@'; }
+
+# Fix whiteout names so `egrep' doesn't interpret special characters as regex
+fixwh() { sed -e 's_\._\\._g' -e 's_?_\\?_g' -e 's_+_\\+_g' -e 's_*_\\*_g' -e 's_\$_\\$_g' -e 's_\[_\\[_g' -e 's_(_\\(_g'  -e 's_\&_\\&_g' -e 's@^@^@'; }
+
+# Folders to save: argument for `find' & check that they exist.
+FOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e /mnt/live/memory/changes/"$x" && echo "$x"; done)"
+
+# Folders to exclude: argument for `egrep'
+grep ^!/ $CHNEXIT_CONF | fixdir > $EXCL
+
+# only run timeout on shutdown
+if [[ "$1" = "6" ]]; then
+	[[ ! $x ]] && x=3
+	cyan "Your session will be saved in [1;33m$x seconds[0m"
+	yellow  "Press space/enter to start doing it now or any other key to skip."
+	while [[ $x -gt 0 ]]; do read -s -t1 -n1 ans && break || sleep 1; let x=x-1; done
+else
+	ans=""
+fi
+
+if [[ "$ans" = "" ]]; then
+	## Save session:
+	cyan "Syncing what's left in buffers"
+	sync
+
+	# Remount aufs with 'udba=notify' flag:
+	mount -o remount,udba=notify /
+	cyan "Saving changes to $DEST - this may take a while..."
+	cd /mnt/live/memory/changes || exit
+
+	# Handle filenames with spaces.
+	IFS="
+	"
+
+	# Remove deleted files and non matching whiteouts
+	for y in $(find $FOLDERS -name ".wh.*"); do
+	  f="$(echo $y | sed 's@\.wh\.@@g')"
+	  test -e "$MNAME/$f" && rm -rf "$MNAME/$f";
+	  test -e "$INAME/"*"/$f" || { echo "$y" | fixwh >> $EXCL; test -e "$MNAME/$y" && rm -f "$MNAME/$y"; }
+	done
+
+	# Copy new and modified files -- skip excluded whiteouts and folders
+	{ test -s "$EXCL" && find $FOLDERS -not -type d | egrep -vf $EXCL || find $FOLDERS -not -type d; } > $SFILES
+	cp -uafv --parents $(cat $SFILES) $MNAME > $UPDATE
+
+	# Remove conflicting whiteouts
+	for y in $(find $MNAME -name ".wh.*"); do
+		f="$(echo $y | sed -e 's^$MNAME^^g' -e 's^\.wh\.^^g')";
+		test -e "$f" && rm "$y";
+	done
+
+	# Reset IFS to default
+	unset IFS
+	# Remount aufs with 'udba=none' flag:
+	mount -o remount,udba=none /
+	green "Session saved"
+else
+	yellow "Skipping."
+fi
+
+# Remove /mnt/live/tmp/changes-exit if called from rc.6 (temporary for legacy initrd where cleanup still has changes=EXIT: routine)
+[[ "$1" == "6" ]] && rm /mnt/live/tmp/changes-exit
