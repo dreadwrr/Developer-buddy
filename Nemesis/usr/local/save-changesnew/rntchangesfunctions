@@ -20,13 +20,15 @@ function blue(){ echo $txtblue "$1" $rst; }
 }
 postop() {
 if [ "$POSTOP" == "true" ]; then
-	while IFS= read -r x; do x="$(unescf "$x")" ; printf '%s\0' "$x"; done < $1 >> $xdata
+	#while IFS= read -r x; do printf '%s\0' "$x"; done < $1 > $atmpxdata
+	cp $1 $atmpxdata
     if [ -f $USRDIR/doctrine.tsv ]; then
         sed -i 's/^export POSTOP="true"/export POSTOP="false"/' $2
     else
         echo -e "Datetime\tFile\tSize(kb)\tType\tModified\tAccessed\tOwner" > $atmp/doctrine
-        while IFS= read -r -d '' x; do
+        while IFS= read -r x; do
             f="$(cut -d' ' -f3- <<< "$x")"
+			f="$(unescf "$f")"
             dt=$(cut -d' ' -f1-2 <<< "$x")
             if [ -e "$f" ] && [ -f "$f" ]; then
                 onr=$( stat -c "%U" "$f")
@@ -34,15 +36,16 @@ if [ "$POSTOP" == "true" ]; then
                 if [ "$mtyp" == "application/octet-stream" ]; then mtyp="Unknown"; fi
                 if [ -L "$f" ]; then mtyp="Symlink"; fi
                 sz=$( stat -c %s "$f")
-                md=$( stat -c '%Y' "$f") ; x=$(date -d "@$md" +"$fmt")
+                md=$( stat -c '%Y' "$f") ; m=$(date -d "@$md" +"$fmt")
                 ae=$( stat -c '%X' "$f") ; y=$(date -d "@$ae" +"$fmt")
-                echo -e "$dt\t$f\t$(( sz / 1024 ))\t$mtyp\t$x\t$y\t$onr" >> $atmp/doctrine
+                echo -e "$dt\t$f\t$(( sz / 1024 ))\t$mtyp\t$m\t$y\t$onr" >> $atmp/doctrine
             fi
-        done < $xdata
+        done < $atmpxdata
         unset IFS
         head -1 $atmp/doctrine > $USRDIR/doctrine.tsv
         tail -n +2 $atmp/doctrine | sort -t$'\t' -k7,7 -k3,3n >> $USRDIR/doctrine.tsv
         green "File doctrine.tsv created in $USRDIR"
+        #column -t -s $'\t' $USRDIR/doctrine.tsv      this command prints a nice tab seperated log
     fi
 fi
 }
