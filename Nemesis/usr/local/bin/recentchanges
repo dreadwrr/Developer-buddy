@@ -191,7 +191,8 @@ SRCDIR=""
 csm=""
 cores=0																	;   max_jobs=0
 
-CACHE_F=/tmp/ctimecache
+cached=/tmp/dbctimecache/
+CACHE_F="${cached}ctimecache"
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 fmt="%Y-%m-%d %H:%M:%S"
@@ -224,7 +225,7 @@ fi
 CMIN=( -cmin "-${qtn}" )
 MMIN=( -mmin "-${qtn}" )
 
-
+[[ ! -d "$cached" ]] && mkdir $cached && chmod 700 $cached
 [[ "$checkSUM" = "true" ]] && [[ "$ANALYTICS" = "true" || "$STATPST" = "true" ]] && cyan "Running checksum." || checkSUM="false"
 if [ -z "$tout" ]; then
 	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$RECENTNUL" > /dev/null 2>&1
@@ -246,7 +247,7 @@ search $RECENTNUL $SORTCOMPLETE $COMPLETE $checkSUM "main"  # mtime append ctime
 if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
 isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE
 isoutput cache1* $CACHE_F
-
+[[ -f "$CACHE_F" ]] && chmod 600 "$CACHE_F"
 LCLMODULENAME=${chxzm:1:8}
 
 if [ -s $SORTCOMPLETE ]; then
