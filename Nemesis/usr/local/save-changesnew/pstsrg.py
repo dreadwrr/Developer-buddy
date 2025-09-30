@@ -6,9 +6,11 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import tempfile
 from hanlydb import hanly
 from hanlyparallel import hanly_parallel
 from pyfunctions import getcount
+from pyfunctions import getnm
 from pyfunctions import parse_line
 count=0
 def encr(database, opt, email, nc, md):
@@ -274,154 +276,156 @@ def main():
       goahead=True                
       conn=None
 
-      root, ext = os.path.splitext(dbtarget)
-      dbopt=root + ".db" # generic output database
-      if os.path.isfile(dbtarget):
-            sts=decr(dbtarget, dbopt)
-            if not sts:
-                  print('Find out why db not decrypting or delete it to make a new one')
-                  return 2
-      else:
-            try:
-                  conn = create_db(dbopt, True)
-                  print(f'{pyfunctions.GREEN}Persistent database created.{pyfunctions.RESET}')
-                  goahead=False
-            except Exception as e:
-                  print("Failed to create db:", e)
-      if not conn:                
-            conn = sqlite3.connect(dbopt)
-      with conn:
-            c = conn.cursor()
+      dbopt=getnm(dbtarget, 'db') # generic output database
+      with tempfile.TemporaryDirectory(dir='/tmp') as tempdir:
+            dbopt=os.path.join(tempdir, dbopt)
+
+            if os.path.isfile(dbtarget):
+                  sts=decr(dbtarget, dbopt)
+                  if not sts:
+                        print('Find out why db not decrypting or delete it to make a new one')
+                        return 2
+            else:
+                  try:
+                        conn = create_db(dbopt, True)
+                        print(f'{pyfunctions.GREEN}Persistent database created.{pyfunctions.RESET}')
+                        goahead=False
+                  except Exception as e:
+                        print("Failed to create db:", e)
+            if not conn:                
+                  conn = sqlite3.connect(dbopt)
+            with conn:
+                  c = conn.cursor()
 
 
-            parselog(xdata, parsed, checksum, 'sortcomplete') #SORTCOMPLETE/Log
+                  parselog(xdata, parsed, checksum, 'sortcomplete') #SORTCOMPLETE/Log
 
-            #initial Sys profile
-            if ps != 'false':
-                  table="sys"
-                  if not table_exists_and_has_data(conn, 'sys') and checksum == 'true':
-                        print(f'{pyfunctions.CYAN}Generating system profile from base .xzms.{pyfunctions.RESET}') # hash base xzms
-                        result=subprocess.run(["/usr/local/save-changesnew/sysprofile", turbo],capture_output=True,text=True)
-                        if result.returncode == 1:
-                              print("Bash failed to hash profile.")
-                        
-                        else:
-                              try:
-                                    dir_path = result.stdout.strip()
-
-                                    parselog(dir_path, parsedsys, checksum, 'sys') #sys
-
-                                    if os.path.isdir(dir_path):
-                                          shutil.rmtree(dir_path)
-                              except Exception as e:
-                                    print(f"bash sysprofile failed missing SORTCOMPLETE: {e}")
-
-
-                        if parsedsys:
-                              try: 
-                                    insert(parsedsys, conn, c, "sys", "count") 
-                                    
-                              except Exception as e:
-                                    print('sys db failed insert', e)
-                                    dbe=True
-
-
-            if parsed:
-                  if goahead: # #Hybrid analysis. Skip first pass ect.
-
-                        try: 
-
-                              if turbo == 'mc':
-                                    hanly_parallel(rout, tfile, parsed, checksum, cdiag, dbopt, ps, user, dbtarget, table)
+                  #initial Sys profile
+                  if ps != 'false':
+                        table="sys"
+                        if not table_exists_and_has_data(conn, 'sys') and checksum == 'true':
+                              print(f'{pyfunctions.CYAN}Generating system profile from base .xzms.{pyfunctions.RESET}') # hash base xzms
+                              result=subprocess.run(["/usr/local/save-changesnew/sysprofile", turbo],capture_output=True,text=True)
+                              if result.returncode == 1:
+                                    print("Bash failed to hash profile.")
+                              
                               else:
-                                    with open(rout, 'a') as file, open(tfile, 'a') as file2, open('/tmp/cerr', 'a') as file3, open('/tmp/scr', 'a') as file4:
-                                          hanly(parsed, recorddata, checksum, cdiag, conn, c,  ps, user, dbtarget, file, file2, file3, file4)
-                                          if recorddata:
-                                                for record in recorddata:
-                                                      timestamp = record[0]
-                                                      label = record[1]
-                                                      changetime = record[2]
-                                                      inode = record[3]   
-                                                      checksum = record[5]
-                                        
-                                                      result = pyfunctions.detect_copy(label, inode, checksum, c, table)
-                                                      if result:
-                                                            print(f'Copy {record[0]} {record[2]} {label}', file=file)
-                                                            
+                                    try:
+                                          dir_path = result.stdout.strip()
+
+                                          parselog(dir_path, parsedsys, checksum, 'sys') #sys
+
+                                          if os.path.isdir(dir_path):
+                                                shutil.rmtree(dir_path)
+                                    except Exception as e:
+                                          print(f"bash sysprofile failed missing SORTCOMPLETE: {e}")
+
+
+                              if parsedsys:
+                                    try: 
+                                          insert(parsedsys, conn, c, "sys", "count") 
+                                          
+                                    except Exception as e:
+                                          print('sys db failed insert', e)
+                                          dbe=True
+
+
+                  if parsed:
+                        if goahead: # #Hybrid analysis. Skip first pass ect.
+
+                              try: 
+
+                                    if turbo == 'mc':
+                                          hanly_parallel(rout, tfile, parsed, checksum, cdiag, dbopt, ps, user, dbtarget, table)
+                                    else:
+                                          with open(rout, 'a') as file, open(tfile, 'a') as file2, open('/tmp/cerr', 'a') as file3, open('/tmp/scr', 'a') as file4:
+                                                hanly(parsed, recorddata, checksum, cdiag, conn, c,  ps, user, dbtarget, file, file2, file3, file4)
+                                                if recorddata:
+                                                      for record in recorddata:
+                                                            timestamp = record[0]
+                                                            label = record[1]
+                                                            changetime = record[2]
+                                                            inode = record[3]   
+                                                            checksum = record[5]
+                                          
+                                                            result = pyfunctions.detect_copy(label, inode, checksum, c, table)
+                                                            if result:
+                                                                  print(f'Copy {record[0]} {record[2]} {label}', file=file)
+                                                                  
+
+                              except Exception as e:
+                                    print(f"hanlydb failed to process on mode {turbo}: {e}", file=sys.stderr)
+                              if  turbo == 'mc':
+                                    x=os.cpu_count()
+                                    if x:
+                                          if os.path.isfile('/tmp/cerr'):
+                                                with open('/tmp/cerr', 'r') as f:
+                                                      contents = f.read()
+                                                if not ('Suspect' in contents or 'COLLISION' in contents):
+                                                      print(f'Detected {x} CPU cores.')
+                                          else:
+                                                print(f'Detected {x} CPU cores.')
+                                    if ANALYTICSECT:
+                                          print(f'{pyfunctions.GREEN}Hybrid analysis on{pyfunctions.RESET}')
+
+                  # Log
+                  if parsed: 
+                        try: 
+                              insert(parsed, conn, c, "logs", "hardlinks")
+                              if count % 10 == 0:
+                                    print(f'{count + 1} searches in gpg database')
 
                         except Exception as e:
-                              print(f"hanlydb failed to process on mode {turbo}: {e}", file=sys.stderr)
-                        if  turbo == 'mc':
-                              x=os.cpu_count()
-                              if x:
-                                    if os.path.isfile('/tmp/cerr'):
-                                          with open('/tmp/cerr', 'r') as f:
-                                                contents = f.read()
-                                          if not ('Suspect' in contents or 'COLLISION' in contents):
-                                                print(f'Detected {x} CPU cores.')
-                                    else:
-                                          print(f'Detected {x} CPU cores.')
-                              if ANALYTICSECT:
-                                    print(f'{pyfunctions.GREEN}Hybrid analysis on{pyfunctions.RESET}')
+                              print('log db failed insert', e)
+                              dbe=True
 
-            # Log
-            if parsed: 
-                  try: 
-                        insert(parsed, conn, c, "logs", "hardlinks")
-                        if count % 10 == 0:
-                              print(f'{count + 1} searches in gpg database')
+                  # Stats
+                  if os.path.isfile(rout): 
 
-                  except Exception as e:
-                        print('log db failed insert', e)
-                        dbe=True
+                        try:
 
-            # Stats
-            if os.path.isfile(rout): 
-
-                  try:
-
-                        with open(rout, 'r', newline='') as record:
-                              for line in record:
-                                    statparse(line, stats)
-
-                        if os.path.isfile(COMPLETE) and os.path.getsize(COMPLETE) > 0:
-                              with open(COMPLETE, 'r', newline='') as records:
-                                    for line in records:
+                              with open(rout, 'r', newline='') as record:
+                                    for line in record:
                                           statparse(line, stats)
 
+                              if os.path.isfile(COMPLETE) and os.path.getsize(COMPLETE) > 0:
+                                    with open(COMPLETE, 'r', newline='') as records:
+                                          for line in records:
+                                                statparse(line, stats)
 
-                        if stats:
 
-                              for record in stats:
-                                    action = record[0]
-                                    timestamp = record[1]
-                                    changetime = record[2]
-                                    fp = record[3]
+                              if stats:
 
-                                    insert_if_not_exists(action, timestamp, fp, changetime, conn, c)
+                                    for record in stats:
+                                          action = record[0]
+                                          timestamp = record[1]
+                                          changetime = record[2]
+                                          fp = record[3]
 
-                  except Exception as e:
-                        print('stats db failed to insert', e)
-                        dbe=True
+                                          insert_if_not_exists(action, timestamp, fp, changetime, conn, c)
 
-            if not dbe: # Encrypt if o.k.
-                  try:
-                        sts=encr(dbopt, dbtarget, email, nc, "true")
-                        if not sts:		
-                              print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}  before running again.')
+                        except Exception as e:
+                              print('stats db failed to insert', e)
+                              dbe=True
 
-                  except Exception as e:
-                        print(f'Encryption failed: {e}')
-                        return 3 # & 2 gpg problem
+                  if not dbe: # Encrypt if o.k.
+                        try:
+                              sts=encr(dbopt, dbtarget, email, nc, "true")
+                              if not sts:		
+                                    print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}  before running again.')
 
-                  return 0        
-            
-            else:
-                        
+                        except Exception as e:
+                              print(f'Encryption failed: {e}')
+                              return 3 # & 2 gpg problem
 
-                  if os.path.isfile(dbopt):
-                        os.remove(dbopt)
-                  return 4 #db problem
+                        return 0        
+                  
+                  else:
+                              
+
+                        if os.path.isfile(dbopt):
+                              os.remove(dbopt)
+                        return 4 #db problem
 
 if __name__ == "__main__":
       sys.exit(main())
