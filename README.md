@@ -1,6 +1,6 @@
 #                               09/28/2025
 
-1.1.7 python backed or not depending on backend option <br>
+1.1.7 Bash or python backend <br>
 1.1.7-py1 python edition backend database <br><br>
 
 Release developer buddy py edition <br>
