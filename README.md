@@ -1,7 +1,7 @@
 #                               09/30/2025
 
-1.1.7 Bash or python backend <br>
-1.1.7-py1 python edition backend database <br><br>
+1.1.8 Bash or python backend <br>
+1.1.8-py1 python edition backend database <br><br>
 
 Release developer buddy py edition <br>
 https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0
