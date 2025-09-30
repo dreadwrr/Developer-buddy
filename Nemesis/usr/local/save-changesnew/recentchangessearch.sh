@@ -46,10 +46,11 @@ mkdir $tmp
 mkdir $atmp
 intst
 
-
 if [ "$2" != "noarguser" ] && [ "$2" != "" ]; then
 	if [ "$2" -ge 0 ] 2>/dev/null; then
-        argone=$2 ; comp $argone ; tmn=$qtn
+        argone=$2
+		comp $argone
+		tmn=$qtn
 		cyan "searching for files $2 seconds old or newer"
     else
         argone=".txt"
@@ -65,6 +66,8 @@ if [ "$2" != "noarguser" ] && [ "$2" != "" ]; then
 		ct=$(date +%s)
 		fmt=$(stat -c %Y "$filename")
 		ag=$(( ct - fmt ))
+		comp $ag
+		ag=$qtn
 		MMIN=(-newer "$filename")
 		CMIN=(-cmin "-${ag}")
     fi
