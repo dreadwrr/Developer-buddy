@@ -1,11 +1,11 @@
-# Get metadata hash of files and return array                       09/26/2025
-import csv
+# Get metadata hash of files and return array                       09/30/2025
 import hashlib
 import multiprocessing
 import os
 from datetime import datetime
 from pyfunctions import epoch_to_date
 from pyfunctions import escf_py
+
 
 # Parallel SORTCOMPLETE search and  ctime hashing
 #
@@ -19,32 +19,40 @@ def calculate_checksum(file_path):
     except Exception:
         return None
     
-def upt_cache(f, inode, size, mtime, checksum, path):
-        writer = csv.writer(f, delimiter='|', quoting=csv.QUOTE_MINIMAL)
-        writer.writerow([inode, size, mtime, checksum, path])
 
-def get_cached(CACHE_F, inode, size, mtime):
-    if not os.path.exists(CACHE_F):
+def upt_cache(cfr, existing_keys, size, mtime, checksum, path):
+    key = (checksum, str(size), str(mtime), path)
+    if key not in existing_keys:
+        entry = {
+            "checksum": checksum,
+            "size": str(size),
+            "mtime": str(mtime),
+            "path": path
+        }
+        cfr.append(entry)
+        existing_keys.add(key)
+
+
+def get_cached(cfr, size, mtime, path):
+    if not cfr:
         return None
-    with open(CACHE_F, 'r', newline='') as f:
-        reader = csv.reader(f, delimiter='|', quoting=csv.QUOTE_MINIMAL)
-        for row in reader:
-            if len(row) < 5:
-                continue
-            row_inode, row_size, row_mtime = row[0], row[1], row[2]
-            if str(inode) == row_inode and str(size) == row_size and str(mtime) == row_mtime:
-                return row[3]  # checksum
+
+    for row in cfr:
+        if not all(key in row for key in ("size", "mtime", "path", "checksum")):
+            continue
+        if str(size) == row["size"] and str(mtime) == row["mtime"] and path == row["path"]:
+            return row["checksum"]
+    
     return None
 
 
 def process_line(line, checksum, type, table, CACHE_F, CSZE):
     fmt = "%Y-%m-%d %H:%M:%S"
     label="Sortcomplete"
-    hardlink = None
-    cam = None
+    lastmodified = None
+    checks = None
     sym = None
     cam = None
-    checks = None
     hardlink =None
     parts = line.split(maxsplit=9)
     if len(parts) < 9:
@@ -60,7 +68,6 @@ def process_line(line, checksum, type, table, CACHE_F, CSZE):
         return ("Nosuchfile", mtime.replace(microsecond=0), mtime.replace(microsecond=0), file_path)
     if not (type == "ctime" and ctime > mtime) and type != "main": 
         return
-    mtime = epoch_to_date(mod_time)
     if mtime is None:
         return
 
@@ -68,17 +75,22 @@ def process_line(line, checksum, type, table, CACHE_F, CSZE):
         hardlink = "0"
     
     atime = epoch_to_date(access_time)
-    size = int(size)
+
+    try:
+        size_int = int(size)
+    except (TypeError, ValueError):
+        size_int = None
 
     if checksum:
         if type == "ctime":
+            lastmodified = mtime
             mtime = ctime
             cam = "y"
         if os.path.islink(file_path):
             sym = "y"
 
-        if size > CSZE:
-            checks = get_cached(CACHE_F, inode, size, mod_time)
+        if size is not None and size_int > CSZE:
+            checks = get_cached(CACHE_F, size, mod_time, file_path)
             if checks is None:
                 label="Cwrite"
                 checks = calculate_checksum(file_path)
@@ -94,12 +106,13 @@ def process_line(line, checksum, type, table, CACHE_F, CSZE):
         inode,
         atime.strftime(fmt),
         checks,
-        str(size),
+        str(size_int),
         sym,
         user,
         group,
         mode,
         cam,
+        lastmodified.strftime(fmt) if lastmodified is not None else None,
         hardlink
     )
 
@@ -137,11 +150,18 @@ def process_lines(lines, checksum, type, table, CACHE_F, CSZE):
             else:
                 sortcomplete.append(res[1:])
 
+    existing_keys = set()
+
     if cwrite and table not in ('sys', 'watch'):
-        with open(CACHE_F, 'a', newline='') as f:
-            for res in cwrite:
-                epath = escf_py(res[1])
-                upt_cache(f, res[2], res[5], res[0].strftime("%Y-%m-%d %H:%M:%S"), res[4], epath)
+        
+        if CACHE_F:
+            for row in CACHE_F:
+                key = (row["checksum"], row["size"], row["mtime"], row["path"])
+                existing_keys.add(key)
+
+        for res in cwrite:
+            epath = escf_py(res[1])
+            upt_cache(CACHE_F, existing_keys, res[6], res[0].strftime("%Y-%m-%d %H:%M:%S"), res[5], epath) 
 
     return sortcomplete, complete
 

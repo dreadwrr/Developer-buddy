@@ -5,6 +5,7 @@ from pyfunctions import parse_datetime
 from rntchangesfunctions import filter_output 
 from rntchangesfunctions import filter_lines_from_list
 
+# get first datetime
 def get_trout(line):
     parts = line.strip().split(None, 3)
     if len(parts) < 3:
