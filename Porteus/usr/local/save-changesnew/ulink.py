@@ -1,9 +1,9 @@
 import os
 import re
 import multiprocessing
-from rntchangesfunctions import sbwr
 import subprocess
 from collections import defaultdict
+from pyfunctions import sbwr
 
 def count_inodes_for_dirs(directories):
     inode_map = defaultdict(int)

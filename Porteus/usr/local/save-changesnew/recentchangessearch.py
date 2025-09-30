@@ -27,28 +27,30 @@
 #           2. rnt search inverses the results. For a standard search it will filter the results. For a file search it removes the filter.
 #
 #  Also borred script features from various scripts on porteus forums
+import csv
 import os
 import sys
-import time
 import processha
 import pstsrg
 import pwd
 import signal
 import subprocess
 import tempfile
+import time
 from datetime import timedelta
 from filterhits import update_filter_csv
 from fsearch import process_find_lines
+from io import StringIO
 from processha import isdiff
-from pstsrg import decr
-from pstsrg import encr
+from pstsrg import decrm
+from pstsrg import dict_string
+from pstsrg import encrm
 from rntchangesfunctions import changeperm
 from rntchangesfunctions import clear_logs
 from rntchangesfunctions import copyfiles
 from rntchangesfunctions import display
 from rntchangesfunctions import filter_lines_from_list
 from rntchangesfunctions import filter_output
-from rntchangesfunctions import getnm
 from rntchangesfunctions import get_runtime_exclude_list
 from rntchangesfunctions import hsearch
 from rntchangesfunctions import iskey
@@ -64,7 +66,8 @@ def sighandle(signum, frame):
     global stopf
     if signum == 2:
         stopf = True
-
+        sys.exit()
+        
 signal.signal(signal.SIGINT, sighandle)
 signal.signal(signal.SIGTERM, sighandle)
 
@@ -80,6 +83,13 @@ def intst(dbtarget, CSZE, compLVL):
             print(f"Error checking or modifying log file: {e}")
             return False
     return False
+
+
+def convertn(quot, divis, decm):
+    tmn = round(quot / divis, decm)
+    if quot % divis == 0:
+        tmn = quot // divis
+    return tmn
 #Globals
 stopf=False
 RECENTNUL = b""  # filepaths `recentchanges`
@@ -109,9 +119,6 @@ def main():
     archivesrh = config['search']['archivesrh']
     autooutput = config['search'] ['autooutput']
     cmode = config['search']['cmode'] 
-
-
-    iskey(email)
 
     argone=sys.argv[1] # range
     argtwo=sys.argv[2] # SRC tag?
@@ -148,6 +155,8 @@ def main():
     ABSENT = [] # actions
     rout = [] # actions from ha
 
+    cfr = [] # cache dict
+
     start = 0 
     end = 0
     cstart = 0
@@ -155,6 +164,7 @@ def main():
     CSZE = 1024 * 1024  # >= 1MB in bytes to cache
 
     tmn = None
+    filename = None
     diffrlt = False
     nodiff = False
     syschg = False
@@ -163,16 +173,10 @@ def main():
     parseflnm = ""
     fmt="%Y-%m-%d %H:%M:%S"
 
-    chxzm="/rntfiles.xzm" # custom modulename retain leading / and trailing .xzm
-    copt=getnm(CACHE_F, '.csv')
+    MODULENAME="rntfiles" # file label
+
     USRDIR =  f'/home/{USR}/Downloads'    
     
-    slog="/tmp/scr" # feedback
-    cerr="/tmp/cerr" # priority
-
-    filename = os.path.basename(chxzm) # parse 
-    MODULENAME = os.path.splitext(filename)[0]  # file label
-
     F= [ 
         "find",
         "/bin", "/etc", "/home", "/lib", "/lib64", "/opt", "/root", "/sbin", "/tmp", "/usr",  "/var"
@@ -180,14 +184,20 @@ def main():
     
     TAIL = ["-not", "-type", "d", "-printf", "%T@ %A@ %C@ %i %s %u %g %m %p\\0"]
 
-    mp='/dev/shm/xct' # session marker
-    with tempfile.TemporaryDirectory(dir='/tmp') as mainl:    
-        ctarget=os.path.join(mainl, copt)
-        if not os.path.isfile(mp):
-            with open(mp, 'a'):
-                os.utime(mp, None)
-            if os.path.isfile(CACHE_F):
-                decr(CACHE_F, ctarget)
+    TEMPD = tempfile.gettempdir()
+    slog=TEMPD + "/scr" # feedback
+    cerr=TEMPD + "/cerr" # priority
+
+    with tempfile.TemporaryDirectory(dir=TEMPD) as mainl:   
+
+        iskey(email, mainl) 
+
+        if os.path.isfile(CACHE_F):
+            csv_path = decrm(CACHE_F)
+
+            if csv_path:
+                reader = csv.DictReader(StringIO(csv_path), delimiter='|')
+                cfr = list(reader)
 
 
         start = time.time()
@@ -203,12 +213,10 @@ def main():
 
         # search criteria
         if THETIME != "noarguser":
+            p = 60
             try:
                 argone = int(THETIME)
-                p = 60
-                tmn = argone / p
-                if argone % p == 0:
-                    tmn = argone // p
+                tmn = convertn(argone, p, 2)
                 cprint.cyan(f"Searching for files {argone} seconds old or newer")
 
             except ValueError: # its a file search
@@ -233,6 +241,7 @@ def main():
                 ct = int(time.time())
                 frmt = int(os.stat(filename).st_mtime)
                 ag = ct - frmt
+                ag = convertn(ag, p, 2)
                 mmin = ["-newer", f"{filename}"]
                 cmin = ["-cmin", f"-{ag}"]
 
@@ -249,7 +258,7 @@ def main():
         find_command_mmin = F + mmin + TAIL
 
 
-        def find_files(find_command, file_type, RECENT, COMPLETE, init, checksum, ANALYTICSECT, end, cstart):
+        def find_files(find_command, file_type, RECENT, COMPLETE, init, checksum, cfr, ANALYTICSECT, end, cstart):
             global RECENTNUL
             table = "logs"
             proc = subprocess.Popen(find_command, stdout=subprocess.PIPE)
@@ -260,7 +269,7 @@ def main():
             if init and checksum:
                 cstart = time.time()
                 cprint.cyan('Running checksum.')
-         
+
             
             if file_type == "mtime":
                 end = time.time()
@@ -272,9 +281,9 @@ def main():
                             print(file_path)
                         RECENTNUL += (file_path.encode() + b'\0') # copy file list `recentchanges` null byte
 
-                RECENT, COMPLETE = process_find_lines(file_entries, checksum, "main", table, ctarget, CSZE)
+                RECENT, COMPLETE = process_find_lines(file_entries, checksum, "main", table, cfr, CSZE)
             elif file_type == "ctime":
-                RECENT, COMPLETE = process_find_lines(file_entries, checksum, "ctime", table, ctarget, CSZE)
+                RECENT, COMPLETE = process_find_lines(file_entries, checksum, "ctime", table, cfr, CSZE)
             else:
                 raise ValueError(f"Unknown file type: {file_type}")
 
@@ -282,10 +291,10 @@ def main():
 
 
         if not tout: 
-            tout, COMPLETE_2, end, cstart = find_files(find_command_cmin, "ctime", tout, COMPLETE_2, True, checksum, ANALYTICSECT, end, cstart)
-            RECENT, COMPLETE_1, end, cstart = find_files(find_command_mmin, "mtime", RECENT, COMPLETE_1, False, checksum, ANALYTICSECT, end, cstart)
+            tout, COMPLETE_2, end, cstart = find_files(find_command_cmin, "ctime", tout, COMPLETE_2, True, checksum, cfr, ANALYTICSECT, end, cstart)
+            RECENT, COMPLETE_1, end, cstart = find_files(find_command_mmin, "mtime", RECENT, COMPLETE_1, False, checksum, cfr, ANALYTICSECT, end, cstart)
         else:
-            RECENT, COMPLETE_1, end, cstart = find_files(find_command_mmin, "mtime", RECENT, COMPLETE_1, True, checksum, ANALYTICSECT, end, cstart) # bypass ctime loop if xRC 
+            RECENT, COMPLETE_1, end, cstart = find_files(find_command_mmin, "mtime", RECENT, COMPLETE_1, True, checksum, cfr, ANALYTICSECT, end, cstart) # bypass ctime loop if xRC 
         if ANALYTICSECT:
             cend = time.time()
 
@@ -334,7 +343,7 @@ def main():
         deduped = list(seen.values())
 
         # inclusions from this script
-        exclude_patterns = get_runtime_exclude_list(USR, logpst, statpst, dbtarget, CACHE_F, ctarget) 
+        exclude_patterns = get_runtime_exclude_list(USR, logpst, statpst, dbtarget, CACHE_F) 
 
         # sort -u 
         def filepath_included(filepath, exclude_patterns):
@@ -532,15 +541,19 @@ def main():
             #Cleanup
             if os.path.isfile(diffnm):
                 changeperm(diffnm, uid)
-
             if os.path.isfile(slog):
                 removefile(slog)
-        
-            if os.path.isfile(ctarget):
-                rlt=encr(ctarget, CACHE_F, email, False, False)
-                if not rlt:
-                    print(f"Reencryption failed cache not saved.")	
 
+            if cfr:
+                ctarget = dict_string(cfr)
+                # # Debug: write ctarget content to a file
+                # debug_file = "/tmp/ctarget_debug.txt"
+                # with open(debug_file, "w", encoding="utf-8") as f:
+                #     f.write(ctarget)
+                # print(f"Debug: ctarget content written to {debug_file}")
+                rlt = encrm(ctarget, CACHE_F, email, False, False)
+                if not rlt:
+                    print(f"Reencryption failed cache not saved.")
 
 
 if __name__ == "__main__":

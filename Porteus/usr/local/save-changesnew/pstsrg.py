@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # pstsrg.py - Process and store logs in a SQLite database, encrypting the database       9/26/2025
-
+import csv
 import os
 import sqlite3
 import subprocess
@@ -8,11 +8,76 @@ import sys
 import sysprofile
 import tempfile
 from hanlyparallel import hanly_parallel
+from io import StringIO
 from rntchangesfunctions import getnm
 from pyfunctions import getcount
 from pyfunctions import cprint
 
 count=0
+
+def dict_string(data: list[dict]) -> str:
+    if not data:
+        return ""
+    
+    output = StringIO()
+    writer = csv.DictWriter(output, fieldnames=data[0].keys(), delimiter='|', quoting=csv.QUOTE_MINIMAL)
+    writer.writeheader()
+    writer.writerows(data)
+    return output.getvalue()
+
+# enc mem
+def encrm(c_data: str, opt: str, r_email: str, compress: bool = True, armor: bool = False) -> bool:
+      try:
+            cmd = [
+            "gpg",
+            "--batch",
+            "--yes",
+            "--encrypt",
+            "-r", r_email,
+            "-o", opt
+            ]
+
+            if not compress:
+                  cmd.extend(["--compress-level", "0"])
+
+            if armor:
+                  cmd.append("--armor")
+
+            result = subprocess.run(
+                  cmd,
+                  input=c_data.encode("utf-8"),
+                  check=True,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE,
+            )
+            return True
+
+      except subprocess.CalledProcessError as e:
+            err_msg = e.stderr.decode().strip() if e.stderr else str(e)
+            print(f"[ERROR] Encryption failed: {err_msg}")
+            return False
+
+# dec mem
+def decrm(src):
+      if os.path.isfile(src):
+            try:
+                  cmd = [
+                        "gpg",
+                        "--quiet",
+                        "--batch",
+                        "--yes",
+                        "--decrypt",
+                        src
+                  ]
+                  result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+                  return result.stdout 
+            except subprocess.CalledProcessError as e:
+                  print(f"[ERROR] Decryption failed: {e}")
+                  return None
+      else:
+            print('No .gpg file')
+            return None
+    
 def encr(database, opt, email, nc, md):
     try:
             cmd =       [
@@ -79,6 +144,7 @@ def create_table(c, table, last_column, unique_columns):
             '`group` TEXT',
             'permissions TEXT',
             'casmod TEXT',
+            'lastmodified TEXT',
             f'{last_column} TEXT'
       ]
       col_str = ',\n      '.join(columns)
@@ -124,6 +190,7 @@ def create_db(database, action=None):
       #       `group` TEXT,
       #       permissions TEXT,
       #       casmod TEXT,
+      #       lastmodified TEXT,
       #       hardlinks TEXT,
       #       )
       # ''')
@@ -153,7 +220,7 @@ def insert(log, conn, c, table, last_column): # Log, sys
       columns = [
             'timestamp', 'filename', 'changetime', 'inode', 'accesstime', 
             'checksum', 'filesize', 'symlink', 'owner', '`group`', 
-            'permissions', 'casmod', last_column
+            'permissions', 'casmod', 'lastmodified', last_column
       ]
       placeholders = ', '.join(['Trim(?)'] * len(columns))
       col_str = ', '.join(columns)

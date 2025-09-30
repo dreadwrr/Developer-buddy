@@ -133,31 +133,21 @@ def filter_output(filepath, LCLMODULENAME, filtername, critical, pricolor, secco
 
 
 # inclusions from this script
-def get_runtime_exclude_list(USR, logpst, statpst, dbtarget, CACHE_F, ctarget):
+def get_runtime_exclude_list(USR, logpst, statpst, dbtarget, CACHE_F):
     return [
         "/usr/local/save-changesnew/flth.csv",
         f"/home/{USR}/Downloads/rnt",
         logpst,
         statpst,
         dbtarget,
-        CACHE_F,
-        ctarget
+        CACHE_F
     ]
-# rout parse
+# return filenm
 def getnm(locale, ext=''):
       root = os.path.basename(locale)
       root, ext = os.path.splitext(root)
       return root + ext
 
-# parsing python
-#
-# def read_file_lines(path):
-#     p = Path(path)
-#     return [line.rstrip() for line in p.open()] if p.is_file() and p.stat().st_size > 0 else []
-#
-# def extract_quoted(line):
-#     m = re.search(r'"((?:[^"\\]|\\.)*)"', line)
-#     return m.group(1) if m else ""
 
 # UTC join
 def timestamp_from_line(line):
@@ -235,7 +225,6 @@ def copyfiles(RECENT, RECENTNUL, TMPOPT, method, argone, argtwo, USR, TEMPDIR, a
 
     if method == "rnt":
 
-
         copynewln = 'tmp_holding' # TMPOPT filtered list
         copynul = 'toutput.tmp' # tout temp file
         sortcomplete = 'list_complete_sorted.txt' # unfiltered times only
@@ -289,7 +278,6 @@ def copyfiles(RECENT, RECENTNUL, TMPOPT, method, argone, argtwo, USR, TEMPDIR, a
                     text=True
                 )
             
-                
                 output = copyres.stdout
                 print(output)
 
@@ -306,7 +294,7 @@ def copyfiles(RECENT, RECENTNUL, TMPOPT, method, argone, argtwo, USR, TEMPDIR, a
             except Exception as e:
                 print(f"Error in recentchangest: {e}")
 
-def iskey(email):
+def iskey(email, TEMPD):
     try:
         result = subprocess.run(
             ["gpg", "--list-secret-keys"],
@@ -315,7 +303,7 @@ def iskey(email):
             check=True
         )
         if email not in result.stdout:
-            if genkey(email):
+            if genkey(email, TEMPD):
                 return True
         else:
             return True
@@ -323,7 +311,7 @@ def iskey(email):
         print("Error running gpg:", e)
     return False
 
-def genkey(email):
+def genkey(email, TEMPD):
     p = getpass.getpass("Enter passphrase for new GPG key: ")
     params = f"""%echo Generating a GPG key
 Key-Type: RSA
@@ -337,34 +325,31 @@ Passphrase: {p}
 %commit
 %echo done
 """
-    with tempfile.TemporaryDirectory(dir='/tmp') as kp:    
+    with tempfile.TemporaryDirectory(dir=TEMPD) as kp:
+        ftarget = os.path.join(kp, 'keyparams.conf')
+
+        with open(ftarget, "w", encoding="utf-8") as f:
+            f.write(params)
+        os.chmod(ftarget, 0o600)
+
         try:
-            ftarget=os.path.join(kp, 'keyparams.conf')
-        
-            with open(ftarget, 'a'):
-                os.utime(ftarget, None)
-
-            os.chmod(ftarget, 0o600)
-            with open(ftarget, "w", encoding="utf-8") as f:
-                f.write(params)
-
             cmd = [
                 "gpg",
                 "--batch",
                 "--pinentry-mode", "loopback",
                 "--passphrase", p,
-                "--generate-key",
-                ftarget,
+                "--generate-key"
             ]
-
-            subprocess.run(cmd, check=True)
+            # Open the params file and pass it as stdin
+            with open(ftarget, "rb") as param_file:
+                subprocess.run(cmd, check=True, stdin=param_file)
 
             print(f"GPG key generated for {email}.")
             return True
         except subprocess.CalledProcessError as e:
-            print("failed to make key params:", e)
+            print("Failed to generate GPG key:", e)
         except Exception as e:
-            print(f'Unable to make gpg key: {e}')
+            print(f'Unable to make GPG key: {e}')
     return False
 
 def postop(outf, USRDIR, toml, fmt):
