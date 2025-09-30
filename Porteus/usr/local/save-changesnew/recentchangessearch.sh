@@ -34,7 +34,8 @@ csm=""
 cores=0																	;   max_jobs=0
 
 OLDSORTED=""
-CACHE_F=/tmp/ctimecache
+cached=/tmp/dbctimecache/
+CACHE_F="${cached}ctimecache"
 fmt="%Y-%m-%d %H:%M:%S"                                     
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')     
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
@@ -86,6 +87,8 @@ if [ "$tmn" != "" ]; then
 	CMIN=(-cmin "-${tmn}")
 fi
 
+
+[[ ! -d "$cached" ]] && mkdir $cached && chmod 700 $cached
 [[ "$checkSUM" = "true" ]] && [[ "$ANALYTICS" = "true" || "$STATPST" = "true" ]] && cyan "Running checksum." || checkSUM="false"
 if [ -z "$tout" ]; then
 	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $FEEDFILE > /dev/null 2>&1
@@ -106,6 +109,7 @@ fi
 search $FEEDFILE $SORTCOMPLETE $COMPLETE $checkSUM "main"
 isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE
 isoutput cache1* $CACHE_F
+[[ -f "$CACHE_F" ]] && chmod 600 "$CACHE_F"
 
 LCLMODULENAME=${chxzm:1:8}
 
