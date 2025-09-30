@@ -1,5 +1,6 @@
 import fnmatch
 import hashlib
+import os
 import re
 from datetime import datetime
 CYAN = "\033[36m"
@@ -191,6 +192,12 @@ def parse_line(line):
     rest = other_fields[7:]
 
     return [timestamp1, filepath, timestamp2, inode, timestamp3] + rest
+
+# return filenm
+def getnm(locale, ext=''):
+      root = os.path.basename(locale)
+      root, ext = os.path.splitext(root)
+      return root + ext
 
 def get_md5(file_path):
     try:
