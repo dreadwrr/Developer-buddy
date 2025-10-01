@@ -37,19 +37,16 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 
 	fmt = "%Y-%m-%d %H:%M:%S"
 	collision_message=[]
-	md5=""
 	db=False
 	for record in parsed:
 		df=False
 		is_sys=False
-		recent_sys = None
+
 		filename = record[1] 
 		label = pyfunctions.escf_py(filename) # human readable
 
-		recent_entries = pyfunctions.get_recent_changes(filename, c, 'logs')
-
-		if ps == 'true':
-			recent_sys = pyfunctions.get_recent_changes(filename, c, 'sys')
+		recent_entries = pyfunctions.get_recent_changes(label, c, 'logs')
+		recent_sys = pyfunctions.get_recent_changes(label, c, 'sys') if ps else None
 		
 		if not recent_entries and not recent_sys:
 			recorddata.append(record) # is copy?
@@ -57,130 +54,116 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 
 		filedate = record[0]
 		previous = recent_entries
+		recent_timestamp = pyfunctions.parse_datetime(filedate, fmt)
 
-		if ps == 'true':  # check sys
-			recent_timestamp = pyfunctions.parse_datetime(filedate, fmt)
-			if recent_sys:
-					recent_systime = pyfunctions.parse_datetime(recent_sys[0], fmt)
-					if recent_systime:
-						if recent_systime > recent_timestamp:
-							is_sys=True
-							pyfunctions.increment_fname(c, record) # add to system file count db
-							db=True
-							previous = recent_sys
+		if ps == 'true' and recent_sys and len(recent_sys) > 0:  # check sys	
+			recent_systime = pyfunctions.parse_datetime(recent_sys[0], fmt)
+			if recent_systime and recent_systime > recent_timestamp:
+				is_sys=True
+				db=True
+				pyfunctions.increment_fname(c, record) # add to system file count db
+				previous = recent_sys
 
 		if not previous or not filedate or not previous[0]:
 			continue
-
 		if checksum == 'true':
-			if not record[5] or str(record[5]).strip() == '' or record[5] == 'None': # checksum
+			if not record[5] or record[5] == 'None' or not previous[5] or previous[5] == 'None' or len(record) < 13: # checksum
 				continue
+			current_size = int(record[6]) if pyfunctions.is_integer(record[6]) else None
+			original_size = int(previous[6]) if pyfunctions.is_integer(previous[6]) else None
+		else:
 			current_size = None
 			original_size = None
-			if pyfunctions.is_integer(record[6]):
-				current_size = int(record[6])
-				if pyfunctions.is_integer(previous[6]):
-					original_size = int(previous[6])
 						
-		recent_timestamp = pyfunctions.parse_datetime(filedate, fmt)
 		previous_timestamp = pyfunctions.parse_datetime(previous[0], fmt)
+
 		if pyfunctions.is_integer(record[3]) and pyfunctions.is_integer(previous[3]) and recent_timestamp and previous_timestamp:
 
 			if recent_timestamp == previous_timestamp: # Not modified?
+				file_path = Path(filename)
 
 				if checksum == 'true':
-	
-					if record[5] != previous[5] and record[6] != 0 and previous[6] != 0: # checksum, filesize
+					if record[5] != previous[5]: # checksum, filesize
+						if file_path.is_file():
+							if (st := pyfunctions.goahead(file_path)):
+								afrm_dt, _= pyfunctions.getstdate(st, fmt)
+								if afrm_dt and pyfunctions.is_valid_datetime(record[3], fmt):
+									if afrm_dt == previous_timestamp:
 
-						file_path=Path(filename)
-						md5=pyfunctions.get_md5(file_path)
+										md5 = pyfunctions.get_md5(file_path)
+										if md5 and md5 != previous[5]:
 
-						if md5 != previous[5]:
-							pyfunctions.log_event("Suspect", record, label, file, file2) # Flag *** 
-							print(f'Suspect file: {label} changed without a new modified time.', file3) 
-						
+
+											pyfunctions.log_event("Suspect", record, label, file, file2) # Flag *** 
+											print(f'Suspect file: {label} changed without a new modified time.', file3) 
+						else:
+							pyfunctions.log_event("Deleted", record, label, file, file2)
+
 					else:
-
 						if record[3] == previous[3]:  # inode
 							metadata = (previous[7], previous[8], previous[9])
-
 							if pyfunctions.new_meta(record, metadata):
-								df=True
 
+
+								df=True
 								pyfunctions.log_event("Metadata", record, label, file, file2)
 								print(f'Permissions of file: {label} changed {record[8]} {record[9]} {record[10]} → {metadata[0]} {metadata[1]}  {metadata[2] }', file4)
 						else: 
 							df=True
 							pyfunctions.log_event("Copy", record, label, file, file2) # inode change preserved meta
 
-					if not df:
-						try:
-							file_path=Path(filename)
-							if file_path.is_file():
-				
-								st = file_path.stat()
-								a_mod = int(st.st_mtime)
-								afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt) # actual modify time
-								afrm_dt = pyfunctions.parse_datetime(afrm_str, fmt)  
-								if afrm_dt and pyfunctions.is_valid_datetime(record[3], fmt): # stable?
 
-									a_size = st.st_size
-
+                        # shift during search?
+						if not df and file_path.is_file():
+							if (st := pyfunctions.goahead(file_path)):
+								afrm_dt, afrm_str = pyfunctions.getstdate(st, fmt)
+								if afrm_dt and pyfunctions.is_valid_datetime(record[3], fmt):
 									if afrm_dt != previous_timestamp:
+										a_size = st.st_size
 
-										if record[6] != 0 and previous[6] != 0:
-											if not md5:
-												md5=pyfunctions.get_md5(file_path)
 
 										if cdiag == 'true': 
 											print(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size} ', file=file4)
 										else:
 											print(f'File changed during search. File likely changed. system cache item.', file=file4)
 
-										if md5:
-											if md5 != record[5]:
-												stealth(filename, label, file3, file4, collision_message, md5, a_size, current_size, cdiag, c) # Flag *** ?
-													
+						elif not df:
+							pyfunctions.log_event("Deleted", record, label, file, file2)
 
-						except Exception as e:
-							print(f"Skipping {filename}: {type(e).__name__} - {e}")
-							continue
 
 			else: # Modified.
 
 				if checksum == 'true':
-
-
 					if record[3] != previous[3]: # Inode
 
-
 						if record[5] == previous[5]:
+
+
 							pyfunctions.log_event("Overwrite", record, label, file, file2)
 						else:
 							pyfunctions.log_event("Replaced", record, label, file, file2)
 							stealth(filename, label, file3, file4, collision_message, record[5] ,current_size, original_size, cdiag, c) # Flag *** ?
 							
-
 					else:
 
-
 						if record[5] != previous[5]:
+
+
 							pyfunctions.log_event("Modified", record, label, file, file2)
 							stealth(filename, label, file3, file4, collision_message, record[5] , current_size, original_size, cdiag, c)  # Flag *** ?
 
 						else:			
 							metadata = (previous[7], previous[8], previous[9])
-
-
 							if pyfunctions.new_meta(record, metadata):
+
+
 								pyfunctions.log_event("Metadata", record, label, file, file2)
 								print(f'Permissions of file: {label} changed {record[8]} {record[9]} {record[10]} → {metadata[0]} {metadata[1]}  {metadata[2] }', file4)
 							else:
 								pyfunctions.log_event("Touched", record, label, file, file2)
 
-				else:
-					
 
+				else:
 					if record[3] != previous[3]:
 						pyfunctions.log_event("Replaced", record, label, file, file2)
 					else: 
