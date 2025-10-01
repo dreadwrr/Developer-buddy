@@ -7,9 +7,11 @@ import subprocess
 import sys
 import sysprofile
 import tempfile
+import time
 from hanlyparallel import hanly_parallel
 from io import StringIO
 from rntchangesfunctions import getnm
+from pyfunctions import unescf_py
 from pyfunctions import getcount
 from pyfunctions import cprint
 
@@ -145,7 +147,8 @@ def create_table(c, table, last_column, unique_columns):
             'permissions TEXT',
             'casmod TEXT',
             'lastmodified TEXT',
-            f'{last_column} TEXT'
+            f'{last_column} TEXT',
+            'escapedpath TEXT' 
       ]
       col_str = ',\n      '.join(columns)
       unique_str = ', '.join(unique_columns)
@@ -192,6 +195,7 @@ def create_db(database, action=None):
       #       casmod TEXT,
       #       lastmodified TEXT,
       #       hardlinks TEXT,
+      #       escapedpath TEXT
       #       )
       # ''')
 
@@ -220,7 +224,7 @@ def insert(log, conn, c, table, last_column): # Log, sys
       columns = [
             'timestamp', 'filename', 'changetime', 'inode', 'accesstime', 
             'checksum', 'filesize', 'symlink', 'owner', '`group`', 
-            'permissions', 'casmod', 'lastmodified', last_column
+            'permissions', 'casmod', 'lastmodified', last_column, 'escapedpath'
       ]
       placeholders = ', '.join(['Trim(?)'] * len(columns))
       col_str = ', '.join(columns)
@@ -340,7 +344,8 @@ def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, ANALYTICSECT, 
                   if rout: 
 
                         if COMPLETE: # store no such files
-                              rout.extend(" ".join(map(str, item)) for item in COMPLETE)
+                              rout.extend([" ".join(map(str, item)) for item in COMPLETE])
+                            #rout.extend(" ".join(map(str, item)) for item in COMPLETE)
 
                         try:
                               for record in rout:
@@ -350,7 +355,8 @@ def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, ANALYTICSECT, 
                                     action = parts[0]
                                     timestamp = f'{parts[1]} {parts[2]}'
                                     changetime = f'{parts[3]} {parts[4]}'
-                                    fp = parts[5]
+                                    fp_escaped = parts[5]
+                                    fp = unescf_py(fp_escaped) 
                                     insert_if_not_exists(action, timestamp, fp, changetime, conn, c)
 
                         except Exception as e:

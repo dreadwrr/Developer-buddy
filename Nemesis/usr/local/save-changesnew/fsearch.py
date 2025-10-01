@@ -5,6 +5,7 @@ import os
 from datetime import datetime
 from pyfunctions import epoch_to_date
 from pyfunctions import escf_py
+from pyfunctions import unescf_py
 
 
 # Parallel SORTCOMPLETE search and  ctime hashing
@@ -54,18 +55,23 @@ def process_line(line, checksum, type, table, CACHE_F, CSZE):
     sym = None
     cam = None
     hardlink =None
-    parts = line.split(maxsplit=9)
+    parts = line.split(maxsplit=8)
     if len(parts) < 9:
         return None
 
-    mod_time, access_time, change_time, inode, size, user, group, mode, file_path = parts[:9]
+    mod_time, access_time, change_time, inode, size, user, group, mode, escf_path = parts
+
+    file_name = unescf_py(escf_path)
+    if not os.path.exists(file_name):
+        return None
 
     mtime = epoch_to_date(mod_time)
     ctime = epoch_to_date(change_time)
-    if not os.path.isfile(file_path):
+
+    if not os.path.isfile(file_name):
         if not mtime:
             mtime = datetime.now().strftime(fmt)
-        return ("Nosuchfile", mtime.replace(microsecond=0), mtime.replace(microsecond=0), file_path)
+        return ("Nosuchfile", mtime.replace(microsecond=0), mtime.replace(microsecond=0), escf_path)
     if not (type == "ctime" and ctime > mtime) and type != "main": 
         return
     if mtime is None:
@@ -86,22 +92,22 @@ def process_line(line, checksum, type, table, CACHE_F, CSZE):
             lastmodified = mtime
             mtime = ctime
             cam = "y"
-        if os.path.islink(file_path):
+        if os.path.islink(file_name):
             sym = "y"
 
-        if size is not None and size_int > CSZE:
-            checks = get_cached(CACHE_F, size, mod_time, file_path)
+        if size_int is not None and size_int > CSZE:
+            checks = get_cached(CACHE_F, size, mod_time, escf_path)
             if checks is None:
                 label="Cwrite"
-                checks = calculate_checksum(file_path)
+                checks = calculate_checksum(file_name)
         else:
-            checks = calculate_checksum(file_path)
+            checks = calculate_checksum(file_name)
 
     # tuple 
     return (
         label,
         mtime.replace(microsecond=0),
-        file_path,
+        file_name,
         ctime.strftime(fmt),
         inode,
         atime.strftime(fmt),
@@ -113,7 +119,8 @@ def process_line(line, checksum, type, table, CACHE_F, CSZE):
         mode,
         cam,
         lastmodified.strftime(fmt) if lastmodified is not None else None,
-        hardlink
+        hardlink,
+        escf_path
     )
 
 def process_line_worker(args):
@@ -160,7 +167,7 @@ def process_lines(lines, checksum, type, table, CACHE_F, CSZE):
                 existing_keys.add(key)
 
         for res in cwrite:
-            epath = escf_py(res[1])
+            epath = res[14]
             upt_cache(CACHE_F, existing_keys, res[6], res[0].strftime("%Y-%m-%d %H:%M:%S"), res[5], epath) 
 
     return sortcomplete, complete

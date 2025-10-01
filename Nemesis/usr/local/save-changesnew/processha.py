@@ -35,7 +35,7 @@ def isdiff(RECENT, ABSENT, rout, diffnm, difff_file, flsrh, parsed_PRD, fmt):
         ranged = difff_file[:]
 
     if ranged:
-        d_paths = set(entry[1] for entry in RECENT)
+        d_paths = set(entry[14] for entry in RECENT)
 
         with open(diffnm, 'a') as file2:
             for line in ranged:
@@ -54,13 +54,17 @@ def isdiff(RECENT, ABSENT, rout, diffnm, difff_file, flsrh, parsed_PRD, fmt):
 
                 else:
                     ABSENT.append(f"Deleted {line}")
-                    rout.append(f"Deleted {timestamp} {timestamp} {line}")
+                    rout.append(f"Deleted {timestamp} {line}")
 
             if ABSENT:
                 
                 file2.write('\nApplicable to your search\n')
-                file2.write('\n'.join(ABSENT) + '\n')
+                #file2.write('\n'.join(ABSENT) + '\n')
 
+                for line in ABSENT:
+                    if line.startswith("Deleted"):
+                        line = line.replace("Deleted", "Deleted ", 1)
+                    file2.write(line + '\n')
     else:
         with open(diffnm, 'a') as file2:
             print('None of above is applicable to search. It is the previous search', file=file2)       
@@ -116,7 +120,8 @@ def processha(rout, ABSENT, diffnm, cerr, flsrh, lclmodule, argf, parsed_PRD, US
             time = fields[2]             
             path = " ".join(fields[3:]) 
 
-            formatted_line = f"{status:<9} {date} {time} {path}\n"
+            extra_space = " " if status != "Overwrite" else ""
+            formatted_line = f"{status}{extra_space}\t{date} {time} {path}\n"
             outline.append(formatted_line)
 
 

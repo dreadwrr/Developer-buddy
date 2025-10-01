@@ -172,7 +172,8 @@ def hsearch(OLDSORT, MODULENAME, argone):
         for file in matching_files:
             if os.path.isfile(file):
                 with open(file, 'r') as f:
-                    OLDSORT = f.readlines()
+                    OLDSORT.clear()
+                    OLDSORT.extend(f.readlines())
                 break 
 
         if OLDSORT:
