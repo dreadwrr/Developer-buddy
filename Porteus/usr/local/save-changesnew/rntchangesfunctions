@@ -264,25 +264,32 @@ else # all version with  GPG 2.0
 fi
 }
 iscopy() {
+declare -A ref_lines
+while IFS= read -r line || [[ -n "$line" ]]; do
+    cs=$(awk '{print $(NF-6)}' <<< "$line")
+    [[ -n "$cs" ]] && ref_lines["$cs"]="$line"
+done < "$1"
 while IFS= read -r p || [[ -n "$p" ]]; do
     cFILE=$(sed -E 's/.*"((\\.|[^"])*)".*/\1/' <<< "$p")
-	y=$cFILE
-	current_ln="${p//\"$y\"/}"
-	read -r f1 f2 f3 f4 _ _ _ f8 _ <<< "$current_ln"
-	dt="$f1 $f2" ; cs="$f8"
-	ct="$f3 $f4"
-	copy_record=$(grep -F -v "\"$y\"" $1 | tail -n 1)
-	if [[ -n "$copy_record" ]]; then
-		tmp="${copy_record#*\"}"
-		y="${tmp%\"*}"
-		original="${copy_record//\"$y\"/}"
-		read -r of1 of2 of3 of4 _  <<< "$original"
-		oct="$f3 $f4"
-		if date -d "$ct" "+$fmt" >/dev/null 2>&1 && date -d "$oct" "+$fmt" >/dev/null 2>&1; then
-			echo "Copy $dt $ct $y" >> $rout
-		fi
-	fi
-done < $TMPCOMPLETE
+    current_ln="${p//\"$cFILE\"/}"
+    read -r f1 f2 f3 f4 f5 _ _ f8 _ <<< "$current_ln"
+    dt="$f1 $f2" ;  ct="$f3 $f4"
+    in="$f5" ; cs="$f8"
+	[[ -z "$cs" ]] && continue
+    copy_record="${ref_lines[$cs]}"
+    if [[ -n "$copy_record" ]]; then
+        tmp="${copy_record#*\"}"
+        y="${tmp%\"*}"
+        record_ln="${copy_record//\"$y\"/}"
+        read -r of1 of2 of3 of4 of5 <<< "$record_ln"
+        oct="$of3 $of4" ; oin="$of5"
+        if [[ "$in" != "$oin" ]]; then
+            if is_valid_date "$ct" && is_valid_date "$oct"; then 
+				echo "Copy $dt $ct $cFILE" >> "$rout"
+			fi
+        fi
+    fi
+done < "$TMPCOMPLETE"
 }
 collision() {
 local label="$1"
@@ -353,6 +360,7 @@ fi
 #cFILE="$( unescf "$cFILE")"
 hablk() {
 >$TMPCOMPLETE
+cp $SORTCOMPLETE /home/guest/aris
 while IFS= read -r p || [[ -n "$p" ]]; do
 	found_line=""
 	a_checksum=""
@@ -371,24 +379,25 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 			cFILE="$( unescf "$y")"
 			oat="$of6 $of7" ; cat="$f6 $f7" 
 			is_valid_date "$oat" && is_valid_date "$cat" || continue 
-			if [ "$checkSUM" == "true" ]; then ocs="$of8" ; cs="$f8" ; os="$of9" ; csze="$f9" ; [[ "$cs" != "None" ]] || continue ; fi
+			if [ "$checkSUM" == "true" ]; then ocs="$of8" ; cs="$f8" ; os="$of9" ; csze="$f9" ; [[ "$cs" != "None" && "$ocs" != "None" ]] || continue ; fi
 			oin="$of5"
 			if [ -n "$oin" ] && [ "$oin" -ge 0 ] 2>/dev/null; then
 				dt="$f1 $f2" ; omt="$of1 $of2" ; ct="$f3 $f4"
 				if [ "$dt" == "$omt" ]; then
 					if [ "$checkSUM" == "true" ]; then
 						if [ -f "$cFILE" ]; then
-							if [[ "$cs" != "$ocs" && "$cs" -ne 0 && "$os" -ne 0 ]]; then
-								a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
-								if [ -n "$a_checksum" ]; then
-									if [ "$a_checksum" != "$ocs" ]; then
+							if [ "$cs" != "$ocs" ]; then
+								a_mod=$(stat --format="%Y" "$cFILE" 2>/dev/null)
+								afrm=$(date -d "@$a_mod" +"$fmt" 2>/dev/null)
+								if [ "$afrm" != "$dt" ]; then
+									a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
+									if [ -n "$a_checksum" ] && [ "$a_checksum" != "$ocs" ]; then
 										echo "Suspect $dt $ct $y" >> $rout
-									    echo "Suspect file: $y changed without a new modified time." >> $cerr
-									    csm="true"
-										echo hi
+										echo "Suspect file: $y changed without a new modified time." >> $cerr
+										csm="true"
 									fi
 								fi
-								else
+							else
 								if (( oin == in )); then
 									if newmeta $f11 $f12 $f13 $of11 $of12 $of13; then
 										df="true"
@@ -401,15 +410,11 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 								fi
 							fi
 							if [ "$df" == "false" ]; then
-		                        read a_mod fs a_ct au ag apmr < <(stat --format="%Y %s %Z %U %g %A" "$cFILE" 2>/dev/null)
+		                        read a_mod fs < <(stat --format="%Y %s" "$cFILE" 2>/dev/null)
 								afrm=$(date -d "@$a_mod" +"$fmt" 2>/dev/null)
 								if [ -n "$afrm" ] && [ "$afrm" != "$dt" ]; then
-									if [ -z "$a_checksum" ]; then a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}') ; fi
-									if [[ -n "$a_checksum" && "$os" -ne 0 && "$cs" -ne 0 ]]; then
-										 stealth "$cFILE" "$y" $a_checksum $fs $csze
-									fi
-									if [ "$cdiag" == "true" ]; then 
-		                                m="File changed during the search."
+									m="File changed during the search."
+									if [ "$cdiag" == "true" ]; then
 										echo "$m $y at ${afrm}. Size was $os, now $fs." >> $slog
 		                            else
 										echo "$m $y. File likely changed. system cache item." >> $slog
@@ -639,9 +644,9 @@ if [ "$STATPST" == "true" ]; then
 	if [ "$ANALYTICS" == "false" ]; then
 		if [ "$backend" == "default" ]; then
 			if [ -s $logpst ]; then
-             chmod 600 $TMPDIR # decypt once perform ha and save
-             xdata2=$TMPDIR$xdata2
-             ofile=$TMPDIR$ofile
+				chmod 700 $TMPDIR # decypt once perform ha and save
+				xdata2=$TMPDIR$xdata2
+				ofile=$TMPDIR$ofile
 				if decrypt $xdata2 $logpst; then
 					awk 'NF' $xdata2 > $ofile
 					 if [ -s $ofile ]; then
@@ -830,19 +835,20 @@ done > $TMPOPT
 paste -d' ' $1 $TMPOPT > $2 ; mv $2 $SORTCOMPLETE
 }
 upt_cache() {
-    local inode=$1
-    local size=$2
-    local mtime=$3
-    local checksum=$4
-    local path=$5
-    echo "$inode|$size|$mtime $checksum $path" >> "$6"
+    local inode=$1 
+	local size=$2 
+	local mtime=$3 
+	local checksum=$4 
+	local path=$5 
+	local cache_file=$6
+    printf '%s|%s|%s\t%s\t%s\n' "$inode" "$size" "$mtime" "$checksum" "$path" >> "$cache_file"
 }
 get_cached() {
     local inode=$1
     local size=$2
     local mtime=$3
     local key="$inode|$size|$mtime"
-    grep -m1 "^$key " "$CACHE_F" | awk '{print $2}'
+ 	grep -m1 "^${key}[[:space:]]" "$CACHE_F" | awk -F $'\t' '{print $2}'
 }
 # Used for sysprofile as you dont want to cache the checksum
 rblk() {
