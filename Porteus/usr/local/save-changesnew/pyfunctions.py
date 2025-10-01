@@ -286,3 +286,17 @@ def new_meta(record, metadata):
         record[8]  != metadata[0] or # onr
         record[9]  != metadata[1] # grp
     )
+
+def goahead(filepath):
+	try:
+		st = filepath.stat()
+		return st
+	except (FileNotFoundError, PermissionError, OSError, Exception) as e:
+		print(f"Skipping {filepath.name}: {type(e).__name__} - {e}")
+		return None
+     
+def getstdate(st, fmt):
+	a_mod = int(st.st_mtime)
+	afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt)
+	afrm_dt = parse_datetime(afrm_str, fmt)
+	return afrm_dt, afrm_str

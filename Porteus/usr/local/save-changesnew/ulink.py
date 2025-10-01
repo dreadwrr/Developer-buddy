@@ -72,6 +72,12 @@ def ulink(input_array, LCLMODULENAME, supbrwr):
             else:
                 counts_result.append(str(count))
 
-    output_array = [line[:-1] + (str(count),) for line, count in zip(input_array, counts_result)]
+    output_array = [
+        line[:13] + (str(count),) + line[14:]
+        for line, count in zip(input_array, counts_result)
+    ]
+
+#output_array = [line[:-1] + (str(count),) for line, count in zip(input_array, counts_result)]  Append at end
+
 
     return output_array

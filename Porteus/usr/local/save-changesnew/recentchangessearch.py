@@ -261,29 +261,39 @@ def main():
         def find_files(find_command, file_type, RECENT, COMPLETE, init, checksum, cfr, ANALYTICSECT, end, cstart):
             global RECENTNUL
             table = "logs"
-            proc = subprocess.Popen(find_command, stdout=subprocess.PIPE)
+            proc = subprocess.Popen(find_command, stdout=subprocess.PIPE) # stderr=subprocess.DEVNULL 
             output, _ = proc.communicate()
 
             file_entries = [entry.decode() for entry in output.split(b'\0') if entry]
+            if file_type == "mtime":
+                end = time.time()
+                if FEEDBACK: # scrolling terminal look       alternative output
+                    for entry in file_entries:
+                        fields = entry.split(maxsplit=8)
+                        if len(fields) == 9:
+                            print(fields[8])
+
+            # using escf_py and unesc_py for bash support otherwise can use below
+            # filename.encode('unicode_escape').decode('ascii')
+            # codecs.decode(escaped, 'unicode_escape')
+            escaped = []
+
+            for entry in file_entries:
+                fields = entry.split(maxsplit=8)
+                if len(fields) == 9:
+                    file_path = escf_py(fields[8])
+                    fields[8] = file_path
+                    escaped_entry = " ".join(fields)
+                    escaped.append(escaped_entry)
+                    RECENTNUL += (file_path.encode() + b'\0') # copy file list `recentchanges` null byte
 
             if init and checksum:
                 cstart = time.time()
                 cprint.cyan('Running checksum.')
-
-            
             if file_type == "mtime":
-                end = time.time()
-                for entry in file_entries:
-                    fields = entry.split()
-                    if len(fields) >= 9: 
-                        file_path = fields[8]
-                        if FEEDBACK: # scrolling terminal look
-                            print(file_path)
-                        RECENTNUL += (file_path.encode() + b'\0') # copy file list `recentchanges` null byte
-
-                RECENT, COMPLETE = process_find_lines(file_entries, checksum, "main", table, cfr, CSZE)
+                RECENT, COMPLETE = process_find_lines(escaped, checksum, "main", table, cfr, CSZE)
             elif file_type == "ctime":
-                RECENT, COMPLETE = process_find_lines(file_entries, checksum, "ctime", table, cfr, CSZE)
+                RECENT, COMPLETE = process_find_lines(escaped, checksum, "ctime", table, cfr, CSZE)
             else:
                 raise ValueError(f"Unknown file type: {file_type}")
 
@@ -336,16 +346,15 @@ def main():
                 existing_cam = existing_entry[10]
 
                 # Prefer non change as modified time
-                if existing_cam == "y" and cam_flag == "":
+                if existing_cam == "y" and cam_flag is None:
                     seen[key] = entry
 
 
         deduped = list(seen.values())
 
-        # inclusions from this script
+        # inclusions from this script. sort -u 
         exclude_patterns = get_runtime_exclude_list(USR, logpst, statpst, dbtarget, CACHE_F) 
 
-        # sort -u 
         def filepath_included(filepath, exclude_patterns):
             for pattern in exclude_patterns:
                 if pattern in filepath:
@@ -364,27 +373,31 @@ def main():
             SORTCOMPLETE = ulink(SORTCOMPLETE, MODULENAME, supbrw)
 
 
-        filtered_lines = []
-        for entry in SORTCOMPLETE:
-            ts_str = entry[0]
-            filepath = entry[1]
-            escaped_path = escf_py(filepath)
-            filtered_lines.append((ts_str, escaped_path))
 
         # get everything before the end time
         if not flsrh:
             start_dt = SRTTIME
             range_sec = 300 if THETIME == 'noarguser' else int(THETIME)
             end_dt = start_dt + timedelta(seconds=range_sec)
-            lines = [entry for entry in filtered_lines if entry[0] <= end_dt]
-        # just everything from the start time
+            lines = [entry for entry in SORTCOMPLETE if entry[0] <= end_dt]
         else:
-            lines = filtered_lines
+            lines = SORTCOMPLETE
+
+
         # filter out the /tmp files
         tmp_lines = [entry for entry in lines if entry[1].startswith("/tmp")]
         non_tmp_lines = [entry for entry in lines if not entry[1].startswith("/tmp")]
-        TMPOPT = non_tmp_lines
+        SORTCOMPLETE = non_tmp_lines
         TMPOUTPUT = tmp_lines
+
+        filtered_lines = []
+        for entry in SORTCOMPLETE:
+            ts_str = entry[0]
+            filepath = entry[14]
+            filtered_lines.append((ts_str, filepath))
+        
+        TMPOPT = filtered_lines
+
         RECENT = TMPOPT[:]
 
         # Apply filter used for results, copying. RECENT unfiltered stored in db.
@@ -437,9 +450,9 @@ def main():
                     with open(fallback_path, 'r') as f:
                         OLDSORT = f.readlines()
 
-                # try `recentchanges` searches /tmp/MODULENAME_MDY*
-                if not OLDSORT:
-                    hsearch(OLDSORT, MODULENAME, argone)
+            # try `recentchanges` searches /tmp/MODULENAME_MDY*
+            if not OLDSORT:
+                hsearch(OLDSORT, MODULENAME, argone)
 
 
             # output /tmp file results 
@@ -457,6 +470,8 @@ def main():
                             fp = entry[1]
                             dst.write(f'{tss} {fp}\n')
                     changeperm(target_path, uid)
+            #else:
+
     
             diffnm = os.path.join(DIRSRC, MODULENAME +  flnmdff)
 
@@ -476,7 +491,7 @@ def main():
                         file2.write("\n")    
 
                     # preprocess before db/ha. The differences before ha and then sent to processha after ha
-                    isdiff(logf, ABSENT, rout, diffnm, difff_file, flsrh, SRTTIME, fmt) 
+                    isdiff(SORTCOMPLETE, ABSENT, rout, diffnm, difff_file, flsrh, SRTTIME, fmt) 
                     
 
             #Send search result SORTCOMPLETE to user

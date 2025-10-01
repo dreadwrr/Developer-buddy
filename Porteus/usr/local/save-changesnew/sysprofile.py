@@ -109,7 +109,7 @@ def main():
 
     categories = {
         "binary": ["bin", "etc", "sbin", "usr", "opt/porteus-scripts"],
-        "sects": ["etc", "home/guest", "root"],
+        "sects": ["etc", "home", "root"],
         "library": ["lib", "lib64", "usr/lib", "usr/lib64", "var/lib"]
     }
 
@@ -133,7 +133,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        main("/dev/null")
+        main()
     except Exception as e:
         print(f'Error: {e}', file=sys.stderr)
         sys.exit(1)

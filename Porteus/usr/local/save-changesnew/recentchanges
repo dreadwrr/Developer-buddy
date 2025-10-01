@@ -57,7 +57,7 @@ awk '{$1=$2=""; sub(/^ +/, ""); print}' $TMPOPT > $RECENT # filepath
 #> $tout
 #while IFS= read -r x; do  ; printf '%s\0' "$x"; done < $RECENT >> $tout
 >$tfile
-while IFS= read -r -d '' x; do if cp -a --parents "$x" "$tmp$workdir" > /dev/null 2>> $tfile; then printf '%s %s\n' "$x" "success" >> $UPDATE; else echo "Failed to copy: $x" >&2; echo "ERROR: $x" >> $UPDATE; fi; done < $tout
+while IFS= read -r -d '' x; do y="$( unescf "$x")" ; if cp -a --parents "$y" "$tmp$workdir" > /dev/null 2>> $tfile; then printf '%s %s\n' "$x" "success" >> $UPDATE; else echo "Failed to copy: $x" >&2; echo "ERROR: $x" >> $UPDATE; fi; done < $tout
 #cat $UPDATE
 unset IFS
 if [ -s $tfile ]; then echo >> $UPDATE ; fi

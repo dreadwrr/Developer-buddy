@@ -1,10 +1,11 @@
 
-# hybrid analysis  9/15/2025
-from datetime import datetime, timedelta
+# hybrid analysis  9/30/2025
 import sqlite3
+from datetime import datetime, timedelta
 from pathlib import Path
 from pyfunctions import collision
-from pyfunctions import escf_py
+from pyfunctions import goahead
+from pyfunctions import getstdate
 from pyfunctions import is_integer
 from pyfunctions import is_valid_datetime
 from pyfunctions import increment_fname
@@ -47,190 +48,184 @@ def stealth(filename, label, entry, checksum, current_size, original_size, cdiag
 							collision_message.append(f"COLLISION: {b_filename} | Checksum: {a_checksum} | Sizes: {a_filesize} != {b_filesize}")
 						
 
+
+
 def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
-	global collision_message
-	results = []
-	md5=""
-	fmt = "%Y-%m-%d %H:%M:%S"
-	db=False
-	conn = sqlite3.connect(dbopt)
-	
-	with conn:
-		cursor = conn.cursor()
-		collision_message.clear()
-		
-		for record in parsed_chunk:
-			df=False
-			is_sys=False
 
-			if len(record) < 11:
-				continue
-			entry = {"cerr": [], "flag": [], "scr": [], "sys": [], "dcp": []}
-			
+    global collision_message
+    results = []
+    fmt = "%Y-%m-%d %H:%M:%S"
+    db = False
+    conn = sqlite3.connect(dbopt)
 
-			recent_sys = None
-			filename = record[1] 
-			label = escf_py(filename) # human readable
+    with conn:
+        cur = conn.cursor()
+        collision_message.clear()
 
-			
-			recent_entries = get_recent_changes(label, cursor, 'logs')
+        for record in parsed_chunk:
+            df = False
+            is_sys = False
 
-			if ps:
-				recent_sys = get_recent_changes(label, cursor, 'sys')
-			
-			if not recent_entries and not recent_sys:
-				entry["dcp"].append(record)
-				continue
+            if len(record) < 15:
+                continue
 
-			filedate = record[0]
-			previous = recent_entries
+            entry = {"cerr": [], "flag": [], "scr": [], "sys": [], "dcp": []}
 
-			if ps:
-				recent_timestamp = parse_datetime(filedate, fmt)
-				if recent_sys:
-					if recent_sys:
-						recent_systime = parse_datetime(recent_sys[0], fmt)
-						if recent_systime:
-							if recent_systime > recent_timestamp:
-								is_sys=True
-								increment_fname(cursor, record)
-								db=True
-								previous = recent_sys #entry["sys"].append(f'{label}')
+            filename = record[1]
+            label = record[14]  # human readable
 
-			if not previous or not filedate or not previous[0] :
-				continue
-			if checksum:
-				if not record[5] or str(record[5]).strip() == '' or record[5] == 'None':
-					continue
+            recent_entries = get_recent_changes(label, cur, 'logs')
+            recent_sys = get_recent_changes(label, cur, 'sys') if ps else None
 
-				current_size = None
-				original_size = None
-				if is_integer(record[6]):
-					current_size = int(record[6])
-					if is_integer(previous[6]):
-						original_size = int(previous[6])
+            if not recent_entries and not recent_sys:
+                entry["dcp"].append(record)   # is copy?
+                continue
 
-			recent_timestamp = parse_datetime(filedate, fmt)
-			previous_timestamp = parse_datetime(previous[0], fmt)
-			if is_integer(record[3]) and is_integer(previous[3]) and recent_timestamp and previous_timestamp:
+            filedate = record[0]
+            previous = recent_entries
+            recent_timestamp = parse_datetime(filedate, fmt)
 
-				if recent_timestamp == previous_timestamp:
+            if ps and recent_sys and len(recent_sys) > 0:
+                recent_systime = parse_datetime(recent_sys[0], fmt)
+                if recent_systime and recent_systime > recent_timestamp:
+                    is_sys = True
+                    db = True
+                    increment_fname(cur, record)
+                    previous = recent_sys
 
-					if checksum:
-						
-						if record[5] != previous[5] and record[6] != 0 and previous[6] != 0: # checksum
-
-							file_path=Path(filename)
-							md5=get_md5(file_path)
-
-							if md5 != previous[5]:
-
-								entry["flag"].append(f'Suspect {record[0]} {record[2]} {label}')
-								entry["cerr"].append(f'Suspect file: {label} changed without a new modified time.')						
-
-						else:
-
-							if record[3] == previous[3]:  # inode
-								metadata = (previous[7], previous[8], previous[9])
-
-								if new_meta(record, metadata):
+            if not previous or not filedate or not previous[0]:
+                continue
 
 
-									df=True
-									entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
-									entry["scr"].append(f'Permissions of file: {label} changed {record[8]} {record[9]} {record[10]} → {metadata[0]} {metadata[1]}  {metadata[2] }')
-							else:
-								df=True
-								entry["flag"].append(f'Copy {record[0]} {record[2]} {label}')
+            if checksum:
 
-						if not df:
-							try:
-								file_path=Path(filename)
-								if file_path.is_file():		
-									st = file_path.stat()
-									a_mod = int(st.st_mtime)
-									afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt) # actual
-									afrm_dt = parse_datetime(afrm_str, fmt)    
-									if afrm_dt and is_valid_datetime(record[3], fmt):
+                if not record[5] or not previous[5]:
+                    continue
 
-										a_size = st.st_size
+                current_size = int(record[6]) if is_integer(record[6]) else None
+                original_size = int(previous[6]) if is_integer(previous[6]) else None
+            else:
+                current_size = None
+                original_size = None
 
-										if afrm_dt != previous_timestamp:
+            previous_timestamp = parse_datetime(previous[0], fmt)
 
-											if record[5] != 0 and previous[6] != 0:
-												if not md5:
-													md5=get_md5(file_path)
+            if (is_integer(record[3]) and is_integer(previous[3]) # format check
+                    and recent_timestamp and previous_timestamp):
 
-											if cdiag: 
-												entry["scr"].append(f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size}')
-											else:
-												entry["scr"].append(f'File changed during search. File likely changed. system cache item.')
+                if recent_timestamp == previous_timestamp:
+                    file_path = Path(filename)
 
-											if md5:
-												if md5 != record[5]:
-													stealth(filename, label, entry, md5 , a_size, current_size, cdiag, cursor, is_sys)
-											
-						
-							except Exception as e:
-								print(f"Skipping {filename}: {type(e).__name__} - {e}")
-								continue
+                    if checksum:
+                        if record[5] != previous[5]:  # checksum
+                            if file_path.is_file():
+                                if (st := goahead(file_path)):
+                                    afrm_dt, _ = getstdate(st, fmt)
 
+                                    if afrm_dt and is_valid_datetime(record[3], fmt):
+                                        if afrm_dt == previous_timestamp:
+                                            md5 = get_md5(file_path)
+                                            if md5 and md5 != previous[5]:
+                                                
 
-				else:
+                                                entry["flag"].append(f'Suspect {record[0]} {record[2]} {label}')
+                                                entry["cerr"].append(f'Suspect file: {label} changed without a new modified time.')
+                            else:
+                                entry["flag"].append(f'Deleted {record[0]} {record[2]} {label}')
+                                
+                        else: 
+                            if record[3] == previous[3]:  # inode
+                                metadata = (previous[7], previous[8], previous[9])
+                                if new_meta(record, metadata):
+                                    
 
-					if checksum:
-
-
-						if record[3] != previous[3]:
-
-
-							if record[5] == previous[5]:
-								entry["flag"].append(f'Overwrite {record[0]} {record[2]} {label}')
-							else:
-								entry["flag"].append(f'Replaced {record[0]} {record[2]} {label}')
-								stealth(filename, label, entry, record[5] ,current_size, original_size, cdiag, cursor, is_sys)
-
-						else:
-
-							if record[5] != previous[5]:
-								entry["flag"].append(f'Modified {record[0]} {record[2]} {label}')
-								stealth(filename, label, entry, record[5] , current_size, original_size, cdiag, cursor, is_sys)
-							else:
-								metadata = (previous[7], previous[8], previous[9])
-
-								if new_meta(record, metadata):
-									entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
-									entry["scr"].append(f'Permissions of file: {label} changed {record[8]} {record[9]} {record[10]} → {metadata[0]} {metadata[1]}  {metadata[2] }')
-								else:
-									entry["flag"].append(f'Touched {record[0]} {record[2]} {label}')
-
-					else:
-
-						if record[3] != previous[3]:
-							entry["flag"].append(f'Replaced {record[0]} {record[2]} {label}')
-						else: 
-							entry["flag"].append(f'Modified {record[0]} {record[2]} {label}')
-								
-
-					two_days_ago = datetime.now() - timedelta(days=2)
-					if previous_timestamp < two_days_ago:
-						message=f'File that isnt regularly updated {label}.'
-						if is_sys:
-								entry["scr"].append(f'{message} and is a system file.')
-						else:
-							screen = get_delete_patterns(usr, dbtarget)
-							if not matches_any_pattern(label, screen):		
-								entry["scr"].append(message)		
+                                    df = True
+                                    entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
+                                    entry["scr"].append(f'Permissions of file: {label} changed {record[8]} {record[9]} {record[10]} → {metadata[0]} {metadata[1]} {metadata[2]}')
+                            else:
+                                df = True
+                                entry["flag"].append(f'Copy {record[0]} {record[2]} {label}')
 
 
-				if collision_message:
-					entry["cerr"].extend(collision_message)
+                            # shift during search?
+                            if not df and file_path.is_file():
+                                if (st := goahead(file_path)):
+                                    afrm_dt, afrm_str = getstdate(st, fmt)
+                                    if afrm_dt and is_valid_datetime(record[3], fmt):
+                                        if afrm_dt != previous_timestamp:
+                                            a_size = st.st_size
+                                            
+
+                                            if cdiag:
+                                                entry["scr"].append(
+                                                    f'File changed during the search. {label} at {afrm_str}. Size was {original_size}, now {a_size}')
+                                            else:
+                                                entry["scr"].append(f'File changed during search. File likely changed. system cache item.')
+                            elif not df:
+                                entry["flag"].append(f'Deleted {record[0]} {record[2]} {label}')
+
+                else:
+
+                    if checksum:
+                        if record[3] != previous[3]:  # inode 
+                            
+                            if record[5] == previous[5]:
+                                
+
+                                entry["flag"].append(f'Overwrite {record[0]} {record[2]} {label}')
+                            else:
+                                entry["flag"].append(f'Replaced {record[0]} {record[2]} {label}')
+                                stealth(filename, label, entry, record[5], current_size, original_size, cdiag, cur, is_sys)
+                                
+                        else:
+                            
+                            if record[5] != previous[5]:
+                                
+
+                                entry["flag"].append(f'Modified {record[0]} {record[2]} {label}')
+                                stealth(filename, label, entry, record[5], current_size, original_size, cdiag, cur, is_sys)
+                                
+                            else:
+                                metadata = (previous[7], previous[8], previous[9])
+                                if new_meta(record, metadata):
+                                    
+                                    entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
+                                    entry["scr"].append(f'Permissions of file: {label} changed {record[8]} {record[9]} {record[10]} → {metadata[0]} {metadata[1]} {metadata[2]}')
+                                else:
+                                    entry["flag"].append(f'Touched {record[0]} {record[2]} {label}')
+                                    
+
+                    else:
+                        if record[3] != previous[3]:
+                            entry["flag"].append(f'Replaced {record[0]} {record[2]} {label}')
+                        else:
+                            entry["flag"].append(f'Modified {record[0]} {record[2]} {label}')
 
 
-				if entry["cerr"] or entry["flag"] or entry["scr"] or entry["sys"]:
-					results.append(entry)
+                    two_days_ago = datetime.now() - timedelta(days=2)
+                    if previous_timestamp < two_days_ago:
+                        message = f'File that isnt regularly updated {label}.'
+                        if is_sys:
+                            
+                            entry["scr"].append(f'{message} and is a system file.')
+                        else:
+                            screen = get_delete_patterns(usr, dbtarget)
+                            if not matches_any_pattern(label, screen):
+                                entry["scr"].append(message)
 
 
-		if db:
-			conn.commit()
-	return results
+                if collision_message:
+                    entry["cerr"].extend(collision_message)
+
+                if entry["cerr"] or entry["flag"] or entry["scr"] or entry["sys"]:
+                    results.append(entry)
+
+        if db:
+            conn.commit()
+
+    return results
+
+
+
+
+
