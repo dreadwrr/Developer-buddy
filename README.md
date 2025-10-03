@@ -1,6 +1,6 @@
 #                               10/02/2025
 
-1.1.9 Bash or python backend <br>
+1.2.0 Bash or python backend <br>
 1.2.0-py1 python edition backend database <br><br>
 
 Release developer buddy py edition <br>
