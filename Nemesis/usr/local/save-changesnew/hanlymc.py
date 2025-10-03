@@ -229,8 +229,8 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
                 (
                     record[0], record[1], record[2], record[3],
                     record[4], record[5], record[6], record[7],
-                    record[8], record[9], record[10], 1,
-                    record[12]
+                    record[8], record[9], record[10], record[11], 
+                    1
                 )
                 for record in batch_incr
             ]

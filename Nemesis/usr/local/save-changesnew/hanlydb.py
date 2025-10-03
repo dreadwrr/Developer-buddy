@@ -3,6 +3,7 @@ import pyfunctions
 from datetime import datetime, timedelta
 from pathlib import Path
 
+
 def stealth(filename, label, cer, scr, collision_message, checksum, current_size, original_size, cdiag, cursor):
 		
 	if current_size and original_size:
@@ -183,6 +184,9 @@ def hanly(parsed, recorddata, checksum, cdiag, conn, c, ps, usr, dbtarget, file,
 
 	if db:
 		conn.commit()
+		pyfunctions.ucount(conn, c)
+
+
 	if collision_message:
 		for entry in collision_message:
 			print(entry, file=file3)
