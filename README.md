@@ -1,5 +1,8 @@
 #                               10/02/2025
 
+Windows release on the horizon just design the graphics and running some tests on the WSL interface. Then
+stress test. Will need another week to get everything finalized.
+
 1.2.0 Bash or python backend <br>
 1.2.0-py1 python edition backend database <br><br>
 
