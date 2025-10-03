@@ -6,6 +6,11 @@ stress test. Will need another week to get everything finalized.
 1.2.0 Bash or python backend <br>
 1.2.0-py1 python edition backend database <br><br>
 
+Commands:
+save-changesnew
+recentchanges
+
+
 Release developer buddy py edition <br>
 https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0
 
