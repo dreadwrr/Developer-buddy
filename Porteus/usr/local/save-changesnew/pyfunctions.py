@@ -121,7 +121,27 @@ def getcount (curs):
       count = curs.fetchone()
       return count[0]
 
-# batch insert into sys in one go. retry as needed
+#single core hanlydb
+def increment_fname(conn, c, record):
+    filename = record[1]
+    c.execute('''
+        INSERT OR IGNORE INTO sys (
+            timestamp, filename, changetime, inode, accesstime, checksum,
+            filesize, symlink, owner, `group`, permissions, casmod, count
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ''', (
+        record[0], filename, record[2], record[3],
+        record[4], record[5], record[6], record[7],
+        record[8], record[9], record[10], record[11]
+    ))
+    # c.execute('''
+    #     UPDATE sys
+    #     SET count = count + 1
+    #     WHERE filename = ? AND timestamp != ? AND changetime != ?
+    # ''', (filename, record[0], record[2]))
+
+
+# batch insert into sys in one go. retry as needed (hanlymc)
 def increment_f(conn, c, records, retries=3, backoff=0.5):
     if not records:
         return
@@ -149,24 +169,27 @@ def increment_f(conn, c, records, retries=3, backoff=0.5):
 # Update sys table counts
 def ucount(conn, cur):
     cur.execute('''
-        SELECT filename, MAX(CAST(count AS INTEGER)) as max_count
+        SELECT filename, COUNT(*) as total_count
         FROM sys
         GROUP BY filename
-        HAVING COUNT(*) > 1
+        HAVING total_count > 1
     ''')
     duplicates = cur.fetchall()
-    for filename, max_count in duplicates:
-        # cur.executemany('''
-        #     UPDATE sys
-        #     SET count = ?
-        #     WHERE filename = ?
-        # ''', [(max_count, filename) for filename, max_count in updates])
+    for filename, total_count in duplicates:
         cur.execute('''
             UPDATE sys
             SET count = ?
             WHERE filename = ?
-        ''', (max_count, filename))
+        ''', (total_count, filename))
     conn.commit()
+        # if many sys files but no need
+        #  updates = [(total_count, filename) for filename, total_count in duplicates]
+        # cur.executemany('''
+        #     UPDATE sys
+        #     SET count = ?
+        #     WHERE filename = ?
+        # ''', updates)
+
 
 def matches_any_pattern(s, patterns):
     # Convert SQL-like % wildcard to fnmatch *
