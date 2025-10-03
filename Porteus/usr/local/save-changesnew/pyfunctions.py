@@ -1,7 +1,10 @@
 import fnmatch
 import hashlib
 import os
+import random
 import re
+import sqlite3
+import time
 from datetime import datetime
 CYAN = "\033[36m"
 RED = "\033[31m"
@@ -118,24 +121,52 @@ def getcount (curs):
       count = curs.fetchone()
       return count[0]
 
-def increment_fname(conn, c, record):
-    filename = record[1]
-    c.execute('''
-        INSERT OR IGNORE INTO sys (
+# batch insert into sys in one go. retry as needed
+def increment_f(conn, c, records, retries=3, backoff=0.5):
+    if not records:
+        return
+
+    sql = """""
+        INSERT INTO sys (
             timestamp, filename, changetime, inode, accesstime, checksum,
             filesize, symlink, owner, `group`, permissions, casmod, count
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-    ''', (
-        record[0], filename, record[2], record[3],
-        record[4], record[5], record[6], record[7],
-        record[8], record[9], record[10], record[11]
-    ))
-    c.execute('''
-        UPDATE sys
-        SET count = count + 1
-        WHERE filename = ? AND timestamp != ? AND changetime != ?
-    ''', (filename, record[0], record[2]))
-    
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+
+    for attempt in range(retries):
+        try:
+            c.executemany(sql, records)
+            conn.commit()
+            return
+        except sqlite3.OperationalError as e:
+            conn.rollback()
+            if "database is locked" in str(e).lower():
+                time.sleep(backoff + random.uniform(0, backoff))
+            else:
+                raise
+    raise sqlite3.OperationalError("Batch UPSERT failed after multiple retries.")
+
+# Update sys table counts
+def ucount(conn, cur):
+    cur.execute('''
+        SELECT filename, MAX(CAST(count AS INTEGER)) as max_count
+        FROM sys
+        GROUP BY filename
+        HAVING COUNT(*) > 1
+    ''')
+    duplicates = cur.fetchall()
+    for filename, max_count in duplicates:
+        # cur.executemany('''
+        #     UPDATE sys
+        #     SET count = ?
+        #     WHERE filename = ?
+        # ''', [(max_count, filename) for filename, max_count in updates])
+        cur.execute('''
+            UPDATE sys
+            SET count = ?
+            WHERE filename = ?
+        ''', (max_count, filename))
+    conn.commit()
 
 def matches_any_pattern(s, patterns):
     # Convert SQL-like % wildcard to fnmatch *
