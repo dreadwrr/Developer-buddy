@@ -5,8 +5,12 @@ import sqlite3
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from hanlymc import hanly
 from pyfunctions import detect_copy
+from pyfunctions import ucount
 															# tfile
 def logger_process(results, rout, scr="/tmp/scr", cerr="/tmp/cerr", dbopt="/usr/local/save-changesnew/recent.db", table="logs"):
+
+	crecord = False
+
 	key_to_files = {
 		"flag": [rout],
 		"cerr": [cerr],
@@ -30,7 +34,7 @@ def logger_process(results, rout, scr="/tmp/scr", cerr="/tmp/cerr", dbopt="/usr/
 						else:
 							file_messages.setdefault(fpath, []).extend(messages)
 
-		
+			# check for copies from known files
 			if "dcp" in entry:
 				dcp_messages = entry["dcp"]
 				if not isinstance(dcp_messages, list):
@@ -52,16 +56,27 @@ def logger_process(results, rout, scr="/tmp/scr", cerr="/tmp/cerr", dbopt="/usr/
 
 						except Exception as e:
 							print(f"Error updating DB for sys entry '{msg}': {e}")
-						
+
+			
+			if "sys" in entry:
+				crecord = True
+
+				
+		# Update the counts once in sys table
+		if crecord:
+			try:
+				ucount(conn, c)
+			except Exception as e:
+				print(f"Failed to update sys table in hanlyparallel as: {e}")
 						
 	for fpath, messages in file_messages.items():
 		if messages:
 			try:
-				if fpath is rout:
-					rout.extend(str(msg) for msg in messages)
-				else:
-					with open(fpath, "a") as f:
-						f.write('\n'.join(str(msg) for msg in messages) + '\n')
+					if fpath is rout:
+						continue
+					else:
+						with open(fpath, "a") as f:
+							f.write('\n'.join(str(msg) for msg in messages) + '\n')
 
 			except IOError as e:
 				print(f"Error logger to {fpath}: as {e}")
