@@ -8,7 +8,7 @@ from pyfunctions import goahead
 from pyfunctions import getstdate
 from pyfunctions import is_integer
 from pyfunctions import is_valid_datetime
-from pyfunctions import increment_fname
+from pyfunctions import increment_f
 from pyfunctions import new_meta
 from pyfunctions import get_delete_patterns
 from pyfunctions import get_md5
@@ -16,6 +16,7 @@ from pyfunctions import get_recent_changes
 from pyfunctions import matches_any_pattern
 from pyfunctions import parse_datetime
 collision_message=[]
+
 
 def stealth(filename, label, entry, checksum, current_size, original_size, cdiag, cursor, is_sys):
 	global collision_message
@@ -54,6 +55,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 
     global collision_message
     results = []
+    batch_incr = []
     fmt = "%Y-%m-%d %H:%M:%S"
     db = False
     conn = sqlite3.connect(dbopt)
@@ -90,7 +92,8 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
                 if recent_systime and recent_systime > recent_timestamp:
                     is_sys = True
                     db = True
-                    increment_fname(cur, record)
+                    entry["sys"].append("")
+                    batch_incr.append(record)
                     previous = recent_sys
 
             if not previous or not filedate or not previous[0]:
@@ -221,8 +224,20 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
                     results.append(entry)
 
         if db:
-            conn.commit()
 
+            records = [
+                (
+                    record[0], record[1], record[2], record[3],
+                    record[4], record[5], record[6], record[7],
+                    record[8], record[9], record[10], 1,
+                    record[12]
+                )
+                for record in batch_incr
+            ]
+
+            increment_f(conn, cur, records)
+
+                
     return results
 
 
