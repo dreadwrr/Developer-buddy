@@ -1,7 +1,8 @@
-#                               10/02/2025
+#                               10/04/2025
 
-Windows release on the horizon just design the graphics and running some tests on the WSL interface. Then
-stress test. Will need another week to get everything finalized.
+Windows release on the horizon just designing the graphics. WSL interface is done so there are a total of 3 search methods. <br>
+windows subsystem of linux, powershell and mft (or master file table). Then stress test. Will need another week to get everything <br>
+finalized.
 
 1.2.0 Bash or python backend <br>
 1.2.0-py2 python edition backend database <br><br>
