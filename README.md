@@ -4,7 +4,7 @@ Windows release on the horizon just design the graphics and running some tests o
 stress test. Will need another week to get everything finalized.
 
 1.2.0 Bash or python backend <br>
-1.2.0-py1 python edition backend database <br><br>
+1.2.0-py2 python edition backend database <br><br>
 
 Commands:<br>
 save-changesnew<br>
