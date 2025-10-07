@@ -122,35 +122,31 @@ def collision(filename, checksum, filesize, cursor, sys):
         '''
     cursor.execute(query, (filename, checksum, filesize))
     return cursor.fetchall()
+
+#10/07/2025
 def detect_copy(filename, inode, checksum, cursor, sys_table):
-    # Step 1: select candidates by checksum only (index-friendly)
     if sys_table == 'sys':
         query = '''
-            SELECT filename, inode, checksum
+            SELECT filename, inode
             FROM logs
+            WHERE checksum = ? AND NOT (filename = ? AND inode = ?)
             UNION ALL
-            SELECT filename, inode, checksum
+            SELECT filename, inode
             FROM sys
-            WHERE checksum = ?
+            WHERE checksum = ? AND NOT (filename = ? AND inode = ?)
         '''
+        cursor.execute(query, (checksum, filename, inode, checksum, filename, inode))
     else:
         query = '''
-            SELECT filename, inode    # try:
-    #     filepath = codecs.decode(raw_filepath.encode(), 'unicode_escape')
-    # except UnicodeDecodeError:
-    #     filepath = raw_filepath
+            SELECT 1
             FROM logs
-            WHERE checksum = ?
+            WHERE checksum = ? AND NOT (filename = ? AND inode = ?)
+            LIMIT 1
         '''
+        cursor.execute(query, (checksum, filename, inode))
+
+    return cursor.fetchone() is not None
     
-    cursor.execute(query, (checksum,))
-    candidates = cursor.fetchall()
-    
-    for o_filename, o_inode in candidates:
-        if o_filename != filename or o_inode != inode:
-            return True
-    
-    return None
 def get_recent_changes(filename, cursor, table):
 	allowed_tables = ('logs', 'sys')
 	if table not in allowed_tables:
@@ -205,8 +201,7 @@ def increment_f(conn, c, records, retries=3, backoff=0.5):
                 raise
     raise sqlite3.OperationalError("Batch UPSERT failed after multiple retries.")
 
-
-# Update sys table counts
+# Update sys table counts          10/07/2025 typofix innerfor
 def ucount(conn, cur):
     cur.execute('''
         SELECT filename, COUNT(*) as total_count
@@ -222,13 +217,13 @@ def ucount(conn, cur):
             WHERE filename = ?
         ''', (total_count, filename))
     conn.commit()
-        # if many sys files but no need
-        #  updates = [(total_count, filename) for filename, total_count in duplicates]
-        # cur.executemany('''
-        #     UPDATE sys
-        #     SET count = ?
-        #     WHERE filename = ?
-        # ''', updates)
+# if many sys files but no need
+#  updates = [(total_count, filename) for filename, total_count in duplicates]
+# cur.executemany('''
+#     UPDATE sys
+#     SET count = ?
+#     WHERE filename = ?
+# ''', updates)
 
 def matches_any_pattern(s, patterns):
     # Convert SQL-like % wildcard to fnmatch *
@@ -258,14 +253,20 @@ def escf_py(filename):
     filename = filename.replace('"', '\\"')
     filename = filename.replace('$', '\\$')
     return filename
-
-def unescf_py(escaped):
-    s = escaped
-    s = s.replace('\\\\', '\\')
+#10/07/2025
+def unescf_py(s):
     s = s.replace('\\n', '\n')
-    s = s.replace('\\"', '"') 
-    s = s.replace('\\$', '$')     
+    s = s.replace('\\"', '"')
+    s = s.replace('\\$', '$')
+    s = s.replace('\\\\', '\\')
     return s
+#def unescf_py(escaped):   old
+#    s = escaped
+#    s = s.replace('\\\\', '\\')
+#    s = s.replace('\\n', '\n')
+#    s = s.replace('\\"', '"') 
+#    s = s.replace('\\$', '$')     
+#    return s
 
 def parse_line(line):
     quoted_match = re.search(r'"((?:[^"\\]|\\.)*)"', line)
@@ -293,6 +294,7 @@ def parse_line(line):
 
     return [timestamp1, filepath, timestamp2, inode, timestamp3] + rest
 
+#ha funcs
 def get_md5(file_path):
     try:
         with open(file_path, "rb") as f:
@@ -322,6 +324,13 @@ def new_meta(record, metadata):
         record[9]  != metadata[1] # grp
     )
 
+def getstdate(st, fmt):
+	a_mod = int(st.st_mtime)
+	afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt)
+	afrm_dt = parse_datetime(afrm_str, fmt)
+	return afrm_dt, afrm_str
+
+#pstsrg
 def goahead(filepath):
 	try:
 		st = filepath.stat()
@@ -329,9 +338,5 @@ def goahead(filepath):
 	except (FileNotFoundError, PermissionError, OSError, Exception) as e:
 		print(f"Skipping {filepath.name}: {type(e).__name__} - {e}")
 		return None
-     
-def getstdate(st, fmt):
-	a_mod = int(st.st_mtime)
-	afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt)
-	afrm_dt = parse_datetime(afrm_str, fmt)
-	return afrm_dt, afrm_str
+
+
