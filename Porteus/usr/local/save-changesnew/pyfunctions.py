@@ -67,32 +67,30 @@ def collision(filename, checksum, filesize, cursor, sys):
         '''
     cursor.execute(query, (filename, checksum, filesize))
     return cursor.fetchall()
+#10/07/2025
 def detect_copy(filename, inode, checksum, cursor, sys_table):
-    # Step 1: select candidates by checksum only (index-friendly)
     if sys_table == 'sys':
-        query = '''
-            SELECT filename, inode, checksum
-            FROM logs
-            UNION ALL
-            SELECT filename, inode, checksum
-            FROM sys
-            WHERE checksum = ?
-        '''
-    else:
         query = '''
             SELECT filename, inode
             FROM logs
-            WHERE checksum = ?
+            WHERE checksum = ? AND NOT (filename = ? AND inode = ?)
+            UNION ALL
+            SELECT filename, inode
+            FROM sys
+            WHERE checksum = ? AND NOT (filename = ? AND inode = ?)
         '''
-    
-    cursor.execute(query, (checksum,))
-    candidates = cursor.fetchall()
-    
-    for o_filename, o_inode in candidates:
-        if o_filename != filename or o_inode != inode:
-            return True
-    
-    return None
+        cursor.execute(query, (checksum, filename, inode, checksum, filename, inode))
+    else:
+        query = '''
+            SELECT 1
+            FROM logs
+            WHERE checksum = ? AND NOT (filename = ? AND inode = ?)
+            LIMIT 1
+        '''
+        cursor.execute(query, (checksum, filename, inode))
+
+    return cursor.fetchone() is not None
+
 def get_recent_changes(filename, cursor, table):
 	allowed_tables = ('logs', 'sys')
 	if table not in allowed_tables:
@@ -146,7 +144,7 @@ def increment_f(conn, c, records, retries=3, backoff=0.5):
     if not records:
         return
 
-    sql = """""
+    sql = """
         INSERT INTO sys (
             timestamp, filename, changetime, inode, accesstime, checksum,
             filesize, symlink, owner, `group`, permissions, casmod, count
@@ -213,13 +211,20 @@ def escf_py(filename):
     filename = filename.replace('$', '\\$')
     return filename
 
-def unescf_py(escaped):
-    s = escaped
-    s = s.replace('\\\\', '\\')
+#10/07/2025 order
+def unescf_py(s):
     s = s.replace('\\n', '\n')
-    s = s.replace('\\"', '"') 
-    s = s.replace('\\$', '$')     
+    s = s.replace('\\"', '"')
+    s = s.replace('\\$', '$')
+    s = s.replace('\\\\', '\\')
     return s
+#def unescf_py(escaped):   old
+#    s = escaped
+#    s = s.replace('\\\\', '\\')
+#    s = s.replace('\\n', '\n')
+#    s = s.replace('\\"', '"') 
+#    s = s.replace('\\$', '$')     
+#    return s
 
 def parse_line(line):
     quoted_match = re.search(r'"((?:[^"\\]|\\.)*)"', line)
@@ -253,6 +258,7 @@ def getnm(locale, ext=''):
       root, ext = os.path.splitext(root)
       return root + ext
 
+#ha funcs
 def get_md5(file_path):
     try:
         with open(file_path, "rb") as f:
@@ -280,14 +286,19 @@ def log_event(event, record, label, file_full, file_short):
     print(msg_full, file=file_full)
     #print(msg_short, file=file_short)
      #msg_short = f'{event} {record[0]} {label}'
-
 def new_meta(record, metadata):
     return (
         record[10] != metadata[2] or # perm
         record[8]  != metadata[0] or # onr
         record[9]  != metadata[1] # grp
     )
+def getstdate(st, fmt):
+	a_mod = int(st.st_mtime)
+	afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt)
+	afrm_dt = parse_datetime(afrm_str, fmt)
+	return afrm_dt, afrm_str
 
+#pstsrg
 def goahead(filepath):
 	try:
 		st = filepath.stat()
@@ -295,9 +306,3 @@ def goahead(filepath):
 	except (FileNotFoundError, PermissionError, OSError, Exception) as e:
 		print(f"Skipping {filepath.name}: {type(e).__name__} - {e}")
 		return None
-     
-def getstdate(st, fmt):
-	a_mod = int(st.st_mtime)
-	afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt)
-	afrm_dt = parse_datetime(afrm_str, fmt)
-	return afrm_dt, afrm_str
