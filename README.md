@@ -1,4 +1,4 @@
-#                               10/04/2025
+#                               10/07/2025
 
 Windows release on the horizon just designing the graphics. WSL interface is done so there are a total of 3 search methods. <br>
 windows subsystem of linux, powershell and mft (or master file table). Then stress test. Will need another week to get everything <br>
