@@ -4,8 +4,8 @@ Windows release on the horizon just designing the graphics. WSL interface is don
 windows subsystem of linux, powershell and mft (or master file table). Then stress test. Will need another week to get everything <br>
 finalized.
 
-1.2.0 Bash or python backend <br>
-1.2.0-py2 python edition backend database <br><br>
+1.2.1 Bash or python backend <br>
+1.2.1-py1 python edition backend database <br><br>
 
 Commands:<br>
 save-changesnew<br>
