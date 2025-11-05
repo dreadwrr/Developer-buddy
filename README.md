@@ -41,7 +41,7 @@ https://forum.porteus.org/  <br><br>
 
 Version: Standard     v1.0.9           save-changesnew        save-changesnewNMS <br><br>
 
-Bash and python backends
+Bash with Bash or python backend
 
 Find new files, save changes in porteus/nemesis and RSync backup in changes=EXIT:/
 
