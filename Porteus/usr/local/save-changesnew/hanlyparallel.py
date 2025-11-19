@@ -1,13 +1,12 @@
-import logging
 import traceback
 import os
 import sqlite3
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from hanlymc import hanly
 from pyfunctions import detect_copy
-from pyfunctions import ucount
+from pyfunctions import increment_f
 
-def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt="/usr/local/save-changesnew/recent.db", table="logs"):
+def logger_process(results, sys_records, rout, scr="/tmp/scr", cerr="/tmp/cerr", dbopt="/usr/local/save-changesnew/recent.db", ps=False):
 
 	crecord = False
 
@@ -44,8 +43,9 @@ def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt
 									timestamp = msg[0]
 									label = msg[1]
 									ct = msg[2]
+									inode = msg[3]
 									checksum = msg[5]
-									result = detect_copy(label, checksum, c, table)
+									result = detect_copy(label, inode, checksum, c, ps)  # detect_copy # def detect_copy(filename, inode, checksum,  sys_table, cursor, ps):
 									if result:
 										print(f'Copy {timestamp} {ct} {label}', file=file)
 
@@ -60,7 +60,7 @@ def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt
 		# Update the counts once in sys table
 		if crecord:
 			try:
-				ucount(conn, c)
+				increment_f(conn, c, sys_records)
 			except Exception as e:
 				print(f"Failed to update sys table in hanlyparallel as: {e}")						
 
@@ -73,43 +73,49 @@ def logger_process(results, rout, tfile, scr="/tmp/scr", cerr="/tmp/cerr", dbopt
 					f.write('\n'.join(str(msg) for msg in messages) + '\n')
 
 			except IOError as e:
-				print(f"Error logger to {fpath}: as {e}")
+				print(f"logger_process Error logger to {fpath}: as {e}")
+			except Exception as e:
+				print(f"Unexpected error to {fpath} logger_process: {e} : {type(e).__name__}")
 
-#			if fpath == rout:
-#				try:
-#					with open(rout, "r") as rf, open(tfile, "a") as tf:
-#						for line in rf:
-#							parts = line.strip().split()
-#							filtered = [parts[i] for i in range(len(parts)) if i not in (3, 4)]
-#							tf.write(' '.join(filtered) + '\n')
-#				except IOError as e:
-#					print(f"Error copying from {rout} to {tfile}: {e}")
-                              
-						
-def hanly_parallel(rout, tfile, parsed, checksum, cdiag, dbopt, ps, user, dbtarget, table):
-    max_workers = min(16, os.cpu_count() or 1, len(parsed) if parsed else 1)
-    all_results = []
+                            						
+def hanly_parallel(rout, parsed, checksum, cdiag, dbopt, ps, turbo, user, dbtarget):
 
-    if not parsed:
-        logger_process([], rout, tfile)
-        return
+	all_results = []
+	batch_incr = []
 
-    chunk_size = max(1, (len(parsed) + max_workers - 1) // max_workers)
-    chunks = [parsed[i:i + chunk_size] for i in range(0, len(parsed), chunk_size)]
+	if not parsed:
+		logger_process([], rout)
+		return
+	
+	if len(parsed) < 40 or turbo != 'mc':
+		all_results, batch_incr = hanly(parsed, checksum, cdiag, dbopt, ps, user, dbtarget)
+	else:
+		max_workers = min(8, os.cpu_count() or 1, len(parsed) if parsed else 1)
+		chunk_size = max(1, (len(parsed) + max_workers - 1) // max_workers)
+		chunks = [parsed[i:i + chunk_size] for i in range(0, len(parsed), chunk_size)]
 
 
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = [
-            executor.submit(
-                hanly, chunk, checksum, cdiag, dbopt, ps, user, dbtarget
-            )
-            for chunk in chunks
-        ]
+		with ProcessPoolExecutor(max_workers=max_workers) as executor:
+			futures = [
+				executor.submit(
+					hanly, chunk, checksum, cdiag, dbopt, ps, user, dbtarget
+				)
+				for chunk in chunks
+			]
+			for future in as_completed(futures):
+				try: 
+					results, sys_records = future.result()
+					if results:
+						all_results.extend(results)
+					if sys_records:
+						batch_incr.extend(sys_records)
+				except Exception as e:
+					print(f"Worker error from hanly multiprocessing: {type(e).__name__} {e} \n {traceback.format_exc()}")
 
-        for future in futures:    
-            try:
-                all_results.extend(future.result())
-            except Exception as e:
-                logging.error("Worker error: %s\n%s", e, traceback.format_exc())
+			# for future in futures:       original
+			# 	try:
+			# 		all_results.extend(future.result())
+			# 	except Exception as e:
+			# 		print(f"Worker error from hanly multiprocessing: {type(e).__name__} {e} \n {traceback.format_exc()}")
 
-    logger_process(all_results, rout, tfile, '/tmp/scr', '/tmp/cerr', dbopt, table)
+	logger_process(all_results, batch_incr, rout, '/tmp/scr', '/tmp/cerr', dbopt, ps)

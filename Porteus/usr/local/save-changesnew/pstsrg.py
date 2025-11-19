@@ -7,11 +7,11 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
-from hanlydb import hanly
 from hanlyparallel import hanly_parallel
 from pyfunctions import getcount
 from pyfunctions import getnm
 from pyfunctions import parse_line
+from pyfunctions import to_bool
 count=0
 def encr(database, opt, email, nc, md):
     try:
@@ -22,11 +22,11 @@ def encr(database, opt, email, nc, md):
                   "-r", email,
                   "-o", opt,
             ]
-            if nc == "true":
+            if nc:
                   cmd.extend(["--compress-level", "0"])
             cmd.append(database)
             subprocess.run(cmd, check=True)
-            if md == "true":
+            if md:
                   os.remove(database)
             return True
     except subprocess.CalledProcessError as e:
@@ -253,25 +253,22 @@ def statparse(line, outputlist):
       if filename:
             outputlist.append((action, timestamp, changetime, filename))
 
-def main():
+def main(): # python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $COMPLETE $pydbpst $rout $checkSUM $cdiag $USR $email $mMODE $ANALYTICSECT $proteusSHIELD $nc
       xdata=sys.argv[1] # data source
       COMPLETE=sys.argv[2] # nsf
       dbtarget=sys.argv[3]  # the target
       rout=sys.argv[4]  # tmp holds action
-      tfile=sys.argv[5] # tmp file
-      checksum=sys.argv[6] # important
-      cdiag=sys.argv[7] # setting
+      checksum=sys.argv[5] # important
+      cdiag=to_bool(sys.argv[6]) # setting
+      user=sys.argv[7] 
       email=sys.argv[8]
       turbo=sys.argv[9] #mc
-      ANALYTICSECT=sys.argv[10]
-      ps=sys.argv[11] # proteusshield
-      nc=sys.argv[12] # no compression
-      user="guest"
-      table="logs"
+      ANALYTICSECT=to_bool(sys.argv[10])
+      ps=to_bool(sys.argv[11]) # proteusshield
+      nc=to_bool(sys.argv[12]) # no compression
       stats = []
       parsed = []
       parsedsys=[]
-      recorddata=[]
       dbe=False
       goahead=True                
       conn=None
@@ -301,9 +298,9 @@ def main():
                   parselog(xdata, parsed, checksum, 'sortcomplete') #SORTCOMPLETE/Log
 
                   #initial Sys profile
-                  if ps != 'false':
-                        table="sys"
-                        if not table_exists_and_has_data(conn, 'sys') and checksum == 'true':
+                  if ps:
+                        sys_table="sys"
+                        if not table_exists_and_has_data(conn, sys_table) and checksum:
                               print(f'{pyfunctions.CYAN}Generating system profile from base .xzms.{pyfunctions.RESET}') # hash base xzms
                               result=subprocess.run(["/usr/local/save-changesnew/sysprofile", turbo],capture_output=True,text=True)
                               if result.returncode == 1:
@@ -313,7 +310,7 @@ def main():
                                     try:
                                           dir_path = result.stdout.strip()
 
-                                          parselog(dir_path, parsedsys, checksum, 'sys') #sys
+                                          parselog(dir_path, parsedsys, checksum, sys_table) #sys
 
                                           if os.path.isdir(dir_path):
                                                 shutil.rmtree(dir_path)
@@ -323,7 +320,7 @@ def main():
 
                               if parsedsys:
                                     try: 
-                                          insert(parsedsys, conn, c, "sys", "count") 
+                                          insert(parsedsys, conn, c, sys_table, "count") 
                                           
                                     except Exception as e:
                                           print('sys db failed insert', e)
@@ -335,23 +332,8 @@ def main():
 
                               try: 
 
-                                    if turbo == 'mc':
-                                          hanly_parallel(rout, tfile, parsed, checksum, cdiag, dbopt, ps, user, dbtarget, table)
-                                    else:
-                                          with open(rout, 'a') as file, open(tfile, 'a') as file2, open('/tmp/cerr', 'a') as file3, open('/tmp/scr', 'a') as file4:
-                                                hanly(parsed, recorddata, checksum, cdiag, conn, c,  ps, user, dbtarget, file, file2, file3, file4)
-                                                if recorddata:
-                                                      for record in recorddata:
-                                                            timestamp = record[0]
-                                                            label = record[1]
-                                                            changetime = record[2]
-                                                            inode = record[3]   
-                                                            checksum = record[5]
-                                          
-                                                            result = pyfunctions.detect_copy(label, inode, checksum, c, table)
-                                                            if result:
-                                                                  print(f'Copy {record[0]} {record[2]} {label}', file=file)
-                                                                  
+                                    hanly_parallel(rout, parsed, checksum, cdiag, dbopt, ps, turbo, user, dbtarget)
+
 
                               except Exception as e:
                                     print(f"hanlydb failed to process on mode {turbo}: {e}", file=sys.stderr)
@@ -410,9 +392,9 @@ def main():
 
                   if not dbe: # Encrypt if o.k.
                         try:
-                              sts=encr(dbopt, dbtarget, email, nc, "true")
+                              sts=encr(dbopt, dbtarget, email, nc, True)
                               if not sts:		
-                                    print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}  before running again.')
+                                    print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}  before running again.') # . Run   gpg --yes -e -r guest -o /usr/local/save-changesnew/recent.gpg /tmp/tmpt7q9qwmj/recent.gpg 
 
                         except Exception as e:
                               print(f'Encryption failed: {e}')

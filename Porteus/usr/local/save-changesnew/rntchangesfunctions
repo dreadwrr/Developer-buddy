@@ -1,5 +1,5 @@
 #!/bin/bash
-#   Developer buddy 3.0 core                                               9/19/2025
+#   Developer buddy 3.0 core                                               11/19/2025
 
 # Filter terminal and hardlinks
 sbwr() {
@@ -335,22 +335,24 @@ local current_size="$4"
 local original_size="$5"	
 local delta
 local abs_delta 					
-if [ -f "$file" ] && [ -n "$current_size" ] && [ "$current_size" != "None" ] && [ -n "$original_size" ]; then
-	if [ "$label" != "/usr/local/save-changesnew/flth.csv" ]; then
-		delta=$(( current_size - original_size ))
-		abs_delta=${delta#-}
-		if [ "$original_size" == "$current_size" ]; then
-			echo "Warning file ${label} same filesize different checksum. Contents changed." >> $cerr
-		elif [ "$abs_delta" -le 12  ] && [ "$abs_delta" -ne 0 ]; then
-			msg="Checksum indicates a change in ${label}. Size changed slightly — possible stealth edit."
-			if [ "$cdiag" == "true" ]; then
-				 echo "$msg ($original_size → $current_size)." >> $slog
-			else
-				 echo "$msg" >> $scr
+if [ -f "$file" ]; then	
+	if [ "$current_size" -ge 0 ] 2>/dev/null && [ "$original_size" -ge 0 ] 2>/dev/null; then
+		if [ "$label" != "/usr/local/save-changesnew/flth.csv" ]; then
+			delta=$(( current_size - original_size ))
+			abs_delta=${delta#-}
+			if [ "$original_size" == "$current_size" ]; then
+				echo "Warning file ${label} same filesize different checksum. Contents changed." >> $cerr
+			elif [ "$abs_delta" -le 12  ] && [ "$abs_delta" -ne 0 ]; then
+				msg="Checksum indicates a change in ${label}. Size changed slightly — possible stealth edit."
+				if [ "$cdiag" == "true" ]; then
+					 echo "$msg ($original_size → $current_size)." >> $slog
+				else
+					 echo "$msg" >> $scr
+				fi
 			fi
 		fi
+		if [ "$cdiag" == "true" ]; then collision "$label" $cksum $current_size $7 ; fi
 	fi
-	if [ "$cdiag" == "true" ]; then collision "$label" $cksum $current_size $7 ; fi
 fi
 }
 #cFILE=$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p") orig
@@ -386,39 +388,37 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 				if [ "$dt" == "$omt" ]; then
 					if [ "$checkSUM" == "true" ]; then
 						if [ -f "$cFILE" ]; then
-							if [ "$cs" != "$ocs" ]; then
-								a_mod=$(stat --format="%Y" "$cFILE" 2>/dev/null)
-								afrm=$(date -d "@$a_mod" +"$fmt" 2>/dev/null)
-								if [ "$afrm" != "$dt" ]; then
-									a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
+							read a_mod fs < <(stat --format="%Y %s" "$cFILE" 2>/dev/null)
+							afrm=$(date -d "@$a_mod" +"$fmt" 2>/dev/null)
+							if [ -n "$afrm" ]; then
+								if [ "$csze" -ge 0 ] 2>/dev/null && (( csze != 0 )) ; then
+									if (( csze > 1000000 )); then
+										a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
+									else
+										a_checksum=$ocs
+									fi
+								fi
+								if [ "$afrm" == "$dt" ]; then
 									if [ -n "$a_checksum" ] && [ "$a_checksum" != "$ocs" ]; then
 										echo "Suspect $dt $ct $y" >> $rout
 										echo "Suspect file: $y changed without a new modified time." >> $cerr
 										csm="true"
 									fi
-								fi
-							else
-								if (( oin == in )); then
-									if newmeta $f11 $f12 $f13 $of11 $of12 $of13; then
-										df="true"
-										echo "Metadata $dt $ct $y" >> $rout
-										echo "Permissions of file: $y changed $f11 $f12 $f13 → $of11 $of12 $of13" >> $slog
+									if (( oin == in )); then
+										if newmeta $f11 $f12 $f13 $of11 $of12 $of13; then
+											echo "Metadata $dt $ct $y" >> $rout
+											echo "Permissions of file: $y changed $f11 $f12 $f13 → $of11 $of12 $of13" >> $slog
+										fi
+									else
+										echo "Copy $dt $ct $y" >> $rout
 									fi
 								else
-									df="true"
-									echo "Copy $dt $ct $y" >> $rout
-								fi
-							fi
-							if [ "$df" == "false" ]; then
-		                        read a_mod fs < <(stat --format="%Y %s" "$cFILE" 2>/dev/null)
-								afrm=$(date -d "@$a_mod" +"$fmt" 2>/dev/null)
-								if [ -n "$afrm" ] && [ "$afrm" != "$dt" ]; then
 									m="File changed during the search."
 									if [ "$cdiag" == "true" ]; then
 										echo "$m $y at ${afrm}. Size was $os, now $fs." >> $slog
-		                            else
+			                        else
 										echo "$m $y. File likely changed. system cache item." >> $slog
-		                            fi
+			                        fi
 								fi
 							fi
 						fi
@@ -694,7 +694,7 @@ if [ "$STATPST" == "true" ]; then
 		else
 			cores=""
 			if ! gpg --list-keys | grep -q $email; then generatekey ; fi	
-			python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $COMPLETE $pydbpst $rout $tfile $checkSUM $cdiag $email $mMODE $ANALYTICSECT $proteusSHIELD $nc
+			python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $COMPLETE $pydbpst $rout $checkSUM $cdiag $USR $email $mMODE $ANALYTICSECT $proteusSHIELD $nc
 			ret=$?
 			pyerrblk
 			processha $argf
