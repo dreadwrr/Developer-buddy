@@ -1,10 +1,10 @@
-#                               10/07/2025
+#                               11/19/2025
 
 Windows release on the horizon just designing the graphics. WSL interface is done so there are a total of 3 search methods. <br>
 windows subsystem of linux, powershell and mft (or master file table). Then stress test. Will need another week to get everything <br>
 finalized.
 
-1.2.1 Bash or python backend <br>
+1.2.2 Bash or python backend <br>
 1.2.1-py1 python edition backend database <br><br>
 
 Commands:<br>
