@@ -113,7 +113,7 @@ def get_recent_sys(filename, cursor, sys_table, e_cols=None):
     columns = [
         "timestamp", "filename", "changetime", "inode",
         "accesstime", "checksum", "filesize", "owner",
-        "`group`", "permissions", "count"
+        "`group`", "permissions"
     ]
     if e_cols:
         if isinstance(e_cols, str):
