@@ -46,7 +46,7 @@ def hardlinks(database, target, email, conn, cur):
 	try:
 		cur.execute(query)
 		conn.commit()
-		rlt=encr(database, target, email, "False", "False")
+		rlt=encr(database, target, email, False, False)
 		if rlt:
 			print("Hard links updated")
 		else:
@@ -62,7 +62,7 @@ def clear_cache(database, target, email, usr, dbp, conn, cur):
 				conn.commit()
 				cur.execute("DELETE FROM stats WHERE filename LIKE ?", (filename_pattern,))
 				conn.commit()
-			rlt=encr(database, target, email,"False", "False")
+			rlt=encr(database, target, email, False, False)
 			if rlt:
 				print("Cache files cleared.")
 				try:
@@ -80,7 +80,7 @@ def clear_sys(database, target, email, conn, cur):
 		try:
 			cur.execute("DELETE FROM sys")
 			conn.commit()
-			rlt=encr(database, target, email,"False", "False")
+			rlt=encr(database, target, email, False, False)
 			if rlt:
 				print("Sys table cleared.")
 			else:
