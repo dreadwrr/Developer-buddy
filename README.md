@@ -1,11 +1,19 @@
 #                               11/19/2025
 
-Windows release on the horizon just designing the graphics. WSL interface is done so there are a total of 3 search methods. <br>
-windows subsystem of linux, powershell and mft (or master file table). Then stress test. Will need another week to get everything <br>
-finalized.
+Qt version is nearing completion I am really excited to be able to bring these features to Windows 10/11. It has find file or
+files by extension by time and then compress to a .zip/.rar archive. Find new files by drive index that is stored in a .gpg
+cache file loaded into memory.
+
+Scan the system index independtly from the main hybrid analysis to catch files that have a different checksum but same modified 
+or faked modified time.
+
+
+Currently making a Qt application and initial Windows release. It will have a WSL interface and a total of 3 search methods. <br>
+windows subsystem of linux, powershell and mft (or master file table). Stress testing and proper formatting is the main focus to
+allow for a stable platform and customization.
 
 1.2.2 Bash or python backend <br>
-1.2.1-py1 python edition backend database <br><br>
+1.2.2-py1 python edition backend database <br><br>
 
 Commands:<br>
 save-changesnew<br>
