@@ -1,5 +1,5 @@
 #!/usr/bin/env python3                  
-#   Porteus                                                                           09/27/2025 
+#   Porteus                                                                           11/19/2025 
 #   recentchanges. Developer buddy      `recentchanges`/ `recentchanges search`       
 #   Provide ease of pattern finding ie what files to block we can do this a number of ways
 #   1) if a file was there (many as in more than a few) and another search lists them as deleted its either a sys file or not but unwanted nontheless
@@ -28,6 +28,7 @@
 #
 #  Also borred script features from various scripts on porteus forums
 import csv
+import grp
 import os
 import sys
 import processha
@@ -60,13 +61,13 @@ from rntchangesfunctions import removefile
 from rntchangesfunctions import postop
 from pyfunctions import cprint
 from pyfunctions import escf_py
-from ulink import ulink
+#from ulink import ulink
 
 def sighandle(signum, frame):
     global stopf
     if signum == 2:
         stopf = True
-        sys.exit()
+        sys.exit() # ctrl-c
         
 signal.signal(signal.SIGINT, sighandle)
 signal.signal(signal.SIGTERM, sighandle)
@@ -123,7 +124,10 @@ def main():
     argone=sys.argv[1] # range
     argtwo=sys.argv[2] # SRC tag?
     USR=sys.argv[3]         # getpass.getuser()
-    uid = pwd.getpwnam(USR).pw_uid   #chown
+
+    uid = pwd.getpwnam(USR).pw_uid
+    gid = grp.getgrnam("root").gr_gid
+
     pwrd=sys.argv[4]
     argf=sys.argv[5] # filtered?
     method=""
@@ -232,8 +236,14 @@ def main():
                     print('No such directory, file, or integer.')
                     sys.exit(1)
 
+                # _, ext = os.path.splitext(filename)       possible change verifying with new      
+                # argone = ".txt"             # compare by TMPOUTPUT
+                # if ext.lower() == ".txt":
+                #     argone = ""
+
+
                 parseflnm = os.path.basename(filename)
-                if parseflnm == "":
+                if not parseflnm: # get directory name
                     parseflnm = filename.rstrip('/').split('/')[-1]
 
                 cprint.cyan(f"Searching for files newer than {filename}")
@@ -246,8 +256,7 @@ def main():
                 cmin = ["-cmin", f"-{ag}"]
 
         else:
-            argone = 5
-            tmn = argone
+            tmn = argone = 5
             cprint.cyan('Searching for files 5 minutes old or newer')
 
         if tmn is not None:
@@ -256,13 +265,27 @@ def main():
 
         find_command_cmin = F + cmin + TAIL
         find_command_mmin = F + mmin + TAIL
-
-
-        def find_files(find_command, file_type, RECENT, COMPLETE, init, checksum, cfr, ANALYTICSECT, end, cstart):
+ 
+ 
+        def find_files(find_command, file_type, RECENT, COMPLETE, init, checksum, updatehlinks, cfr, ANALYTICSECT, end, cstart):
             global RECENTNUL
             table = "logs"
-            proc = subprocess.Popen(find_command, stdout=subprocess.PIPE) # stderr=subprocess.DEVNULL 
-            output, _ = proc.communicate()
+            try:
+                proc = subprocess.Popen(find_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE ) # stderr=subprocess.DEVNULL 
+                output, err = proc.communicate()
+
+                if proc.returncode not in (0, 1):
+                    stderr_str = err.decode("utf-8")
+                    print(stderr_str)
+                    print("Find command failed, unable to continue. Quitting.")
+                    sys.exit(1)
+            except (FileNotFoundError, PermissionError) as e:
+                print(f"Error running find in find_files {e}")
+                sys.exit(1)
+            except Exception as e:
+                print(f"Unexpected error running find ommand: {find_command} \nfind_files func: {type(e).__name__} {e}")
+                sys.exit(1)
+
 
             file_entries = [entry.decode() for entry in output.split(b'\0') if entry]
             if file_type == "mtime":
@@ -289,11 +312,20 @@ def main():
 
             if init and checksum:
                 cstart = time.time()
-                cprint.cyan('Running checksum.')
+                msg = "Running checksum"
+                if updatehlinks:
+                    msg = msg + " and Updating hardlinks"
+                    cprint.green(msg)
+                else:
+                    cprint.cyan(msg + ".")
+            elif init and updatehlinks:
+                cprint.green('Starting search and updating hardlinks')
+
+
             if file_type == "mtime":
-                RECENT, COMPLETE = process_find_lines(escaped, checksum, "main", table, cfr, CSZE)
+                RECENT, COMPLETE = process_find_lines(escaped, checksum, updatehlinks, "main", table, cfr)
             elif file_type == "ctime":
-                RECENT, COMPLETE = process_find_lines(escaped, checksum, "ctime", table, cfr, CSZE)
+                RECENT, COMPLETE = process_find_lines(escaped, checksum, updatehlinks, "ctime", table, cfr)
             else:
                 raise ValueError(f"Unknown file type: {file_type}")
 
@@ -301,10 +333,10 @@ def main():
 
 
         if not tout: 
-            tout, COMPLETE_2, end, cstart = find_files(find_command_cmin, "ctime", tout, COMPLETE_2, True, checksum, cfr, ANALYTICSECT, end, cstart)
-            RECENT, COMPLETE_1, end, cstart = find_files(find_command_mmin, "mtime", RECENT, COMPLETE_1, False, checksum, cfr, ANALYTICSECT, end, cstart)
+            tout, COMPLETE_2, end, cstart = find_files(find_command_cmin, "ctime", tout, COMPLETE_2, True, checksum, updatehlinks, cfr, ANALYTICSECT, end, cstart)
+            RECENT, COMPLETE_1, end, cstart = find_files(find_command_mmin, "mtime", RECENT, COMPLETE_1, False, checksum, None, cfr, ANALYTICSECT, end, cstart)
         else:
-            RECENT, COMPLETE_1, end, cstart = find_files(find_command_mmin, "mtime", RECENT, COMPLETE_1, True, checksum, cfr, ANALYTICSECT, end, cstart) # bypass ctime loop if xRC 
+            RECENT, COMPLETE_1, end, cstart = find_files(find_command_mmin, "mtime", RECENT, COMPLETE_1, True, checksum, updatehlinks, cfr, ANALYTICSECT, end, cstart) # bypass ctime loop if xRC 
         if ANALYTICSECT:
             cend = time.time()
 
@@ -367,10 +399,10 @@ def main():
         ]
 
 
-        #hardlinks?
-        if updatehlinks:
-            cprint.green('Updating hardlinks')
-            SORTCOMPLETE = ulink(SORTCOMPLETE, MODULENAME, supbrw)
+        #hardlinks?                                                                                                         #  original  hlinks stated in fsearch.py
+        # if updatehlinks:
+        #     cprint.green('Updating hardlinks')
+        #     SORTCOMPLETE = ulink(SORTCOMPLETE, MODULENAME, supbrw)
 
 
 
@@ -403,18 +435,19 @@ def main():
         # Apply filter used for results, copying. RECENT unfiltered stored in db.
         TMPOPT = filter_lines_from_list(TMPOPT, USR)  
     
+        logf = []
+        logf = RECENT
         if tmn:
             logf = RECENT # all files
-        elif method == "rnt":
-            logf = TMPOPT # filtered
-        if argf == "filtered" or flsrh:
-            logf = TMPOPT # filtered
-            if argf == "filtered" and flsrh:
-                logf = RECENT # dont filter inverse
+        elif method != "rnt":
+            if argf == "filtered" or flsrh:
+                logf = TMPOPT # filtered
+                if argf == "filtered" and flsrh:
+                    logf = RECENT # dont filter inverse
 
         
         # Copy files `recentchanges` and move its searches
-        validrlt = copyfiles(RECENT, RECENTNUL, TMPOPT, method, argone, argtwo, USR, mainl, archivesrh, autooutput, cmode, fmt)
+        validrlt = copyfiles(RECENT, RECENTNUL, TMPOPT, method, argone, THETIME, argtwo, USR, mainl, archivesrh, autooutput, cmode, fmt)
         
 
         #Merge/Move old searches
@@ -469,7 +502,8 @@ def main():
                             tss = entry[0].strftime(fmt)
                             fp = entry[1]
                             dst.write(f'{tss} {fp}\n')
-                    changeperm(target_path, uid)
+                    if os.path.isfile(target_path):
+                        os.chown(target_path,  uid, gid)
             #else:
 
     
@@ -485,10 +519,11 @@ def main():
 
                 if difff_file:
                     diffrlt = True
-                    with open(diffnm, 'a') as file2:
+                    with open(diffnm, 'w') as file2:
                         for entry in difff_file:
                             print(entry, file=file2)
                         file2.write("\n")    
+
 
                     # preprocess before db/ha. The differences before ha and then sent to processha after ha
                     isdiff(SORTCOMPLETE, ABSENT, rout, diffnm, difff_file, flsrh, SRTTIME, fmt) 
@@ -500,12 +535,21 @@ def main():
                     tss = entry[0].strftime(fmt)
                     fp = entry[1]
                     f.write(f'{tss} {fp}\n')
-            changeperm(filepath, uid)
 
+            if os.path.isfile(filepath):
+                os.chown(filepath,  uid, gid)
+            #     os.chmod(filepath, 0o666)  
 
             # Backend
             pstsrg.main(SORTCOMPLETE, COMPLETE, dbtarget, rout, checksum, cdiag, email, ANALYTICSECT, ps, nc, USR)
 
+
+            if ANALYTICSECT:
+                el = end - start  
+                print(f'Search took {el:.3f} seconds')
+                if checksum:
+                    el = cend - cstart
+                    print(f'Checksum took {el:.3f} seconds')
             # Diff output to user
             csum=processha.processha(rout, ABSENT, diffnm, cerr, flsrh, MODULENAME, argf, SRTTIME, USR, supbrw, supress, fmt)
 
@@ -524,28 +568,19 @@ def main():
 
 
             # Terminal output process scr/cer
-            if not csum and os.path.exists(slog) and supress:
-                with open(slog, 'r') as src, open(diffnm, 'a') as dst:
-                    dst.write(f"\ncdiag\n")
-                    dst.write(src.read())
-            elif not csum and not supress and os.path.exists(slog):
-                filter_output(slog, MODULENAME, 'Checksum', 'no', 'blue', 'yellow', 'scr')
-                with open(slog, 'r') as src, open(diffnm, 'a') as dst:
-                    dst.write(f"\ncdiag\n")
-                    dst.write(src.read())
-            elif csum:
+            if not csum and not supress:
+                if os.path.exists(slog):
+                    filter_output(slog, MODULENAME, 'Checksum', 'no', 'blue', 'yellow', 'scr', supbrw) 
+            
+            if csum:
                 if os.path.isfile(cerr):
                     with open(cerr, 'r') as src, open(diffnm, 'a') as dst:
-                        dst.write(f"\ncdiag alert\n")
-                        dst.write(src.read())     
+                        dst.write("\ncerr\n")
+                        for line in src:
+                            if line.startswith("Warning File"):
+                                continue
+                            dst.write(line)
                     removefile(cerr)
-
-            if ANALYTICSECT:
-                el = end - start  
-                print(f'Search took {el:.3f} seconds')
-                if checksum:
-                    el = cend - cstart
-                    print(f'Checksum took {el:.3f} seconds')
 
             try:
                 logic(syschg, nodiff, diffrlt, validrlt, MODULENAME, THETIME, argone, argf, filename, flsrh, imsg, method) # feedback
@@ -555,7 +590,9 @@ def main():
 
             #Cleanup
             if os.path.isfile(diffnm):
-                changeperm(diffnm, uid)
+                os.chown(filepath,  uid, gid)
+            #     os.chmod(diffnm, 0o666)  
+
             if os.path.isfile(slog):
                 removefile(slog)
 
@@ -569,7 +606,7 @@ def main():
                 rlt = encrm(ctarget, CACHE_F, email, False, False)
                 if not rlt:
                     print(f"Reencryption failed cache not saved.")
-
-
+#
+#
 if __name__ == "__main__":
     main()

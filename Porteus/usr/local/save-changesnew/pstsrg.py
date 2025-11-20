@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       9/26/2025
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       11/19/2025
 import csv
 import os
 import sqlite3
@@ -7,6 +7,7 @@ import subprocess
 import sys
 import sysprofile
 import tempfile
+import traceback
 import time
 from hanlyparallel import hanly_parallel
 from io import StringIO
@@ -178,27 +179,6 @@ def create_db(database, action=None):
       c = conn.cursor()
       create_table(c, 'logs', 'hardlinks', ('timestamp','filename', 'changetime')) 
 
-      # c.execute('''
-      # CREATE TABLE IF NOT EXISTS stats (
-      #       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      #       timestamp TEXT,
-      #       filename TEXT,
-      #       changetime TEXT,
-      #       inode TEXT,
-      #       accesstime TEXT,
-      #       checksum TEXT,
-      #       filesize TEXT,
-      #       symlink TEXT,
-      #       owner TEXT,
-      #       `group` TEXT,
-      #       permissions TEXT,
-      #       casmod TEXT,
-      #       lastmodified TEXT,
-      #       hardlinks TEXT,
-      #       escapedpath TEXT
-      #       )
-      # ''')
-
       create_table(c, 'sys', 'count', ('timestamp', 'filename', 'changetime',))
 
       c.execute('''
@@ -253,7 +233,6 @@ def insert_if_not_exists(action, timestamp, filename, changetime, conn, c): # St
 
 def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, ANALYTICSECT, ps, nc, user='guest'):
 
-      table="logs"
       parsed = []
       parsedsys=[]
       dbe=False
@@ -285,21 +264,21 @@ def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, ANALYTICSECT, 
 
                   # Proteus shield initial Sys profile
                   if ps:
-                        table="sys"
-                        if not table_exists_and_has_data(conn, table) and checksum:
+                        sys_table="sys"
+                        if not table_exists_and_has_data(conn, sys_table) and checksum:
                               cprint.cyan('Generating system profile from base .xzms.') 
 
                               try:
                                     parsedsys = sysprofile.main() # hash base xzms
                                     
                               except Exception as e:
-                                    print(f'sysprofile.py failed to hash. {e}')
+                                    print(f'sysprofile.py failed to hash. {type(e).__name__} {e} \n {traceback.format_exc()} ')
                                     parsedsys = None
 
 
                               if parsedsys:
                                     try: 
-                                          insert(parsedsys, conn, c, "sys", "count") 
+                                          insert(parsedsys, conn, c, sys_table, "count") 
                                           
                                     except Exception as e:
                                           print('sys db failed insert', e)
@@ -312,7 +291,7 @@ def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, ANALYTICSECT, 
                               try: 
                                     
                   
-                                    hanly_parallel(rout, parsed, checksum, cdiag, dbopt, ps, user, dbtarget, table)
+                                    hanly_parallel(rout, parsed, checksum, cdiag, dbopt, ps, user, dbtarget)
 
                                     x=os.cpu_count()
                                     if x:
@@ -328,7 +307,7 @@ def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, ANALYTICSECT, 
 
 
                               except Exception as e:
-                                    print(f"hanlydb failed to process : {e}", file=sys.stderr)
+                                    print(f"hanlydb failed to process : {e} {type(e).__name__} \n {traceback.format_exc()}", file=sys.stderr)
 
                   
                         try: 
@@ -365,7 +344,7 @@ def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, ANALYTICSECT, 
 
                   if not dbe: # Encrypt if o.k.
                         try:
-                              sts=encr(dbopt, dbtarget, email, nc, "true")
+                              sts=encr(dbopt, dbtarget, email, nc, True)
                               if not sts:		
                                     print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}  before running again.')
 

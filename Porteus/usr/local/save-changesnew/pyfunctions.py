@@ -1,8 +1,5 @@
-import csv
+import csv                                                                                              #11/19/2025
 import fnmatch
-import hashlib
-import random
-import sqlite3
 import time
 import re
 from datetime import datetime
@@ -58,7 +55,10 @@ class cprint:
     CYAN = "\033[36m"
     RED = "\033[31m"
     GREEN = "\033[1;32m"
+    BLUE = "\033[34m"
+    MAGENTA = "\033[35m"
     YELLOW = "\033[33m"
+    WHITE = "\033[37m"
     RESET = "\033[0m"
 
     @staticmethod
@@ -74,8 +74,20 @@ class cprint:
         print(f"{cprint.GREEN}{msg}{cprint.RESET}")
 
     @staticmethod
+    def blue(msg):
+        print(f"{cprint.BLUE}{msg}{cprint.RESET}")
+
+    @staticmethod
     def yellow(msg):
         print(f"{cprint.YELLOW}{msg}{cprint.RESET}")
+
+    @staticmethod
+    def magenta(msg):
+        print(f"{cprint.MAGENTA}{msg}{cprint.RESET}")
+
+    @staticmethod
+    def white(msg):
+        print(f"{cprint.WHITE}{msg}{cprint.RESET}")
 
     @staticmethod
     def reset(msg):
@@ -123,29 +135,33 @@ def collision(filename, checksum, filesize, cursor, sys):
     cursor.execute(query, (filename, checksum, filesize))
     return cursor.fetchall()
 
-#10/07/2025
-def detect_copy(filename, inode, checksum, cursor, sys_table):
-    if sys_table == 'sys':
-        query = '''
-            SELECT filename, inode
+#11/19/2025
+def detect_copy(filename, inode, checksum, cursor, ps):
+    if ps:
+        query = f'''
+            SELECT filename, inode, checksum
             FROM logs
-            WHERE checksum = ? AND NOT (filename = ? AND inode = ?)
             UNION ALL
-            SELECT filename, inode
+            SELECT filename, inode, checksum
             FROM sys
-            WHERE checksum = ? AND NOT (filename = ? AND inode = ?)
+            WHERE checksum = ?
         '''
-        cursor.execute(query, (checksum, filename, inode, checksum, filename, inode))
+        cursor.execute(query, (checksum, checksum))
     else:
         query = '''
-            SELECT 1
+            SELECT filename, inode
             FROM logs
-            WHERE checksum = ? AND NOT (filename = ? AND inode = ?)
-            LIMIT 1
+            WHERE checksum = ?
         '''
-        cursor.execute(query, (checksum, filename, inode))
+        cursor.execute(query, (checksum,))
 
-    return cursor.fetchone() is not None
+    candidates = cursor.fetchall()
+
+    for o_filename, o_inode in candidates:
+        if o_filename != filename or o_inode != inode:
+            return True
+    
+    return None
     
 def get_recent_changes(filename, cursor, table):
 	allowed_tables = ('logs', 'sys')
@@ -161,6 +177,42 @@ def get_recent_changes(filename, cursor, table):
 	cursor.execute(query, (filename,))
 	reslt = cursor.fetchone()
 	return reslt
+
+
+def get_recent_sys(filename, cursor, sys_table, e_cols=None):
+
+    columns = [
+        "timestamp", "filename", "changetime", "inode",
+        "accesstime", "checksum", "filesize", "owner",
+        "`group`", "permissions"
+    ]
+    if e_cols:
+        if isinstance(e_cols, str):
+            e_cols = [col.strip() for col in e_cols.split(',') if col.strip()]
+        columns += e_cols
+
+    col_str = ", ".join(columns)
+
+    cursor.execute(f'''
+        SELECT {col_str}
+        FROM {sys_table}
+        WHERE filename = ?
+        ORDER BY timestamp DESC
+        LIMIT 1
+    ''', (filename,))
+    row = cursor.fetchone()
+    return row
+    # if row:
+        # return row
+    # cursor.execute(f'''
+    #     SELECT {col_str}
+    #     FROM {sys_a}
+    #     WHERE filename = ?
+    #     LIMIT 1
+    # ''', (filename,))
+    # return cursor.fetchone()
+
+
 def getcount (curs):
       curs.execute('''
             SELECT COUNT(*)
@@ -175,12 +227,13 @@ def getcount (curs):
       count = curs.fetchone()
       return count[0]
 
-# batch insert into sys in one go. retry as needed
-def increment_f(conn, c, records, retries=3, backoff=0.5):
+
+def increment_f(conn, c, records):
+    # batch insert into sys in one go
     if not records:
         return
 
-    sql = """
+    sql_insert= f"""
         INSERT INTO sys (
             timestamp, filename, changetime, inode, accesstime, checksum,
             filesize, symlink, owner, `group`, permissions, casmod, lastmodified,
@@ -188,35 +241,37 @@ def increment_f(conn, c, records, retries=3, backoff=0.5):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
 
-    for attempt in range(retries):
-        try:
-            c.executemany(sql, records)
-            conn.commit()
-            return
-        except sqlite3.OperationalError as e:
-            conn.rollback()
-            if "database is locked" in str(e).lower():
-                time.sleep(backoff + random.uniform(0, backoff))
-            else:
-                raise
-    raise sqlite3.OperationalError("Batch UPSERT failed after multiple retries.")
+    try:
+        c.executemany(sql_insert, records)
+        
+        sql_update = "UPDATE sys SET count = CAST(count AS INTEGER) + 1 WHERE filename = ?" #f"UPDATE sys SET count = count + 1 WHERE filename = ?"     its TEXT tk sorting problems as INT
+        filenames = [(record[1],) for record in records]
+        c.executemany(sql_update, filenames)
+        conn.commit()
+        
+        return True
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error {type(e).__name__} : {e}")
+        return False
 
 # Update sys table counts          10/07/2025 typofix innerfor
-def ucount(conn, cur):
-    cur.execute('''
-        SELECT filename, COUNT(*) as total_count
-        FROM sys
-        GROUP BY filename
-        HAVING total_count > 1
-    ''')
-    duplicates = cur.fetchall()
-    for filename, total_count in duplicates:
-        cur.execute('''
-            UPDATE sys
-            SET count = ?
-            WHERE filename = ?
-        ''', (total_count, filename))
-    conn.commit()
+# def ucount(conn, cur):
+#     cur.execute('''
+#         SELECT filename, COUNT(*) as total_count
+#         FROM sys
+#         GROUP BY filename
+#         HAVING total_count > 1
+#     ''')
+#     duplicates = cur.fetchall()
+#     for filename, total_count in duplicates:
+#         cur.execute('''
+#             UPDATE sys
+#             SET count = ?
+#             WHERE filename = ?
+#         ''', (total_count, filename))
+#     conn.commit()
 # if many sys files but no need
 #  updates = [(total_count, filename) for filename, total_count in duplicates]
 # cur.executemany('''
@@ -294,16 +349,25 @@ def parse_line(line):
 
     return [timestamp1, filepath, timestamp2, inode, timestamp3] + rest
 
-#ha funcs
-def get_md5(file_path):
-    try:
-        with open(file_path, "rb") as f:
-            return hashlib.md5(f.read()).hexdigest()
-    except FileNotFoundError:
-        return None
-    except Exception as e:
-        print(f"Error reading {file_path}: {e}")
-        return None 
+def sys_record_flds(record, sys_records, prev_count):
+    sys_records.append((
+        record[0],  # timestamp
+        record[1],  # filename
+        record[2],  # changetime
+        record[3],  # inode
+        record[4],  # accesstime
+        record[5],  # checksum
+        record[6],  # filesize
+        record[7],  # symlink
+        record[8],  # owner
+        record[9],  # group
+        record[10], # permissions
+        record[11], # casmod
+        record[12], # lastmodified
+        prev_count, # count
+        record[14] # escapedpath
+    ))
+
 def is_integer(value):
     try:
         int(value)
@@ -326,17 +390,18 @@ def new_meta(record, metadata):
 
 def getstdate(st, fmt):
 	a_mod = int(st.st_mtime)
-	afrm_str = datetime.utcfromtimestamp(a_mod).strftime(fmt)
+	afrm_str = datetime.fromtimestamp(a_mod).strftime(fmt)  # datetime.utcfromtimestamp(a_mod).strftime(fmt)
 	afrm_dt = parse_datetime(afrm_str, fmt)
 	return afrm_dt, afrm_str
 
 #pstsrg
 def goahead(filepath):
-	try:
-		st = filepath.stat()
-		return st
-	except (FileNotFoundError, PermissionError, OSError, Exception) as e:
-		print(f"Skipping {filepath.name}: {type(e).__name__} - {e}")
-		return None
-
-
+    try:
+        st = filepath.stat()
+        return st
+    except FileNotFoundError:
+        return "Nosuchfile"
+    except (PermissionError, OSError, Exception) as e:
+         pass
+        #print(f"Skipping {filepath.name}: {type(e).__name__} - {e}")
+    return None
