@@ -1,8 +1,9 @@
-# 09/26/2025 proteus shield sys profile
+# 11/19/2025 proteus shield sys profile
 import subprocess
 import os
 import pathlib
 import sys
+import traceback
 from fsearch import process_find_lines
 
 
@@ -33,7 +34,7 @@ def collect_layer_files(layer, subdirs, match_args=None):
     return all_file_entries
 
 
-def process_category(xdata, COMPLETE, layers, category, subdirs, CACHE_F, CSZE):
+def process_category(xdata, COMPLETE, layers, category, subdirs, CACHE_F):
     all_entries = []
 
     for layer in layers:
@@ -90,7 +91,6 @@ def collect_all_files_to_array(ch_base, systemf):
 
 def main():
     CACHE_F = "/dev/null"
-    CSZE = 1024 * 1024 
     systemf = [] # all files
     xdata = [] # files to hash
     COMPLETE = [] # nsf
@@ -114,15 +114,16 @@ def main():
     }
 
     for category, subdirs in categories.items():
-        process_category(xdata_raw, COMPLETE, layers, category, subdirs, CACHE_F, CSZE)
+        process_category(xdata_raw, COMPLETE, layers, category, subdirs, CACHE_F)
 
     systemf_set = set(systemf)
     xdata_set = set(xdata_raw)
     
     diff = systemf_set - xdata_set 
 
-    xdata, COMPLETE_2 = process_find_lines(xdata_raw, True, "main", "sys", CACHE_F, CSZE)
-    systemf, COMPLETE_1 = process_find_lines(list(diff), False, "main", "sys", CACHE_F, CSZE)
+    xdata, COMPLETE_2 = process_find_lines(xdata_raw, True, False, "main", "sys", CACHE_F)
+    systemf, COMPLETE_1 = process_find_lines(list(diff), False, False, "main", "sys", CACHE_F)
+
 
     SORTCOMPLETE = xdata + systemf
 
@@ -135,6 +136,6 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print(f'Error: {e}', file=sys.stderr)
+        print(f'Error: {e} {type(e).__name__} \n {traceback.format_exc()}', file=sys.stderr)
         sys.exit(1)
     sys.exit(0)

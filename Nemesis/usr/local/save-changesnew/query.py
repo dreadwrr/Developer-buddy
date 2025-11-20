@@ -1,5 +1,5 @@
 #!/userbin/env python3
-#																				09/26/2025
+#																				11/19/2025
 import os
 import shutil
 import sqlite3
@@ -21,7 +21,59 @@ from pyfunctions import reset_csvliteral
 from rntchangesfunctions import cprint
 from rntchangesfunctions import getnm
 
-# pyfunctions.py re cache clear patterns
+																			# pyfunctions.py re cache clear patterns
+
+def redraw_table(table, cur, table_name):
+
+	for row in table.get_children():
+		table.delete(row)
+
+	cur.execute(f"SELECT * FROM {table_name}")
+	rows = cur.fetchall()
+    
+	column_widths = {
+		"filename": 900,
+		"id": 60,
+		"timestamp": 150,
+		"accesstime": 150,
+		"changetime": 150,
+		"inode": 70,
+		"filesize": 70,
+		"checksum": 270,
+		"owner": 65,
+		"group": 65,
+		"casmod": 65,
+		"lastmodified": 150,
+		"hardlinks": 65,
+		"symlink": 65,
+		"permissions": 65
+	}
+    # table["columns"] = [f"Col{i}" for i in range(len(cur.description))]
+    # for i, col in enumerate(table["columns"]):
+    #     table.heading(col, text=cur.description[i][0])
+    #     table.column(col, width=100) 
+
+	all_columns = [desc[0] for desc in cur.description]
+	column_names = [col for col in all_columns if col != "escapedpath"]
+	table["columns"] = column_names
+
+	for col in column_names:
+		table.heading(col, text=col)
+
+		table.column(col, width=column_widths.get(col, 120), anchor="w", stretch=True)
+
+	table.delete(*table.get_children())
+
+
+	for col in column_names:
+		table.heading(col, text=col, command=lambda _col=col: sort_column(table, _col, column_names))
+		table.column(col, width=column_widths.get(col, 120), anchor="w", stretch=True)
+
+	for row in rows:
+		display_row = [row[i] for i, col in enumerate(all_columns) if col != "escapedpath"]
+		table.insert("", "end", values=display_row)
+
+
 sort_directions = {}
 def hardlinks(database, target, email, conn, cur):
 	cur.execute("SELECT COUNT(*) FROM logs WHERE hardlinks IS NOT NULL AND hardlinks != ''")
@@ -86,22 +138,25 @@ def clear_cache(database, target, email, usr, flth, dbp, conn, cur):
 def clear_sys(database, target, email, conn, cur, dcr):
 	try:
 		cur.execute("DELETE FROM sys")
+		try:
+			cur.execute("DELETE FROM sqlite_sequence WHERE name=?", ("sys",)) 
+		except sqlite3.OperationalError:
+			pass
 		conn.commit()
 		if not dcr:
 			rlt=encr(database, target, email, False, False)
 			if rlt:
 				print("Sys table cleared.")
+				return True
 			else:
 				print(f"Reencryption failed sys not cleared.:")
-				return False		
 		else:
 			print("Sys table cleared.")
+			return True
 	except sqlite3.Error as e:
 		conn.rollback()
-		print(f"Sys clear failed to write to db.")
-		return False
-	return True
-		
+		print(f"Sys clear failed to write to db clear fail")
+	return False
 
 def activateps(parsedsys, database, target, email, conn, cur):
 	try:
@@ -125,28 +180,24 @@ def ps(database, target, email, conn, cur):
 		parsedsys = sysprofile.main()
 	else:
 		user_input = input("Previous sys data has to be cleared. continue? (y/n): ").strip().lower()
-		if user_input == 'y':
-			print("Clearing sys table")
-			rlt = clear_sys(database, target, email, conn, cur, True)
-			if rlt:
-				print(msg)
-				parsedsys = sysprofile.main()
-			else:
+		if user_input != 'y':
+			return False
+		print("Clearing sys table")
+		if not clear_sys(database, target, email, conn, cur, True):
 				print("initial Sys clear failed. exiting...")
 				return False
-		else:
-			return None
-		
+		print(msg)
+		parsedsys = sysprofile.main()
+
+	# process results
 	if parsedsys:
-		rlt = activateps(parsedsys, database, target, email, conn, cur)
-		if rlt:
+		if activateps(parsedsys, database, target, email, conn, cur):
 			return True
 		else:
 			print("Failed to insert profile into db")
-			return False
 	else:
 		print("System profile failed in sysprofile.py")		
-		return False
+	return False
 
 def dexec(cur, actname, limit):
 	query = '''
@@ -177,76 +228,106 @@ def sort_column(tree, col, columns):
         tree.move(item, '', index_)
 
 def results(database, conn, cur, target, email, user, flth, dbp):
-    root = tk.Tk()
-    root.title("Database Viewer")
-    toolbar = tk.Frame(root)
-    toolbar.pack(side=tk.TOP, fill=tk.X)
-    cur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-    tables = [t[0] for t in cur.fetchall()] or ["(no tables)"]
-    selected_table = tk.StringVar(value=tables[0])
-    table_menu = ttk.Combobox(toolbar, textvariable=selected_table, values=tables, state="readonly", width=30)
-    table_menu.pack(side=tk.LEFT, padx=10, pady=10)
-    hardlink_button = tk.Button(toolbar, text="Set Hardlinks", command=lambda: hardlinks(database, target, email, conn, cur))
-    hardlink_button.pack(side=tk.RIGHT, padx=10, pady=10)
-    clear_cache_button = tk.Button(toolbar, text="Clear Cache", command=lambda: clear_cache(database, target, email, user, flth, dbp, conn, cur))
-    clear_cache_button.pack(side=tk.RIGHT, padx=10, pady=10)
-    lower_frame = tk.Frame(root)
-    lower_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
-    ps_button = tk.Button(lower_frame, text="Proteus Shield", command=lambda: ps(database, target, email, conn, cur))
-    ps_button.pack(side=tk.RIGHT, padx=10, pady=10)
-    new_button = tk.Button(lower_frame, text="Clear sys", command=lambda: clear_sys(database, target, email, conn, cur, False))
-    new_button.pack(side=tk.RIGHT, padx=10, pady=10)
-    table_frame = tk.Frame(root)
-    table_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-    tree = ttk.Treeview(table_frame, show='headings')
-    tree.grid(row=0, column=0, sticky="nsew")
-    vsb = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=tree.yview)
-    vsb.grid(row=0, column=1, sticky="ns")
-    hsb = ttk.Scrollbar(table_frame, orient=tk.HORIZONTAL, command=tree.xview)
-    hsb.grid(row=1, column=0, sticky="ew")
-    tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
-    table_frame.rowconfigure(0, weight=1)
-    table_frame.columnconfigure(0, weight=1)
-    def load_table(table_name: str):
-        if table_name == "(no tables)":
-            for iid in tree.get_children():
-                tree.delete(iid)
-            tree["columns"] = ()
-            return
-        c = conn.cursor()
-        c.execute(f"SELECT * FROM \"{table_name}\"")
-        rows = c.fetchall()
-        columns = [d[0] for d in c.description]
-        tree.delete(*tree.get_children())
-        tree["columns"] = columns
-        for col in columns:
-            tree.heading(col, text=col, command=lambda _col=col: sort_column(tree, _col, columns))
-            if col == "filename":
-                tree.column(col, width=900, anchor="w", stretch=True)
-            elif col == "id":
-                tree.column(col, width=60, anchor="w", stretch=True)			
-            elif col in ("timestamp", "accesstime", "changetime"):
-                tree.column(col, width=150, anchor="w", stretch=False)
-            elif col in ("inode", "filesize"):
-                tree.column(col, width=70, anchor="w", stretch=False)
-            elif col == "checksum":
-                tree.column(col, width=270, anchor="w", stretch=True)
-            elif col in ("owner", "group", "casmod", "hardlinks", "symlink"):
-                tree.column(col, width=65, anchor="w", stretch=False)
-            elif col in ("permission",):
-                tree.column(col, width=150, anchor="w", stretch=False)
-            else:
-                tree.column(col, width=120, anchor="w", stretch=True)
-        for row in rows:
-            tree.insert("", tk.END, values=row)
-        tree.yview_moveto(0)
-        tree.xview_moveto(0)
-        table_frame.update_idletasks()
-    def on_select(_event):
-        load_table(selected_table.get())
-    table_menu.bind("<<ComboboxSelected>>", on_select)
-    load_table(tables[0])
-    root.mainloop()
+	root = tk.Tk()
+	root.title("Database Viewer")
+	toolbar = tk.Frame(root)
+	toolbar.pack(side=tk.TOP, fill=tk.X)
+	cur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+	tables = [t[0] for t in cur.fetchall()] or ["(no tables)"]
+	selected_table = tk.StringVar(value=tables[0])
+	table_menu = ttk.Combobox(toolbar, textvariable=selected_table, values=tables, state="readonly", width=30)
+	table_menu.pack(side=tk.LEFT, padx=10, pady=10)
+
+
+	hardlink_button = tk.Button(toolbar, text="Set Hardlinks", command=lambda: hardlinks(database, target, email, conn, cur))
+	hardlink_button.pack(side=tk.RIGHT, padx=10, pady=10)
+	clear_cache_button = tk.Button(toolbar, text="Clear Cache", command=lambda: clear_cache(database, target, email, user, flth, dbp, conn, cur))
+	clear_cache_button.pack(side=tk.RIGHT, padx=10, pady=10)
+
+
+	lower_frame = tk.Frame(root)
+	lower_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
+
+
+	table_frame = tk.Frame(root)
+	table_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+	tree = ttk.Treeview(table_frame, show='headings')
+
+
+	reload_button = tk.Button(
+		toolbar,
+		text="",
+		width=6,  # small button
+		command=lambda: redraw_table(tree, cur, selected_table.get())  # reload the sys table
+	)
+	reload_button.pack(side=tk.LEFT, padx=(2, 10), pady=10)
+
+
+	def clear_sys_and_redraw():
+		if clear_sys(database, target, email, conn, cur, False):
+			redraw_table(tree, cur, "sys") 
+
+	def index_system():
+		if ps(database, target, email, conn, cur):
+			redraw_table(tree, cur, "sys") 
+
+	new_button = tk.Button(lower_frame, text="Clear sys", command=lambda: clear_sys_and_redraw())
+	new_button.pack(side=tk.RIGHT, padx=10, pady=10)
+
+	ps_button = tk.Button(lower_frame, text="Proteus Shield", command=lambda: index_system())
+	ps_button.pack(side=tk.RIGHT, padx=10, pady=10)
+
+	tree.grid(row=0, column=0, sticky="nsew")
+	vsb = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=tree.yview)
+	vsb.grid(row=0, column=1, sticky="ns")
+	hsb = ttk.Scrollbar(table_frame, orient=tk.HORIZONTAL, command=tree.xview)
+	hsb.grid(row=1, column=0, sticky="ew")
+	tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+	table_frame.rowconfigure(0, weight=1)
+	table_frame.columnconfigure(0, weight=1)
+	def load_table(table_name: str):
+		if table_name == "(no tables)":
+			for iid in tree.get_children():
+				tree.delete(iid)
+			tree["columns"] = ()
+			return
+		c = conn.cursor()
+		c.execute(f"SELECT * FROM \"{table_name}\"")
+		rows = c.fetchall()
+		columns = [d[0] for d in c.description if d[0] != "escapedpath"] # columns = [d[0] for d in c.description]
+		tree.delete(*tree.get_children())
+		tree["columns"] = columns
+	
+		for col in columns:
+			tree.heading(col, text=col, command=lambda _col=col: sort_column(tree, _col, columns))
+			if col == "filename":
+				tree.column(col, width=900, anchor="w", stretch=True)
+			elif col == "id":
+				tree.column(col, width=60, anchor="w", stretch=True)			
+			elif col in ("timestamp", "accesstime", "changetime"):
+				tree.column(col, width=150, anchor="w", stretch=False)
+			elif col in ("inode", "filesize"):
+				tree.column(col, width=70, anchor="w", stretch=False)
+			elif col == "checksum":
+				tree.column(col, width=270, anchor="w", stretch=True)
+			elif col in ("owner", "group", "casmod", "hardlinks", "symlink"):
+				tree.column(col, width=65, anchor="w", stretch=False)
+			elif col in ("permission",):
+				tree.column(col, width=150, anchor="w", stretch=False)
+			else:
+				tree.column(col, width=120, anchor="w", stretch=True)
+		for row in rows:
+			display_row = [row[i] for i, d in enumerate(c.description) if d[0] != "escapedpath"]
+			tree.insert("", tk.END, values=display_row)   #row)
+		tree.yview_moveto(0)
+		tree.xview_moveto(0)
+		table_frame.update_idletasks()
+	def on_select(_event):
+		load_table(selected_table.get())
+	table_menu.bind("<<ComboboxSelected>>", on_select)
+	load_table(tables[0])
+	root.mainloop()
+
 def averagetm(conn, cur):
     cur = conn.cursor()
     cur.execute('''

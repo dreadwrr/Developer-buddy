@@ -1,5 +1,5 @@
 #!/bin/env python3          
-#   manipulate array before database srg and send output to diff file             09/26/2025
+#   manipulate array before database srg and send output to diff file             11/19/2025
 import os
 from pyfunctions import parse_datetime
 from rntchangesfunctions import filter_output 
@@ -35,7 +35,7 @@ def isdiff(RECENT, ABSENT, rout, diffnm, difff_file, flsrh, parsed_PRD, fmt):
         ranged = difff_file[:]
 
     if ranged:
-        d_paths = set(entry[14] for entry in RECENT)
+        d_paths = set(entry[1] for entry in RECENT)
 
         with open(diffnm, 'a') as file2:
             for line in ranged:
@@ -130,9 +130,14 @@ def processha(rout, ABSENT, diffnm, cerr, flsrh, lclmodule, argf, parsed_PRD, US
             f.write('\nHybrid analysis\n\n')
             f.writelines(outline)
 
+    
     if os.path.exists(cerr):
-        filter_output(cerr, lclmodule, 'Warning', 'Suspect', 'yellow', 'red', 'elevated', supbrwr, supress)
-        return True
+        csum = filter_output(cerr, lclmodule, 'Warning', 'Suspect', 'yellow', 'red', 'elevated', supbrwr, supress)
+
+        # with open(cerr, 'r') as f: otherwise look for the two csum candidates
+        #         contents = f.read()
+        # if not ('Suspect' in contents or 'COLLISION' in contents):
+        return csum
 
     return False
 

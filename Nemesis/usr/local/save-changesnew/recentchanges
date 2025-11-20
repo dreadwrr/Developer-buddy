@@ -1,5 +1,5 @@
 #!/bin/bash
-#	rntfiles.xzm or -SRC application.xzm to /tmp																						09/27/2025
+#	rntfiles.xzm or -SRC application.xzm to /tmp																						11/19/2025
 . /usr/local/save-changesnew/rntchangesfunctions
 . /usr/local/save-changesnew/validprogram.sh
 . /usr/share/porteus/porteus-functions
@@ -22,22 +22,21 @@ goahead="true"
 tfile=$atmp$xdata
 tfile2=$atmp$xdata2
 
-
 xzmname="Application${$}"
 argone="$1"
-[[ "$2" = "SRC" ]] && SRCDIR="$2"
-USR="$3"
-ptmp="$4"
-fo="$5"
-[[ -s /tmp/"$fo" ]] || { echo "recentchanges main list not found" && exit 3 ; }
-ft="$6"
+THETIME="$2"
+[[ "$3" = "SRC" ]] && SRCDIR="$3"
+USR="$4"
+ptmp="$5"
+fo="$6"
+[[ -s /tmp/"$6" ]] || { echo "recentchanges main list not found" && exit 3 ; }
+ft="$7"
 [[ -s /tmp/"$ft" ]] || { echo "recentchanges recent list not found" && exit 3 ; }
-fth="$7"
+fth="$8"
 [[ -s /tmp/"$fth" ]] || { echo "recentchanges null list not found" && exit 3 ; }
-archivesrh=$8
-cmode=$9      
-autooutput="${10}"
-
+archivesrh=$9
+cmode=${10}  
+autooutput=${11}
 chown root:root -R $ptmp
 chmod 755 $ptmp
 mkdir $tmp

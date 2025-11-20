@@ -1,4 +1,4 @@
-# 09/26/2025           developer buddy core
+# original09/26/2025  11/19/2025         developer buddy core
 import getpass
 import glob
 import os
@@ -78,25 +78,22 @@ def clear_logs(USRDIR, MODULENAME):
 
 # open text editor
 def display(dspEDITOR, filepath, syschg):
-    if syschg:
+    if syschg and os.path.isfile(filepath):
+        editor_p = None
         if dspEDITOR == "xed":
-            if os.path.isfile("/usr/bin/xed"):
+            editor_p = "/usr/bin/xed"
+        elif dspEDITOR == "featherpad":
+            editor_p = "/usr/bin/featherpad"
+        if editor_p:
+            if os.path.isfile(editor_p):
                 try:
-                    subprocess.run(["xed", filepath], check=True)
-                    #subprocess.Popen(["xed", filepath])
+                    subprocess.run([dspEDITOR, filepath], check=True)
                 except subprocess.CalledProcessError as e:
-                    print(f"Editor exited with an error: {e}")
+                    print(f"Editor while opening {filepath} exited with an error: {e}")
+                except Exception as e:
+                    print(f"err in display {type(e).__name__} {e}")
             else:
                 print(f'{dspEDITOR} not installed')
-        if dspEDITOR == "featherpad":
-            if os.path.isfile("/usr/bin/featherpad"):
-                try:
-                    subprocess.run(["featherpad", filepath], check=True)
-                except subprocess.CalledProcessError as e:
-                    print(f"Editor exited with an error: {e}")
-            else:
-                print(f'{dspEDITOR} not installed')
-
 
 # filter files with filter.py
 def filter_lines_from_list(lines, user):
@@ -106,12 +103,13 @@ def filter_lines_from_list(lines, user):
     return filtered
 
 
+# scr / cerr logic
 def filter_output(filepath, LCLMODULENAME, filtername, critical, pricolor, seccolor, typ, supbrwr=True, supress=False):
     webb = sbwr(LCLMODULENAME)
     flg = False
-
     with open(filepath, 'r') as f:
         for file_line in f:
+
             file_line = file_line.strip()
             ck = False
 
@@ -130,6 +128,7 @@ def filter_output(filepath, LCLMODULENAME, filtername, critical, pricolor, secco
                         flg = True
                 else:
                     getattr(cprint, seccolor, lambda msg: print(msg))(f"{file_line} {typ}")
+    return flg
 
 
 # inclusions from this script
@@ -144,8 +143,8 @@ def get_runtime_exclude_list(USR, logpst, statpst, dbtarget, CACHE_F):
     ]
 # return filenm
 def getnm(locale, ext=''):
-      root = os.path.basename(locale)
-      root, ext = os.path.splitext(root)
+      f_name = os.path.basename(locale)
+      root, _= os.path.splitext(f_name)
       return root + ext
 
 
@@ -181,12 +180,15 @@ def hsearch(OLDSORT, MODULENAME, argone):
 
 def removefile(fpath):
     try:
-        os.remove(fpath)
-
-    except Exception as e:
-        print(f'Problem removing {fpath}')
-    except FileNotFoundError:
+        if os.path.isfile(fpath):
+            os.remove(fpath)
+        return True
+    except (TypeError, FileNotFoundError):
         pass
+    except Exception as e:
+        #print(f'Problem removing {fpath}: {e}')
+        pass
+    return False
 
 def changeperm(path, uid, gid=0, mode=0o644):
     try:
@@ -221,8 +223,8 @@ def get_linux_distro():
     return False
 
 #`recentchanges`
-# 
-def copyfiles(RECENT, RECENTNUL, TMPOPT, method, argone, argtwo, USR, TEMPDIR, archivesrh, autooutput, cmode, fmt):
+#                  RECENT, RECENTNUL, TMPOPT, method, argone, argtwo, USR, mainl, archivesrh, autooutput, cmode, fmt)
+def copyfiles(RECENT, RECENTNUL, TMPOPT, method, argone, THETIME, argtwo, USR, TEMPDIR, archivesrh, autooutput, cmode, fmt):
 
     if method == "rnt":
 
@@ -258,13 +260,14 @@ def copyfiles(RECENT, RECENTNUL, TMPOPT, method, argone, argtwo, USR, TEMPDIR, a
                                                                         #
                                                                         #
         if os.path.isfile('/tmp/' + copynewln) and os.path.getsize('/tmp/' + copynewln) > 0:
-            # print('sleeping two')
-            # time.sleep(15)
+
             try:
+                auto_output = str(autooutput).lower()
                 copyres = subprocess.run(
                     [
                         '/usr/local/save-changesnew/recentchanges',
                         str(argone),
+                        str(THETIME),
                         str(argtwo),
                         USR,
                         TEMPDIR,
@@ -273,7 +276,7 @@ def copyfiles(RECENT, RECENTNUL, TMPOPT, method, argone, argtwo, USR, TEMPDIR, a
                         copynul,
                         str(archivesrh),
                         cmode,
-                        str(autooutput)
+                        auto_output
                     ],
                     capture_output=True,
                     text=True
@@ -293,7 +296,7 @@ def copyfiles(RECENT, RECENTNUL, TMPOPT, method, argone, argtwo, USR, TEMPDIR, a
                     print("STDERR:", copyres.stderr)
                 
             except Exception as e:
-                print(f"Error in recentchangest: {e}")
+                print(f"Error in recentchangest: {e} {type(e).__name__}")
 
 def iskey(email, TEMPD):
     try:
@@ -350,7 +353,7 @@ Passphrase: {p}
         except subprocess.CalledProcessError as e:
             print("Failed to generate GPG key:", e)
         except Exception as e:
-            print(f'Unable to make GPG key: {e}')
+            print(f'Unable to make GPG key: {type(e).__name__} {e}')
     return False
 
 def postop(outf, USRDIR, toml, fmt):
