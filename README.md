@@ -4,7 +4,9 @@ Qt version is nearing completion excited to bring these features to Windows 10/1
 Find new files by drive index that is stored in a .gpg cache file loaded into memory.
 
 Scan the system index independtly from the main hybrid analysis to catch files that have a different checksum but same modified 
-or faked modified time.
+or faked modified time.<br><br>
+![Alt text](https://i.imgur.com/S8015dn.png)
+
 
 
 Currently making a Qt application and initial Windows release. It will have a WSL interface and a total of 3 search methods. <br>
