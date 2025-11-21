@@ -1,8 +1,7 @@
 #                               11/19/2025
 
-Qt version is nearing completion I am really excited to be able to bring these features to Windows 10/11. It has find file or
-files by extension by time and then compress to a .zip/.rar archive. Find new files by drive index that is stored in a .gpg
-cache file loaded into memory.
+Qt version is nearing completion excited to bring these features to Windows 10/11. find file or files by extension by time and then compress to a .zip/.rar archive.<br>
+Find new files by drive index that is stored in a .gpg cache file loaded into memory.
 
 Scan the system index independtly from the main hybrid analysis to catch files that have a different checksum but same modified 
 or faked modified time.
