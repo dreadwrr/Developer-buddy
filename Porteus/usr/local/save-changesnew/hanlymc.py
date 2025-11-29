@@ -132,15 +132,13 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
 
 
                         if (st := goahead(file_path)):             # we have to verify that the mtime is still the same.
-                           
-                            
+                             
                             if st == "Nosuchfile":
                                 entry["flag"].append(f'Deleted {record[0]} {record[2]} {label}')
                             else:
- 								afrm_dt, afrm_str = getstdate(st, fmt)
+                                afrm_dt, afrm_str = getstdate(st, fmt)
                                 a_size = st.st_size
                                 if afrm_dt and is_valid_datetime(record[3], fmt):
-
 
                                     md5 = None
                                     if current_size is not None: 

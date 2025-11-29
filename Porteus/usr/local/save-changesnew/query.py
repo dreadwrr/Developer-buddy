@@ -55,39 +55,43 @@ def hardlinks(database, target, email, conn, cur):
 		print(f"Error executing updating db. data preserved.: {e}")
 		conn.rollback()
 def clear_cache(database, target, email, usr, dbp, conn, cur):
-		files_d = get_delete_patterns(usr, dbp)
-		try:
-			for filename_pattern in files_d:
-				cur.execute("DELETE FROM logs WHERE filename LIKE ?", (filename_pattern,))
-				conn.commit()
-				cur.execute("DELETE FROM stats WHERE filename LIKE ?", (filename_pattern,))
-				conn.commit()
-			rlt=encr(database, target, email, False, False)
-			if rlt:
-				print("Cache files cleared.")
-				try:
-					result=subprocess.run(["/usr/local/save-changesnew/clearcache",  usr, "yes"],check=True,capture_output=True,text=True)
-					print(result)
-				except subprocess.CalledProcessError as e:
-					print("Bash failed to clear flth.csv:", e.returncode)
-					print(e.stderr)
-			else:
-				print(f"Reencryption failed cache not cleared.:")		
-		except sqlite3.Error as e:
-			conn.rollback()
-			print(f"Cache clear failed to write to db. on {filename_pattern}")
-def clear_sys(database, target, email, conn, cur):
-		try:
-			cur.execute("DELETE FROM sys")
+	files_d = get_delete_patterns(usr)
+	try:
+		for filename_pattern in files_d:
+			cur.execute("DELETE FROM logs WHERE filename LIKE ?", (filename_pattern,))
 			conn.commit()
-			rlt=encr(database, target, email, False, False)
-			if rlt:
-				print("Sys table cleared.")
-			else:
-				print(f"Reencryption failed sys not cleared.:")		
-		except sqlite3.Error as e:
-			conn.rollback()
-			print(f"Sys clear failed to write to db.")
+			cur.execute("DELETE FROM stats WHERE filename LIKE ?", (filename_pattern,))
+			conn.commit()
+		rlt=encr(database, target, email, False, False)
+		if rlt:
+			print("Cache files cleared.")
+			try:
+				result=subprocess.run(["/usr/local/save-changesnew/clearcache",  usr, "yes"],check=True,capture_output=True,text=True)
+				print(result)
+			except subprocess.CalledProcessError as e:
+				print("Bash failed to clear flth.csv:", e.returncode)
+				print(e.stderr)
+		else:
+			print(f"Reencryption failed cache not cleared.:")		
+	except sqlite3.Error as e:
+		conn.rollback()
+		print(f"Cache clear failed to write to db. on {filename_pattern}")
+def clear_sys(database, target, email, conn, cur):
+	try:
+		cur.execute("DELETE FROM sys")
+		try:
+			cur.execute("DELETE FROM sqlite_sequence WHERE name=?", ("sys",)) 
+		except sqlite3.OperationalError:
+			pass
+		conn.commit()
+		rlt=encr(database, target, email, False, False)
+		if rlt:
+			print("Sys table cleared.")
+		else:
+			print(f"Reencryption failed sys not cleared.:")		
+	except sqlite3.Error as e:
+		conn.rollback()
+		print(f"Sys clear failed to write to db.")
 def dexec(cur, actname, limit):
 	query = '''
 	SELECT *

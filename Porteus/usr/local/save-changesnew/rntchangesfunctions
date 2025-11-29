@@ -506,6 +506,12 @@ while IFS= read -r file; do
 		[[ "$critical" == "no" ]] && $seccolor "$file $6"
 	fi
 done < $1
+
+if [ "$flg" == "true" ]; then
+	return 1
+else
+	return 0
+fi
 }
 processha() {
 local invr="$3" ; [[ -z "$invr" ]] && invr="$1"
@@ -528,13 +534,14 @@ if [ -s $rout ]; then
 	if [ -s "/tmp/cerr" ]; then 
         if [ "$supbrwr" == "true" ]; then
             sbwr
-            grep "Suspect\|COLLISION" /tmp/cerr > $TMPCOMPLETE
+            grep -E "^(Suspect|COLLISION)" /tmp/cerr > $TMPCOMPLETE
             for item in "${webb[@]}"; do sed -i "\|$item|d" /tmp/cerr ; done
-            [[ -s $TMPCOMPLETE ]] && cat $TMPCOMPLETE >> /tmp/cerr
+            [[ -s $TMPCOMPLETE ]] && cat $TMPCOMPLETE && csum="true" >> /tmp/cerr
             sort -u -o /tmp/cerr /tmp/cerr 
         fi
-		filteroutput "/tmp/cerr" "Warning" "Suspect" "yellow" "red" "elevated"
-		if [[ -z "$csum" ]]; then csum="true" ; fi
+		if ! filteroutput "/tmp/cerr" "Warning" "Suspect" "yellow" "red" "elevated"; then
+			csum="true"
+		fi
 	fi
 	if [ -n "$cores" ] && [ "$csm" == "" ]; then echo "Detected $cores CPU cores."; fi
 fi
@@ -702,15 +709,16 @@ if [ "$STATPST" == "true" ]; then
 	fi
 fi
 [[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && [[ "$ANALYTICSECT" == "true" ]] && [[ "$backend" == "default" ]] && green "Hybrid analysis on"
-if [[ "$csum" != "true" && -s $slog && "$supress" == "true" ]]; then
-	{ echo; echo "cdiag"; echo ; cat $slog; } >> "$difffile"
-elif [[ "$csum" != "true" && -s $slog && "$supress" == "false" ]]; then
+
+if [[ "$csum" != "true" && -s $slog && "$supress" == "false" ]]; then
 	filteroutput $slog "Checksum" "no" "blue" "yellow" "Scr"
-	{ echo; echo "cdiag"; echo ; cat $slog; } >> "$difffile" 
-elif [[ "$csum" == "true" ]]; then
-	{ echo; echo "cdiag alert"; echo ; cat /tmp/cerr ; } >> "$difffile"
+fi
+
+if [[ "$csum" == "true" ]]; then
+	{ echo; echo "cdiag alert"; echo ; grep -v "^Warning File" /tmp/cerr ; } >> "$difffile"
 	rm /tmp/cerr
 fi
+
 test -e $TMPDIR && rm -rf "${TMPDIR:?}"
 test -f $slog && rm $slog ; test -f $rout && rm $rout
 }

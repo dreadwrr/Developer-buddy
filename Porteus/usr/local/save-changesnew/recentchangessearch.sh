@@ -43,7 +43,7 @@ FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 diffrlt="false"															; 		nodiff="false"
 pstc="false"																;		flsrh="false"
 samerlt="false"															;		nc="false"
-syschg="false"
+syschg="false"															;		csum="false"
 
 
 F=(/bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var)

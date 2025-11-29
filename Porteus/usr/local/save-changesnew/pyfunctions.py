@@ -8,22 +8,28 @@ RED = "\033[31m"
 GREEN = "\033[1;32m"
 YELLOW = "\033[33m"
 RESET = "\033[0m"
-def get_delete_patterns(usr, dbp): # db cache clr
-    return [
-        "%caches%",
-        "%cache2%",
-        "%Cache2%",
-        "%.cache%",
-        "%share/Trash%",
-        f"%home/{usr}/Downloads/rntfiles%",
-        f"%home/{usr}/.local/state/wireplumber%",
-        "%usr/share/mime/application%",
-        "%usr/share/mime/text%",
-        "%usr/share/mime/image%",
-        "%release/cache%",
-        f"%{dbp}%",
-        "%usr/local/save-changesnew/flth.csv%",
-    ]
+
+# Cache clear
+# patterns to delete
+cache_clear = [
+    "%caches%",
+    "%cache2%",
+    "%Cache2%",
+    "%.cache%",
+    "%share/Trash%",
+    f"%home/{{user}}/Downloads/rntfiles%",
+    f"%home/{{user}}/.local/state/wireplumber%",
+    "%usr/share/mime/application%",
+    "%usr/share/mime/text%",
+    "%usr/share/mime/image%",
+    "%release/cache%"
+]
+
+
+def get_delete_patterns(usr): # db cache clr
+    patterns = [p.replace("{user}", usr) for p in cache_clear]
+    return patterns
+
 	# cursor.execute('''
 	# SELECT a.filename, b.filename, a.checksum, a.filesize, b.filesize
 	# FROM logs a
@@ -64,14 +70,15 @@ def collision(filename, checksum, filesize, cursor, sys):
         '''
     cursor.execute(query, (filename, checksum, filesize))
     return cursor.fetchall()
-#11/19/2025
+#11/28/2025
 def detect_copy(filename, inode, checksum, cursor, ps):
     if ps:
         query = f'''
-            SELECT filename, inode, checksum
+            SELECT filename, inode
             FROM logs
+            WHERE checksum = ?
             UNION ALL
-            SELECT filename, inode, checksum
+            SELECT filename, inode
             FROM sys
             WHERE checksum = ?
         '''
@@ -187,7 +194,7 @@ def increment_f(conn, c, records):
     
 
 # Update sys table counts
-# def ucount(conn, cur):
+# def ucount(conn, cur):sys_record_flds
 #     cur.execute('''
 #         SELECT filename, COUNT(*) as total_count
 #         FROM sys
