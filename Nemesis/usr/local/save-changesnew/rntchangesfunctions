@@ -317,14 +317,13 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 				dt="$f1 $f2" ; omt="$of1 $of2" ; ct="$f3 $f4"
 				if [ "$dt" == "$omt" ]; then
 					if [ "$checkSUM" == "true" ]; then
-
 						if [ -f "$cFILE" ]; then
 							read a_mod fs < <(stat --format="%Y %s" "$cFILE" 2>/dev/null)
 							afrm=$(date -d "@$a_mod" +"$fmt" 2>/dev/null)
 
 							if [ -n "$afrm" ]; then
 								if [ "$csze" -ge 0 ] 2>/dev/null && (( csze != 0 )) ; then
-									if (( cdze > 1000000 )); then
+									if (( csze > 1000000 )); then
 										a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
 									else
 										a_checksum=$ocs
@@ -438,6 +437,12 @@ while IFS= read -r file; do
 		[[ "$critical" == "no" ]] && $seccolor "$file $6"
 	fi
 done < $1
+
+if [ "$flg" == "true" ]; then
+	return 1
+else
+	return 0
+fi
 }
 processha() {
 local invr="$3" ; [[ -z "$invr" ]] && invr="$1"
@@ -460,15 +465,16 @@ if [ -s $rout ]; then
 	if [ -s "/tmp/cerr" ]; then 
         if [ "$supbrwr" == "true" ]; then
             sbwr
-            grep "Suspect\|COLLISION" /tmp/cerr > $TMPCOMPLETE
+			grep -E "^(Suspect|COLLISION)" /tmp/cerr > $TMPCOMPLETE
             for item in "${webb[@]}"; do sed -i "\|$item|d" /tmp/cerr ; done
-            [[ -s $TMPCOMPLETE ]] && cat $TMPCOMPLETE >> /tmp/cerr
+            [[ -s $TMPCOMPLETE ]] && cat $TMPCOMPLETE && csum="true" >> /tmp/cerr
             sort -u -o /tmp/cerr /tmp/cerr 
         fi
-		filteroutput "/tmp/cerr" "Warning" "Suspect" "yellow" "red" "elevated"
-		if [[ -z "$csum" ]]; then csum="true" ; fi
+		if ! filteroutput "/tmp/cerr" "Warning" "Suspect" "yellow" "red" "elevated"; then
+			csum="true"
+		fi
 	fi
-	if [ -n "$cores" ] && [ "$csm" == "" ]; then echo "Detected $cores CPU cores."; fi
+	if [ -n "$cores" ] && [ "$csum" == "false" ]; then echo "Detected $cores CPU cores."; fi
 fi
 }
 suffix() {
@@ -634,15 +640,16 @@ if [ "$STATPST" == "true" ]; then
 	fi
 fi
 [[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && [[ "$ANALYTICSECT" == "true" ]] && [[ "$backend" == "default" ]] && green "Hybrid analysis on"
-if [[ "$csum" != "true" && -s $slog && "$supress" == "true" ]]; then
-	{ echo; echo "cdiag"; echo ; cat $slog; } >> "$difffile"
-elif [[ "$csum" != "true" && -s $slog && "$supress" == "false" ]]; then
+
+if [[ "$csum" != "true" && -s $slog && "$supress" == "false" ]]; then
 	filteroutput $slog "Checksum" "no" "blue" "yellow" "Scr"
-	{ echo; echo "cdiag"; echo ; cat $slog; } >> "$difffile" 
-elif [[ "$csum" == "true" ]]; then
-	{ echo; echo "cdiag alert"; echo ; cat /tmp/cerr ; } >> "$difffile"
+fi
+
+if [[ "$csum" == "true" ]]; then
+	{ echo; echo "cdiag alert"; echo ; grep -v "^Warning File" /tmp/cerr ; } >> "$difffile"
 	rm /tmp/cerr
 fi
+
 test -e $TMPDIR && rm -rf "${TMPDIR:?}"
 test -f $slog && rm $slog ; test -f $rout && rm $rout
 }
@@ -839,7 +846,7 @@ while IFS= read -r -d '' p ; do
 	cFILE="$path"
 	y="$( escf "$cFILE")" 
 	mt=$(date -d "@${mtime%%.*}" +"$fmt")
-	ct=$(date -d "@${itime%%.*}" +"$fmt")
+	ct=$(date -d "@${itime%%.*}" +"$fmt")1
 	if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 		if [ -n "$mt" ]; then
 			if [ "$checkSUM" == "true" ]; then

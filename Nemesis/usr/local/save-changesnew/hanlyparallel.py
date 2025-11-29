@@ -83,8 +83,7 @@ def hanly_parallel(rout, parsed, checksum, cdiag, dbopt, ps, turbo, user, dbtarg
 	all_results = []
 	batch_incr = []
 
-	if not parsed:
-		logger_process([], rout)
+	if not parsed or len(parsed) == 0:
 		return
 	
 	if len(parsed) < 40 or turbo != 'mc':

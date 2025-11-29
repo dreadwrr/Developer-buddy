@@ -38,7 +38,7 @@ diffrlt="false" 															; 		nodiff="false"
 pstc="false"																;		flsrh="false"
 samerlt="false"															;		nc="false"
 syschg="false"															;		csm="false"
-
+csum="false"
 
 F=(/bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var)
 TAIL=(-not -type d -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0')
