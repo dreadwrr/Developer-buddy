@@ -27,7 +27,7 @@ get_colors
 # CHANGEABLE       New to version 3
 
 
-export backend="database" 	# default normal    bash 2 gpg and queries text based stable tested
+export backend="normal" 	# default normal    bash 2 gpg and queries text based stable tested
 											# database   binary database faster queries 1 gpg and python (easier ha)
 
 export email="john.doe@email.com" # default for asymmetrical gpg auth for STATPST
@@ -187,8 +187,8 @@ SORTCOMPLETE=$tmp/list_complete_sorted.txt			;	USRDIR=/home/$USR/Downloads
 log_file=/tmp/file_creation_log.txt								;   cerr=/tmp/cerr # priority
 xopt=/mnt/live/tmp	
 												
-SRCDIR=""                                           
-csm=""
+                                           
+SRCDIR=""																	;	csm=""																	
 cores=0																	;   max_jobs=0
 
 cached=/tmp/dbctimecache/
@@ -201,7 +201,7 @@ diffrlt="false"															;	pstc="false"
 nodiff="false"															;   samerlt="false"
 syschg="false"															;	validrlt="false"
 approval="true"														;	nc="false"
-
+csum="false"
 
 F=( /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var )
 TAIL=( -not -type d -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' )
