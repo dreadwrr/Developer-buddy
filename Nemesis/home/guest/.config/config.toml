@@ -78,10 +78,11 @@ updatehlinks = true
 POSTOP = false
 
 # take initial hash of base modules 001-core.. ect database mode
-proteusSHIELD = false
+proteusSHIELD = true
 
 
 [paths]
+MODULENAME = "rntfiles" 
 # filter hits
 flth = "/usr/local/save-changesnew/flth.csv" 
 logpst = "/usr/local/save-changesnew/logs.gpg"
