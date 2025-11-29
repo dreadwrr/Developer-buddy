@@ -149,6 +149,7 @@ def detect_copy(filename, inode, checksum, cursor, ps):
         query = f'''
             SELECT filename, inode
             FROM logs
+			WHERE checksum = ?
             UNION ALL
             SELECT filename, inode
             FROM sys
