@@ -1,44 +1,52 @@
-import csv                                                                                              #11/19/2025
+import csv                                                                                              #11/28/2025
 import fnmatch
-import time
 import re
 from datetime import datetime
 
 # terminal and hardlink supression
-def sbwr(lclmodule): 
-    webb = [
-        'mozilla',
-        '.mozilla',
-        'chromium-ungoogled',
-        # 'google-chrome',  
-        lclmodule
-    ]
-    return webb
+supress_terminal = [
+    r'mozilla',
+    r'\.mozilla',
+    r'chromium-ungoogled',
+    r'/home/{{user}}/\.cache/somefolder'
+    #r'google-chrome',  
+]
 
-# database cache clear patterns like for sql
-def get_delete_patterns(usr, dbp): 
-    return [
-        "%caches%",
-        "%cache2%",
-        "%Cache2%",
-        "%.cache%",
-        "%share/Trash%",
-        f"%home/{usr}/Downloads/rntfiles%",
-        f"%home/{usr}/.local/state/wireplumber%",
-        "%usr/share/mime/application%",
-        "%usr/share/mime/text%",
-        "%usr/share/mime/image%",
-        "%release/cache%",
-        f"%{dbp}%",
-        "%usr/local/save-changesnew/flth.csv%",
-    ]
-# for resetting filterhits CSV on cache clear add literal here
+# Cache clear
+# patterns to delete
+cache_clear = [
+    "%caches%",
+    "%cache2%",
+    "%Cache2%",
+    "%.cache%",
+    "%share/Trash%",
+    f"%home/{{user}}/.local/state/wireplumber%",
+    "%usr/share/mime/application%",
+    "%usr/share/mime/text%",
+    "%usr/share/mime/image%",
+    "%release/cache%",
+]
+
+# filter hits to reset on cache clear. copy from items to reset from filter.py
+flth_literal_patterns = [
+    r'/home/{user}/.Xauthority',
+    r'/home/{user}/.local/state/wireplumber'
+]
+
+
+def sbwr(escaped_user): 
+    supress_list = [p.replace("{{user}}", escaped_user) for p in supress_terminal]
+    compiled = [re.compile(p) for p in supress_list ]
+    return compiled
+
+
+def get_delete_patterns(usr): 
+    patterns = [p.replace("{user}", usr) for p in cache_clear]
+    return patterns
+
 def reset_csvliteral(csv_file):
 
-    patterns_to_reset = [
-        r'/home/{user}/.Xauthority',
-        r'/home/{user}/.local/state/wireplumber'
-    ]
+    patterns_to_reset = flth_literal_patterns
 
     with open(csv_file, newline='') as f:
         reader = csv.reader(f)
@@ -93,16 +101,16 @@ class cprint:
     def reset(msg):
         print(f"{cprint.RESET}{msg}")
 
-
-	# cursor.execute('''
-	# SELECT a.filename, b.filename, a.checksum, a.filesize, b.filesize
-	# FROM logs a
-	# JOIN logs b
-	# 	ON a.checksum = b.checksum
-	# 	AND a.filename != b.filename
-	# WHERE a.filesize != b.filesize
-	# 	AND a.filename = ?
-	# ''', (filename,))
+# after file is inserted. in ha its not inserted yet
+# cursor.execute('''
+# SELECT a.filename, b.filename, a.checksum, a.filesize, b.filesize
+# FROM logs a
+# JOIN logs b
+# 	ON a.checksum = b.checksum
+# 	AND a.filename != b.filename
+# WHERE a.filesize != b.filesize
+# 	AND a.filename = ?
+# ''', (filename,))
 def collision(filename, checksum, filesize, cursor, sys):
     if sys:
         query = '''
@@ -135,14 +143,14 @@ def collision(filename, checksum, filesize, cursor, sys):
     cursor.execute(query, (filename, checksum, filesize))
     return cursor.fetchall()
 
-#11/19/2025
+#11/29/2025
 def detect_copy(filename, inode, checksum, cursor, ps):
     if ps:
         query = f'''
-            SELECT filename, inode, checksum
+            SELECT filename, inode
             FROM logs
             UNION ALL
-            SELECT filename, inode, checksum
+            SELECT filename, inode
             FROM sys
             WHERE checksum = ?
         '''

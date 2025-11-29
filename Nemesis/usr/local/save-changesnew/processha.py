@@ -1,15 +1,16 @@
 #!/bin/env python3          
 #   manipulate array before database srg and send output to diff file             11/19/2025
 import os
+from datetime import datetime
 from pyfunctions import parse_datetime
 from rntchangesfunctions import filter_output 
 from rntchangesfunctions import filter_lines_from_list
 
 # get first datetime
-def get_trout(line):
+def parse_rout(line):
     parts = line.strip().split(None, 3)
     if len(parts) < 3:
-        return None
+        return datetime.min
     tsmp=f'{parts[1]} {parts[2]}'
     return parse_datetime(tsmp) 
 
@@ -71,7 +72,7 @@ def isdiff(RECENT, ABSENT, rout, diffnm, difff_file, flsrh, parsed_PRD, fmt):
 
    
 # post ha to diff
-def processha(rout, ABSENT, diffnm, cerr, flsrh, lclmodule, argf, parsed_PRD, USR, supbrwr, supress, fmt):
+def processha(rout, ABSENT, diffnm, cerr, flsrh, argf, parsed_PRD, escaped_user, supbrwr, supress):
     cleaned_rout = []
     outline = []
 
@@ -98,17 +99,17 @@ def processha(rout, ABSENT, diffnm, cerr, flsrh, lclmodule, argf, parsed_PRD, US
 
         if flsrh  or argf == "filtered":
             if not (flsrh  and argf == "filtered"):
-                DIFFMATCHED = filter_lines_from_list(DIFFMATCHED, USR)
+                DIFFMATCHED = filter_lines_from_list(DIFFMATCHED, escaped_user)
 
 
         if flsrh:
             DIFFMATCHED = [
                 line for line in DIFFMATCHED
-                if (ts := get_trout(line)) and ts >= parsed_PRD
+                if (ts := parse_rout(line)) and ts >= parsed_PRD
             ]
 
 
-        DIFFMATCHED.sort(key=get_trout)
+        DIFFMATCHED.sort(key=parse_rout)
 
         for line in DIFFMATCHED:
             fields = line.split()
@@ -132,7 +133,7 @@ def processha(rout, ABSENT, diffnm, cerr, flsrh, lclmodule, argf, parsed_PRD, US
 
     
     if os.path.exists(cerr):
-        csum = filter_output(cerr, lclmodule, 'Warning', 'Suspect', 'yellow', 'red', 'elevated', supbrwr, supress)
+        csum = filter_output(cerr, escaped_user, 'Warning', 'Suspect', 'yellow', 'red', 'elevated', supbrwr, supress)
 
         # with open(cerr, 'r') as f: otherwise look for the two csum candidates
         #         contents = f.read()

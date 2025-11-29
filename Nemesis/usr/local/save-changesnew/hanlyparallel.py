@@ -1,4 +1,4 @@
-import traceback																												#11/19/2025
+import traceback																												#11/28/2025
 import os
 import sqlite3
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -88,8 +88,7 @@ def hanly_parallel(rout, parsed, checksum, cdiag, dbopt, ps, user, dbtarget):
 	all_results = []
 	batch_incr = []
 
-	if not parsed:
-		logger_process([], rout)
+	if not parsed or len(parsed) == 0:
 		return
 	
 	if len(parsed) < 40:

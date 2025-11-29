@@ -1,4 +1,4 @@
-# original09/26/2025  11/19/2025         developer buddy core
+# original09/26/2025  11/28/2025         developer buddy core
 import getpass
 import glob
 import os
@@ -96,16 +96,15 @@ def display(dspEDITOR, filepath, syschg):
                 print(f'{dspEDITOR} not installed')
 
 # filter files with filter.py
-def filter_lines_from_list(lines, user):
-    escaped_user = re.escape(user)
+def filter_lines_from_list(lines, escaped_user):
     regexes = [re.compile(p.replace("{user}", escaped_user)) for p in get_exclude_patterns()]
     filtered = [line for line in lines if not any(r.search(line[1]) for r in regexes)]
     return filtered
 
 
 # scr / cerr logic
-def filter_output(filepath, LCLMODULENAME, filtername, critical, pricolor, seccolor, typ, supbrwr=True, supress=False):
-    webb = sbwr(LCLMODULENAME)
+def filter_output(filepath, escaped_user, filtername, critical, pricolor, seccolor, typ, supbrwr=True, supress=False):
+    webb = sbwr(escaped_user)
     flg = False
     with open(filepath, 'r') as f:
         for file_line in f:
@@ -132,15 +131,20 @@ def filter_output(filepath, LCLMODULENAME, filtername, critical, pricolor, secco
 
 
 # inclusions from this script
-def get_runtime_exclude_list(USR, logpst, statpst, dbtarget, CACHE_F):
+def get_runtime_exclude_list(USRDIR, MODULENAME, flth, logpst, statpst, dbtarget, CACHE_F):
+
+    usrd = os.path.join(USRDIR, MODULENAME[:3])
+
     return [
-        "/usr/local/save-changesnew/flth.csv",
-        f"/home/{USR}/Downloads/rnt",
+        flth,
+        usrd,
         logpst,
         statpst,
         dbtarget,
         CACHE_F
     ]
+
+
 # return filenm
 def getnm(locale, ext=''):
       f_name = os.path.basename(locale)
@@ -226,7 +230,19 @@ def get_linux_distro():
 #                  RECENT, RECENTNUL, TMPOPT, method, argone, argtwo, USR, mainl, archivesrh, autooutput, cmode, fmt)
 def copyfiles(RECENT, RECENTNUL, TMPOPT, method, argone, THETIME, argtwo, USR, TEMPDIR, archivesrh, autooutput, cmode, fmt):
 
+    appname = ''
+
     if method == "rnt":
+
+        if not autooutput and argtwo == "SRC":
+            while True:
+                uinpt = input("Press enter for default filename: ").strip()
+                if uinpt:  # non-empty string
+                    appname = uinpt
+                    break
+                else:
+                    break
+
 
         copynewln = 'tmp_holding' # TMPOPT filtered list
         copynul = 'toutput.tmp' # tout temp file
@@ -260,7 +276,7 @@ def copyfiles(RECENT, RECENTNUL, TMPOPT, method, argone, THETIME, argtwo, USR, T
                                                                         #
                                                                         #
         if os.path.isfile('/tmp/' + copynewln) and os.path.getsize('/tmp/' + copynewln) > 0:
-
+            # input="MyApp\n"
             try:
                 auto_output = str(autooutput).lower()
                 copyres = subprocess.run(
@@ -278,6 +294,7 @@ def copyfiles(RECENT, RECENTNUL, TMPOPT, method, argone, THETIME, argtwo, USR, T
                         cmode,
                         auto_output
                     ],
+                    input=appname + "\n",
                     capture_output=True,
                     text=True
                 )

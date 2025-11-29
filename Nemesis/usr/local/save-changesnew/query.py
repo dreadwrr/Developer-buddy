@@ -146,6 +146,18 @@ def clear_sys(database, target, email, conn, cur, dcr):
 		if not dcr:
 			rlt=encr(database, target, email, False, False)
 			if rlt:
+				config_file = "/home/guest/.config/save-changesnew/config.toml"
+
+				with open(config_file, "r") as f:
+					lines = f.readlines()
+
+				with open(config_file, "w") as f:
+					for line in lines:
+						if line.strip() == "proteusSHIELD = true":
+							f.write("proteusSHIELD = false\n")
+						else:
+							f.write(line)
+
 				print("Sys table cleared.")
 				return True
 			else:
@@ -192,6 +204,19 @@ def ps(database, target, email, conn, cur):
 	# process results
 	if parsedsys:
 		if activateps(parsedsys, database, target, email, conn, cur):
+
+			config_file = "/home/guest/.config/save-changesnew/config.toml"
+
+			with open(config_file, "r") as f:
+				lines = f.readlines()
+
+			with open(config_file, "w") as f:
+				for line in lines:
+					if line.strip() == "proteusSHIELD = false":
+						f.write("proteusSHIELD = true\n")
+					else:
+						f.write(line)
+
 			return True
 		else:
 			print("Failed to insert profile into db")

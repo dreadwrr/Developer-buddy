@@ -1,5 +1,5 @@
 #!/usr/bin/env python3                  
-#   Porteus                                                                           11/19/2025 
+#   Porteus                                                                           11/28/2025 
 #   recentchanges. Developer buddy      `recentchanges`/ `recentchanges search`       
 #   Provide ease of pattern finding ie what files to block we can do this a number of ways
 #   1) if a file was there (many as in more than a few) and another search lists them as deleted its either a sys file or not but unwanted nontheless
@@ -30,6 +30,7 @@
 import csv
 import grp
 import os
+import re
 import sys
 import processha
 import pstsrg
@@ -46,7 +47,6 @@ from processha import isdiff
 from pstsrg import decrm
 from pstsrg import dict_string
 from pstsrg import encrm
-from rntchangesfunctions import changeperm
 from rntchangesfunctions import clear_logs
 from rntchangesfunctions import copyfiles
 from rntchangesfunctions import display
@@ -112,7 +112,8 @@ def main():
     POSTOP = config['diagnostics']['POSTOP']
     ps = config['diagnostics']['proteusSHIELD'] # proteus shield
     updatehlinks = config['diagnostics']['updatehlinks']
-    flth=config['paths']['flth']  # filter hits
+    flth = config['paths']['flth']  # filter hits
+    MODULENAME = config['paths']['MODULENAME']     # file label
     logpst  = config['paths']['logpst'] # for inclusions
     statpst = config['paths']['statpst']
     dbtarget = config['paths']['pydbpst']
@@ -124,6 +125,7 @@ def main():
     argone=sys.argv[1] # range
     argtwo=sys.argv[2] # SRC tag?
     USR=sys.argv[3]         # getpass.getuser()
+    escaped_user = re.escape(USR)
 
     uid = pwd.getpwnam(USR).pw_uid
     gid = grp.getgrnam("root").gr_gid
@@ -177,7 +179,7 @@ def main():
     parseflnm = ""
     fmt="%Y-%m-%d %H:%M:%S"
 
-    MODULENAME="rntfiles" # file label
+    
 
     USRDIR =  f'/home/{USR}/Downloads'    
     
@@ -385,14 +387,13 @@ def main():
         deduped = list(seen.values())
 
         # inclusions from this script. sort -u 
-        exclude_patterns = get_runtime_exclude_list(USR, logpst, statpst, dbtarget, CACHE_F) 
-
+        exclude_patterns = get_runtime_exclude_list(USR, MODULENAME, flth, logpst, statpst, dbtarget, CACHE_F) 
+        
         def filepath_included(filepath, exclude_patterns):
-            for pattern in exclude_patterns:
-                if pattern in filepath:
-                    return False
-            return True
 
+            filepath = filepath.lower()
+            return not any(filepath.startswith(p.lower()) for p in exclude_patterns)
+        
         SORTCOMPLETE = [
             entry for entry in deduped
             if filepath_included(entry[1], exclude_patterns)
@@ -433,7 +434,7 @@ def main():
         RECENT = TMPOPT[:]
 
         # Apply filter used for results, copying. RECENT unfiltered stored in db.
-        TMPOPT = filter_lines_from_list(TMPOPT, USR)  
+        TMPOPT = filter_lines_from_list(TMPOPT,  escaped_user)  
     
         logf = []
         logf = RECENT
@@ -551,7 +552,7 @@ def main():
                     el = cend - cstart
                     print(f'Checksum took {el:.3f} seconds')
             # Diff output to user
-            csum=processha.processha(rout, ABSENT, diffnm, cerr, flsrh, MODULENAME, argf, SRTTIME, USR, supbrw, supress, fmt)
+            csum=processha.processha(rout, ABSENT, diffnm, cerr, flsrh, argf, SRTTIME, escaped_user, supbrw, supress)
 
             # Filter hits
             update_filter_csv(RECENT, USR, flth) 
@@ -570,7 +571,7 @@ def main():
             # Terminal output process scr/cer
             if not csum and not supress:
                 if os.path.exists(slog):
-                    filter_output(slog, MODULENAME, 'Checksum', 'no', 'blue', 'yellow', 'scr', supbrw) 
+                    filter_output(slog, escaped_user, 'Checksum', 'no', 'blue', 'yellow', 'scr', supbrw) 
             
             if csum:
                 if os.path.isfile(cerr):
