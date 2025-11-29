@@ -217,6 +217,7 @@ diffrlt="false"															;	pstc="false"
 nodiff="false"															;   samerlt="false"
 syschg="false"															;	validrlt="false"
 approval="true"														;	nc="false"
+csum="false"
 
 F=( /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var )
 TAIL=( -not -type d -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' )
