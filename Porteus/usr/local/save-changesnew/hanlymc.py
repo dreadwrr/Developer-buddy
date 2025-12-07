@@ -92,7 +92,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
             recent_timestamp = parse_datetime(filedate, fmt)
             previous = recent_entries
             
-            if ps and recent_sys and len(recent_sys) > 0:
+            if ps and recent_sys and len(recent_sys) >= 15:
                 recent_systime = parse_datetime(recent_sys[0], fmt)
                 if recent_systime and recent_systime > recent_timestamp:
                     is_sys = True
@@ -101,7 +101,10 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
                     sys_record_flds(record, sys_records, prev_count)
                     previous = recent_sys
 
-
+            if previous is None or len(previous) < 11:
+                # logging.debug("previous record has unexpected size or is None %s", previous)
+                continue
+                
             if checksum:
                 if not record[5]:
                     continue
@@ -141,7 +144,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
                             
                             if st == "Nosuchfile":
                                 entry["flag"].append(f'Deleted {record[0]} {record[2]} {label}')
-                            else:
+                            elif st:
                                 afrm_dt, afrm_str = getstdate(st, fmt)
                                 a_size = st.st_size
                                 if afrm_dt and is_valid_datetime(record[3], fmt):
@@ -162,7 +165,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
                                                 f'Suspect file: {label} changed without a new modified time.')
                                             
                                         if record[3] == previous[3]:  # inode
-                                            metadata = (previous[7], previous[8], previous[9])
+                                            metadata = (previous[8], previous[9], previous[10])
                                             if new_meta(record, metadata):
                                             
                                                 entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
@@ -201,7 +204,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
                                 collision_messages = stealth(filename, label, entry, record[5], current_size, original_size, cdiag, cur, is_sys)
                                 
                             else:
-                                metadata = (previous[7], previous[8], previous[9])
+                                metadata = (previous[8], previous[9], previous[10])
                                 if new_meta(record, metadata):
                                     
 

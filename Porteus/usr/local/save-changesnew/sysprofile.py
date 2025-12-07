@@ -15,10 +15,16 @@ def collect_layer_files(layer, subdirs, match_args=None):
         if not os.path.isdir(dir_path):
             continue
 
-        cmd = ["find", dir_path, "-type", "f"]
+#        cmd = ["find", dir_path, "-type", "f"]
+#        if match_args:
+#            cmd += match_args
+#        cmd += ["-printf", "%T@ %A@ %C@ %i %s %u %g %m %p\\0"]
+
+        cmd = ["find", layer, "-path", f"{dir_path}/*", "-type", "f"]
         if match_args:
             cmd += match_args
-        cmd += ["-printf", "%T@ %A@ %C@ %i %s %u %g %m %p\\0"]
+        cmd += ["-printf", "%T@ %A@ %C@ %i %s %u %g %m /%P\\0"]
+
 
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         output, err = proc.communicate()
@@ -64,7 +70,7 @@ def collect_all_files_to_array(ch_base, systemf):
         if not os.path.isdir(folder):
             continue
 
-        cmd = ["find", folder, "-type", "f", "-printf", "%T@ %A@ %C@ %i %s %u %g %m %p\\0"]
+        cmd = ["find", folder, "-type", "f", "-printf", "%T@ %A@ %C@ %i %s %u %g %m /%P\\0"]
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 
         buffer = b""
