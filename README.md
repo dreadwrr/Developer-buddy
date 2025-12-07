@@ -15,10 +15,10 @@ allow for a stable platform and customization.
 
 1.2.4 Bash or python backend <br>
 1.2.4-py1 python edition backend database <br><br>
-`recentchanges query` has tkinter database viewer https://forum.porteus.org/go.php?https://drive.google.com/file/d/1IfC8x5G_c80hMTbezKU_DarK45XsqbwY/view?usp=sharing <br><br>
+`recentchanges query` uses tkinter to show database https://forum.porteus.org/go.php?https://drive.google.com/file/d/1IfC8x5G_c80hMTbezKU_DarK45XsqbwY/view?usp=sharing <br><br>
 Commands:<br>
-save-changesnew<br>
-recentchanges
+`save-changesnew`<br>
+`recentchanges`
 
 
 Release developer buddy py edition <br>
