@@ -171,7 +171,7 @@ def increment_f(conn, c, records):
         return False
 
     sql_insert = f"""
-        INSERT INTO sys (
+        INSERT OR IGNORE INTO sys (
             timestamp, filename, changetime, inode, accesstime, checksum,
             filesize, symlink, owner, `group`, permissions, casmod, count
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

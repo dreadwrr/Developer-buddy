@@ -1,5 +1,5 @@
 
-# hybrid analysis  11/19/2025
+# hybrid analysis  12/07/2025
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -87,7 +87,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
             recent_timestamp = parse_datetime(filedate, fmt)
             previous = recent_entries
             
-            if ps and recent_sys and len(recent_sys) > 0:
+            if ps and recent_sys and len(recent_sys) >= 13:
                 recent_systime = parse_datetime(recent_sys[0], fmt)
                 if recent_systime and recent_systime > recent_timestamp:
                     is_sys = True
@@ -96,6 +96,9 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
                     sys_record_flds(record, sys_records, prev_count)
                     previous = recent_sys
 
+            if previous is None or len(previous) < 11:
+                # logging.debug("previous record has unexpected size or is None %s", previous)
+                continue
 
             if checksum:
                 if not record[5]:
@@ -135,7 +138,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
                              
                             if st == "Nosuchfile":
                                 entry["flag"].append(f'Deleted {record[0]} {record[2]} {label}')
-                            else:
+                            elif st:
                                 afrm_dt, afrm_str = getstdate(st, fmt)
                                 a_size = st.st_size
                                 if afrm_dt and is_valid_datetime(record[3], fmt):

@@ -1,5 +1,5 @@
 #!/bin/bash
-shopt -s nullglob										# 9/14/2025
+shopt -s nullglob										# 12/07/2025
 . /usr/local/save-changesnew/rntchangesfunctions
 atmp=/tmp/ztmp$$ 					;	ch=/mnt/live/memory/images/
 xdata3=$atmp/db_log.log			;	SORTCOMPLETE=$atmp/list_complete_sorted.txt
@@ -15,14 +15,15 @@ k3="library"
 for folder in "$ch"{000..003} "$ch"{000..003}-*; do
 
 	[ ! -d "$folder" ]  && continue
-	find "$folder" -type f -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' >> $systemf
+	find "$folder" -type f -printf '%T@ %A@ %C@ %i %s %u %g %m /%P\0' >> $systemf
 	if [[ "$folder" == "$ch"000 ]]; then continue ; fi # dont hash kernel firmware
 
 	#binaries                  # ! -path '*/usr/share/*' 
 	for subdir in bin etc sbin usr opt/porteus-scripts; do
 		dir="$folder/$subdir"
 		if [ -d "$dir" ]; then
-			find "$dir" -type f -executable -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' > $xdata
+			# find "$dir" -type f -executable -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' > $xdata
+			find "$folder"  -path "$dir/*" -type f -executable -printf '%T@ %A@ %C@ %i %s %u %g %m /%P\0' > $xdata
 			/usr/local/save-changesnew/sysprofileloop $atmp $xdata $folder $k1
 		fi
 	done
@@ -30,7 +31,7 @@ for folder in "$ch"{000..003} "$ch"{000..003}-*; do
 	# configs
 	for subdir in $folder/etc $folder/home/guest $folder/root; do
 		if [ -d "$subdir" ]; then
-			find "$subdir" -type f -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' > $xdata
+			find "$subdir" -type f -path "$subdir/*" -printf '%T@ %A@ %C@ %i %s %u %g %m /%P\0' > $xdata
 			/usr/local/save-changesnew/sysprofileloop $atmp $xdata $folder $k2
 		fi
 	done
@@ -38,7 +39,7 @@ for folder in "$ch"{000..003} "$ch"{000..003}-*; do
 	# *.so*
 	for subdir in $folder/lib $folder/lib64 $folder/usr/lib $folder/usr/lib64 $folder/var/lib; do
 		if [ -d "$subdir" ]; then
-			find "$subdir" -type f -name '*.so*' -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' > $xdata
+			find "$subdir" -type f -name '*.so*' -path "$subdir/*" -printf '%T@ %A@ %C@ %i %s %u %g %m /%P\0' > $xdata
 			/usr/local/save-changesnew/sysprofileloop $atmp $xdata $folder $k3
 		fi
 	done
