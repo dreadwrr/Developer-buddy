@@ -13,7 +13,7 @@ Currently making a Qt application and initial Windows release. It will have a WS
 windows subsystem of linux, powershell and mft (or master file table). Stress testing and proper formatting is the main focus to
 allow for a stable platform and customization.
 
-1.2.3 Bash or python backend <br>
+1.2.4 Bash or python backend <br>
 1.2.3-py1 python edition backend database <br><br>
 
 Commands:<br>
