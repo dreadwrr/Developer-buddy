@@ -14,7 +14,7 @@ windows subsystem of linux, powershell and mft (or master file table). Stress te
 allow for a stable platform and customization.
 
 1.2.4 Bash or python backend <br>
-1.2.3-py1 python edition backend database <br><br>
+1.2.4-py1 python edition backend database <br><br>
 
 Commands:<br>
 save-changesnew<br>
