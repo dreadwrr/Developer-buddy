@@ -1,4 +1,4 @@
-#                               11/28/2025
+#                               12/07/2025
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
 Qt version is nearing completion excited to bring the new features to Windows 10/11. find file or files by extension and also compress to a .zip/.rar archive by time<br>
 A new feature Find new files fast with a  drive index that is stored in a .gpg cache file loaded into memory.
