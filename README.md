@@ -1,5 +1,7 @@
 #                               12/07/2025
 Python edition
+Differences from bash and bash\python backends is the find command is streamed with the main search written in python.
+Proteus shield can be enabled from tkinter with `recentchanges query`
 
 ![Logo](https://i.imgur.com/sbZa1r3.png)
 
