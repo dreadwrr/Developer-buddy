@@ -243,7 +243,7 @@ def increment_f(conn, c, records):
         return
 
     sql_insert= f"""
-        INSERT INTO sys (
+        INSERT OR IGNORE INTO sys (
             timestamp, filename, changetime, inode, accesstime, checksum,
             filesize, symlink, owner, `group`, permissions, casmod, lastmodified,
 			count, escapedpath
@@ -389,7 +389,7 @@ def is_valid_datetime(value, fmt):
 		return True
 	except (ValueError, TypeError, AttributeError):
 		return False
-
+#  metadata = (previous[7], previous[8], previous[9])
 def new_meta(record, metadata):
     return (
         record[10] != metadata[2] or # perm

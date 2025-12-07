@@ -440,7 +440,7 @@ def main():
         logf = RECENT
         if tmn:
             logf = RECENT # all files
-        elif method != "rnt":
+        if method != "rnt":
             if argf == "filtered" or flsrh:
                 logf = TMPOPT # filtered
                 if argf == "filtered" and flsrh:

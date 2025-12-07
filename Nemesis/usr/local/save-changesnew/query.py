@@ -113,8 +113,8 @@ def hardlinks(database, target, email, conn, cur):
 	except sqlite3.Error as e:
 		print(f"Error executing updating db. data preserved.: {e}")
 		conn.rollback()
-def clear_cache(database, target, email, usr, flth, dbp, conn, cur):
-		files_d = get_delete_patterns(usr, dbp)
+def clear_cache(database, target, email, usr, flth, conn, cur):
+		files_d = get_delete_patterns(usr)
 		try:
 			for filename_pattern in files_d:
 				cur.execute("DELETE FROM logs WHERE filename LIKE ?", (filename_pattern,))
@@ -252,7 +252,7 @@ def sort_column(tree, col, columns):
     for index_, (val, item) in enumerate(data):
         tree.move(item, '', index_)
 
-def results(database, conn, cur, target, email, user, flth, dbp):
+def results(database, conn, cur, target, email, user, flth):
 	root = tk.Tk()
 	root.title("Database Viewer")
 	toolbar = tk.Frame(root)
@@ -266,7 +266,7 @@ def results(database, conn, cur, target, email, user, flth, dbp):
 
 	hardlink_button = tk.Button(toolbar, text="Set Hardlinks", command=lambda: hardlinks(database, target, email, conn, cur))
 	hardlink_button.pack(side=tk.RIGHT, padx=10, pady=10)
-	clear_cache_button = tk.Button(toolbar, text="Clear Cache", command=lambda: clear_cache(database, target, email, user, flth, dbp, conn, cur))
+	clear_cache_button = tk.Button(toolbar, text="Clear Cache", command=lambda: clear_cache(database, target, email, user, flth, conn, cur))
 	clear_cache_button.pack(side=tk.RIGHT, padx=10, pady=10)
 
 
@@ -388,7 +388,7 @@ def main() :
 	email=sys.argv[2]
 	usr=sys.argv[3]
 	flth=sys.argv[4]
-	dbpst=sys.argv[5]
+	# dbpst=sys.argv[5]
 	output = getnm(dbtarget, '.db')
 	with tempfile.TemporaryDirectory(dir='/tmp') as tempdir:
 		dbopt=os.path.join(tempdir, output)
@@ -507,7 +507,7 @@ def main() :
 								wish_path = shutil.which("wish")
 								if disply and wish_path:
 									print(f'database in: {tempdir}')
-									results(dbopt, conn, cur, dbtarget, email, usr, flth, dbpst)
+									results(dbopt, conn, cur, dbtarget, email, usr, flth)
 								elif not wish_path:
 									print("Install tk to display db.")
 								elif not disply:

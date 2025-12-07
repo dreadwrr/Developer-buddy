@@ -28,8 +28,8 @@ def logger_process(results,  sys_records, rout, scr="/tmp/scr", cerr="/tmp/cerr"
 					if not isinstance(messages, list):
 						messages = [messages]
 					for fpath in files:
-						if fpath == rout:
-							rout.extend(messages)
+						if isinstance(fpath, list):  # rout was a file in early design but now is a list. appended to it
+							fpath.extend(messages)
 						else:
 							file_messages.setdefault(fpath, []).extend(messages)
 
@@ -71,11 +71,8 @@ def logger_process(results,  sys_records, rout, scr="/tmp/scr", cerr="/tmp/cerr"
 	for fpath, messages in file_messages.items():
 		if messages:
 			try:
-					if fpath is rout:
-						continue
-					else:
-						with open(fpath, "a") as f:
-							f.write('\n'.join(str(msg) for msg in messages) + '\n')
+				with open(fpath, "a") as f:
+					f.write('\n'.join(str(msg) for msg in messages) + '\n')
 
 			except IOError as e:
 				print(f"Error logger to {fpath}: as {e}")
