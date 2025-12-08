@@ -96,7 +96,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, dbtarget):
                     sys_record_flds(record, sys_records, prev_count)
                     previous = recent_sys
 
-            if previous is None or len(previous) < 11:
+            if previous is None or len(previous) < 10:
                 # logging.debug("previous record has unexpected size or is None %s", previous)
                 continue
 
