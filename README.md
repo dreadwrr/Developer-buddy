@@ -1,6 +1,9 @@
 #                               12/07/2025
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
-Qt version is nearing completion excited to bring the new features to Windows 10/11. find file or files by extension and also compress to a .zip/.rar archive by time<br>
+
+for Porteus 5.01, 5.1 and Nemesis 
+
+A Qt version is coming to Windows 10/11. find file or files by extension and also compress to a .zip/.rar archive by time<br>
 A new feature Find new files fast with a  drive index that is stored in a .gpg cache file loaded into memory.
 
 Scan the system index independtly with scan IDX from the main hybrid analysis to catch files that have a different checksum but same modified 
