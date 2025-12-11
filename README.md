@@ -1,9 +1,9 @@
-#                               12/07/2025
+#                               12/10/2025
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
 
 for Porteus 5.01, 5.1 and Nemesis 
 
-A Qt version is coming to Windows 10/11. find file or files by extension and also compress to a .zip/.rar archive by time<br>
+A Qt version for Windows 10/11. find file or files by extension and also compress to a .zip/.rar archive by time<br>
 A new feature Find new files fast with a  drive index that is stored in a .gpg cache file loaded into memory.
 
 Scan the system index independtly with scan IDX from the main hybrid analysis to catch files that have a different checksum but same modified 
@@ -11,10 +11,6 @@ or faked modified time.
 
 
 
-
-Currently making a Qt application and initial Windows release. It will have a WSL interface and a total of 3 search methods. <br>
-windows subsystem of linux, powershell and mft (or master file table). Stress testing and proper formatting is the main focus to
-allow for a stable platform and customization.
 
 1.2.4 Bash or python backend <br>
 1.2.4-py1 python edition backend database <br><br>
