@@ -3,14 +3,7 @@
 
 for Porteus 5.01, 5.1 and Nemesis 
 
-A Qt version for Windows 10/11. https://github.com/dreadwrr/Recentchanges <br>
-find file or files by extension and also compress to a .zip/.rar archive by time<br>
-A new feature Find new files fast with a  drive index that is stored in a .gpg cache file loaded into memory.
-
-Scan the system index independtly with scan IDX from the main hybrid analysis to catch files that have a different checksum but same modified 
-or faked modified time. 
-
-
+A Qt version for Windows 10/11. https://github.com/dreadwrr/Recentchanges <br><br>
 
 
 1.2.4 Bash or python backend <br>
