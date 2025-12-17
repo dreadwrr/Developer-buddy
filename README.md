@@ -6,7 +6,7 @@ for Porteus 5.01, 5.1 and Nemesis
 A Qt version for Windows 10/11. https://github.com/dreadwrr/Recentchanges <br><br>
 
 
-1.2.4 Bash text backend or bash python database backend <br>
+1.2.4 Bash text backend or bash python database <br>
 1.2.4-py1 python edition backend database <br><br>
 `recentchanges query` uses tkinter to show database https://forum.porteus.org/go.php?https://drive.google.com/file/d/1IfC8x5G_c80hMTbezKU_DarK45XsqbwY/view?usp=sharing <br><br>
 Commands:<br>
