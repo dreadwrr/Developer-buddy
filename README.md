@@ -22,9 +22,6 @@ Porteus forums
 https://forum.porteus.org/  <br><br>
 ![Logo](https://i.imgur.com/sbZa1r3.png)
 
-
-
-
 ## Porteus:
 To save to the backup in changes= type <br>save-changesnew <br>
 This is straightforward where it gets a little confusing is next <br><br>
@@ -48,7 +45,7 @@ Find new files, save changes in porteus/nemesis and RSync backup in changes=EXIT
 Find files with new itime (change time) such as downloads from slackpkg and pacman. The modified time is preserved and only change time and accesss time are shown. These might not show up
 in file searches and those are targeted and merged into the search.
 
-Pull an .xzm with only the new files you want and also include all system new files in a .txt. 
+Pull an .xzm with only the new files you want and also include all system new files in a seperate results .txt. 
 
 This program has a filter that you can edit in /usr/local/save-changesnew/filter that can filter files from the search so only files you want to see are in the .xzm.
 
@@ -68,9 +65,7 @@ Contantly up to date as I use this daily when developing.
 
 for porteus a new entry Graphics changes in the syslinux bootloader  so one can be for loading extramod= ect. This mimics nemesis bootloader.
 </p>
-<br><br><br><br>
-
-
+<br><br>
 
   ## Recentchanges
 
