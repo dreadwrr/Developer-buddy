@@ -8,14 +8,14 @@ A Qt version for Windows 10/11. https://github.com/dreadwrr/Recentchanges <br><b
 Version available <br>
 1.2.4 Bash text backend or bash python database backend <br>
 1.2.4-py1 python edition backend database <br><br>
-The command recentchanges query , uses tkinter to show database <br> download links https://forum.porteus.org/go.php?https://drive.google.com/file/d/1IfC8x5G_c80hMTbezKU_DarK45XsqbwY/view?usp=sharing <br>or search in package manager for tk <br><br>
+
 
 Commands:<br>
 save-changesnew<br>
 recentchanges<br>
 recentchanges search<br>
 recentchanges query<br><br>
-
+The command recentchanges query , uses tkinter to show database <br> download links https://forum.porteus.org/go.php?https://drive.google.com/file/d/1IfC8x5G_c80hMTbezKU_DarK45XsqbwY/view?usp=sharing <br>or search in package manager for tk <br><br>
 ![Logo](https://i.imgur.com/sbZa1r3.png)
 
 ![Alt text](https://i.imgur.com/tKW7UEe.png)
