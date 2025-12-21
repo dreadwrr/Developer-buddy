@@ -16,9 +16,6 @@ recentchanges<br>
 recentchanges search<br>
 recentchanges query<br><br>
 
-Release developer buddy py edition <br>
-https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0
-
 ![Logo](https://i.imgur.com/sbZa1r3.png)
 
 ![Alt text](https://i.imgur.com/tKW7UEe.png)
