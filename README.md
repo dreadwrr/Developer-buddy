@@ -24,6 +24,7 @@ https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/
 
 ## Porteus:
 To save to the backup in changes= type <br>save-changesnew <br>
+This is straightforward where it gets a little confusing is next <br><br>
 To save to backup in changes=EXIT:/ <br> first turn isolateBACK to true. then 'save-changesnew backup' and a backup will be made in /changes.bak beside /changes
 
 With isolateBACK false changes are saved to /changes with rsync. You can also autosave to true which will add your $BASEDIR to changes commit and set it executable. this will save changes and
