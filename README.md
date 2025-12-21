@@ -59,7 +59,7 @@ Rsync backup your changes folder in changes=EXIT:/ on porteus
 
 Contantly up to date as I use this daily when developing.
 
-2 modes. default  and mc.  Written strictly in bash and captures filenames with spaces commas quotes and new lines. <BR><BR><BR><BR>
+2 modes. default  and mc.  Written strictly in bash and captures filenames with spaces commas quotes and new lines. <br><br>
 
 <p> The script also updates the syslinux bootloader automatically to point to $BASEDIR/extramod. If you use a grub bootloader there  is a setting to point to the grub line number. Just make a new entry for graphics mode ie non changes. If your bootloader in on a different drive there is a setting to point to that.
 
