@@ -1,5 +1,5 @@
 #                               12/10/2025
-![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
+![Alt text](https://i.imgur.com/S8015dn.png) ![Alt text](https://i.imgur.com/tKW7UEe.png)<br><br>
 
 for Porteus 5.01, 5.1 and Nemesis 
 
@@ -22,7 +22,7 @@ Porteus forums
 https://forum.porteus.org/  <br><br>
 ![Logo](https://i.imgur.com/sbZa1r3.png)
 
-![Alt text](https://i.imgur.com/tKW7UEe.png)
+
 
 
 ## Porteus:
