@@ -35,7 +35,7 @@ Why is there isolateBACK? For instance if you accidently pressed save you can ov
 'save-changesnew y' or yes to auto sync backup on shutdown. <br>
 adds $BASEDIR to /ect/rc.d/rc.local_shutdown and after running on shutdown the script sets itself to non-executable so it wont call again unless you recall y or yes after reboot.
 <p>&nbsp;</p>
-<br><br><br>
+<br><br>
 
 ## Product description
 
