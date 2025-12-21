@@ -23,7 +23,7 @@ https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/
 
 
 ## Porteus:
-To save the backup in changes= type save-changesnew <br>
+To save the backup in changes= type <br>save-changesnew <br>
 To save the backup in changes=EXIT:/ <br>   
 turn isolateBACK to true. then 'save-changesnew backup' and a backup will be made in /changes.bak beside /changes
 
