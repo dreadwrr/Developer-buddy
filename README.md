@@ -88,17 +88,13 @@ is included less /tmp as that it confusing and too much info. <br><br>
 <p> There is also 'recentchanges -SRC'  which will look for a root folder from a compiled application and grab it and allow you to enter a custom name, preselected name or default name. So the application is packaged neatly. This can be used for other scripts ect. </p>
 <br><br>
 
-
-
-
-
  ## Save Changes New        Nemesis
 
-   this script works for two modes porteus nemesis graphics and changes.        
+   this script works for two modes porteus nemesis Graphics and Changes.        
 
    graphics mode all changes are in memory so to implement changes saving this script will save changes to an .xzm. it will then modify the porteus.cfg
    and adds extramod=/mnt/sdx/extramod. so when the system boots it loads all your changes. if one already exists it will update it. So graphics changes mode wont
-	load the graphics saves.
+	load the regular graphics saves.
 
    Graphics changes mode all changes are saved to the hdd already. so this part will backup the changes to /changes.bak right beside it. including a logfile of the files 
    saved each time.
@@ -107,8 +103,8 @@ is included less /tmp as that it confusing and too much info. <br><br>
    of a powerloss ect.
 
    Reasoning:
-   1. if you boot with changes cheatcode it wont load the changes.xzm from graphics mode as its not in the module directory.
-   2. if you use changes cheatcode nothing is changed its simply a backup of your changes. Thus if you like the system how it is run save-changesnew and create a backup of it.
+   1. if you boot with Changes cheatcode it wont load the changes.xzm in Graphics mode as its not in the regular /modules directory.
+   2. if you use Changes cheatcode nothing is changed its simply a backup of your changes. Thus if you like the system how it is run save-changesnew and create a backup of it.
    Then if something goes wrong you can simply delete your changes folder and rename changes.bak to changes
 
    If we can simplify the way of saving which is easy to use it will be more often done and can save you a lot of grief if you lose your data. As well as being minimally invasive it doesnt
@@ -118,7 +114,7 @@ is included less /tmp as that it confusing and too much info. <br><br>
    Changes exit is not part of nemesis and rightfully so. It is a great variation of porteus that is minimal and fast. So we dont want to change anything to implement changes exit unless the author
    wants it. instead of doing any changes to nemesis which is beyond my capability I decided to use scripts I made with porteus and just provide a clean way of backing up your changes. So
    if youre in graphics mode your changes will persist if you run this script. It makes saving a one click step on the desktop. And if youre on any other mode it simply makes a backup of your changes very
-   efficiently as it has minimals writes because you may already have a backup in place. <BR><BR><BR><BR>
+   efficiently as it has minimals writes because you may already have a backup in place. <br><br>
 
 
 
