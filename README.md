@@ -51,7 +51,8 @@ This program has a filter that you can edit in /usr/local/save-changesnew/filter
 
 Uses two .gpgs for STATPST or persistent storage. logs.gpg and stats.gpg. stats.gpg contains actions Overwrite, Modified, Deleted, Replaced, Touched, Checksum, Metadata and Copy.
 
-if using python backend uses one .gpg. recent.gpg. The stats is in a seperate table in the db. <br>
+if using python backend uses one .gpg. recent.gpg. The stats is in a seperate table in the db.
+
 All searches are stored in logs.gpg and is the underlying principle of hybrid analysis. All searches with STATPST will include ha. So you can see what happened to them.
 
 ANALYTICS is the same but its stored in /tmp/rc as a text file. Less secure but its owned by root and in TMPFS.
@@ -86,7 +87,7 @@ is included less /tmp as that it confusing and too much info. <br><br>
 
 <p> 'recentchanges' default search time of 5 minutes.</p>
 <p> 'recentchanges n' where the time to search is specified in seconds.</p>
-<p> There is also 'recentchanges -SRC'  which will look for a root folder from a compiled application and grab it and allow you to enter a custom name, preselected name or default name. So the application is packaged neatly. This can be used for other scripts ect. </p>
+<p> There is also 'recentchanges SRC'  which will look for a root folder from a compiled application and grab it and allow you to enter a custom name, preselected name or default name. So the application is packaged neatly. This can be used for other scripts ect. </p>
 <br><br>
 
  ## Save Changes New        Nemesis
@@ -94,8 +95,7 @@ is included less /tmp as that it confusing and too much info. <br><br>
    this script works for two modes porteus nemesis Graphics and Changes.        
 
    graphics mode all changes are in memory so to implement changes saving this script will save changes to an .xzm. it will then modify the porteus.cfg
-   and adds extramod=/mnt/sdx/extramod. so when the system boots it loads all your changes. if one already exists it will update it. So graphics changes mode wont
-	load the regular graphics saves.
+   and adds extramod=/mnt/sdx/extramod.  if one already exists it will update it. So graphics Changes mode wont load the regular Graphics saves.
 
    Graphics changes mode all changes are saved to the hdd already. so this part will backup the changes to /changes.bak right beside it. including a logfile of the files 
    saved each time.
@@ -121,7 +121,7 @@ is included less /tmp as that it confusing and too much info. <br><br>
 
    ## Save Changes New            Porteus
 
-In addition to the RSync backup it saves your changes with rsync in porteus similar to changes commit.       /mnt/live/memory/changes ---->   /mnt/sdx/changes    -----> /mnt/sdx/changes.bak
+In addition to the rsync backup made it saves your changes with rsync in porteus similar to changes commit.       /mnt/live/memory/changes ---->   /mnt/sdx/changes    -----> /mnt/sdx/changes.bak
 
  rsync backup to /changes.bak minimal writes as the backup would already be in place. Files are logged and its accurate
  
@@ -130,6 +130,8 @@ In addition to the RSync backup it saves your changes with rsync in porteus simi
 on shutdown that wait would be too long. So drive to drive provides a way to save on that condition. It has so far worked without
 any problems and is very fast. So both options are available depending on preference.
 
+If while saving in d2drive mode it detects files changing (cache items or system files) it will stop what its doing and copy the changes first to a tmp directory in memory. Then copy the files to your harddrive or ssd. 
+This was put in because when saving Its better not to take any chances. I also put in checks in rsync to prevent getting errors when it see files changing ect.
 
  Result saves your changes to your Changes=EXIT:  folder
 
