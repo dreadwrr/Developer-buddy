@@ -81,12 +81,12 @@ or what changed on your system. So if you compiled something you call this scrip
 
 We use the find command to list all files 5 minutes or newer. Filter it and then get to copying the files in a temporary staging directory in /tmp.
 Then take those files and make an .xzm along with a transfer log to staging directory and file manifest of the xzm. A system search of all files for the specified time
-is included less /tmp as that it confusing and too much info. <BR><BR><BR><BR>
+is included less /tmp as that it confusing and too much info. <br><br>
 
 <p> 'recentchanges' default search time of 5 minutes.</p>
 <p> 'recentchanges n' where the time to search is specified in seconds.</p>
 <p> There is also 'recentchanges -SRC'  which will look for a root folder from a compiled application and grab it and allow you to enter a custom name, preselected name or default name. So the application is packaged neatly. This can be used for other scripts ect. </p>
-<BR><BR><BR><BR>
+<br><br>
 
 
 
