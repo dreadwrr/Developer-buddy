@@ -47,13 +47,9 @@ Version: Standard     v1.0.9           save-changesnew        save-changesnewNMS
 
 Bash with Bash or python backend
 
-Find new files, save changes in porteus/nemesis and RSync backup in changes=EXIT:/
-
-
-
-
-Find files with new itime (change time) such as downloads from slackpkg and pacman. The modified time is preserved and only change time and accesss time are shown.
-those are targeted and merged into the search.
+Find new files, save changes in porteus/nemesis and RSync backup in changes=EXIT:/ <br><br><br>
+Find files with new itime (change time) such as downloads from slackpkg and pacman. The modified time is preserved and only change time and accesss time are shown. These might not show up
+in file searches and those are targeted and merged into the search.
 
 Pull an .xzm with only the new files you want and also include all system new files in a .txt. 
 
