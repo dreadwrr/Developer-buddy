@@ -1,5 +1,5 @@
 #                               12/10/2025
-![Alt text](https://i.imgur.com/S8015dn.png) ![Alt text](https://i.imgur.com/tKW7UEe.png)<br><br>
+![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
 
 for Porteus 5.01, 5.1 and Nemesis 
 
@@ -140,4 +140,4 @@ This was put in because when saving Its better not to take any chances. I also p
  working off of base save-changes scripts by
 ![Alt text](https://i.imgur.com/QVWc23x.jpeg)
  ![Alt text](https://i.imgur.com/4jOp3Ry.png) ![Alt text](https://i.imgur.com/3dXwKzW.png)
- ![Alt text](https://i.imgur.com/iZQ1s7t.png)
+ ![Alt text](https://i.imgur.com/iZQ1s7t.png) ![Alt text](https://i.imgur.com/tKW7UEe.png)
