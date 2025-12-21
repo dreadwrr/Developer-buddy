@@ -33,7 +33,7 @@ the backup on shutdown. backup to false and changes commit will save changes reg
 Why is there isolateBACK? For instance if you accidently pressed save you can overwrite your backup on changes=EXIT:. So isolateBACK is an interlock to make sure the action is confirmed by typing save-changesnew backup.<br><br>
 ## Nemesis:
 'save-changesnew y' or yes to auto sync backup on shutdown. <br>
-adds $BASEDIR to /ect/rc.d/rc.local_shutdown and the script sets itself to non-executable so it wont call again unless you recall y or yes
+adds $BASEDIR to /ect/rc.d/rc.local_shutdown and after running on shutdown the script sets itself to non-executable so it wont call again unless you recall y or yes after reboot.
 <p>&nbsp;</p>
 <br><br><br>
 
