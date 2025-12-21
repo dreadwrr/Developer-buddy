@@ -40,7 +40,7 @@ adds $BASEDIR to /ect/rc.d/rc.local_shutdown and after running on shutdown the s
 <p>&nbsp;</p>
 <br><br><br>
 
-## Product description					save-changesnew 							save-changesnewNMS
+## Product description
 
 Bash with Bash or python backend
 
@@ -66,7 +66,7 @@ Contantly up to date as I use this daily when developing.
 
 <p> The script also updates the syslinux bootloader automatically to point to $BASEDIR/extramod. If you use a grub bootloader there  is a setting to point to the grub line number. Just make a new entry for graphics mode ie non changes. If your bootloader in on a different drive there is a setting to point to that.
 
-for porteus a new entry called Graphics changes is made so one can be for loading extramod= ect.
+for porteus a new entry Graphics changes in the syslinux bootloader  so one can be for loading extramod= ect. This mimics nemesis bootloader.
 </p>
 <br><br><br><br>
 
