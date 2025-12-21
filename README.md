@@ -51,6 +51,7 @@ This program has a filter that you can edit in /usr/local/save-changesnew/filter
 
 Uses two .gpgs for STATPST or persistent storage. logs.gpg and stats.gpg. stats.gpg contains actions Overwrite, Modified, Deleted, Replaced, Touched, Checksum, Metadata and Copy.
 
+if using python backend uses one .gpg. recent.gpg. The stats is in a seperate table in the db. <br>
 All searches are stored in logs.gpg and is the underlying principle of hybrid analysis. All searches with STATPST will include ha. So you can see what happened to them.
 
 ANALYTICS is the same but its stored in /tmp/rc as a text file. Less secure but its owned by root and in TMPFS.
