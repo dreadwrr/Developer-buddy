@@ -39,7 +39,7 @@ Why is there isolateBACK? For instance if you accidently pressed save you can ov
 adds $BASEDIR to /ect/rc.d/rc.local_shutdown and after running on shutdown the script sets itself to non-executable so it wont call again unless you recall y or yes after reboot.
 <p>&nbsp;</p>
 <br><br><br>
-## Product description         save-changesnew        save-changesnewNMS <br><br>
+## Product description  save-changesnew save-changesnewNMS
 
 Bash with Bash or python backend
 
