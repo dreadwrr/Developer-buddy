@@ -28,8 +28,9 @@ This is straightforward where it gets a little confusing is next <br><br>
 To save to backup in changes=EXIT:/ <br> first turn isolateBACK to true. then 'save-changesnew backup' and a backup will be made in /changes.bak beside /changes
 
 With isolateBACK false changes are saved to /changes with rsync. You can also autosave to true which will add your $BASEDIR to changes commit and set it executable. this will save changes and
-the backup on shutdown. backup to false and changes commit will call save-changesnew but wont do anything. autosave to false and changes commit is set to non-executable.
-
+the backup on shutdown. backup to false and changes commit will save changes regularly but when it calls the backup part in save-changesnew it wont do anything. autosave to false and changes commit is set to non-executable.
+<br><br><br>
+Why is there isolateBACK? For instance if you accidently pressed save you can overwrite your backup. So isolateBACK is an interlock to make sure the action is confirmed by typing save-changesnew backup.<br><br>
 ## Nemesis:
 'save-changesnew y' or yes to auto sync backup on shutdown. <br>
 adds $BASEDIR to /ect/rc.d/rc.local_shutdown and the script sets itself to non-executable so it wont call again unless you recall y or yes
