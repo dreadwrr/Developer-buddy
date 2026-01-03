@@ -1,5 +1,5 @@
 #!/bin/bash
-#      recentchanges search             Developer Buddy v3.0    9/13/2025
+#      recentchanges search             Developer Buddy v3.0    12/26/2025
 # If some as root calls the program with 2 arguments thats not intended use so exit
 # we would fail to get our correct username such as they put a second bogus argument
 . /usr/share/porteus/porteus-functions
@@ -11,40 +11,55 @@ if [ "$USR" == "" ]; then echo please call from recentchanges; exit; fi
 if [ "$4" == "" ]; then echo "incorrect usage please call from recentchanges"; exit 1; fi
 if [ "$1" != "search" ]; then echo exiting not a search && exit; fi
 
-work=work$$													        ;		atmp=/tmp/atmp$$
-tmp=/tmp/work$$												        ;		rout=$atmp/routput.tmp
-chxzm=/rntfiles.xzm											        ;		tout=$atmp/toutput.tmp
-USRDIR=/home/$USR/Downloads								;		toutnul=$atmp/toutputnul.tmp
-slog=/tmp/scr												            ;		xdata=/logs_stat.log
-UPDATE=$tmp/save.transferlog.tmp							;		xdata2=/logs_log.log
-ABSENT=$tmp/absent.txt										    ;		xdata3=/db_log.log
-RECENT=$tmp/list_recentchanges_filtered.txt				;		pytmp=$atmp/pytmp.tmp
-RECENTNUL=$tmp/list_recentchanges_filterednul.txt	;		COMPLETE=$tmp/list_complete.txt
-SORTCOMPLETE=$tmp/list_complete_sorted.txt			;		COMPLETENUL=$tmp/list_completenul.txt
-TMPOUTPUT=$tmp/list_tmp_sorted.txt						;		TMPCOMPLETE=$tmp/tmp_complete.txt
-TMPOPT=$tmp/tmp_holding										;		flth=/usr/local/save-changesnew/flth.csv
-log_file=/tmp/file_creation_log.txt
+#VARS
+# tmp files
+# tfile TMPCOMPLETE TMPOUTPUT
+# tout used for ctime loop then available for tmp file ln137
+# tfile3 used in backend 
+# spare tmp file  tfile2
+# spare tmp file xdata3
+# xopt aux tmp dir
+# $tmp  main search
+# $atmp  secondary tmp files from upgrade
+# $atmpwork   multiprocessing tmp files from main search so not messy
+# $atmp$workdir   restricted decrypted pst file for ha. & ha multiprocessing related files
+workfld=/fsearch$$														;		workdir=/hablk
+tmp=/tmp/work$$															;		atmp=/tmp/atmp$$
+chxzm=/$MODULENAME.xzm											;		rout=$atmp/routput.tmp
+UPDATE=$tmp/save.transferlog.tmp								;		tout=$atmp/toutput.tmp
+ABSENT=$tmp/absent.txt												;		toutnul=$atmp/toutputnul.tmp
+RECENT=$tmp/list_recentchanges_filtered.txt					;		xdata=/logs_stat.log
+RECENTNUL=$tmp/list_recentchanges_filterednul.txt		;		xdata2=/logs_log.log
+SORTCOMPLETE=$tmp/list_complete_sorted.txt				;		xdata3=$atmp$workdir/temp_log.log
+TMPOUTPUT=$tmp/list_tmp_sorted.txt							;		tfile=$atmp$xdata
+TMPOPT=$tmp/tmp_holding											;		tfile2=$atmp$xdata2
+COMPLETE=$tmp/list_complete.txt									;		pytmp=$atmp/pytmp.tmp
+COMPLETENUL=$tmp/list_completenul.txt						;		flth=/usr/local/save-changesnew/flth.csv
+TMPCOMPLETE=$tmp/tmp_complete.txt							;		LCLMODULENAME=${chxzm:1:8}
+slog=/tmp/scr																;		USRDIR=/home/$USR/Downloads
+cerr=/tmp/cerr																;		log_file=/tmp/file_creation_log.txt
 
-cores=0																	;		max_jobs=0
-
-OLDSORTED=""															;		cerr=/tmp/cerr
+cores=0                                                     					;		max_jobs=0
+OLDSORTED=""
 cached=/tmp/dbctimecache/
 CACHE_F="${cached}ctimecache"
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 fmt="%Y-%m-%d %H:%M:%S"
 
-diffrlt="false" 															; 		nodiff="false"
-pstc="false"																;		flsrh="false"
-samerlt="false"															;		nc="false"
-syschg="false"															;		csm="false"
+diffrlt="false"						; 		nodiff="false"
+pstc="false"							;		flsrh="false"
+samerlt="false"						;		nc="false"
+syschg="false"						;		csm="false"
 csum="false"
 
 F=(/bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var)
-TAIL=(-not -type d -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0')
+TAIL=(-not -type d -printf '%T@ %A@ %C@ %i %n %s %u %g %m %p\0')
 
 mkdir $tmp
 mkdir $atmp
+mkdir $atmp$workfld
+mkdir $atmp$workdir
 intst
 
 if [ "$2" != "noarguser" ] && [ "$2" != "" ]; then
@@ -83,35 +98,34 @@ fi
 
 [[ ! -d "$cached" ]] && mkdir $cached && chmod 700 $cached
 [[ "$checkSUM" = "true" ]] && [[ "$ANALYTICS" = "true" || "$STATPST" = "true" ]] && cyan "Running checksum." || checkSUM="false"
-if [ -z "$tout" ]; then
+if [ ! -s "$tout" ]; then
 	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $FEEDFILE > /dev/null 2>&1
 	find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $toutnul > /dev/null 2>&1
-	if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi	
-	ctimeloop $FEEDFILE $atmp$xdata # dont keep xdata
+	end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && [[ "$ANALYTICSECT" ]] && cstart=$(date +%s.%N)
+	ctimeloop $FEEDFILE $tfile
+	:>$tfile
 else
 	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $FEEDFILE > /dev/null 2>&1
-	if [[ "$ANALYTICSECT" = "true" ]]; then end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N) ; fi	
+	end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && [[ "$ANALYTICSECT" ]] && cstart=$(date +%s.%N)
 fi
 
 if [ "$FEEDBACK" == "true" ]; then #scrolling look
-	tr '\0' '\n' < "$FEEDFILE" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=""; sub(/^ +/, ""); print }'
-	#tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=""; sub(/^ +/, ""); print }'  
+	tr '\0' '\n' < "$FEEDFILE" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=""; sub(/^ +/, ""); print }'
+	#tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9==""; sub(/^ +/, ""); print }'  
 fi 
+#while IFS= read -r -d '' y; do y="$( ap_enc "$y")" ; printf '%s\n' "$y"; done < $FEEDFILE > $xdata
 
-#while IFS= read -r -d '' y; do y="$( escf "$y")" ; printf '%s\n' "$y"; done < $FEEDFILE > $xdata
-search $FEEDFILE $SORTCOMPLETE $COMPLETE $checkSUM "main"
-isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE
-isoutput cache1* $CACHE_F
+search $FEEDFILE $SORTCOMPLETE $COMPLETE $checkSUM "main" batch1
+cend=$(date +%s.%N)
 [[ -f "$CACHE_F" ]] && chmod 600 "$CACHE_F"
-LCLMODULENAME=${chxzm:1:8}
 
-if [ "$ANALYTICSECT" == "true" ]; then cend=$(date +%s.%N); fi
 if [ -s $SORTCOMPLETE ]; then
 	syschg="true"
-	
-	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE ; SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') ; PRD=$SRTTIME
-	if [ -s $tout ]; then awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' $tout >> $SORTCOMPLETE ; fi
 
+	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE ; SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') ; PRD=$SRTTIME
+
+	# Insert $tout \ deduplicate
+	merge_ctime $SORTCOMPLETE $tout $PRD  #if [ -s $tout ]; then awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' $tout >> $SORTCOMPLETE ; fi  # original doesnt dedupe
 	inclusions
 
 	if [ "$flsrh" != "true" ]; then
@@ -120,12 +134,13 @@ if [ -s $SORTCOMPLETE ]; then
 		PRD=$(date -d "@$RANGE" +"$fmt")
 		awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' $SORTCOMPLETE > $tout ; mv $tout $SORTCOMPLETE
 	fi
-
 	sort -u -o $SORTCOMPLETE $SORTCOMPLETE
-	if [[ "$updatehlinks" = "true" && "$backend" = "database" && "$STATPST" = "true" ]]; then ulink $SORTCOMPLETE $tout; fi
-	awk '{print $1, $2}' $SORTCOMPLETE > $tout
-	perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' "$SORTCOMPLETE" > "$TMPCOMPLETE"
-	paste -d' ' $tout $TMPCOMPLETE > $TMPOPT
+
+    # if [[ "$updatehlinks" = "true" && "$backend" = "database" && "$STATPST" = "true" ]]; then ulink $SORTCOMPLETE $tout; fi
+	process_sort $SORTCOMPLETE $TMPOPT  #decode from log \ search results 
+	#	awk '{print $1, $2}' $SORTCOMPLETE > $tout      original
+	#	perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' "$SORTCOMPLETE" > "$TMPCOMPLETE"
+	#	paste -d' ' $tout $TMPCOMPLETE > $TMPOPT
 	cat $TMPOPT | grep ' /tmp/' > $TMPOUTPUT
 	sort -o $TMPOUTPUT $TMPOUTPUT
 	sed -i '/\"\/tmp/d' $SORTCOMPLETE
@@ -140,10 +155,8 @@ if [ "$5" == "filtered" ] || [ "$flsrh" == "true" ]; then
     /usr/local/save-changesnew/filter $TMPOPT $USR
 fi
 
-cd $USRDIR
+cd $USRDIR || exit
 MODULENAME=${chxzm:0:9}
-
-
 if [ -s $SORTCOMPLETE ] ; then
     if [ "$flsrh" == "true" ]; then
 	    flnm="xNewerThan_${parseflnm}"$argone
@@ -172,16 +185,21 @@ if [ -s $SORTCOMPLETE ] ; then
 	[[ "$nodiff" = "false" ]] && test -e $tmp$MODULENAME"$flnm" && { OLDSORTED=$tmp$MODULENAME"$flnm" ; comm -23 "$OLDSORTED" $logf; } > "$difffile" && nodiff="true"
     cp $logf $USRDIR$MODULENAME"$flnm"
     chown $USR $USRDIR$MODULENAME"$flnm"
-    isdiff "$difffile" $TMPCOMPLETE
+   
+
+    isdiff "$difffile" $RECENT $TMPCOMPLETE  # <----------
+    
 	backend $5
     filterhits $RECENT $flth
-    postop $logf $6
+    postop $SORTCOMPLETE $6 $5 $flsrh
 	test -e "$difffile" && chown $USR "$difffile"
 fi
 
-if [ "$ANALYTICS" = "true" ] && [ "$STATPST" = "false" ] ; then stmp $SORTCOMPLETE && [[ ! -f /tmp/rc/full ]] && cyan "Search saved in /tmp" ; fi
-rm -rf $tmp
+if [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ] ; then stmp $SORTCOMPLETE && [[ ! -f /tmp/rc/full ]] && cyan "Search saved in /tmp" ; fi
+
 rm -rf $atmp
+rm -rf $tmp
+
 if [ "$ANALYTICSECT" = "true" ]; then
     el=$(awk "BEGIN {print $end - $start}")
     printf "Search took %.3f seconds.\n" "$el"

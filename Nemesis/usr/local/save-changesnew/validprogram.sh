@@ -92,7 +92,7 @@ local ENDTM		;	local RANGE
 local PRD			;	local ST
 local FN
 SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}')
-s=$( echo $(date -d "$SRTTIME" "+%s"))
+s=$(date -d "$SRTTIME" "+%s")
 RANGE=$(( s + argone ))
 if [ "$THETIME" == "noarguser" ]; then
 	RANGE=$(( s + 300 ))

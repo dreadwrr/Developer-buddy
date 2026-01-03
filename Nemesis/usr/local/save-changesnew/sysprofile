@@ -22,7 +22,7 @@ for folder in "$ch"{000..003} "$ch"{000..003}-*; do
 	for subdir in bin etc sbin usr opt/porteus-scripts; do
 		dir="$folder/$subdir"
 		if [ -d "$dir" ]; then
-			# find "$dir" -type f -executable -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' > $xdata
+			# find "$dir" -type f -executable -printf '%T@ %A@ %C@ %i %s %u %g %m %p\0' > $xdata   # have to remove $folder
 			find "$folder"  -path "$dir/*" -type f -executable -printf '%T@ %A@ %C@ %i %s %u %g %m /%P\0' > $xdata
 			/usr/local/save-changesnew/sysprofileloop $atmp $xdata $folder $k1
 		fi
@@ -31,7 +31,7 @@ for folder in "$ch"{000..003} "$ch"{000..003}-*; do
 	# configs
 	for subdir in $folder/etc $folder/home/guest $folder/root; do
 		if [ -d "$subdir" ]; then
-			find "$subdir" -type f -path "$subdir/*" -printf '%T@ %A@ %C@ %i %s %u %g %m /%P\0' > $xdata
+			find "$folder" -type f -path "$subdir/*" -printf '%T@ %A@ %C@ %i %s %u %g %m /%P\0' > $xdata
 			/usr/local/save-changesnew/sysprofileloop $atmp $xdata $folder $k2
 		fi
 	done
@@ -39,7 +39,7 @@ for folder in "$ch"{000..003} "$ch"{000..003}-*; do
 	# *.so*
 	for subdir in $folder/lib $folder/lib64 $folder/usr/lib $folder/usr/lib64 $folder/var/lib; do
 		if [ -d "$subdir" ]; then
-			find "$subdir" -type f -name '*.so*' -path "$subdir/*" -printf '%T@ %A@ %C@ %i %s %u %g %m /%P\0' > $xdata
+			find "$folder" -type f -name '*.so*' -path "$subdir/*" -printf '%T@ %A@ %C@ %i %s %u %g %m /%P\0' > $xdata
 			/usr/local/save-changesnew/sysprofileloop $atmp $xdata $folder $k3
 		fi
 	done
@@ -48,56 +48,41 @@ done
 isoutput "*1_*_tmp.log" $xdata3 # There will be 3-5 of each k1 k2 and k3
 
 # Escape filenames
-while IFS= read -r -d '' x; do x="$( escf "$x")" ;  printf "%s\0" "$x" ; done < $systemf > $TMPF ; mv $TMPF $systemf 
+# while IFS= read -r -d '' x; do x="$( escf "$x")" ;  printf "%s\0" "$x" ; done < $systemf > $TMPF ; mv $TMPF $systemf 
 sort -z -o $systemf $systemf 
 sort -z -o $xdata3 $xdata3 #files to hash Already escaped
 comm -z -23 $systemf $xdata3 > $xdata # all other files not hashed
-
-desired_chunks=200  
-min_chunk_size=10 
-
-
 ## hash the selected files and convert
 x=$(tr -cd '\0' < $xdata3 | wc -c) 
+# y=5000 ; max_jobs=1
 if [ "$md" == "mc" ]; then
 	cores=$( nproc 2>/dev/null || echo 1)
 	max_jobs=$(( cores > 16 ? 16 : cores ))
-	y=$(( (x + max_jobs - 1) / max_jobs ))
-	opts=(-P"$max_jobs")
+    y=$(( (x + max_jobs - 1) / max_jobs ))
+    xargs -0 -n "$y" -P "$max_jobs" /usr/local/save-changesnew/profileloop $atmp "true" "main" "batch1"  < $xdata3
+    isoutput "mainloop1*" $SORTCOMPLETE
 else
-    y=$(( (x + desired_chunks - 1) / desired_chunks ))  # chunk size approx
-    [ "$y" -lt "$min_chunk_size" ] && y=$min_chunk_size
-#	y=$(( (x + 3) / 4 ))
-#	[ $y -lt 10 ] && y=10    
-	opts=()
+    while IFS= read -r -d '' p ; do
+        rblk "$p" $SORTCOMPLETE "/dev/null" "true"
+    done < $xdata3
 fi
-split -l "$y" --numeric-suffixes=1 --suffix-length=4 "$xdata3" "$atmp/hashchunk_"
-tail=(/usr/local/save-changesnew/mainloop "$atmp" "{}" "$SORTCOMPLETE" "$TMPF" "true" "main")
-find "$atmp" -type f -name "hashchunk_*" -print0 | sort -z | xargs -0 "${opts[@]}" -I{} "${tail[@]}"
-isoutput "mainloop1*" $SORTCOMPLETE
-
-
- #remaining dont hash but convert
+#remaining dont hash but convert
 x=$(tr -cd '\0' < $xdata | wc -c) 
 if [ "$md" == "mc" ]; then
-	y=$(( (x + max_jobs - 1) / max_jobs ))
-    opts=(-P"$max_jobs")
+    y=$(( (x + max_jobs - 1) / max_jobs ))
+    xargs -0 -n "$y" -P "$max_jobs" /usr/local/save-changesnew/profileloop $atmp "false" "main" "batch2"  < $xdata
+    isoutput "mainloop3*" $SORTCOMPLETE
 else
-    y=$(( (x + desired_chunks - 1) / desired_chunks ))  # chunk size approx
-    [ "$y" -lt "$min_chunk_size" ] && y=$min_chunk_size
-#	y=$(( (x + 3) / 4 ))
-#	[ $y -lt 10 ] && y=10    
-	opts=()
+    while IFS= read -r -d '' p ; do
+        rblk "$p" $SORTCOMPLETE "/dev/null" "false"
+    done < $xdata
 fi
-split -l "$y" --numeric-suffixes=1 --suffix-length=4 "$xdata" "$atmp/profilechunk_"
-tail=(/usr/local/save-changesnew/mainloop "$atmp" "{}" "$SORTCOMPLETE" "$TMPF" "false" "main" "batch2") 
-find "$atmp" -type f -name "profilechunk_*" -print0 | sort -z | xargs -0 "${opts[@]}" -I{} "${tail[@]}"
-isoutput "mainloop3*" $SORTCOMPLETE
-
-
-sort -o $SORTCOMPLETE $SORTCOMPLETE
-[[ -s "$SORTCOMPLETE" ]] && echo "$SORTCOMPLETE" || return 1
-
+if [[ -s $SORTCOMPLETE ]]; then
+	sort -o $SORTCOMPLETE $SORTCOMPLETE
+	echo "$SORTCOMPLETE"
+else
+	exit 6
+fi
 # Just get the filename
 #while IFS= read -r -d '' y; do  x=$(escf "$(cut -d' ' -f9- <<< "$y")") ; printf '%s\0' "$x"; done < $xdata3 > $TMPF
 #sort -z -o $TMPF $TMPF

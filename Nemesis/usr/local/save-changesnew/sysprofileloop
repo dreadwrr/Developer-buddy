@@ -2,11 +2,12 @@
 . /usr/local/save-changesnew/rntchangesfunctions
 . /usr/local/save-changesnew/save-changesnewfnts
 atmp="$1"
-folder="$3"
+IN="$2"
+# folder="$3"
 pf="$4" #Prefix
-tout="${atmp}/${pf}1_${RANDOM}$(rand_alpha)$$_tmp.log"  
-while read -r -d '' x; do y="${x#"$folder"}" ; y="$( escf "$y")" ; printf "%s\0" "$y" >> "$tout" ; done < $2
+tout="${atmp}/${pf}1_${RANDOM}$(rand_alphauid)$$_tmp.log"  
+cp $IN $tout
+#while read -r -d '' x; do y="${x#"$folder"}" ; printf "%s\0" "$y" >> "$tout" ; done < $IN
+# y="$( escf "$y")"
 # make relative escape chars and convert to \0
-	
-    
 
