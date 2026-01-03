@@ -1,6 +1,7 @@
 #!/bin/bash
-#                                               Developer Buddy v3.0                Aug 22, 2025
+#                                               Developer Buddy v5.0                Dec 31, 2025
 #   this script works for two modes porteus nemesis graphics and changes.
+# borrowed script items source
 # # Author: fanthom <fanthom@porteus.org>
 . /usr/share/porteus/porteus-functions
 get_colors
@@ -13,22 +14,35 @@ if [ `whoami` != "root" ]; then echo "Please enter your root password below" ; s
 if ! id $2 >/dev/null 2>&1; then echo "user:" ${2} "not found"; exit 0 ; fi # quick user check we test the target directory $1 after VARS
 if ! grep -iq "Artix" /etc/os-release; then echo "Wrong version of developer buddy. Please use porteus version." && exit 0 ; fi
 # CHANGABLE
-autobackup="true"                # changes=EXIT: only ie automatic append changes-commit to call this script if false sets .. to -x
+autobackup="true"           # Graphics changes only /etc/rc.d/rc.local_shutdown will be called to sync the backup on shutdown. Once run it will set itself to -x
+										# so there is no accidental saving if forgetting to turn off. Useful if doing something important. save-changesnew y  or save-changesnew yes   to enable
 
 
-d2drive="true"                 # default is false   for systems with low memory save directly to drive
-                                        # default is save to memory for staging purposes and convenience of modifying
-                                        # ect more versatle and efficient (less writes on hd)
-                                        # but systems with low memory may want to use this to avoid any potential
-                                        # exceedence
+d2drive="true"                 # default is true   also for systems with low memory save directly to drive
+                                          # false. save to memory for staging purposes and convenience of modifying the script ect
+                                           # more versatle to do any work or processing exclusions before saving. Also freezes
+											# the filesystem so can ensure better safety. d2drive has been stable so far
+                                           # but systems with low memory may want to use d2drive to avoid any potential
+                                           # exceedence
 
-d2dmdl="false"					# default false  use harddrive for temp dir for modules
-mdldvc=""                        # default null. if not enough memory use this device.       ie /mnt/sda3
+d2dmdl="false"					# default false  use $target or $thetgt the harddrive for temp files/work.  if not enough memory use this
+mdldvc=""                        # default null. This device rather than porteus install drive for temp files/work.      ie /mnt/sda3
+										# avoid trailing /
 
-grubln=""                                     # default null.  Point to Line number ie  linux /boot/syslinux/vmlinuz from=/dev/nvme0n1p4 root= ...   to automatically update grub for graphics extramod to boot with changes
-bootdvc=""		                              # default null. Point to the line number linux /boot/syslinux/vmlinuz from=/dev/nvme0n1p4 root=UUID=... to automatically update grub for graphics extramod to boot with changes
+grubln=""								# default null.  Point to Line number ie  linux /boot/syslinux/vmlinuz from=/dev/nvme0n1p4 root= ...   to automatically update grub for graphics extramod to boot with changes
+											# example grub entry from current system.  set to "435" . if extramod is not there it is appended to end of line as below. If extramod is there its inserted with a ;
+												#menuentry "Nemesis graphics" {
+												#    set root='hd3,gpt6'
+												#    linux /boot/syslinux/vmlinuz from=/dev/nvme0n1p6 root=UUID=aeb00f60-ff73-4318-80ca-c647ea08a619 extramod=/mnt/nvme0n1p6/extramod/                  ln435
+												#    initrd /boot/syslinux/initrd.xz
+												#}
 
-target=$thetgt                               # change this to specify the location of porteus install this passed from root call where porteus is installed via $BASEDIR
+bootdvc=""		                     # default null. required for above device where grub is installed. ie /mnt/nvme0n1p5 from current system
+												# avoid trailing /
+
+
+target=$thetgt                               # change this to specify the location of porteus install this is passed from root call where porteus is installed via $BASEDIR
+													# in some root environments $BASEDIR is null so set either here or at the top of script ln11 if having problems
                                                 # examples      "/mnt/sdx"   ie /mnt/sda3
                                                 #                   "/dev/sdx"
                                                # avoid trailing /
@@ -37,13 +51,13 @@ target=$thetgt                               # change this to specify the locati
 #Folders to include from changes      adjust if wanted            set to include changes-exit default folders
 FOLDERS="bin etc home lib lib64 opt root sbin usr var"
 
-#Folders to exclude from changes
-EXCLUDE="/var/run /var/tmp share/Trash"   #default changes-exit configuration
-                                            # keep original format  /var/run    is the base directory var
-                                            # seperate with space            anything else other than / will be a pattern *****  ie share/Trash
 
-#Folders to exclude from changes                                         already set to exclude changes-exit default folders
-# If you want to exclude directories see Line 153, 191 for Graphics changes mode and 307 for Graphics mode
+#Folders to exclude from changes
+EXCLUDE="/var/cache /var/run /var/tmp share/Trash"   #default changes-exit configuration
+                                            # keep original format  /var/run    is the base directory var
+                                            # seperate with space            anything else other than starting / will be a pattern *****  ie share/Trash
+
+
 
 chxzm="/changes.xzm"            #Module  name  change this if you want to customize the name
                                                 # retain leading / and ensure it ends in .xzm
@@ -51,7 +65,8 @@ chxzm="/changes.xzm"            #Module  name  change this if you want to custom
 
 em="/extramod"                      #change this to save a different folder       the extramod dirtory
                                                 # retain leading /
-                                               # avoid trailing /
+												# avoid trailing /
+
 
 cmode="gzip"                            # default nothing. uses gzip compression level balanced
                                            # xz        best compression
@@ -62,9 +77,8 @@ logSIZE=35                             # Log size limit default 35 MB
                                             # Will keep the original contents from when the changes.bak folder was made
                                             # if limit is exceeded. Just clears out old changes to make a new log file
 
-logSPRF="delete"                         # When log size limit reached what to do default delete just delete it and create a new one
-                                            #       with new updated master list.
-                                            # delete    delete the log to save space and make a new one with new master listi
+logSPRF="delete"                         # When log size limit reached 
+                                            # delete    delete the log to save space and make a new one with new master list
                                             # psv       preserve 25% of the last changes but take into account new changes so
                                             #           we are not over 25% of the log max size limit thus we grab 10-15% of the
                                             #           most recent changes append new ones to reach the 25% quota
@@ -73,26 +87,35 @@ logSPRF="delete"                         # When log size limit reached what to d
                                             #
                                             # stop      dont log anymore
 
-mdllmt=15                            # Auto Graphics mode module merging default 7
+mdlMRGPRF="forward"		# forward   dynamic merging first on mdllmt to save a write and time. implements logic or guardian system  default forward
+										# 			to do everything in one step.
+										# back    merge the modules afterwards if exceeding mdlmt. original with no extra logic
+
+mdllmt=12                           # Auto Graphics mode module merging default 7
                                                 # when reached will automatically merge if mrgMODULES is set to true below
                                                 # see mrgMODULES boolean
 
-linkedLOGPRF="incr"          # default incr  new log of only changes keeps log size down
+mdlLOGPRF="incr"          # default incr  new log of only changes keeps log size down
                                             # full log from creation all files and then append changes
-                                            # no      dont log the linked module
+                                            # false      dont log the linked module
+
+
+namingPRF="alpha"				# default alpha 
+												# numeric
+
 
 # CHANGABLE BOOLEANS
 linkedSTATE="false"             #This is precendence for changes:EXIT only on graphics mode. Default false
-                                           # This implies that you want changes made INCLUDING deletes to another
-                                           # modules in /tmp for now. We do this to prove that its working so everything
-                                           # is still done the same just you have a module with deletions included in /tmp
-                                           #
+                                           # This implies that you want changes made INCLUDING deletes to the module.
+											# If you dont do frequent saving this mode is useful as all deletions are applied
+                                           # and there will be only one changes module if a _uid_L prefix
                                            # linked state needs all changes modules to be created together thus you should
                                            # start with one that has linkedSTATE made. A byte count of this .xzm is made
-                                           # and logged into a txt file by the modules.
+                                           # and logged into a txt file by the modules. see extramod/ folder for createlmodule script
+											# to convert to an l module.
                                            #
-                                           # This text file will tell it are those candidates for Changes:EXIT/ and where to stop
-                                           # ect.
+                                           # This text file will tell it that it is a linked state module.
+
 keepLINKEDMRGED="false"  # default is false so delete the old ones after merging if they are not in sync with each other
                                            # it automatically renames the old one to .bak. ****
 
@@ -101,7 +124,7 @@ mrgMODULES="true"           # Automatically merge changes modules if over limit 
                                         #change this to automatically merge changes.xzm modules  ( applies to Graphics mode)
                                         # see $BASEDIR/extramod for mergemodule script to merge changes modules
 
-keepMRGED="true"       # default is false so delete the old ones after merging
+keepMRGED="true"       	# default is false so delete the old ones after merging
 # End Non linked state options
 
 
@@ -131,8 +154,8 @@ ANALYTICSECT="true"		# disable metric saving time. ect.
 
 # Backup mode for Graphics modules
 ROLLBCK="false"				# backup module after merged to be able to "rollback" by loading any single module
- 			 							# A module that has been merged is saved and moved to /archive/
-										# takes up more space
+ 			 							# When modules have been merged a copy is made and moved to /archive/
+										# takes up more space. but the single module has all changes at a point in time.
 
 ROLLSUMRY="false"            # default false    Include file manifest for archives
 
@@ -140,8 +163,10 @@ archLMT=4						# how many unique roll backs to keep  both _uid_ and _uid_L seper
 # End Backup mode
 # END CHANGABLE BOOLEANS
 # END CHANGABLE
+
+#VARS
 tmp=/mnt/live/tmp/work$$									; 			mtmp=/tmp/mtmp$$
-ch=/mnt/live/memory/changes							;			INAME=/mnt/live/memory/images #system changes   and images    leave set
+ch=/mnt/live/memory/changes							;			INAME=/mnt/live/memory/images
 SFOLDERS=/tmp/save.sfolders.tmp						;			trsyncexl=/usr/local/save-changesnew/excld.ini
 EXFILES=/tmp/exfiles.log									;			EXCL=/tmp/save.excl.tmp	 # for egrep regrex
 QEXCL=/tmp/squashexfiles.log							;			EXCLUDED=/tmp/save.excluded.tmp
@@ -149,22 +174,32 @@ EXFILES=/tmp/save.exfiles.tmp							;			exclfiles=/tmp/save.squashregex.tmp  #sp
 UPDATE=/tmp/save.update.tmp							;			oMF=/tmp/flog.log
 CHNEXIT_CONF=/etc/changes-exit.conf				;			chc=/etc/rc.d/rc.local_shutdown
 USR=$theUSER													;			LOGDIR=/home/$USR/Downloads
-LOGFILE="save.sfiles.tmp"								#	;			SVFILES=$MNAME/home/$USR/Downloads/save.sfiles.tmp            # wait until changes exit for nemesis #log file
+SFILES=/tmp/save.sfiles.tmp								;			elog=/tmp/error.log
+LOGFILE=save.sfiles.tmp									;			SVFILES=$tmp/save.rncfilesmanifest.tmp  # spare tmp file
+elog=/tmp/error.log  #debug file \ errors
+elapse=0
 mbyte=1048576												;			osize=0
 IFOLDERS=""														;			rname=""
 adtCMD=""														;			MODULENM=""
-sentinal=""
-#booleans
-rlt=""
+sentinal=""														;			rlt=""
+
+is_routine="true"												;			goahead="true"
+dirtybit="false"													;			is_moved="false"
+
 autosave $3
+[[ "$mdllmt" -eq 0 ]] && echo "mdllmt > 0 current value $mdllmt" && exit 0
+if [ "$mdlMRGPRF" != "forward" ] && [ "$mdlMRGPRF" != "back" ]; then echo "invalid mdfMRGPRF: $mdlMRGPRF , forward or back" && exit 0 ; fi
+if [ "$namingPRF" != "alpha" ] && [ "$namingPRF" != "numeric" ]; then echo "invalid setting namingPRF: $namingPRF" && exit 0 ; fi
 if [ "$LOGGING" == "false" ] && [ "$ANALYTICS" == "true" ]; then echo analystics requires logging to be true. && exit 0 ; fi
 if [ ! -e $target ]; then echo "Target does not exist" && exit 0 ; fi
 msr=${target}${em}"/lscheck"
-IFOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e $ch"$x" && echo "$x"; done)"
+
+IFOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e $ch/"$x" && echo "$x"; done)"
+
 dycmb ; exldir $EXFILES ; cyan "Syncing what's left in buffers" && sync
-if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
+if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
 mount -o remount,udba=notify /
-MODULENM="${chxzm%.xzm}" ; mdlnm="${MODULENM#/}" ; emfld="${em#/}"
+MODULENM="${chxzm%.xzm}" ; mdlnm="${MODULENM#/}" ; bootdvc="${bootdvc%/}" ; mdldvc="${mdldvc%/}"  #normalize
 rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
 if [ "$d2drive" == "false" ] || { [ "$d2drive" == "true" ] && [ "$d2dmdl" == "false" ] ; } ; then green "Staging... " ; else green "Direct to drive saving" ; fi
 if [ "$rlt" != "" ]; then
@@ -182,7 +217,7 @@ if [ "$rlt" != "" ]; then
 		mkdir $tmp ; dirSRC=$tmp
 		for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
     fi
-	pst=$pwd ; cd $dirSRC
+	pst=$PWD ; cd $dirSRC
 
     if [ -d "${target}${rlt}${MODULENM}.bak/" ]; then
         green "Updating existing backup..."
@@ -422,7 +457,7 @@ if [ "$rlt" != "" ]; then
             fi
         fi
     else
-		if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
+		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
 		mkdir ${target}${rlt}${MODULENM}.bak
 		if [ -f "${target}${rlt}${MODULENM}.bak.log" ]; then
 			glog "true"
@@ -469,33 +504,29 @@ if [ "$rlt" != "" ]; then
     fi
 	cd $pst
 else # Graphics mode
-	if [ "$ANALYTICS" == "true" ]; then start=$(date +%s.%N); fi
+	if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
     if [ "$d2drive" == "true" ] && [ "$d2dmdl" == "true" ]; then
 		if [ -z "$mdldvc" ]; then xtgt="$thetgt" ; else xtgt="$mdldvc" ; fi
-		#test -d $thetgt/tmp && { mkdir $thetgt/tmp$$; tmp=$thetgt/tmp$$; } || { mkdir $thetgt/tmp; tmp=$thetgt/tmp; }
 		test -d $xtgt/mtmp && mtmp=$xtgt/mtmp$$ || mtmp=$xtgt/mtmp
 		green "Staging xzm to local hdd on d2dmdl..."
-    	#for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
     fi
     SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`
 	line=43 #Bootloader
 	pth="/boot/syslinux/porteus.cfg"
- 	
     [[ -n "$bootdvc" ]] && thetgt=$bootdvc && [[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; }  
-    test -e "$thetgt$pth" && rltt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*') # Avoid confusion we initially stored rlt and can reference it. so use rltt
-    epath=$(printf '%s' "${target}${em}" | sed 's/[&|]/\\&/g')
-    if [ "$rltt" != "" ]; then  
-
-        if [[ ! "${rltt}" == *$BASEDIR"/"$emfld* ]]; then
-            test -d "$target$em" || mkdir -p "$target$em"
+    test -e "$thetgt$pth" && fnd=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*')
+    epath=$(printf '%s' $target$em | sed 's/[&|]/\\&/g')  #escape | and also & which may appear in a directory so doesnt break sed
+    if [ "$fnd" != "" ]; then  
+        if [[ ! "$fnd" == *$target${em%/}* ]]; then
+            test -d $target$em || mkdir -p $target$em
 			[[ -n "$grubln" ]] && test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak
-            sed -i "s|\(extramod=\)\([^ ]*\)|\1${epath};\2|" "$thetgt$pth"
+            sed -i "${line}s|\(extramod=\)\([^ ]*\)|\1${epath};\2|" "$thetgt$pth"
             loadermsg
-            IFS=';' read -ra parts <<< "${rltt}"
+            IFS=';' read -ra parts <<< "${fnd}"
             unset IFS ; u=""
             for part in "${parts[@]}"; do
                 erlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*')
-                testfile="${part}/.writetest_${$}"
+                testfile="${part}/.writetest_$$"
                 if touch "$testfile" 2>/dev/null; then
                     rm -f "$testfile"
                     for file in "${part}"/*_uid_*; do [ -e "$file" ] || continue ; mv "$file" "${target}${em}" ; u="true" ; done
@@ -503,14 +534,15 @@ else # Graphics mode
                     echo "$part was not writable some previous changes modules with _uid_ could not be moved"
                 fi
                 if [ "$u" == "true" ]; then
-					test -d $part"/archive" && mv $part"/archive" "${target}${em}" ; test -e $part"/lscheck" && mv $part"/lscheck" "${target}${em}" ; test -e $part"/mergemodules" && rm $part"/mergemodules"  
-                    test -e $part"/createlmodule" && rm $part"/createmodule" ; test -e $part"/renameLbak" && rm $part"/renameLbak" ; test -e $part"/renamebak" && rm $part"/renamebak"
+					test -d $part"/archive" && mv $part"/archive" "$target$em" ; test -e $part"/lscheck" && mv $part"/lscheck" "$target$em" ; test -e $part"/mergemodules" && rm $part"/mergemodules"  
+                    test -e $part"/mergemodulesod" && rm $part"/mergemodulesod" ; test -e $part"/createlmodule" && rm $part"/createmodule" ; test -e $part"/renameLbak" && rm $part"/renameLbak" 
+					test -e $part"/renamebak" && rm $part"/renamebak"
                 fi
                 if [ "$u" == "true" ] && [ -d "$part" ] && [ -z "$(ls -A "$part")" ]; then
                     erlt="${erlt//;$part/}"
                     erlt="${erlt//$part;/}"
                     erlt="${erlt//$part/}"
-                    erlt=$(printf '%s' "$erlt" | sed 's/[&|]/\\&/g')   #escape | and also & which may appear in a directory so doesnt break sed
+                    erlt=$(printf '%s' "$erlt" | sed 's/[&|]/\\&/g')   
                     sed -i "s|\(extramod=\)[^ ]*|\1${erlt}|" "$thetgt$pth"
                     cyan "bootloader updated"
                 fi
@@ -518,11 +550,10 @@ else # Graphics mode
             if [ "$u" != "" ]; then green "all previous changes modules in other extramod directories moved to new extramod dir" ; fi
         fi
     else
-		cmd="sed -i \"0,/APPEND/ s|\\(APPEND\\)|\\1 extramod=${epath}|\" \"$thetgt$pth\""
-		if [ -n "$grubln" ]; then test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak ; cmd="sed -i \"${line}s|\\\$| extramod=$epath/|\" \"$thetgt$pth\"" ; fi
+		cmd="sed -i \"0,/APPEND/ s|\\(APPEND\\)|\\1 extramod=${epath}|\" \"$thetgt$pth\""  # first occurence of APPEND in syslinux bootloader for nemesis
+		if [ -n "$grubln" ]; then test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak ; cmd="sed -i \"${line}s|\\\$| extramod=$epath/|\" \"$thetgt$pth\"" ; fi  # append to end of line.
 		test -e "$thetgt$pth" && bash -c "$cmd" || echo "Using other bootloader append ${target}${em} to it with extramod="
     fi # END Bootloader
-
     if [ -s "${target}${em}${MODULENM}${SERIAL}_uid_$$.xzm" ]; then
 		echo ; echo A changes .xzm was detected but nothing was done. ; cyan "${MODULENM}${SERIAL}_uid_$$.xzm already exists" && { sleep 5; exit 0; }
     else
@@ -530,7 +561,8 @@ else # Graphics mode
         touch "$target$em/._test1" 2>/dev/null
         cyan "testing filesystem on ${target} for posix compatibility"
         ln -s "$target$em"/._test1 "$target$em"/._test2 2>/dev/null && chmod +x "$target$em"/._test1 2>/dev/null && [ -x "$target$em"/._test1 ] && chmod -x "$target$em"/._test1 2>/dev/null && [ ! -x "$target$em"/._test1 ] && rm -f "$target$em"/._test1 "$target$em"/._test2
-		if [ $? -ne 0 ]; then
+        res=$?
+		if [ "$res" -ne 0 ]; then
             mount -o remount,udba=none /
             rm -f "$target$em"/._test1 "$target$em"/._test2
 			echo && echo -e "[1;33m""A Windows filesystem (FAT, NTFS) or other non-posix compatible filesystem\nhas been detected on $target.\nYour changes cannot be saved directly to the specified storage media with this\nsetup. Please use the '[1;36mPorteus save file manager[1;33m' to create a .dat container\nand use it for saving your changes after your next reboot.""[0m"
@@ -539,6 +571,7 @@ else # Graphics mode
         r=$(find "$target$em" -maxdepth 1 -type f -name '*_uid_*.xzm' | wc -l)
         if [ "$r" -eq 0 ]; then # if this is the first time running and there isnt a symlink to the merge script create it
             if [ ! -e "$target$em"/mergemodules ]; then ln -s /usr/local/save-changesnew/mergemodules.sh "$target$em"/mergemodules; fi
+			if [ ! -e "$target$em"/mergemodulesod ]; then ln -s /usr/local/save-changesnew/mergemodulesod.sh "$target$em"/mergemodulesod; fi
 			if [ ! -e "$target$em"/createlmodule ]; then ln -s /usr/local/save-changesnew/createlmdl.sh "$target$em"/createlmodule; fi
             if [ ! -e "$target$em"/renamebak ]; then ln -s /usr/local/save-changesnew/renamebak "$target$em"/renamebak; fi
             if [ ! -e "$target$em"/renameLbak ]; then ln -s /usr/local/save-changesnew/renameLbak "$target$em"/renameLbak; fi
@@ -576,33 +609,60 @@ else # Graphics mode
                 else
                     createlmdl "nomsr"
                 fi
-                cd $pst
             elif [ "$f" -eq 0 ]; then
                 createlmdl "nolmdl"
             fi
         else # End linked
-            rname="${MODULENM}${SERIAL}_uid_${$}.xzm" ; newxzm "uid"
+			cd $target$em
+			[[ "$namingPRF" == "numeric" ]] && rname="${mdlnm}${SERIAL}_uid_$(rand_num)$$.xzm"
+			[[ "$namingPRF" == "alpha" ]] && rname="${mdlnm}${SERIAL}_uid_$(rand_alphauid)$$.xzm" 
+			newxzm "uid"
         fi
-        chown $USR $target$em$rname
-		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then printf "Saving took %.3f seconds.\n" "$el" ; fi
-        cyan "Your changes have been saved. in ${target}${em}/" ;  cyan $rname
-        if [ "$mrgMODULES" == "true" ] && [ "$linkedSTATE" == "false" ]; then
-        	cd $target$em ; r=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' | wc -l)
-            if (( r > mdllmt)); then
-                green "Merging changes modules..." ; sleep 5
-                if ! /usr/local/save-changesnew/mergemodules.sh $keepMRGED $ROLLBCK $ROLLSUMRY $archLMT; then
-                    rel=$?
-                    if [ "$rel" -eq 1 ]; then
-                        red "There was problem auto merging. see /tmp/error.log" ; cyan "Everything preserved."
-                    else
-                        echo "err: ${rel}"
+		if [ "$goahead" == "true" ]; then  # dont display the time if error
+            if [ -s "${target}${em}/${rname}" ]; then
+                chown $USR "${target}${em}/${rname}"
+	     		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then 
+				    el=$(awk "BEGIN {print $end - $start}")
+				    tt=$el
+					qtn=0
+				    [[ -n "$elapse" ]] && qtn=$elapse
+				    smp=$el
+				    
+					#[[ -n "$elapse" ]] && qtn=${elapse/.} ; smp=${el/.} # fails on octal > 7 use awk
+
+				    if awk "BEGIN {exit !($qtn != 0 && $qtn < $smp)}"; then
+					    #el=$(awk "BEGIN {print $el - $elapse}")  better to show the times than the difference
+		                if [ "$dirtybit" !=  "true" ]; then
+		                    mtd="Extract time"
+		                else
+		                    mtd="Time to merge"
+		                fi
+		                printf "Total save time %.3f seconds. ( %s %.3f )\n" "$el" "$mtd" "$elapse"
+                    elif (( qtn == 0 )); then
+                        printf "Total save time %.3f seconds.\n" "$el"
                     fi
-                else
-                    cyan "Modules merged."
-                fi
+			    fi
+			    cyan "Your changes have been saved. in ${target}${em}/" && cyan $rname
+		        if [ "$mdlMRGPRF" = "back" ] && [ "$mrgMODULES" == "true" ] && [ "$linkedSTATE" == "false" ]; then
+		        	cd $target$em ; r=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' | wc -l)
+		            if (( r > mdllmt)); then
+		                green "Merging changes modules..." ; sleep 5
+		                /usr/local/save-changesnew/mergemodules.sh $keepMRGED $ROLLBCK $ROLLSUMRY $archLMT
+					    rel=$?
+					    if [ "$rel" -ne 0 ]; then
+				            if [ "$rel" -eq 1 ]; then
+				                red "There was problem auto merging. see $elog" ; cyan "Everything preserved."
+				            else
+				                echo "mergemodules.sh err: $rel"
+				            fi
+		                else
+		                    cyan "Modules merged."
+		                fi
+		            fi
+		        fi
             fi
-        	cd $pst
-        fi
+		fi
+		cd $pst
     fi
 fi
 mount -o remount,udba=none /
