@@ -1,23 +1,18 @@
 import fnmatch
 import hashlib
 import os
-import re
+import traceback
+from collections import defaultdict
 from datetime import datetime
-CYAN = "\033[36m"
-RED = "\033[31m"
-GREEN = "\033[1;32m"
-YELLOW = "\033[33m"
-RESET = "\033[0m"
 
-# Cache clear
-# patterns to delete
+# Cache clear patterns to delete from db
+#
 cache_clear = [
     "%caches%",
     "%cache2%",
     "%Cache2%",
     "%.cache%",
     "%share/Trash%",
-    f"%home/{{user}}/Downloads/rntfiles%",
     f"%home/{{user}}/.local/state/wireplumber%",
     "%usr/share/mime/application%",
     "%usr/share/mime/text%",
@@ -26,54 +21,60 @@ cache_clear = [
 ]
 
 
-def get_delete_patterns(usr): # db cache clr
+CYAN = "\033[36m"
+RED = "\033[31m"
+GREEN = "\033[1;32m"
+YELLOW = "\033[33m"
+RESET = "\033[0m"
+
+
+def get_delete_patterns(usr):  # db cache clr
     patterns = [p.replace("{user}", usr) for p in cache_clear]
     return patterns
 
-	# cursor.execute('''
-	# SELECT a.filename, b.filename, a.checksum, a.filesize, b.filesize
-	# FROM logs a
-	# JOIN logs b
-	# 	ON a.checksum = b.checksum
-	# 	AND a.filename != b.filename
-	# WHERE a.filesize != b.filesize
-	# 	AND a.filename = ?
-	# ''', (filename,))
-def collision(filename, checksum, filesize, cursor, sys):
-    if sys:
-        query = '''
-            WITH combined AS (
-                SELECT filename, checksum, filesize FROM logs
-                UNION ALL
-                SELECT filename, checksum, filesize FROM sys
-            )
-            SELECT b.filename, a.checksum, a.filesize, b.filesize
-            FROM combined a
-            JOIN combined b
-            ON a.checksum = b.checksum
-            AND a.filename != b.filename
-            WHERE a.filename = ?
-            AND a.checksum = ?
-            AND b.filesize != ?
-        '''
-    else:
-        table_name='logs'
-        query = f'''
-            SELECT b.filename, a.checksum, a.filesize, b.filesize
-            FROM {table_name} a
-            JOIN {table_name} b
-            ON a.checksum = b.checksum
-            AND a.filename != b.filename
-            WHERE a.filename = ?
-            AND a.checksum = ?
-            AND b.filesize != ?
-        '''
-    cursor.execute(query, (filename, checksum, filesize))
-    return cursor.fetchall()
-#11/28/2025
+
+def collision(cursor, is_sys):
+    try:
+        if is_sys:
+            tables = ['logs', 'sys']
+            union_sql = " UNION ALL ".join([
+                f"SELECT filename, checksum, filesize FROM {t} WHERE checksum IS NOT NULL" for t in tables
+            ])
+            query = f"""
+                WITH combined AS (
+                    {union_sql}
+                )
+                SELECT a.filename, b.filename, a.checksum, a.filesize, b.filesize
+                FROM combined a
+                JOIN combined b
+                ON a.checksum = b.checksum
+                AND a.filename < b.filename
+                AND a.filesize != b.filesize
+                ORDER BY a.checksum, a.filename
+            """
+        else:
+            query = """
+                SELECT a.filename, b.filename, a.checksum, a.filesize, b.filesize
+                FROM logs a
+                JOIN logs b
+                ON a.checksum = b.checksum
+                AND a.filename < b.filename
+                AND a.filesize != b.filesize
+                WHERE a.checksum IS NOT NULL
+                ORDER BY a.checksum, a.filename
+            """
+
+        cursor.execute(query)
+        return cursor.fetchall()
+    except Exception as e:
+        print(f"Database error in collision detection: {type(e).__name__} : {e}")
+        return []
+
+
+# 11/28/2025
 def detect_copy(filename, inode, checksum, cursor, ps):
     if ps:
-        query = f'''
+        query = '''
             SELECT filename, inode
             FROM logs
             WHERE checksum = ?
@@ -92,35 +93,21 @@ def detect_copy(filename, inode, checksum, cursor, ps):
         cursor.execute(query, (checksum,))
 
     candidates = cursor.fetchall()
-
-    for o_filename, o_inode in candidates:
-        if o_filename != filename or o_inode != inode:
+    # for o_filename, o_inode in candidates:
+    #     if o_filename != filename or o_inode != inode:
+    #         return True
+    for _, o_inode in candidates:
+        if o_inode != inode:
             return True
-    
+
     return None
 
-def get_recent_changes(filename, cursor, table):
-	allowed_tables = ('logs', 'sys')
-	if table not in allowed_tables:
-		return None
-	query = f'''
-		SELECT timestamp, filename, changetime, inode, accesstime, checksum, filesize, owner, `group`, permissions
-		FROM {table}
-		WHERE filename = ?
-		ORDER BY timestamp DESC
-		LIMIT 1
-	'''
-	cursor.execute(query, (filename,))
-	reslt = cursor.fetchone()
-	return reslt
 
-     
-def get_recent_sys(filename, cursor, sys_table, e_cols=None):
-
+def get_recent_changes(filename, cursor, table, e_cols=None):
     columns = [
         "timestamp", "filename", "changetime", "inode",
         "accesstime", "checksum", "filesize", "owner",
-        "`group`", "permissions"
+        "`group`", "permissions", "symlink", "casmod"
     ]
     if e_cols:
         if isinstance(e_cols, str):
@@ -129,93 +116,115 @@ def get_recent_sys(filename, cursor, sys_table, e_cols=None):
 
     col_str = ", ".join(columns)
 
-    cursor.execute(f'''
+    query = f'''
         SELECT {col_str}
-        FROM {sys_table}
+        FROM {table}
         WHERE filename = ?
         ORDER BY timestamp DESC
         LIMIT 1
-    ''', (filename,))
-    row = cursor.fetchone()
-    return row
-    # if row:
-        # return row
-    # cursor.execute(f'''
-    #     SELECT {col_str}
-    #     FROM {sys_a}
-    #     WHERE filename = ?
-    #     LIMIT 1
-    # ''', (filename,))
-    # return cursor.fetchone()
+    '''
+    cursor.execute(query, (filename,))
+    return cursor.fetchone()
 
 
-def getcount (curs):
-      curs.execute('''
-            SELECT COUNT(*)
-            FROM logs
-            WHERE (timestamp IS NULL OR timestamp = '')
-            AND (filename IS NULL OR filename = '')
-            AND (inode IS NULL OR inode = '')
-            AND (accesstime IS NULL OR accesstime = '')
-            AND (checksum IS NULL OR checksum = '')
-            AND (filesize IS NULL OR filesize = '')
-      ''')
-      count = curs.fetchone()
-      return count[0]
+def getcount(curs):
+    curs.execute('''
+        SELECT COUNT(*)
+        FROM logs
+        WHERE (timestamp IS NULL OR timestamp = '')
+        AND (filename IS NULL OR filename = '')
+        AND (inode IS NULL OR inode = '')
+        AND (accesstime IS NULL OR accesstime = '')
+        AND (checksum IS NULL OR checksum = '')
+        AND (filesize IS NULL OR filesize = '')
+    ''')
+    count = curs.fetchone()
+    return count[0]
 
 
 def increment_f(conn, c, records):
-    # batch insert into sys in one go
-
     if not records:
         return False
 
-    sql_insert = f"""
-        INSERT OR IGNORE INTO sys (
-            timestamp, filename, changetime, inode, accesstime, checksum,
-            filesize, symlink, owner, `group`, permissions, casmod, count
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """
-            
-    try:
-        c.executemany(sql_insert, records)
-        
-        sql_update = "UPDATE sys SET count = CAST(count AS INTEGER) + 1 WHERE filename = ?" #f"UPDATE sys SET count = count + 1 WHERE filename = ?"     its TEXT tk sorting problems as INT
-        filenames = [(record[1],) for record in records]
-        c.executemany(sql_update, filenames)
-        conn.commit()
-        
-        return True
+    inserted_entry = []
 
-    except Exception as e:
-        conn.rollback()
-        print(f"Error {type(e).__name__} : {e}")
-        return False
-    
+    for record in records:
+        try:
+            c.execute("""
+                INSERT OR IGNORE INTO sys (
+                    timestamp, filename, changetime, inode, accesstime, checksum,
+                    filesize, symlink, owner, `group`, permissions, casmod, lastmodified, count
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, record)
 
-# Update sys table counts
-# def ucount(conn, cur):sys_record_flds
-#     cur.execute('''
-#         SELECT filename, COUNT(*) as total_count
-#         FROM sys
-#         GROUP BY filename
-#         HAVING total_count > 1
-#     ''')
-#     duplicates = cur.fetchall()
-#     for filename, total_count in duplicates:
-#         cur.execute('''
-#             UPDATE sys
-#             SET count = ?
-#             WHERE filename = ?
-#         ''', (total_count, filename))
-#     conn.commit()
-        # if many sys files but no need
-        #  updates = [(total_count, filename) for filename, total_count in duplicates]
-        # cur.executemany('''
-        #     UPDATE sys
-        #     SET count = ?
-        #     WHERE filename = ?
-        # ''', updates)
+            if c.rowcount > 0:
+                inserted_entry.append(record[1])
+
+        except Exception as e:
+            conn.rollback()
+            print(f"Error while insert sys records skipping was unable to complete and then update count. increment_f {type(e).__name__} : {e}  \n{traceback.format_exc()}")
+            return False
+
+    for filename in inserted_entry:
+        c.execute("UPDATE sys SET count = count + 1 WHERE filename = ?", (filename,))
+
+    conn.commit()
+    return True
+
+
+# Bulk insert
+# def increment_f_bulk(conn, c, records):
+
+#     if not records:
+#         return False
+
+#     sql_insert = """
+#         INSERT INTO sys (
+#             timestamp, filename, changetime, inode, accesstime, checksum,
+#             filesize, symlink, owner, `group`, permissions, casmod, count
+#         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+#     """
+
+#     try:
+#         c.executemany(sql_insert, records)
+#         sql_update = "UPDATE sys SET count = count + 1 WHERE filename = ?"
+#         filenames = [(record[1],) for record in records]
+#         c.executemany(sql_update, filenames)
+#         conn.commit()
+
+#         return True
+
+#     except Exception as e:
+#         conn.rollback()
+#         print(f"Error while insert sys records skipping {type(e).__name__} : {e}")
+#         return False
+
+
+def ccheck(xdata, cerr, c, ps):
+    reported = set()
+
+    colcheck = collision(c, ps)
+
+    if colcheck:
+
+        collision_map = defaultdict(set)
+        for a_filename, b_filename, file_hash, size_a, size_b in colcheck:
+            collision_map[a_filename, file_hash].add((b_filename, file_hash, size_a, size_b))
+            collision_map[b_filename, file_hash].add((a_filename, file_hash, size_b, size_a))
+        try:
+            with open(cerr, "a", encoding="utf-8") as f:
+                for record in xdata:
+                    filename = record[1]
+                    csum = record[5]
+                    key = (filename, csum)
+                    if key in collision_map:
+                        for other_file, file_hash, size1, size2 in collision_map[filename]:
+                            pair = tuple(sorted([filename, other_file]))
+                            if pair not in reported:
+                                print(f"COLLISION: {filename} {size1} vs {other_file} {size2} | Hash: {file_hash}", file=f)
+                                reported.add(pair)
+        except IOError as e:
+            print(f"Failed to write collisions: {e} {type(e).__name__}  \n{traceback.format_exc()}")
 
 
 def matches_any_pattern(s, patterns):
@@ -225,72 +234,98 @@ def matches_any_pattern(s, patterns):
         if fnmatch.fnmatch(s, pat):
             return True
     return False
-    
-def parse_datetime(value, fmt):
-	try:
-		return datetime.strptime(str(value).strip(), fmt)
-		#return dt.strftime(fmt)
-	except (ValueError, TypeError, AttributeError):
-		return None
 
+
+def epoch_to_date(epoch):
+    try:
+        return datetime.fromtimestamp(float(epoch))
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_datetime(value, fmt="%Y-%m-%d %H:%M:%S"):
+    if isinstance(value, datetime):
+        return value
+    try:
+        return datetime.strptime(str(value).strip(), fmt)
+        # return dt.strftime(fmt)
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+# encoding
+
+
+# 12/17/2025
+# used for txt output so doesnt break on newlines
 def escf_py(filename):
-    filename = filename.replace('\\', '\\\\')
-    filename = filename.replace('\n', '\\n')
-    filename = filename.replace('"', '\\"')
-    filename = filename.replace('$', '\\$')
+    filename = filename.replace('\n', '\\\\n')
+    return filename
+# def escf_py(filename):
+#     filename = filename.replace('\\', '\\\\')
+#     filename = filename.replace('\n', '\\\\n')
+#     filename = filename.replace('"', '\\"')
+#     # filename = filename.replace('\t', '\\t')
+#     # filename = filename.replace('$', '\\$')
+#     return filename
+
+
+# not used. reverse above
+def unescf_py(s):
+    s = s.replace('\\\\n', '\n')
+    s = s.replace('\\"', '"')
+    s = s.replace('\\\\', '\\')
+    # s = s.replace('\\t', '\t')
+    # s = s.replace('\\$', '$')
+    return s
+
+
+# not used in python backend. used in bash to allow for parsing in bash ha and arrives in  this format.
+def ap_encode(filename):
+    filename = filename.replace('\\', '\\ap5c')
+    filename = filename.replace('"', '\\ap22')
+    filename = filename.replace('\t', '\\ap09')
+    filename = filename.replace('\n', '\\ap0A')
+    # filename = filename.replace('$', '\\ap24')
+    filename = filename.replace(' ', '\\ap20')
     return filename
 
-#10/07/2025 order
-def unescf_py(s):
-    s = s.replace('\\n', '\n')
-    s = s.replace('\\"', '"')
-    s = s.replace('\\$', '$')
-    s = s.replace('\\\\', '\\')
+
+# 12/22/2025 used to decode bash input. default used during parsing
+def ap_decode(s):
+    s = s.replace('\\ap0A', '\n')
+    s = s.replace('\\ap09', '\t')
+    s = s.replace('\\ap22', '"')
+    # s = s.replace('\\ap24', '$')
+    s = s.replace('\\ap5c', '\\')
+    s = s.replace('\\ap20', ' ')
     return s
-#def unescf_py(escaped):   old
-#    s = escaped
-#    s = s.replace('\\\\', '\\')
-#    s = s.replace('\\n', '\n')
-#    s = s.replace('\\"', '"') 
-#    s = s.replace('\\$', '$')     
-#    return s
 
-def parse_line(line):
-    quoted_match = re.search(r'"((?:[^"\\]|\\.)*)"', line)
-    if not quoted_match:
-        return None
-    raw_filepath = quoted_match.group(1)
-    # try:
-    #     filepath = codecs.decode(raw_filepath.encode(), 'unicode_escape')
-    # except UnicodeDecodeError:
-    #     filepath = raw_filepath
-    filepath = unescf_py(raw_filepath)
 
-    # Remove quoted path 
-    line_without_file = line.replace(quoted_match.group(0), '').strip()
-    other_fields = line_without_file.split()
+# not used. decode from the bash but leave newline escaped
+def ap_dbdecode(s):
+    s = s.replace('\\ap0A', '\\n')
+    s = s.replace('\\ap09', '\t')
+    s = s.replace('\\ap22', '"')
+    # s = s.replace('\\ap24', '$')
+    s = s.replace('\\ap5c', '\\')
+    s = s.replace('\\ap20', ' ')
+    return s
 
-    if len(other_fields) < 7:
-        return None
+# end encoding
 
-    timestamp1 = other_fields[0] + ' ' + other_fields[1]
-    timestamp2 = other_fields[2] + ' ' + other_fields[3]
-    inode = other_fields[4]
-    timestamp3 = other_fields[5] + ' ' + other_fields[6]
-    rest = other_fields[7:]
-
-    return [timestamp1, filepath, timestamp2, inode, timestamp3] + rest
 
 def to_bool(val):
     return val.lower() == "true" if isinstance(val, str) else bool(val)
 
+
 # return filenm
 def getnm(locale, ext=''):
-      root = os.path.basename(locale)
-      root, ext = os.path.splitext(root)
-      return root + ext
+    root = os.path.basename(locale)
+    root, _ = os.path.splitext(root)
+    return root + ext
 
-#ha funcs
+
+# ha funcs
 def get_md5(file_path):
     try:
         with open(file_path, "rb") as f:
@@ -299,8 +334,9 @@ def get_md5(file_path):
         return None
     except Exception as e:
         print(f"Error reading {file_path}: {e}")
-        return None 
-    
+        return None
+
+
 def calculate_checksum(file_path):
     try:
         hash_func = hashlib.md5()
@@ -311,7 +347,7 @@ def calculate_checksum(file_path):
     except Exception:
         return None
 
-        
+
 def sys_record_flds(record, sys_records, prev_count):
     sys_records.append((
         record[0],  # timestamp
@@ -324,50 +360,73 @@ def sys_record_flds(record, sys_records, prev_count):
         record[7],  # symlink
         record[8],  # owner
         record[9],  # group
-        record[10], # permissions
-        record[11], # casmod
-        prev_count # incremented count
+        record[10],  # permissions
+        record[11],  # casmod
+        record[12],  # lastmodified
+        prev_count  # incremented count
     ))
 
 
 def is_integer(value):
     try:
-        int(value)
-        return True
+        return int(value)
     except (ValueError, TypeError):
-        return False
+        return None
+
+
 def is_valid_datetime(value, fmt):
-	try: 
-		datetime.strptime(str(value).strip(), fmt)
-		return True
-	except (ValueError, TypeError, AttributeError):
-		return False
-     
-def log_event(event, record, label, file_full, file_short):
-    msg_full = f'{event} {record[0]} {record[2]} {label}'
-    print(msg_full, file=file_full)
-    #print(msg_short, file=file_short)
-     #msg_short = f'{event} {record[0]} {label}'
+    try:
+        datetime.strptime(str(value).strip(), fmt)
+        return True
+    except (ValueError, TypeError, AttributeError):
+        return False
+
+
 def new_meta(record, metadata):
     return (
-        record[10] != metadata[2] or # perm
-        record[8]  != metadata[0] or # onr
-        record[9]  != metadata[1] # grp
+        record[0] != metadata[0] or  # onr
+        record[1] != metadata[1] or  # grp
+        record[2] != metadata[2]  # perm
     )
-def getstdate(st, fmt):
-	a_mod = int(st.st_mtime)
-	afrm_str = datetime.fromtimestamp(a_mod).strftime(fmt)  # datetime.utcfromtimestamp(a_mod).strftime(fmt)
-	afrm_dt = parse_datetime(afrm_str, fmt)
-	return afrm_dt, afrm_str
 
-#pstsrg
+
+# pstsrg
 def goahead(filepath):
     try:
         st = filepath.stat()
         return st
     except FileNotFoundError:
         return "Nosuchfile"
-    except (PermissionError, OSError, Exception) as e:
-         pass
-        #print(f"Skipping {filepath.name}: {type(e).__name__} - {e}")
+    except (PermissionError, OSError, Exception):
+        pass
+        # print(f"Skipping {filepath.name}: {type(e).__name__} - {e}")
     return None
+
+
+# if it is just a file we know the gpg would roughly be half the size. Final compLVL limit is based off of final comp size
+def intst(target_file, compLVL):
+    CSZE = 1024*1024
+    if os.path.isfile(target_file):
+        _, ext = os.path.splitext(target_file)
+        try:
+            file_size = os.stat(target_file).st_size
+            size = file_size
+            if ext != ".gpg":
+                size = file_size // 2
+
+            return size // CSZE >= compLVL  # no compression
+        except Exception as e:
+            print(f"Error setting compression of {target_file}: {e}")
+    return False
+
+
+def removefile(fpath):
+    try:
+        if os.path.isfile(fpath):
+            os.remove(fpath)
+            return True
+    except (TypeError, FileNotFoundError):
+        pass
+    except Exception:
+        pass
+    return False

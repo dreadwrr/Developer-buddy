@@ -4,7 +4,6 @@
 #
 #	Notes: has porteus 5.01 and 5.1 built in
 #
-#  Full modularity only one filter needed for version 3       used to be a copy in compilesearch.sh you used to have to update as well
 # $1 first file $2 user $3 second file
 
 ## Base var exclusions

@@ -1,7 +1,8 @@
 #!/bin/bash                      
-# We rename them in batches so no filename conflicts are checked first.   -r to reverse .xzm to .bak July 17, 2025
+# rename them in batches so filename conflicts are checked first. before doing anything  
+#  Usage: rename all _uid_  .bak to .xzm.    -r flag to reverse .xzm to .bak Dec 20, 2025
 . /usr/share/porteus/porteus-functions
 get_colors
-. /usr/local/save-changesnew/save-changesnewfnts
+. /usr/local/save-changesnew/mergemodulesfunctions
 if [[ $(whoami) != "root" ]]; then echo Please run script as root; exit; fi
 renmmdl "_uid_" $1

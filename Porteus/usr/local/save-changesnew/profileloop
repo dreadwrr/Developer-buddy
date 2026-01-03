@@ -8,19 +8,13 @@ atmp="$1"
 checkSUM="$2"
 xmode="$3"
 [[ "$4" = "batch2" ]] && prefix=mainloop3 && prefixt=mainloop4 && prefixth=cache2
-updatehlinks="$5"
-CACHE_F="$6"
-shift 6
+shift 4
 
 # $atmp "false" "main" "batch2"
 SORTCOMPLETE="${atmp}/${prefix}_${RANDOM}$(rand_alpha)$$_tmp.log"
 NFS="${atmp}/${prefixt}_${RANDOM}$(rand_alpha)$$_tmp.log"
-CACHE="${atmp}/${prefixth}_${RANDOM}$(rand_alpha)$$_tmp.log"
+# CACHE="${atmp}/${prefixth}_${RANDOM}$(rand_alpha)$$_tmp.log"
 
-if [[ -n "$CACHE_F" ]]; then
-    for f in "$@"; do
-	    sblk "$f" $SORTCOMPLETE $NFS $checkSUM $xmode $CACHE
-    done
-else
-	echo "mainloop Incorrect arguments supplied"
-fi
+for f in "$@"; do
+    rblk "$f" $SORTCOMPLETE $NFS $checkSUM
+done
