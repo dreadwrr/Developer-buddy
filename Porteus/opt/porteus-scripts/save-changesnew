@@ -1,5 +1,5 @@
-#!/bin/bash
-#                                               Developer Buddy v3.0  Rsync backup of changes folder  Porteus edition  08/30/2025
+#!/usr/bin/env bash
+#                                               Developer Buddy v3.0  Rsync backup of changes folder  Porteus edition  12/31/2025
 # rsync backup to /changes.bak minimal writes as the backup would already be in place. Files are logged and its accurate
 # to system specs with --delete. Added drive to drive while this is fast the preferable way is to not use drive to drive
 # as it freezes the file system at that point in time. But on shutdown that wait would be too long. So drive to drive provides
@@ -27,52 +27,78 @@ get_colors
 if ! id $theUSER >/dev/null 2>&1; then echo "user:" ${2} "not found"; exit 0 ; fi # quick user check                     #we test the target directory $1 after VARS
 
 # Notes
-# Changes commit vars   line 172          this is the main script
-# developer buddy  vars         160         this runs after changes commit if BACKUP  true
+# Changes commit vars   line 230          this is the main script
+# developer buddy  vars         209         this runs after changes commit if BACKUP  true
 #
 
 
 #CHANGABLE					# As changes exit uses changes-commit turn backup on to save a backup /changes.bak/
 
-BACKUP="true"				# Turn on backup feature of Developer buddy 3.0 to hdd on/off           this will run after changes-commit
-autobackup="false"                # changes=EXIT: only ie automatic append changes-commit to call this script if false sets .. to -x
-isolateBACK="true"			# default false.  
-										# true you would call save-changesnew backup to refresh the backup
+BACKUP="true"				# Turn on backup feature of Developer buddy 5.0 to hdd on/off           
+										# How does it works       1. changes commit --> 2. hard disk (normal changes-commit) --> 3 changes.bak (BACKUP)       . 
+										# if true run this backup script after changes-commit.
+										# changes=EXIT:      to backup call `save-changesnew backup`
+										# changes=     `save-changesnew`    is the backup
+										#										
+										# If you just want to save changes normally on shutdown set autobackup to true and BACKUP to false.
 
-d2drive="true"                 # default is false   for systems with low memory save directly to drive
-                                        # default is save to memory for staging purposes and convenience of modifying
-                                        # ect more versatle and efficient (less writes on hd)
+autobackup="false"                # changes=EXIT: only. works with BACKUP true or false
+										# If true then you want to save changes on shutdown with changes-commit. it will automatically append $target or $BASEDIR to changes-commit to call this script and then set it changes-commit to +x. 
+										#  false sets changes-commit.. to -x
+										# should set correctly if not see line 104 in /opt/porteus-scripts/changes-commit and change to porteus install 
 
-                                        # but systems with low memory may want to use this to avoid any potential
-                                        # exceedence
+isolateBACK="true"			# default true.   This is an interlock put in as the mode could be regular changes= or EXIT. how it works is below
+										# changes=       if set to false the backup wont be updated on `save-changesnew` so its isolated if accidently calling save-changesnew  
+										#
+										# changes=EXIT:/ true you would call `save-changesnew backup` to refresh the backup. If it is false it would save to the hdd and then save to the backup
+										#
+										# Reason being if you are on change=EXIT:/ and you called save-changesnew accidently it would save to both  /changes and /changes.bak potentially wrecking the backup
+											# so on that mode explicitly its `save-changes backup` to save to the backup when this is true. Also inversely if set to false and on changes=     save-changesnew wont do anything
 
-d2dmdl="false"					# default false  use harddrive for temp dir for modules Not changes exit use target
-mdldvc=""                        # default null. if not enough memory use this device.       ie /mnt/sda3
+d2drive="true"                	# default is true   also for systems with low memory save directly to drive
+		                                  # false. save to memory for staging purposes and convenience of modifying the script ect
+		                                   # more versatle to do any work or processing exclusions before saving. Also freezes
+											# the filesystem so can ensure better safety. d2drive has been stable so far
+		                                   # but systems with low memory may want to use d2drive to avoid any potential
+		                                   # exceedence
 
+d2dmdl="false"					# default false  use $target or $thetgt the harddrive for temp files/work.  if not enough memory use this
+mdldvc=""                        # default null. This device rather than porteus install drive for temp files/work.      ie /mnt/sda3
+										# avoid trailing /
 
+grubln=""                                     # default null.  Point to Line number ie  linux /boot/syslinux/vmlinuz from=/dev/nvme0n1p4 root= ...   to automatically update grub for graphics extramod to boot with changes
+											# example grub entry from current system.  set to "435" . if extramod is not there it is appended to end of line as below. If extramod is there on the end already its inserted with a ;
+                                                # so its automatic. As the grub bootloader is usually on another drive set bootdvc below. An example for bootdvc from this system is "/dev/nvme0n1p4"
+												#menuentry "Nemesis graphics" {
+												#    set root='hd3,gpt6'
+												#    linux /boot/syslinux/vmlinuz from=/dev/nvme0n1p6 root=UUID=aeb00f60-ff73-4318-80ca-c647ea08a619 extramod=/mnt/nvme0n1p6/extramod/                  ln435
+												#    initrd /boot/syslinux/initrd.xz
+												#}
 
-grubln=""                                     # default null. Point to the line number linux /boot/syslinux/vmlinuz from=/dev/nvme0n1p4 root=UUID=... to automatically update grub for graphics extramod to boot with changes
-bootdvc=""		                              # default null.  if booting from another harddrive for bootloader   ie   /mnt/sdc1   porteus bootloader        or      where grub2 is installed  example /mnt/nvme0n1p8
+bootdvc=""		                       # default null. where the syslinux folder is if its not the same as porteus install. Also required for above where grub is installed. ie /mnt/sdc1 from current system
+                                                # example from current system     usb stick         /mnt/sdc2 porteus install    /mnt/sdc1 has boot and EFI so would set bootdvc to "/mnt/sdc1"												
+                                                # avoid trailing /
 
-target=$thetgt                               # change this to specify the location of porteus install this passed from root call where porteus is installed via $BASEDIR
+target=$thetgt                         # change this to specify the location of porteus install this is passed from root call where porteus is installed via $BASEDIR
+													# in some root environments $BASEDIR is null so set either here or at the top of script ln11 if having problems
                                                 # examples      "/mnt/sda1"
                                                 #                   "/dev/sda1"
                                                # avoid trailing /
 
 
-#Folders to include from changes      adjust if wanted            set tsave-changesnewfntso include changes-exit default folders
+#Folders to include from changes      adjust if wanted            set to include changes-exit default folders
 IFOLDERS="bin etc home lib lib64 opt root sbin usr var"
 #Folders to exclude from changes
 EXCLUDE="/var/run /var/tmp share/Trash"   #default changes-exit configuration
                                             # keep original format  /var/run    is the base directory var
-                                            # seperate with space            anything else other than / will be a pattern *****
+                                            # seperate with space            anything else other than / will be a pattern *****  ie share/Trash
 
 
-#Folders to exclude from changes                                         already set to exclude changes-exit default folders
 
 chxzm="/changes.xzm"            #Module  name  change this if you want to customize the name
                                  # retain leading / and ensure it ends in .xzm
                                  #avoid trailing / and any spaces
+
 em="/extramod"                      #change this to save a different folder       the extramod dirtory          disabled for porteus version not required
                                                 # retain leading /
                                                # avoid trailing /
@@ -97,33 +123,52 @@ logSPRF="delete"           # When log size limit reached what to do default dele
                             #
                             # stop      dont log anymore
 
-mdllmt=15                            # Auto Graphics mode module merging default 5
+mdlMRGPRF="forward"		# forward   dynamic merging first on mdllmt to save a write and time. implements logic or guardian system  default forward
+										# 			to do everything in one step.
+										# back    merge the modules afterwards if exceeding mdlmt. original with no extra logic
+
+mdllmt=12                            # Auto Graphics mode module merging default 5
                                                 # when reached will automatically merge if mrgMODULES is set to true below
                                                 # see mrgMODULES boolean
-linkedLOGPRF="incr"          # default incr  new log of only changes keeps log size down
+
+mdlLOGPRF="incr"          # default incr  new log of only changes keeps log size down
                                             # full log from creation all files and then append changes
                                             # no      dont log the linked module
 
+namingPRF="alpha"				# default alpha 
+												# numeric
+
+
 # CHANGABLE BOOLEANS
 linkedSTATE="false"             #This is precendence for changes:EXIT only on graphics mode. Default false
-                                           # This implies that you want changes made INCLUDING deletes to another
-                                           # modules in /tmp for now. We do this to prove that its working so everything
-                                           # is still done the same just you have a module with deletions included in /tmp
-                                           #
-                                           # linked state needs all changes modules to be created together thus you should
-                                           # start with one that has linkedSTATE made. A byte count of this .xzm is made
-                                           # and logged into a txt file by the modules.
-                                           #
-                                           # This text file will tell it are those candidates for Changes:EXIT/ and where to stop
-                                           # ect.
+                                            # This implies that you want changes made INCLUDING deletes to the module.
+										    # If you dont do frequent saving this mode is useful as all deletions are applied
+                                            # and there will be only one changes module if a _uid_L prefix
+                                            # linked state needs all changes modules to be created together thus you should
+                                            # start with one that has linkedSTATE made. A byte count of this .xzm is made
+                                            # and logged into a txt file by the modules. see extramod/ folder for createlmodule script
+											# to convert to an l module.
+                                            #
+                                            # This text file will tell it that it is a linked state module.
+
 keepLINKEDMRGED="false"  # default is false so delete the old ones after merging if they are not in sync with each other
                                            # it automatically renames the old one to .bak. ****
+
 # Non linked state options
 mrgMODULES="true"           # Automatically merge changes modules if over limit value
                                         #change this to automatically merge changes.xzm modules  ( applies to Graphics mode)
                                         # see $BASEDIR/extramod for mergemodule script to merge changes modules
 
-keepMRGED="false"       # default is false so delete the old ones after merging
+
+keepMRGED="true"       # default is false so delete the old ones after merging
+                                            # true leave the modules after merging which will be .bak
+                                        # Note the merging is done where by no deletions are done unless successfully saved
+
+
+override="true"                # default true. *leave set normally*. meaning normal operation if space becomes an issue see in terminal prompt.
+                                            # false will take old modules from drive and move to /tmp to create space if keepMRGED is false
+                                        # feature is designed if porteus is installed on a usb stick and memory is an issue
+
 # End Non linked state options
 
 # Terminal output / feedback
@@ -139,16 +184,14 @@ ANALYTICS="true"            # logging must be set to true       default true    
                                         # if it exceeded logSIZE then the original contents when the backup was made is preserved
                                         # and then a new logfile is made then rsync appends any changes during updates until
                                         # the limit is exceeded again.
-
                                       # If true Will give total space saved if making a complete new backup
                                         # more data in the log file and custom info by this script
-
                                         # extra stuff like if the log file exceeded logSIZE and a new one is made
                                         # it will list the contents of the ORIGINAL backup, the contents of the current backup
                                         # and list the file differences as well. Then rsync will continue to input changes.
                                         # you also get total MB saved if you had manually backed up the changes folder ect
                                        
-ANALYTICSECT="true"			# Show more info time ect.
+ANALYTICSECT="true"			# disable metric saving time. ect.
 # End Terminal output
 
 # Backup mode Not changes exit
@@ -157,19 +200,32 @@ ROLLBCK="false"                       # backup module after merged to be able to
 										# takes up more space
 ROLLSUMRY="false"           # default false    Include file manifest for archives
 archLMT=4                        # how many unique roll backs to keep  both _uid_ and _uid_L seperately
+# End Backup mode
+# END CHANGABLE BOOLEANS
 # END CHANGABLE
 # V3 core rsync backup on save-changesnew                 See   line  419    for original changes commit script
-tmp=/tmp/tmp$$ 												            	;	mtmp=/tmp/mtmp$$                    							                    
+
+#VARS
+tmp=/tmp/tmp$$ 												            	;	mtmp=/mnt/live/tmp/mtmp$$                    							                    
 ch=/mnt/live/memory/changes 								        	;	exclfiles=/tmp/exfiles.log # spare tmp file
+elog=/tmp/error.log															;	oMF=/tmp/flog.log	
 EXCLUDED=/tmp/save.excluded.tmp									;	UPDATE=/tmp/save.update.tmp 
 QEXCL=/tmp/squashexfiles.log											;	trsyncexl=/usr/local/save-changesnew/excld.ini  #  rsync exclude Cache     cache2/*    ect     see for details
 SFOLDERS=/tmp/save.sfolders.tmp										;	chc=/opt/porteus-scripts/changes-commit
-oMF=/tmp/flog.log																;	USR=$theUSER  
-mbyte=1048576																;	osize=0					
+USR=$theUSER  
+
+mbyte=1048576																;	osize=0	
+elapse=0
+
 rname=""																			;	adtCMD=""	
 sentinal=""																		;	MODULENM=""  
-#booleans
 rlt=""
+
+is_routine="true"																;	dirtybit="false"
+is_moved="false"																;	goahead="true"
+
+
+
 ## changes commit
 DEST=""																			; 	NAME=""
 MNAME=/mnt/live/memory/images/changes						; 	INAME=/mnt/live/memory/images
@@ -178,8 +234,11 @@ SFILES=/tmp/save.sfiles.tmp												;	UPDATE=/tmp/save.update.tmp
 LOGDIR=/home/$USR/Downloads										;	LOGFILE="save.sfiles.tmp"
 SVFILES=$MNAME/home/$USR/Downloads/save.sfiles.tmp	;	EXFILES=/tmp/save.exfiles.tmp   #holds excluded file list for rsync non regex
 ans=""
+[[ "$mdllmt" -eq 0 ]] && echo "mdllmt > 0 current value $mdllmt" && exit 0
+if [ "$mdlMRGPRF" != "forward" ] && [ "$mdlMRGPRF" != "back" ]; then echo "invalid mdfMRGPRF: $mdlMRGPRF , forward or back" && exit 0 ; fi
+if [ "$namingPRF" != "alpha" ] && [ "$namingPRF" != "numeric" ]; then echo "invalid setting namingPRF: $namingPRF" && exit 0 ; fi
 if [ "$LOGGING" == "false" ] && [ "$ANALYTICS" == "true" ]; then echo analystics requires logging to be true. && exit 0 ; fi
-MODULENM="${chxzm%.xzm}" ; mdlnm="${MODULENM#/}" ; emfld="${em#/}"
+MODULENM="${chxzm%.xzm}" ; mdlnm="${MODULENM#/}" ; bootdvc="${bootdvc%/}" ; mdldvc="${mdldvc%/}"  #normalize
 autosave
 rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
 # Graphics Not changes=EXIT:/ mode  <---
@@ -253,11 +312,11 @@ if [[ "$1" != "6" ]]; then
 
 
 		# Remove deleted files and non matching whiteouts
+
 		for y in $(find $FOLDERS -name ".wh.*"); do
 		  f="$(echo $y | sed 's@\.wh\.@@g')"
 		  test -e "$MNAME/$f" && rm -rf "$MNAME/$f";
-
-		  found="false"
+          found="false"
 		  for file in "$INAME"/*/"$f"; do [ -e "$file" ] && found="true" && break ; done
           [[ "$found" == "true" ]] || { echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$MNAME/$y" && rm -f "$MNAME/$y"; }
 		 # test -e "$INAME/*/$f" || { echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$MNAME/$y" && rm -f "$MNAME/$y"; }
@@ -307,7 +366,7 @@ if [[ "$1" != "6" ]]; then
 		adtcmd=(--exclude '.wh.*')
 		base_cmd=(rsync -aHv "${adtcmd[@]}")
 		[[ -s "$EXFILES" ]] && base_cmd+=(--exclude-from=$EXFILES) ; [[ -s "$trsyncexl" ]] && base_cmd+=(--exclude-from=$trsyncexl)
-		run_cmd "${base_cmd[@]}" $FOLDERS "$MNAME/" ; errblk
+		run_cmd "${base_cmd[@]}" $FOLDERS "$MNAME/" ; errblk "false"
 		end=$(date +%s.%N) ; if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ] && [ "$BACKUP" == "false" ] ; then el=$(awk "BEGIN {print $end - $start}") ; printf "Saving took %.3f seconds.\n" "$el" ; fi
 		
 		#Create a log
