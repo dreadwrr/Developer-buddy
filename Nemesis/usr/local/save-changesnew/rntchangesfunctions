@@ -1,15 +1,13 @@
 #!/bin/bash
-#   Developer buddy 3.0 core                                               12/31/2025
+#   Developer buddy 5.0 core                                               01/09/2026
 
-# Filter terminal or supress browser. common items to exclude from prompt      .  regex  notes: ([^/]*)$  
+
+# Filter terminal or suppress browser. common items to exclude from prompt      .  regex  notes: ([^/]*)$  
 sbwr() {
 webb=(
     'mozilla'
 	'\.mozilla'
 	'chromium-ungoogled'
-    ".*/Downloads/${LCLMODULENAME}x"
-	"/tmp/${LCLMODULENAME}x"
-	'.*/\.wh\.([^/]*)$'
 # other
 )
 }
@@ -31,11 +29,11 @@ local flsrh="$4"
 # take the search data then  filter it if its a filtered search. stat the file report if its active. no need to grab other stats as have all necessary data. if for some reason the file disapears still have original
 # data.
 if [ "$POSTOP" == "true" ]; then
-	#while IFS= read -r x; do printf '%s\0' "$x"; done < $1 > $atmpxdata original
-	cp $1 $atmp$xdata
+	#while IFS= read -r x; do printf '%s\0' "$x"; done < $1 > $atmp$xdata original
+	cp $1 $tfile
 	if [ -n "$invr" ] && [ -n "$flsrh" ]; then
 		if [ "$flsrh" == "true" ] || [ "$invr" == "filtered" ]; then
-			if ! { [ "$flsrh" == "true" ] && [ "$invr" == "filtered" ]; } ; then /usr/local/save-changesnew/filter $atmp$xdata $USR ; fi
+			if ! { [ "$flsrh" == "true" ] && [ "$invr" == "filtered" ]; } ; then /usr/local/save-changesnew/filter $tfile $USR ; fi
 		fi
 	fi
     if [ -f $USRDIR/doctrine.tsv ]; then
@@ -79,7 +77,7 @@ if [ "$POSTOP" == "true" ]; then
 				sz=$(stat --format="%s" "$filepath" 2>/dev/null)
 			    if [ -n "$sz" ]; then
 					stbool="y"
-				    size_kb=$((sz / 1024 ))
+				    size_kb=$(( sz / 1024 ))
 		            mtyp=$( file --brief --mime-type "$filepath")
 		            if [ "$mtyp" == "application/octet-stream" ]; then mtyp="Unknown"; fi
 			    fi
@@ -93,7 +91,7 @@ if [ "$POSTOP" == "true" ]; then
 				fi
                 echo -e "$dt\t$y\t$size_kb\t$mtyp\t$sym\t$chgtime\t$cam\t$at\t$onr\t$stbool\t$copy" >> $atmp/doctrine
             fi
-        done < $atmp$xdata
+        done < $tfile
         unset IFS
         head -1 $atmp/doctrine > $USRDIR/doctrine.tsv
         tail -n +2 $atmp/doctrine | sort -t$'\t' -k3,3n -k9,9 >> $USRDIR/doctrine.tsv
@@ -176,7 +174,7 @@ if [ "$STATPST" == "true" ]; then
     if grep -m 1 -q '^Modified,' $1; then msg=" stats"; else msg=" log"; fi
     if [ -s "$2" ]; then
 		if [ "$3" != "dcr" ]; then
-			xdata=$TMPDIR$xdata
+			xdata=$atmp$workdir$xdata
 			if ! decrypt $xdata $2; then
 	            echo "Failed to decrypt  $2$msg"
 	            echo "decrypt $2$msg failed"
@@ -245,7 +243,7 @@ if [ "$STATPST" == "true" ]; then
 			echo "Encryption failed for file: $source  . $2$msg "
 			return 1
 		fi
-		if [ "$4" != "true" ]; then rm $source ; fi
+		rm $source
         if [ "$msg" == " log" ]; then echo $c; fi
     else
         echo >> $1
@@ -387,7 +385,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
                         if [ "$usec" != "None" ]; then
                             n=${usec%%.*}
                             if [ "$n" -ge 0 ] 2>/dev/null; then
-                            echo "Unusual modified time file has microsecond all zero: $label. at mtime $usec" >> $slog
+                            	echo "Unusual modified time file has microsecond all zero: $label. at mtime $usec" >> $slog
                             fi
                         fi
 					    # read a_mod i fs au ag apmr < <(stat --format="%Y %i %s %U %G %a" "$cFILE" 2>/dev/null)
@@ -647,34 +645,45 @@ local o="$1"
 # escape input newlines for pasing
 o="${o//\\/\\ap5c}" ; o="${o//$'\n'/\\ap0A}" ; printf '%s' "$o"
 }
+ap_safeline_dec() {
+local k="$1"
+k="${k//\\ap0A/$'\n'}" ; k="${k//\\ap5c/\\}" ; printf '%s' "$k"
+}
+# Escape existing if filename has \ap5c, \ap22, \ap0A in actual input. then completly encode
 ap_enc() {
 local o="$1"
-# Escape existing if filename has \ap5c, \ap22, \ap0A . then completly encode
-o="${o//\"/\\ap22}" ; o="${o//$'\t'/\\ap09}" ; o="${o//$'\n'/\\ap0A}" ; o="${o// /\\ap20}"  
+o="${o//\\/\\ap5c}" ; o="${o//$'\n'/\\ap0A}"  ; o="${o//\"/\\ap22}" ; o="${o//$'\t'/\\ap09}" ; o="${o// /\\ap20}"  
 printf '%s' "$o"
 }
-# file operations
+# decrypt for file operations
 ap_dec() {
 local k="$1"
-k="${k//\\ap0A/$'\n'}" ; k="${k//\\ap09/$'\t'}" ; k="${k//\\ap22/\"}" ; k="${k//\\ap5c/\\}" ; k="${k//\\ap20/\ }"
+k="${k//\\ap0A/$'\n'}" ; k="${k//\\ap09/$'\t'}" ; k="${k//\\ap22/\"}" ; k="${k//\\ap20/\ }" ; k="${k//\\ap5c/\\}"
 printf '%s' "$k"
 }
-# final file output
+# final file output same as above but leaves newlines escaped
 ap_filedec() {
 local k="$1"
-k="${k//\\ap0A/$'\\n'}" ; k="${k//\\ap09/$'\t'}" ; k="${k//\\ap22/\"}" ; k="${k//\\ap5c/\\}" ; k="${k//\\ap20/\ }"
+k="${k//\\ap0A/$'\\n'}" ; k="${k//\\ap09/$'\t'}" ; k="${k//\\ap22/\"}" ; k="${k//\\ap20/\ }" ; k="${k//\\ap5c/\\}"
 printf '%s' "$k"
 }
+# used for file output
 escf() {
-local o="$1" # original design
-o="${o//\\/\\\\}" ; o="${o//$'\n'/\\\\n}"; o="${o//\"/\\\"}"
+local o="$1" 
+o="${o//\\/\\ap5c}"
+#o="${o//\\/\\\\}"
+o="${o//$'\n'/\\ap0A}"
+o="${o//\"/\\ap22}"
 # o="${o//$/\\\$}"
 # o="${o//$'\t'/\\t}" 
 printf '%s' "$o"
 }
 unescf() {
 local k="$1"
-k="${k//\\\\n/$'\n'}" ; k="${k//\\\"/\"}" ; k="${k//\\\\/\\}" 
+k="${k//\\ap0A/$'\n'}"
+k="${k//\\ap22/\"}"
+k="${k//\\ap5c/\\}"
+#k="${k//\\\\/\\}" 
 #  k="${k//\\\$/\$}"
 # k="${k//\\t/$'\t'}" 
 printf '%s' "$k"
@@ -747,7 +756,7 @@ if [ "$STATPST" == "true" ]; then
 					if [ -s $COMPLETE ]; then cat $COMPLETE >> $rout; fi
 					sort -u -o $rout $rout
 					sed -i -E 's/^([^ ]+) ([^ ]+ [^ ]+) ([^ ]+ [^ ]+) (.+)$/\1,"\2","\3",\4/' $rout
-					imsg="$(storeenc $rout $statpst "false" $POSTOP)" # decrypt store encrypt
+					imsg="$(storeenc $rout $statpst "false")" # decrypt store encrypt
 					ret=$?
 					if [ "$ret" -ne 0 ]; then
 						echo "$imsg"
@@ -757,7 +766,6 @@ if [ "$STATPST" == "true" ]; then
 				fi
 			fi
 		else
-            #if [ -f $pydbpst ]; then sz=$( stat -c %s "$pydbpst") ; if [ $(( sz / 1048576 )) -ge $compLVL ]; then nc="true" ; fi ; fi  if have the .gpg directly compare size. if its a file
 			cores=""
 			if ! gpg --list-keys | grep -q $email; then generatekey ; fi
 			python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $COMPLETE $pydbpst $rout $checkSUM $cdiag $USR $email $mMODE $ANALYTICSECT $proteusSHIELD $compLVL
@@ -777,10 +785,10 @@ if [[ "$csum" == "true" ]]; then
 	rm /tmp/cerr
 fi
 # test -e $TMPDIR && rm -rf "${TMPDIR:?}"
-# test -f $rout && rm $rout
+if [ "$POSTOP" == "false" ]; then test -f $rout && rm $rout ; fi
 test -f $slog && rm $slog 
 }
-strup() { /usr/local/save-changesnew/start_inotify $log_file $LCLMODULENAME $CACHE_F "$checkSUM" "ctime" 3600 ; }
+strup() { /usr/local/save-changesnew/start_inotify $log_file $LCLMODULENAME $CACHE_F "$checkSUM" $updatehlinks "ctime" 3600 ; }
 intst() {
 local sz
 #Init
@@ -904,31 +912,123 @@ local key="$inode|$size|$mtime"
 grep -m1 "^${key}   " "$CACHE_F" | awk -F $'\t' '{print $2}'
 }
 # [[:space:]]
+normalize_ts() { printf "%.6f\n" "$1" ; }
+
+calculate_csum() {
+local fmt="%Y-%m-%d %H:%M:%S"
+# current file stats
+local xmode="$1"				;	local file_path="$2"
+local modified_epoch=$3	;	local ino=$4
+local sze=$5
+
+# globals from sblk are csum mtime itime mt ct fs i sym n onr grp pmr
+#
+# checksum verification and or updated stats
+local f1 f2 f3 f4 mod_time
+local ctime_epoch frac len
+local mt_original
+local a_ino a_sym a_nlnk a_sze a_onr a_grp a_prm
+local c r
+local checks
+local prev_hash=""
+#
+local x=1
+if [ "$ino" -ge 0 ] 2>/dev/null && [ "$sze" -ge 0 ] 2>/dev/null; then
+	while (( x >= 0 )); do
+		r=""
+	    checks=$( md5sum "$file_path" 2>/dev/null)
+		if [[ -n "$checks" ]]; then
+			checks=${checks%% *}
+			# on second or later iteration and not ctime as ctime would be identical
+			if [[ -n "$prev_hash" && "$xmode" = "main" && "$checks" = "$prev_hash" ]]; then
+				if [ "$a_ino" -ge 0 ] 2>/dev/null; then
+					# update only needed stats
+					csum=$checks
+					mtime=$modified_epoch
+					frac=${mt_original#*.}
+					len=${#frac}   
+					if (( len > 0 )); then
+						if [[ "$frac" =~ ^0+$ ]]; then
+							usec=$mt_original
+						fi
+					fi
+					itime=$ctime_epoch
+					mt=$(date -d "@${mtime%%.*}" +"$fmt")
+					ct=$(date -d "@${itime%%.*}" +"$fmt")
+					fs=$a_sze			
+					# the inode changed update all global file stats
+					if (( ino != a_ino )); then
+						i=$a_ino
+						sym=$a_sym
+						n=$a_nlnk
+						onr=$a_onr
+						grp=$a_grp
+						pmr=$a_prm
+					fi
+					return 0
+				fi
+			fi
+			if (( x > 0 )); then
+				read f1 f2 _ f3 f4 _ a_ino a_sym a_nlnk a_sze a_onr a_grp a_prm < <( stat --format="%y %z %i %A %h %s %U %G %a" "$file_path" 2>/dev/null)  # %A
+				[[ -z "$a_prm" ]] && break
+				mod_time="$f1 $f2"
+				c=$( date -d "$mod_time" +%s.%N 2>/dev/null)
+				[[ -z "$c" ]] && break # mtime is required
+				# if it matches the find command mtime and size and the inode didnt change
+				if [[ -z "$prev_hash" ]]; then
+					mt_original=$c
+					c=$(normalize_ts "$c")
+					modified_epoch=$(normalize_ts "$modified_epoch")
+					if [[ "$c" == "$modified_epoch" && -n "$a_ino" && -n "$a_sze" ]] && (( ino == a_ino )) && (( sze == a_sze )); then
+						# no need to update global file stats
+						csum=$checks
+						#mtime=$modified_epoch
+						#fs=$a_sze
+						return 0
+					fi
+				fi
+				# retry
+				modified_epoch=$c
+				change_time="$f3 $f4"
+				if [[ -n "$change_time" ]]; then
+					r=$( date -d "$change_time" +%s.%N 2>/dev/null)
+				fi
+				ctime_epoch=$r
+				prev_hash="$checks"
+			fi
+		else
+			break
+		fi
+	    (( x-- ))
+	done
+fi
+return 1
+}
+
 # Used for sysprofile as you dont want to cache the checksum
 rblk() {
-local csum pmn wnr grp fs sl lmt mt
+local lmt 
 local cFILE ; local y
 local fmt="%Y-%m-%d %H:%M:%S"
-local sl="None"
+local sl=""
 local cam="None"
 
 local lmt=""
 #usec="None"
 
 cur_line="$( ap_safeline "$1")"
-IFS=' ' read -r mtime atime itime i fs onr grp pmr cFILE <<< "$cur_line"
-y="$( ap_enc "$cFILE")"
-cFILE="$( ap_dec "$cFILE")" 
+IFS=' ' read -r mtime atime itime i sym fs onr grp pmr cFILE <<< "$cur_line"
+cFILE="$( ap_safeline_dec "$cFILE")"
+y="$( ap_enc "$cFILE")" 
 mt=$(date -d "@${mtime%%.*}" +"$fmt")
 ct=$(date -d "@${itime%%.*}" +"$fmt")
 if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 	if [ -n "$mt" ]; then
 		if [ "$4" == "true" ]; then
-			csum=$(md5sum "$cFILE" 2> /dev/null)
-			csum=${csum%% *}
+			calculate_csum "main" "$cFILE" $mtime $i $fs
 			csum=${csum:-None}
 			fs=${fs:-None} 
-			[[ -L "$cFILE" ]] && sl="y"
+			[[ "$sym" == l* ]] && sl="y" ; sl=${sl:-None}  # [[ -L "$cFILE" ]] && sl="y" ; sl=${sl:-None}
 			wnr=${onr:-None} ; grp=${grp:-None} ; pmn=${pmr:-None}
 			adtcmd="$csum $fs $sl $wnr $grp $pmn $cam"
 		else
@@ -950,18 +1050,21 @@ fi
 # Mainloop do cache files over 1MB.
 sblk() {
 local fmt="%Y-%m-%d %H:%M:%S"
-local frac len mt ct y r
-local cam csum pmn wnr grp fs sl lmt usec cFILE
+local frac len y r
+local cam sl lmt cFILE
 r=""				;	sl=""
 lmt=""			;	nlinks=""
 cam="None"	;	usec="None"
-# log_date="$(date +"$fmt")"
-# echo "$log_date sblk line in $cur_line" >> /tmp/output  # debug
+csum=""
+#log_date="$(date +"$fmt")"
+#echo "$log_date sblk line in $cur_line" >> /tmp/output  # debug
 cur_line="$( ap_safeline "$1")"
-IFS=' ' read -r mtime atime itime i n fs onr grp pmr cFILE <<< "$cur_line"
+IFS=' ' read -r mtime atime itime i sym n fs onr grp pmr cFILE <<< "$cur_line"
 if { [[ "$5" = "ctime" ]] && (( ${itime%%.*} > ${mtime%%.*} )); } || [[ "$5" = "main" ]]; then
+	#log_date="$(date +"$fmt")"
+	#echo "$log_date creation time: $itime and mtime: $mtime , sblk passed processing line in $cur_line" >> /tmp/output  # debug
+	cFILE="$( ap_safeline_dec "$cFILE")"
     y="$( ap_enc "$cFILE")" 
-    cFILE="$( ap_dec "$cFILE")" 
     mt=$(date -d "@${mtime%%.*}" +"$fmt")
     ct=$(date -d "@${itime%%.*}" +"$fmt")
     if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
@@ -984,28 +1087,29 @@ if { [[ "$5" = "ctime" ]] && (( ${itime%%.*} > ${mtime%%.*} )); } || [[ "$5" = "
 		    #		usec="y"
 		    #	fi   
 		    #fi
+			mtime=$(normalize_ts "$mtime")
 		    if [ "$4" == "true" ]; then
 			    if (( fs > 1000000 )); then
 					[[ -e "$CACHE_F" ]] && r=$(get_cached "$i" "$fs" "$mtime")
                     if [[ -n "$r" ]]; then
                         csum="$r"
                     else
-                        csum=$(md5sum "$cFILE" 2>/dev/null)
-                        [[ -n "$csum" ]] && csum=${csum%% *} && upt_cache "$i" "$fs" "$mtime" "$csum" "$y" "$6"
+						calculate_csum $5 "$cFILE" $mtime $i $fs
+                        [[ -n "$csum" ]] && upt_cache "$i" "$fs" "$mtime" "$csum" "$y" "$6"
                     fi
 				else
-					csum=$(md5sum "$cFILE" 2>/dev/null)
-                    csum=${csum%% *}
+					calculate_csum $5 "$cFILE" $mtime $i $fs
 			    fi
 			    csum=${csum:-None}
 			    fs=${fs:-None} 
-			    [[ -L "$cFILE" ]] && sl="y" ; sl=${sl:-None}
+			    [[ "$sym" == l* ]] && sl="y" ; sl=${sl:-None}  # [[ -L "$cFILE" ]] && sl="y" ; sl=${sl:-None}
 			    wnr=${onr:-None} ; grp=${grp:-None} ; pmn=${pmr:-None}
                 
 			    adtcmd="$csum $fs $sl $wnr $grp $pmn"
 		    else
 	        	adtcmd=""
 		    fi
+
             [[ "$updatehlinks" = "true" ]] && nlinks=$n
 			[[ "$5" = "ctime" ]] && { cam="y" ; lmt=$mt ; mt=$ct ; }
 		    ats=$(date -d "@${atime%%.*}" +"$fmt")			
@@ -1020,7 +1124,7 @@ if { [[ "$5" = "ctime" ]] && (( ${itime%%.*} > ${mtime%%.*} )); } || [[ "$5" = "
 	    printf "%s %s %s %s\n" "Nosuchfile" "$mt" "$mt" "$y" >> $3
     fi
 #else
-#    echo "$log_date sblk continued  $1" >> /tmp/output  # debug
+#	echo "$log_date sblk continued  $1" >> /tmp/output  # debug
 fi  
 }
 search() {
@@ -1054,3 +1158,4 @@ if [ -s $TMPCOMPLETE ]; then
 	search $TMPCOMPLETE $tout $COMPLETE $checkSUM "ctime" batch2
 fi
 }
+

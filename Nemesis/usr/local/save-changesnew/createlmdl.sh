@@ -1,5 +1,5 @@
-#!/bin/bash
-# Merge changes modules _uid_xxxx to _uid_Lxxxx with deletions applied                          12/28/2025
+#!/usr/bin/env bash
+# Merge changes modules _uid_xxxx to _uid_Lxxxx with deletions applied                          01/09/2026
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/save-changesnewfnts
@@ -32,7 +32,7 @@ override="true"			# Note this only applies when keepMRGED is false. The script w
 									
 									# default true. Extract to /tmp leave modules where they are as normal.
 										
-									# If set to false. First move the modules to /tmp to free up space on what oculd be a usb drive. This can be an invaluable feature as if it had low
+									# If set to false. When keepMRGED is false First move the modules to /tmp to free up space on what oculd be a usb drive. This can be an invaluable feature as if it had low
 										# space can still merge
 ## End Diagnostics
 # END CHANGABLE
@@ -52,13 +52,11 @@ f=$( ls $PWD | grep -c '.*_uid_L.*.xzm')
 [[ "$f" -eq 1 ]] && read -r -p "merge will include previous L module continue? (y/n): " answer
 [[ $answer == [Yy] ]] || { echo "rename prev mdl to .bak to continue" ; exit 0 ; }
 if [ "$namingPRF" != "alpha" ] && [ "$namingPRF" != "numeric" ]; then echo "invalid setting namingPRF: $namingPRF" && exit 0 ; fi
-rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
-[[ "$override" = "true" && "$keepMRGED" = "false" && -z "$rlt" ]] && { is_moved="true" ; output="/tmp/" ; }
 
 r=$(ls | grep '.*_uid_.*\.xzm' | grep -v '_uid_L' | wc -l)
 if [ "$r" -gt 0 ]; then
 	resolve_conflict "_uid_L" "*.xzm" ".xzm" ".bak" $is_moved $oMF  # cds into /tmp ($output) if moved
-	if ! is_available "*_uid_*.xzm" $targetem "/tmp" $is_moved; then exit 1 ; fi
+	if ! is_available "*_uid_*.xzm" $targetem "/mnt/live/tmp" $is_moved; then exit 1 ; fi
     mkdir $mtmp
 	if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then astart=$(date +%s.%N); fi
 	unpack $mtmp $QEXCL $oMF $elog "false"  # cds to changes $ch

@@ -1,5 +1,5 @@
 #!/bin/bash
-# save-changesnew functions to move options further up the script             12/28/2025
+# save-changesnew functions to move options further up the script             01/09/2026
 . /usr/local/save-changesnew/mergemodulesfunctions
 dycmb() {
 TFLD=""
@@ -171,16 +171,19 @@ if [[ -f /dev/shm/xsc && -n "$h" && -f "$h" ]]; then
 			dirtybit="true"
 			if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then astart=$(date +%s.%N); fi
 			# cds to $mtmp then changes\$ch
-			unpack $mtmp $SFILES $oMF $elog $is_routine $is_merge
+			unpack $mtmp $SFILES $oMF $elog $is_routine $is_merge  # apply .wh. deletions 
 			aend=$(date +%s.%N)
 			if [ "$ANALYTICS" == "true" ]; then [[ "$ANALYTICSECT" = "true" ]] && elapse=$(awk "BEGIN {print $aend - $astart}") && cyan "Modules merged. Applying changes" ; fi
 			# in changes
-			cp $QEXCL $EXFILES # reset exclusions for rsync
-			procxzm  # apply .wh. deletions ,copy to $mtmp
+			cp $EXFILES $SFILES  # mksquash exclude version
+			mv $QEXCL $EXFILES # reset exclusions to rsync
+			# mv $SFILES $QEXCL  # uncomment to apply the exclusions again on ln184 in package_xzm
+			procxzm "true"  # copy to $mtmp
 			# still in changes  
 			cd $target$em
 			package_xzm $mtmp $keepMRGED $elog $is_routine $is_merge $output
 			is_rollback $mtmp "_uid_" $ROLLBCK $ROLLSUMRY $archLMT $is_routine
+			test -e $SFILES && rm $SFILES
 			echo "${target}${em}/${rname}" > /dev/shm/xsc
 		fi
     # normal saving
@@ -287,6 +290,7 @@ fi
 # mksquash cant use -ef and -wildcards together. Below get around this. Then branch to either making a uid or uid_L try the fast way in both cases. If file changes during _uid_L go the slow way copy to mtmp to freeze fs
 newxzm() { 
 local p l d f fd
+local normalop
 all=()
 keep=()
 mkdir $tmp
@@ -294,7 +298,7 @@ mkdir $mtmp
 cp $EXFILES $QEXCL  # Backup EXFILES because we have to manipulate it to work with mksquash. EXFILES has all exclusions from changes-commit and VARS processed at top of script
 # Process wildcards for mksquashfs
 while IFS= read -r l; do [[ -z "$l" ]] && continue ; if [[ "$l" == \** ]]; then echo "$l" ; fi ; done < $EXFILES > $exclfiles  # read patterns from $EXCLUDE ie *share/Trash* 
-# $tryncexl is excld.ini. 
+# $trsyncexl is excld.ini. 
 # $exclfiles our patterns from $EXCLUDE
 # Instead of sed can use  -printf '%P\n'  <--- works
 while IFS= read -r p; do [[ -z "$p" || "$p" =~ ^# ]] && continue ; find "$ch" -path "$ch"/$p \( -type f -o -type d \) -print | sed "s|^$ch/||" ; done < <(cat $trsyncexl $exclfiles ) >> $EXFILES  # search the wildcards for mksquashfs
@@ -323,7 +327,8 @@ else
     if [ "$trlt" -ne 0 ]; then 
 	    echo "Files changed while saving copying to tmp..."
         cp $QEXCL $EXFILES # reset exclusions for rsync
-        procxzm $1  # copy log and exclude with rsync.
+		normalop="false"
+        procxzm $normalop  # copy log and exclude with rsync.
 	    base_cmd=(mksquashfs $mtmp "${target}${em}/${rname}" -comp $cmode)  # make the module
         if [ "$FEEDBACK" != "true" ]; then "${base_cmd[@]}" > /dev/null ; else "${base_cmd[@]}" ; fi
     fi
@@ -350,12 +355,14 @@ fi
 # see Merge ln 421
 }
 procxzm() {
-shopt -s nullglob
+
+local normalop="$1"
 local found
 local f y ex
-adtcmd=(--exclude '.wh.*')
+# adtcmd=(--exclude '.wh.*')
 cd $ch || { mount -o remount,udba=none /; exit; }
-if [ -z "$1" ]; then
+if [[ "$1" = "true" ]]; then
+	shopt -s nullglob
     IFS="
     "
     for y in $(find $FOLDERS -name ".wh.*"); do
@@ -364,8 +371,9 @@ if [ -z "$1" ]; then
 		found="false"
 		items=( "$INAME"/*/"$f" )
 		if ((${#items[@]})); then found="true" ; fi
-        [[ "$found" == "true" ]] || { echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }
+        [[ "$found" == "true" ]] || { echo "$y" | fixwh >> $EXCL; echo "$y" | fixsqh >> $EXFILES ; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }
     done
+	shopt -u nullglob
     test -s "$EXCL" && { find $FOLDERS -type d | egrep -vf $EXCL || find $FOLDERS -type d; } > $SFOLDERS
 	for y in $(find $mtmp -name ".wh.*"); do
         f="$(echo "$y" | sed -e "s^$mtmp^^g" -e 's^\.wh\.^^g')"
@@ -379,7 +387,7 @@ base_cmd=(rsync -aHv "${adtcmd[@]}" --exclude-from=$trsyncexl) && [[ -s "$EXFILE
 run_cmd "${base_cmd[@]}" $FOLDERS "$mtmp/" ; errblk "$mtmp"  # merge
 # could be new exclusions
 # -mindepth 1 so doesnt list $mtmp itself
-if [ -z "$1" ]; then 
+if [[ "$mrgAEX" = "true" ]]; then 
     cd $mtmp || { mount -o remount,udba=none /; exit; }
     while IFS= read -r ex; do 
         [ -n "$ex" ] || continue
@@ -404,7 +412,7 @@ local xsize c  ; local instm="$1"
         for mods in "$target$em/"*_uid_L*.xzm; do [[ "$fname" == "" ]] && fname="$mods" ; if ! xzm2dir $mods $mtmp; then errmsg $mtmp "$fname" "$instm" ; fi ; done  # if ! unsquashfs -no-exit -f -dest $mtmp $mods; then errmsg $mtmp "$fname" "$instm" ; fi ; done
 		aend=$(date +%s.%N)
 		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then elapse=$( awk "BEGIN {print $aend - $astart}"); fi
-	    procxzm
+	    procxzm "true"
     fi
     if [ "$ssbn" == "" ]; then
         if [ "$validrlt" == "false" ]; then cyan "mfile byte match failed generating new serial no." ; else cyan "no msr file. creating new one and new serial." ; fi
@@ -463,4 +471,3 @@ fixwh() { sed -e '/^\^/!s@^@^@' -e 's_\._\\._g' -e 's_?_\\?_g' -e 's_+_\\+_g' -e
 unfixwh() { sed -e 's/\\//g' -e 's/\(^.\)\^\(.*\)/\1^\2/' ; }
 fixcmp() { sed -e 's_|_\\|_g' -e 's_ _\\ _g' -e 's_\._\\\._g' -e 's_\]_\\]_g' -e 's_\[_\\[_g' -e 's_(_\\(_g' -e 's_)_\\)_g' ; } # -e 's_\/_\\\/_g' 
 fixOT() { sed -e 's_?_\\?_g'  -e 's_\^_\\^_g' -e 's_+_\\+_g' -e 's_*_\\*_g' -e 's_\$_\\$_g'  -e 's_\&_\\&_g' ; }
-

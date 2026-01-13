@@ -15,7 +15,7 @@ from pstsrg import decr
 from pstsrg import encr
 from pstsrg import hash_system_profile
 from pstsrg import insert
-from pstsrg import table_exists_and_has_data
+from pstsrg import table_has_data
 from pyfunctions import CYAN, GREEN, RESET
 from pyfunctions import getcount
 from pyfunctions import get_delete_patterns
@@ -23,10 +23,11 @@ from pyfunctions import getnm
 from pyfunctions import intst
 from pyfunctions import is_integer
 from pyfunctions import to_bool
-
-# 12/31/2025
+from pyfunctions import update_config
+# 01/09/2026
 
 # see pyfunctions.py cache clear patterns for db
+
 
 # Globals
 sort_directions = {}
@@ -157,9 +158,6 @@ def hardlinks(database, target, conn, cur, email, compLVL):
             else:
                 print("Reencryption failed, hardlinks not set.")
 
-    # except subprocess.CalledProcessError as e:
-    #     print("Error in hardlinks error_code:", e.returncode)
-    #     print(e.stderr)
     except sqlite3.Error as e:
         print(f"hardlinks Error executing database query/update. err: {type(e).__name__}: {e}")
         conn.rollback()
@@ -170,6 +168,7 @@ def hardlinks(database, target, conn, cur, email, compLVL):
 
 def clear_cache(database, target, conn, cur, email, usr, compLVL):
     files_d = get_delete_patterns(usr)
+    filename_pattern = None
     try:
         for filename_pattern in files_d:
             cur.execute("DELETE FROM logs WHERE filename LIKE ?", (filename_pattern,))
@@ -206,7 +205,7 @@ def clear_cache(database, target, conn, cur, email, usr, compLVL):
 
 def clear_sys(database, target, conn, cur, config_file, email, compLVL, dcr=True):
     try:
-        if table_exists_and_has_data(conn, "sys"):
+        if table_has_data(conn, "sys"):
             cur.execute("DELETE FROM sys")
             try:
                 cur.execute("DELETE FROM sqlite_sequence WHERE name=?", ("sys",))
@@ -218,16 +217,7 @@ def clear_sys(database, target, conn, cur, config_file, email, compLVL, dcr=True
             rlt = encr(database, target, email, no_compression=nc, dcr=True)
             if rlt:
 
-                result = subprocess.run(
-                    ["/usr/local/save-changesnew/updateconfig.sh", config_file, "proteusSHIELD", "true"],
-                    capture_output=True,
-                    text=True
-                )
-                if result.returncode == 0:
-                    print(result)
-                else:
-                    print(result)
-                    print(f'Bash script failed /usr/local/save-changesnew/updateconfig.sh. error code: {result.returncode}')
+                update_config(config_file, "proteusSHIELD", "true")
 
                 print("Sys table cleared.")
                 return True
@@ -258,7 +248,7 @@ def activateps(parsedsys, database, target, conn, cur, email, compLVL):
 def ps(database, target, conn, cur, config_file, email, turbo, compLVL):
     parsed_sys = []
 
-    if not table_exists_and_has_data(conn, "sys"):
+    if not table_has_data(conn, "sys"):
 
         parsed_sys = hash_system_profile(turbo)
 
@@ -279,16 +269,7 @@ def ps(database, target, conn, cur, config_file, email, turbo, compLVL):
 
         if activateps(parsed_sys, database, target, conn, cur, email, compLVL):
 
-            result = subprocess.run(
-                ["/usr/local/save-changesnew/updateconfig.sh", config_file, "proteusSHIELD", "false"],
-                capture_output=True,
-                text=True
-            )
-            if result.returncode == 0:
-                print(result)
-            else:
-                print(result)
-                print(f'Bash script failed /usr/local/save-changesnew/updateconfig.sh. err: {result.returncode}')
+            update_config(config_file, "proteusSHIELD", "false")
 
             return True
         else:
@@ -312,7 +293,7 @@ def dexec(cur, actname, limit):
 
 def sort_column(tree, col, columns):
     global sort_directions
-    index_ = columns.index(col)
+    # index_ = columns.index(col)
     ascending = sort_directions.get(col, True)
     sort_directions[col] = not ascending
     data = [(tree.set(child, col), child) for child in tree.get_children('')]
@@ -367,12 +348,11 @@ def results(database, target, conn, cur, email, user, config_path, turbo, compLV
         command=lambda: redraw_table(tree, cur, selected_table.get())  # reload the sys table
     )
     reload_button.pack(side=tk.LEFT, padx=(2))
-    img = tk.PhotoImage(file="/usr/local/save-changesnew/Documents/crests/Untitled2.png")
+    img = tk.PhotoImage(file="/usr/local/save-changesnew/Documents/crests/port.png")
     # img = img.subsample(2, 2)
     label = tk.Label(toolbar, image=img)
     label.image = img
     label.pack(side=tk.LEFT)
-
 
     hardlink_button = tk.Button(toolbar, text="Set Hardlinks", command=lambda: hardlinks(database, target, conn, cur, email, compLVL))
     hardlink_button.pack(side=tk.RIGHT, padx=10)
@@ -382,7 +362,6 @@ def results(database, target, conn, cur, email, user, config_path, turbo, compLV
     new_button.pack(side=tk.RIGHT, padx=10)
     ps_button = tk.Button(lower_frame, text="Proteus Shield", command=lambda: index_system())
     ps_button.pack(side=tk.RIGHT, padx=10)
-
 
     tree.grid(row=0, column=0, sticky="nsew")
     vsb = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=tree.yview)

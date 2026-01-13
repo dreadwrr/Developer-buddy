@@ -1,22 +1,44 @@
-#!/bin/bash
-#inotify db3 					12/31/2025
+#!/usr/bin/env bash
+#inotify db3 					01/09/2025
 . /usr/local/save-changesnew/rntchangesfunctions
+
+# inotify to watching either / or /mnt/live/memory/changes. filters out some files and also browser suppressions in sbwr array
+# Also filters out app inclusions in inotifyexl array
+# purpose to prepare hashed files that are downloads from a package manager or are copied files that have preserved
+# metadata where ctime is greater than mtime. This is because they would not show up in a regular file search.
+#
+# result bypassing, one of two loops, the ctime loop. Any files over 1MB are cached and are picked up
+# by recentchangessearch app and stored in ctimecache.gpg.
+
+# inclusions from app. also .wh. files that can appear from watchingn changes. possibly want to filter out other files ie share/Trash
+inotifyexl() {
+inclusion=(
+	'.*/\.wh\.([^/]*)$'
+	".*/Downloads/${LCLMODULENAME}x"
+	"/tmp/${LCLMODULENAME}x"
+	"/tmp/${LCLMODULENAME}_MDY_[^/]*/${LCLMODULENAME}x.+$"
+)
+}
+
+#VARS
 #atmp=/tmp/myfld$$
 #tmp_input="/tmp/inotify_input_$$.tmp"
 ch="/mnt/live/memory/changes"
+fmt="%Y-%m-%d %H:%M:%S"
 BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
-# fmt="%Y-%m-%d %H:%M:%S"
+
 log_file=$1
 LCLMODULENAME="$2"
 CACHE_F="$3"
-time="$6"
 checkSUM="$4"
-xMODE="$5"
+updatehlinks="$5"
+xMODE="$6"
+time="$7"
 match_found=0
 dpaths=()
 
-#> /tmp/output
-# echo "$BRAND inoftiy started" >> /tmp/inotify.log
+:> $CACHE_F ; :> /tmp/output
+echo "$BRAND inoftiy started" >> /tmp/inotify.log
 
 
 F=(
@@ -31,25 +53,34 @@ F=(
 	'tmp'
 	'usr' 
 	'var'
-	'tmp'
 )
 
 
+pst=$PWD
+ch="${ch%/}"
+[[ -d $ch ]] && { cd $ch && abpath="$ch/" || exit ; } || { [[ ! -d $ch ]] && cd "/" && abpath="/" || exit ; }
+cd $pst || exit
 
-cd $ch || exit
 for w in "${F[@]}"; do
-    if [[ -d "$w" ]]; then
-        dpaths+=( "$w" )
+    if [[ -d "$abpath$w" ]]; then
+        dpaths+=( "$abpath$w" )
     fi
 done
-sbwr # see /usr/local/save-changesnew/rntchangesfunctions
-timeout "$time" inotifywait -m -r -e create -e moved_to --format '/%w%f%0' "${dpaths[@]}" | while read -r -d '' o; do
+
+sbwr
+inotifyexl
+
+#changed to -e move from -e moved_to  . misses some kernel optimizations can miss a copy with preserved metadata
+timeout "$time" inotifywait -m -r -e create -e move --format '%w%f%0' "${dpaths[@]}" | while read -r -d '' o; do
+
+	if [[ $abpath != "/" ]]; then o="${o#$ch}" ; fi
+
     # log_date=$(date +"$fmt")
-    #  echo "$log_date processing $o" >> /tmp/inotify.log
+	 echo "$log_date processing $o" >> /tmp/inotify.log
     if [[ -d "$o" ]]; then
         # echo "$(date +"$fmt") Directory created: $o" >> /tmp/inotify.log
-		# incase the file is created at the same time ie scripts or a process. however during testing -r captures it
-		#find "$o" -cmin -5 -not -type d -printf '%T@ %A@ %C@ %i %n %s %u %g %m %p\0' |
+		# incase the file is created at the same time ie scripts or a process and could be missed by intoify. however during testing -r captures it
+		#find "$o" -cmin -5 -not -type d -printf '%T@ %A@ %C@ %i %M %n %s %u %g %m %p\0' |
 		#while IFS= read -r -d '' record; do
 		#	if [[ "$o" =~ \.(tmp|swp|bak|part|crdownload|partial|lock)$ ]]; then continue ; fi  
 		#	echo "$log_date found new file in dir $o" >> /tmp/inotify.log
@@ -58,7 +89,7 @@ timeout "$time" inotifywait -m -r -e create -e moved_to --format '/%w%f%0' "${dp
         continue
     
     elif [[ -f "$o" && "$o" != *.part ]]; then 
-        # echo "$log_date found checking for matches $o" >> /tmp/inotify.log
+	 	echo "$log_date inotify found checking for matches $o" >> /tmp/inotify.log  # debug
         # if [[ "$o" =~ \.(tmp|swp|bak|part|crdownload|partial|lock)$ ]]; then continue ; fi  original
 
 		if [[ "$o" == *.* ]]; then
@@ -77,14 +108,26 @@ timeout "$time" inotifywait -m -r -e create -e moved_to --format '/%w%f%0' "${dp
             fi
         done
 
+		if (( match_found == 0 )); then
+			for item in "${inclusion[@]}"; do
+				if [[ "$o" =~ $item ]]; then
+					match_found=1
+					break
+				fi
+			done
+		fi
+
         if (( match_found == 0 )); then
-		    # echo "$log_date matched $o" >> /tmp/inotify.log
-		    { stat --printf="%Y %X %Z %i %h %s %U %G %a %n" "$o" 2>/dev/null; printf '\0'; } |
+	 		echo "$log_date inotify matched input to sblk $o" >> /tmp/inotify.log  # debug
+			# Notes: stat --printf="%Y %X %Z %i %A %h %s %U %G %a %n" "$o"  # alternative doesnt print microsecond** 
+		    { find "$o" -printf "%T@ %A@ %C@ %i %M %n %s %u %g %m %p\0" 2>/dev/null; } |
 		    while IFS= read -r -d '' record; do
 		        [[ -z "$record" ]] && continue
 		        sblk "$record" "$log_file" "/dev/null" "$checkSUM" "$xMODE" "$CACHE_F"
 		    done
         fi
+	 elif [[ -f "$o" ]]; then
+	 	echo "$log_date inotify found wrong criteria skipping. for $o" >> /tmp/inotify.log  # debug
     fi
 done
 test -e $log_file && rm $log_file
@@ -105,5 +148,3 @@ test -e $log_file && rm $log_file
 
 # downloads can be in /tmp , /var   /var/slapt-get    /var/cache    etc
 # if it is another distro we dont want changes **
-
-

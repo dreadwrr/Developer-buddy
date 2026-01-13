@@ -22,16 +22,16 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    echo
    echo "recentchanges s         where s is time in seconds"
    echo
-   echo -e "usage:    recentchanges \t\t grab all files 5 minutes or new		these will include system search as well"
-   echo -e "usage:    recentchanges 30	\t grab all files 30 seconds or newer"
+   printf "usage:    recentchanges \t\t grab all files 5 minutes or new		these will include system search as well\n"
+   printf  "usage:    recentchanges 30	\t grab all files 30 seconds or newer\n"
    echo
    echo
    echo "Modes"
    echo
    echo "Search        for just a system search"
    echo
-   echo -e "recentchanges search \t\t search for files 5 minutes or newer"
-   echo -e "recentchanges search 30 \t search for files 30 seconds or newer"
+   printf "recentchanges search \t\t search for files 5 minutes or newer\n"
+   printf "recentchanges search 30 \t search for files 30 seconds or newer\n"
    echo
    echo "Search for files newer than a file or directory"
    echo
@@ -42,20 +42,18 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    echo
    echo "SRC"
    echo
-   echo -e "recentchanges SRC \t\t  Target a root directory. Useful if you compiled an application."
-   echo
+   printf "recentchanges SRC \t\t  Target a root directory. Useful if you compiled an application.\n\n"
    echo     " examples:"
-   echo     " recentchanges 60 SRC"
-   echo     " recentchanges SRC 180"
+   echo     " recentchanges SRC, recentchanges 60 SRC or recentchanges SRC 180"
+   echo   
    echo
-   echo
-   echo " This feature will package an application with a cuztomized name into an .xzm"
+   echo " This feature will package an application with a customized name into an .xzm"
    echo " It allows to focus the search and exclude even files that made it past the filter."
    echo " This was the main intent of the concept of recentchanges and everything is fully automatic"
    echo
    echo " Note: when using this feature ensure that you know there is a parent directory with files in it"
-   echo " as well its most useful within a definite peroid of time. The fact that a large amount of files went"
-   echo " to one directory allow this to be possible. If for some reason it doesnt work use recentchanges to make rntfiles.xzm"
+   echo " as well its most useful within a definite period of time. The fact that a large amount of files went"
+   echo " to one directory allows this to be possible. If for some reason it doesnt work use recentchanges to make rntfiles.xzm"
    echo
    echo "Query"
    echo
@@ -64,9 +62,9 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    echo
    echo "Inverse the search with Symlink"
    echo
-   echo -e "rnt \t\t search for filtered files 5 minutes or newer\t output /tmp"
-   echo -e "rnt 30 \t search for filtered files 30 seconds or newer\t output /Downloads"
-   echo -e "rnt myfile.txt      search for unfiltered files newer than myfile\t . "
+   printf "rnt \t\t shortcut for recentchanges doesnt inverse\n"
+   printf "rnt search \t search for filtered rather than unfiltered files\t output /Downloads\n"
+   printf "rnt search myfile.txt      search for unfiltered rather than filtered files newer than myfile\t . \n"
    exit
 fi
 exit 1

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 clear_mnt() {
 if mountpoint -q "$dest"; then
 	if ! umount "$dest"; then
@@ -49,9 +49,9 @@ fi
 # Handle filename conflicts and build paths
 resolve_conflict() { 
 :> $oMF
-rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
-[[ "$override" = "false" && "$keepMRGED" = "false" && -z "$rlt" ]] && { is_moved="true" ; output="/tmp/" ; }
-[[ -n "$rlt" && "$override" = "false" ]] && echo "Changes cheatcode active not first moving to /tmp as not tmpfs. continue as normal"
+rlt=$(sed -n '/changes=EXIT:/! s/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
+if [[ "$override" = "false" && "$keepMRGED" = "false" ]]; then [[ -z "$rlt" ]] && is_moved="true" && output="/tmp/" || echo "Changes cheatcode active not first moving to /tmp as not tmpfs. continue as normal" ; fi
+
 for mods in "$PWD/"$2; do 
     [[ "$1" = "_uid_" ]] && [[ "$mods" = *"_uid_L"* ]] && continue
     candidates+=("$mods") ; 
@@ -80,6 +80,7 @@ while IFS= read -r -d '' file; do
 	[[ "$found" = "true" ]] || echo "$file" >> $2  # || { echo "$file" | fixsqh >> $QEXCL ; echo "$file" >> $EXCLUDED; test -e "$file" && rm -f "$file" ; } EXCLUDED is just a list to verify its working left in /tmp
 done < <(find "${1}/" -type f -name '.wh.*' -printf '%P\0')
 unset IFS
+shopt -u nullglob
 }
 wh_conflicts() {
 # remove conflicting whiteouts
@@ -218,7 +219,7 @@ if [ "$r" -gt 0 ]; then
     while IFS= read -r ofile; do  [[ -z "$ofile" || "$ofile" == \#* ]] && continue ; fname="${ofile%"$src"}$dst" ; mv "$ofile" "$fname" ; done < $oMF
     rm $oMF
 else
-    cyan "no ${src} $1"
+    cyan "no ${src} $1 did you mean ${dst} use -r flag to reverse"
 fi
 }
 

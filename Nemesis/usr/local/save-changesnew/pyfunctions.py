@@ -1,12 +1,13 @@
 import fnmatch
 import hashlib
 import os
+import subprocess
 import traceback
 from collections import defaultdict
 from datetime import datetime
 
 # Cache clear patterns to delete from db
-#
+
 cache_clear = [
     "%caches%",
     "%cache2%",
@@ -38,7 +39,7 @@ def collision(cursor, is_sys):
         if is_sys:
             tables = ['logs', 'sys']
             union_sql = " UNION ALL ".join([
-                f"SELECT filename, checksum, filesize FROM {t} WHERE checksum IS NOT NULL" for t in tables
+                f"SELECT filename, checksum, filesize FROM {t} WHERE checksum IS NOT NULL and symlink is NULL" for t in tables
             ])
             query = f"""
                 WITH combined AS (
@@ -61,6 +62,8 @@ def collision(cursor, is_sys):
                 AND a.filename < b.filename
                 AND a.filesize != b.filesize
                 WHERE a.checksum IS NOT NULL
+                    AND a.symlink IS NULL
+                    AND b.symlink IS NULL
                 ORDER BY a.checksum, a.filename
             """
 
@@ -216,13 +219,16 @@ def ccheck(xdata, cerr, c, ps):
                 for record in xdata:
                     filename = record[1]
                     csum = record[5]
-                    key = (filename, csum)
-                    if key in collision_map:
-                        for other_file, file_hash, size1, size2 in collision_map[filename]:
-                            pair = tuple(sorted([filename, other_file]))
-                            if pair not in reported:
-                                print(f"COLLISION: {filename} {size1} vs {other_file} {size2} | Hash: {file_hash}", file=f)
-                                reported.add(pair)
+                    size_non_zero = record[6]
+                    sym = record[7]
+                    if sym != 'y' and size_non_zero:
+                        key = (filename, csum)
+                        if key in collision_map:
+                            for other_file, file_hash, size1, size2 in collision_map[key]:
+                                pair = tuple(sorted([filename, other_file]))
+                                if pair not in reported:
+                                    print(f"COLLISION: {filename} {size1} vs {other_file} {size2} | Hash: {file_hash}", file=f)
+                                    reported.add(pair)
         except IOError as e:
             print(f"Failed to write collisions: {e} {type(e).__name__}  \n{traceback.format_exc()}")
 
@@ -253,38 +259,40 @@ def parse_datetime(value, fmt="%Y-%m-%d %H:%M:%S"):
         return None
 
 # encoding
+# 01/09/2025
 
 
-# 12/17/2025
 # used for txt output so doesnt break on newlines
 def escf_py(filename):
     filename = filename.replace('\n', '\\\\n')
     return filename
 # def escf_py(filename):
-#     filename = filename.replace('\\', '\\\\')
-#     filename = filename.replace('\n', '\\\\n')
-#     filename = filename.replace('"', '\\"')
-#     # filename = filename.replace('\t', '\\t')
-#     # filename = filename.replace('$', '\\$')
-#     return filename
+    # filename = filename.replace('\\', '\\ap5c')
+    # filename = filename.replace('\\', '\\\\')
+    # filename = filename.replace('\n', '\\ap0A')
+    # filename = filename.replace('"', '\\ap22')
+    # filename = filename.replace('$', '\\$')
+    # filename = filename.replace('\t', '\\t')
+    # return filename
 
 
-# not used. reverse above
+# not used here
 def unescf_py(s):
-    s = s.replace('\\\\n', '\n')
-    s = s.replace('\\"', '"')
-    s = s.replace('\\\\', '\\')
-    # s = s.replace('\\t', '\t')
+    s = s.replace('\\ap0A', '\n')
+    s = s.replace('\\ap22', '"')
+    s = s.replace('\\ap5c', '\\')
+    # s = s.replace('\\\\', '\\')
     # s = s.replace('\\$', '$')
+    # s = s.replace('\\t', '\t')
     return s
 
 
 # not used in python backend. used in bash to allow for parsing in bash ha and arrives in  this format.
 def ap_encode(filename):
     filename = filename.replace('\\', '\\ap5c')
+    filename = filename.replace('\n', '\\ap0A')
     filename = filename.replace('"', '\\ap22')
     filename = filename.replace('\t', '\\ap09')
-    filename = filename.replace('\n', '\\ap0A')
     # filename = filename.replace('$', '\\ap24')
     filename = filename.replace(' ', '\\ap20')
     return filename
@@ -296,19 +304,19 @@ def ap_decode(s):
     s = s.replace('\\ap09', '\t')
     s = s.replace('\\ap22', '"')
     # s = s.replace('\\ap24', '$')
-    s = s.replace('\\ap5c', '\\')
     s = s.replace('\\ap20', ' ')
+    s = s.replace('\\ap5c', '\\')
     return s
 
 
-# not used. decode from the bash but leave newline escaped
+# not used in python backend. decode from the bash but leave newline escaped
 def ap_dbdecode(s):
     s = s.replace('\\ap0A', '\\n')
     s = s.replace('\\ap09', '\t')
     s = s.replace('\\ap22', '"')
     # s = s.replace('\\ap24', '$')
-    s = s.replace('\\ap5c', '\\')
     s = s.replace('\\ap20', ' ')
+    s = s.replace('\\ap5c', '\\')
     return s
 
 # end encoding
@@ -430,3 +438,21 @@ def removefile(fpath):
     except Exception:
         pass
     return False
+
+
+def update_config(config_file, setting_name, old_value, quiet=False):
+
+    script_path = "/usr/local/save-changesnew/updateconfig.sh"
+    cmd = [
+        script_path,
+        str(config_file),
+        setting_name,
+        old_value
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        if not quiet:
+            print(result)
+    else:
+        print(result)
+        print(f'Bash script failed {script_path}. error code: {result.returncode}')

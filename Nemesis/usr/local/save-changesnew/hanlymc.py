@@ -1,5 +1,5 @@
 
-# hybrid analysis  12/29/2025
+# hybrid analysis  01/09/2025
 import os
 import sqlite3
 from datetime import datetime, timedelta
@@ -15,10 +15,6 @@ from pyfunctions import get_recent_changes
 from pyfunctions import matches_any_pattern
 from pyfunctions import parse_datetime
 from pyfunctions import sys_record_flds
-# import grp
-# import pwd
-# import stat
-# from pyfunctions import calculate_checksum
 
 
 def stealth(filename, label, entry, current_size, original_size, cdiag):
@@ -54,6 +50,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr):
 
         for record in parsed_chunk:
 
+            previous_timestamp = None
             current_size = None
             original_size = None
             is_sys = False
@@ -71,7 +68,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr):
             label = escf_py(filename)  # human readable
 
             recent_entries = get_recent_changes(label, cur, 'logs')
-            recent_sys = get_recent_changes(label, cur, 'sys', ['count']) if ps else None
+            recent_sys = get_recent_changes(label, cur, 'sys', ['count',]) if ps else None
 
             if not recent_entries and not recent_sys and checksum:
                 entry["dcp"].append(record)   # is copy?
@@ -80,7 +77,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr):
 
             previous = recent_entries
 
-            if ps and recent_sys and len(recent_sys) >= 12:
+            if ps and recent_sys and len(recent_sys) > 12:
 
                 previous_timestamp = parse_datetime(recent_sys[0], fmt)
 
@@ -107,7 +104,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr):
                 prev_count = recent_sys[-1]
                 sys_record_flds(record, sys_records, prev_count)
 
-            if previous is None or len(previous) < 11:
+            if previous is None or len(previous) < 12:
                 continue
             if checksum:
                 if not record[5] or not previous[5]:
@@ -123,7 +120,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr):
             if not is_sys:
                 previous_timestamp = parse_datetime(previous[0], fmt)
 
-            if (is_integer(record[3]) and is_integer(previous[3])  # inode format check
+            if (is_integer(record[3]) is not None and is_integer(previous[3]) is not None  # inode format check
                     and previous_timestamp):
                 recent_cam = record[11]
                 previous_cam = previous[11]
@@ -157,9 +154,9 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr):
                             # ctime_str = epoch_to_date(a_ctime).replace(microsecond=0)  # dt obj. convert to str .strftime(fmt)
                             # recent_changetime = parse_datetime(record[2])
 
-                            afrm_dt = epoch_to_date(a_mod).replace(microsecond=0)
-
+                            afrm_dt = epoch_to_date(a_mod)
                             if afrm_dt and is_valid_datetime(record[4], fmt):  # access time format check
+                                afrm_dt = afrm_dt.replace(microsecond=0)
 
                                 if afrm_dt == previous_timestamp:
 
@@ -174,9 +171,10 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr):
                                         if new_meta((record[8], record[9], record[10]), metadata):
                                             entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
                                             entry["scr"].append(f'Permissions of file: {label} changed {metadata[0]} {metadata[1]} {metadata[2]} → {record[8]} {record[9]} {record[10]}')
-                                else:
+
+                                else:  # Shifted during search
+
                                     if not cam_file:
-                                        # Shifted during search
                                         if cdiag:
                                             entry["scr"].append(f'File changed during the search. {label} at {afrm_dt}. Size was {original_size}, now {a_size}')
                                         else:
