@@ -1,4 +1,4 @@
-#                               01/03/2025
+#                               01/13/2026
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
 
 for Porteus 5.01, 5.1 and Nemesis 
@@ -6,7 +6,7 @@ for Porteus 5.01, 5.1 and Nemesis
 A Qt version for Windows 10/11. https://github.com/dreadwrr/Recentchanges <br><br>
 
 Version available <br>
-1.2.5 Bash text backend or bash python database backend <br>
+1.2.6 Bash text backend or bash python database backend <br>
 1.2.4-py1 python edition backend database <br><br>
 
 
