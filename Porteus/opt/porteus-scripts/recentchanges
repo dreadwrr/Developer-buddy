@@ -1,22 +1,36 @@
 #!/usr/bin/env bash
-#   Analytics NMS5 porteus
-#   recentchanges. Developer buddy      make xzm     12/31/2025  v5.0
+#   Analytics porteus
+#   recentchanges. Developer buddy      make xzm     01/13/2026  v5.0
+# entry point for recentchanges.
 #
+#   recentchanges. aka Developer buddy      recentchanges / recentchanges search
 #   Provide ease of pattern finding ie what files to block we can do this a number of ways
 #   1) if a file was there (many as in more than a few) and another search lists them as deleted its either a sys file or not but unwanted nontheless
 #   2) Is a system file inherent to the specifc platform
 #   3) intangibles ie trashed items that may pop up infrequently and are not known about
 #
-#  The purpose of this script is to save files ideally less than 5 minutes old. So when compiling or you dont know where some files are
-#or what changed on your system. So if you compiled something you call this script to build a module of it for distribution.
+#   recentchanges
+#           Searches are saved in /tmp and also makes rntfiles.xzm
 #
-#  If not using for developing call it a file change snapshot
+#           1. Search results are unfiltered and copied files for the .xzm are from a filter.
+#           2. No /tmp files displayed for clear easy to read results. Too much information makes it more difficult to interpret
+#           3. 'rnt' shortcut for the same command. Unlike recentchanges search command does not inverse
 #
-#  We use the find command to list all files 5 minutes or newer. Filter it and then get to copying the files in a temporary staging directory.
-#  Then take those files and make an .xzm. It will be placed in   /tmp  along with a transfer log to staging directory and file manifest of the xzm
+#           The purpose of this script is to save files ideally less than 5 minutes old. So when compiling or you dont know where some files are
+#   or what changed on your system. So if you compiled something you call this script to build a module of it for distribution. If not using for developing
+#   call it a file change snapshot
+#   We use the find command to list all files 5 minutes or newer. Filter it and then get to copying the files in a temporary staging directory.
+#   Then take those files and make an .xzm. It will be placed in   /tmp  along with a transfer log to staging directory and file manifest of the xzm
 #
+#   recentchanges search
+#           Searches are saved in /home/{user}/Downloads includes /tmp files in a seperate file
 #
-#  recentchanges command from    /usr/bin/recentchanges
+#           1. The search is unfiltered and a filesearch is filtered.
+#           2. `rnt search` is a shortcut and inverses the results. For search it will filter the results instead of being unfiltered. For a file search it removes the filter instead as its normally filtered.
+#
+# Old searches can be grabbed from /Downloads, /tmp or /tmp/{MODULENAME}_MDY_*. the limit is set by archivesrh in config.toml. This is  for convenience if there is no previous search  it displays the
+# old search for specified search criteria. all searches are stored in the database before applying filter.py so all data is captured
+#
 #  Also borred script features from various scripts on porteus forums
 # working off of base save-changes script by
 # Author: Brokenman <brokenman@porteus.org>
@@ -113,7 +127,7 @@ export checkSUM="true"	# compare file checksums for slight changes
 export cdiag="true"       # add extra detail like filesize in output and critical events. Also check for hash collisions.
 export supbrwr="true"   # supress cache warnings on terminal from known browsers? Mozilla... ect list top of rntfuncions
 export supress="false"  # ..      all cdiag output to terminal except critical events
-export updatehlinks="false"   # scan for accurate hardlinks in db. alternatively use Set hardlinks button
+export updatehlinks="true"   # scan for accurate hardlinks in db. alternatively use Set hardlinks button
 
 
 export POSTOP="false" # Diagnostics. Create file doctrine. Runs post search operation that can only be done at this time as search is relevant
@@ -121,7 +135,7 @@ export POSTOP="false" # Diagnostics. Create file doctrine. Runs post search oper
                                     #
                                     # if it is run again and a file is still there it will not run the POSTOP and the script will set POSTOP to false to itself
 
-export proteusSHIELD="false"	# take initial hash of base modules 001-core.. ect database mode
+export proteusSHIELD="true"	# take initial hash of base modules 001-core.. ect database mode
 ## End Diagnostics
 
 export MODULENAME="rntfiles"    # prefix for search result file
@@ -233,7 +247,7 @@ approval="true"														;	nc="false"
 csum="false"
 
 F=( /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var )
-TAIL=( -not -type d -printf '%T@ %A@ %C@ %i %n %s %u %g %m %p\0' )
+TAIL=( -not -type d -printf '%T@ %A@ %C@ %i %M %n %s %u %g %m %p\0' )
 
 mkdir $tmp
 mkdir $tmp$workdir
@@ -271,9 +285,9 @@ else
 	end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && [[ "$ANALYTICSECT" ]] && cstart=$(date +%s.%N)
 fi
 
-if [ "$FEEDBACK" == "true" ]; then tr '\0' '\n' < "$RECENTNUL" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=""; sub(/^ +/, ""); print }' ; fi  #scrolling look  #tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=""; sub(/^ +/, ""); print }'  
+if [ "$FEEDBACK" == "true" ]; then tr '\0' '\n' < "$RECENTNUL" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); print }' ; fi  #scrolling look  #tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); print }'  
 
-while IFS= read -r -d '' y; do x=$(printf '%s' "$y" | cut -d' ' -f10-);  x=$(escf "$x"); printf '%s\n' "$x" ; done < $RECENTNUL > $RECENT # Used to copy files \n delimited it is the filtered list
+while IFS= read -r -d '' y; do x="$(printf '%s' "$y" | cut -d' ' -f11-)";  x="$(escf "$x")"; printf '%s\n' "$x" ; done < $RECENTNUL > $RECENT # Used to copy files \n delimited it is the filtered list
 
 search $RECENTNUL $SORTCOMPLETE $COMPLETE $checkSUM "main"  # mtime append ctimeloop in range later
 cend=$(date +%s.%N)
@@ -339,6 +353,8 @@ if [ "$SRCDIR" == "SRC" ]; then
 	    srcpath="${rlt#?}"
 		> $tfile
 		r=$( find "${rlt}" -type f | wc -l)  # system
+		s=$(grep -n 'MDY' "/tmp/${appname}_xdata" | head -n 1 | cut -d: -f1)
+		if [[ -n "$s" ]]; then s=$(( s - 1 )) ; else s=0 ; fi
 		x=0
 		y=$( wc -l < $RECENTAPP) # copied
 		while IFS= read -r -d '' f ; do p="$( escf "$f")" ; printf '%s\n' "$p" >> $tfile;  x=$(( x + 1 )) ; done < <(find "${srcpath}" \( -type f -o -type l \) -print0)  # Our system files is what we should be comparing		
@@ -403,13 +419,9 @@ if [ "$SRCDIR" == "SRC" ]; then
 			filename="$appname"
 		fi
 		fn=$(printf '%b' "$filename") ; fn=$(basename "$fn") ; fn=$(sed -E 's/(.*)\.[^./]{3,4}$/\1/' <<< "$fn") ; fn="${fn// /_}" #fn=$( echo "$fn" | sed -e 's/\...$//' -e 's/\....$//' -e 's/ /_/g')
-        if [ "$fn" != "$appname" ]; then 
-			echo "/tmp/$appname.xzm"
-			echo "/tmp/$fn.xzm"
-			mv "/tmp/$appname.xzm" "/tmp/$fn.xzm"
-			mv /tmp/"$appname"_xdata /tmp/"$fn"_xdata ; fi
-        chown $USR /tmp/"$fn".xzm
-        chown $USR /tmp/"$fn"_xdata
+        if [ "$fn" != "$appname" ]; then mv "/tmp/${appname}.xzm" "/tmp/${fn}.xzm" ; mv "/tmp/${appname}_xdata" "/tmp/${fn}_xdata" ; fi
+        chown $USR "/tmp/${fn}.xzm"
+        chown $USR "/tmp/${fn}_xdata"
     fi
 fi
 
@@ -470,8 +482,8 @@ if [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then
     stmp $SORTCOMPLETE
     if [ ! -f /tmp/rc/full ]; then cyan "Search saved in /tmp"; fi
 fi
-rm -rf $tmp 
-rm -rf $atmp
+test -d "$tmp" && rm -rf "${tmp:?}" 
+test -d "$atmp" && rm -rf "${atmp:?}"
 if [ "$ANALYTICSECT" == "true" ]; then
     el=$(awk "BEGIN {print $end - $start}")
     printf "Search took %.3f seconds.\n" "$el"
