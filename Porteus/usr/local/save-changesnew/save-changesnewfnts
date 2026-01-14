@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# save-changesnew functions to move options further up the script             12/31/2025
+# save-changesnew functions to move options further up the script             01/13/2026
 . /usr/local/save-changesnew/mergemodulesfunctions
 dycmb() {
 TFLD=""
@@ -96,7 +96,7 @@ errmsg() { mount -o remount,udba=none / ; if [ "$1" != "false" ]; then test -d "
 errblk() { [[ "$trlt" -ne 0 ]] && errmsg "$mtmp" "$2" ; }
 # Find out the files that have changed with dry run
 createlog() {
-rsync -an --out-format="%f" "$1/" "$2" --exclude '.wh.*' --exclude-from=$EXFILES | sed "s|^$1/||" > $3 # what changed
+rsync -an --out-format="%n" "$1/" "$2" --exclude '.wh.*' --exclude-from=$EXFILES > $3 # what changed  # | sed "s|^$1/||"  if using %f remove prefix **
 rsync -anv "$1/" "$2" --exclude '.wh.*' --exclude-from=$EXFILES > $4 # rsync log
 }
 # Labelling before making .xzm from $ch
@@ -175,8 +175,10 @@ if [[ -f /dev/shm/xsc && -n "$h" && -f "$h" ]]; then
 			aend=$(date +%s.%N)
 			if [ "$ANALYTICS" == "true" ]; then [[ "$ANALYTICSECT" = "true" ]] && elapse=$(awk "BEGIN {print $aend - $astart}") && cyan "Modules merged. Applying changes" ; fi
 			# in changes
-			cp $QEXCL $EXFILES # reset exclusions for rsync
-			procxzm  # apply .wh. deletions ,copy to $mtmp
+			cp $EXFILES $SFILES  # mksquash exclude version
+			mv $QEXCL $EXFILES # reset exclusions for rsync
+			# mv $SFILES $QEXCL  # uncomment to apply the exclusions again on ln184 in package_xzm
+			procxzm "true"  # apply .wh. deletions ,copy to $mtmp
 			# still in changes  
 			cd $target$em
 			package_xzm $mtmp $keepMRGED $elog $is_routine $is_merge $output
@@ -245,23 +247,26 @@ if [[ -f /dev/shm/xsc && -n "$h" && -f "$h" ]]; then
 		test -e $LOGDIR/$LOGFILE && rm $LOGDIR/$LOGFILE  # dont exclude the log file
 		find $mtmp -type f -printf '%P\n' > $tmp/contents  # the changes
         # what would be transfered then infer what to exclude with rsync dryrun
-#        cp $tmp/contents /home/guest/fr1
-#        cp $EXFILES /home/guest/EXFILES
-#        exit
-		createlog $mtmp $tmp $UPDATE $oMF 
-		c="${mtmp#/}"  # --out-format="%f" consistent log depends on version of rsync ** important
-		sed -i -e "\|$c/\.|d" -e "s|$c/||" -e '/^\./d' $UPDATE  # remove the unusable first line  .
+		createlog $mtmp $tmp $UPDATE $oMF
+
+        # consistent log depends on version of rsync ** important
+
+        #c="${mtmp#/}"  # --out-format="%f" full path. 
+        #sed -i -e "\|$c/\.|d" -e "s|$c/||" -e '/^\./d' $UPDATE
+		# cat $tmp/contents | grep -Fxvf $keep > $remove # total files - what would be transfered = remove
+
+        sed -i -e '/^\./d' -e '/\/$/d' $UPDATE  # --out-format="%n" using relative # remove the unusable first line  . and any ending in /
+
 		cp $UPDATE $keep
-        cp $keep /home/guest/fr1
-		# oMF is log its made at the same time
+		# oMF is log made after at the same time
 		#$keep           what needs to be transfered with usable paths
 		#$remove       what should not be copied
+
 		cat $tmp/contents | grep -Fvf $keep > $remove # the changes folder - what would be transfered = remove
 		cat $remove >> $EXFILES # exclude these
 		labelmk $oMF # copy\insert log before .xzm
 		# cp $EXFILES /tmp/myfile.txt  debug
 		# mksquashfs $ch /tmp/megar.xzm -comp $cmode -ef $EXFILES  debug
-        
 		base_cmd=(mksquashfs $ch "${target}${em}/${rname}" -comp $cmode -ef $EXFILES)  
 		# [[ -s "$QEXCL" ]] && base_cmd+=(-ef $QEXCL)  # add excluded .wh. to EXFILES if needed
 		if [ "$FEEDBACK" != "true" ]; then "${base_cmd[@]}" > /dev/null ; else "${base_cmd[@]}" ; fi
@@ -327,7 +332,8 @@ else
     if [ "$trlt" -ne 0 ]; then 
 	    echo "Files changed while saving copying to tmp..."
         cp $QEXCL $EXFILES # reset exclusions for rsync
-        procxzm $1  # copy log and exclude with rsync.
+		normalop="false"
+        procxzm $normalop  # copy log and exclude with rsync.
 	    base_cmd=(mksquashfs $mtmp "${target}${em}/${rname}" -comp $cmode)  # make the module
         if [ "$FEEDBACK" != "true" ]; then "${base_cmd[@]}" > /dev/null ; else "${base_cmd[@]}" ; fi
     fi
@@ -354,24 +360,25 @@ fi
 # see Merge ln 374
 }
 procxzm() {
+
+local normalop="$1"
 local found
 local f y ex
-adtcmd=(--exclude '.wh.*')
+# adtcmd=(--exclude '.wh.*')
 cd $ch || { mount -o remount,udba=none /; exit; }
-if [ -z "$1" ]; then
+if [[ "$1" = "true" ]]; then
+	shopt -s nullglob
     IFS="
     "
     for y in $(find $FOLDERS -name ".wh.*"); do
 	    f="${y//.wh./}"
         test -e "$mtmp/$f" && rm -rf "$mtmp/$f"
-		#shopt -s nullglob
-		#found="false"
-		#items=( "$INAME"/*/"$f" )
-		#if ((${#items[@]})); then found="true" ; fi
 		found="false"
-		for file in "$INAME"/*/"$f"; do [ -e "$file" ] && found="true" && break ; done
-        [[ "$found" == "true" ]] || { echo "$y" | fixwh >> $EXCL; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }
+		items=( "$INAME"/*/"$f" )
+		if ((${#items[@]})); then found="true" ; fi
+        [[ "$found" == "true" ]] || { echo "$y" | fixwh >> $EXCL; echo "$y" | fixsqh >> $EXFILES ; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }
     done
+	shopt -u nullglob
     test -s "$EXCL" && { find $FOLDERS -type d | egrep -vf $EXCL || find $FOLDERS -type d; } > $SFOLDERS
 	for y in $(find $mtmp -name ".wh.*"); do
         f="$(echo "$y" | sed -e "s^$mtmp^^g" -e 's^\.wh\.^^g')"
@@ -385,7 +392,7 @@ base_cmd=(rsync -aHv "${adtcmd[@]}" --exclude-from=$trsyncexl) && [[ -s "$EXFILE
 run_cmd "${base_cmd[@]}" $FOLDERS "$mtmp/" ; errblk "$mtmp"  # merge
 # could be new exclusions
 # -mindepth 1 so doesnt list $mtmp itself
-if [ -z "$1" ]; then 
+if [[ "$mrgAEX" = "true" ]]; then
     cd $mtmp || { mount -o remount,udba=none /; exit; }
     while IFS= read -r ex; do 
         [ -n "$ex" ] || continue
@@ -410,7 +417,7 @@ local xsize c  ; local instm="$1"
         for mods in "$target$em/"*_uid_L*.xzm; do [[ "$fname" == "" ]] && fname="$mods" ; if ! xzm2dir $mods $mtmp; then errmsg $mtmp "$fname" "$instm" ; fi ; done  # unsquashfs -no-exit -f -dest $mtmp $mods
         aend=$(date +%s.%N)
 		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then elapse=$( awk "BEGIN {print $aend - $astart}"); fi
-	    procxzm
+	    procxzm "true"
     fi
     if [ "$ssbn" == "" ]; then
         if [ "$validrlt" == "false" ]; then cyan "mfile byte match failed generating new serial no." ; else cyan "no msr file. creating new one and new serial." ; fi

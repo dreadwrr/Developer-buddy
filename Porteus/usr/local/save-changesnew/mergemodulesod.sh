@@ -1,5 +1,5 @@
-#!/bin/bash
-# Merge on drive. custom method for merging with xzm2dir. od stands for on drive or overdrive.       12/28/2025
+#!/usr/bin/env bash
+# Merge on drive. custom method for merging with xzm2dir. od stands for on drive or overdrive.       01/13/2026
 # Merges 2 or more modules on the drive to handle .wh. files after merging. Doesnt use /tmp because .wh. cant be copied or stated unless mounted. 
 #
 # How it works. Merge the modules in a /tmp folder in PWD or extramod. Afterwards stat the .wh. files and if the .wh. file is newer
@@ -35,31 +35,45 @@ ANALYTICS="true"			# display more verbose output
 ANALYTICSECT="true"	# # disable metric saving time. ect. for ANALYTICS
 
 
-keepMRGED="false"       # default is delete the old ones after merging
+keepMRGED="true"       # default is delete the old ones after merging
 
 
 
 ## Diagnostics
-override="false"			# Note this only applied when keepMRGED is false.
+override="false"			# Note this only applied when keepMRGED is false. 
 
-									# default false. Move the modules to tmp to free up space on the drive.
+									# false. Move the modules to tmp to free up space on the drive. default false
 
-									# true. You dont want them sent to /tmp first and the feature is overridden.
+									# true. When keepMRGED is false you dont want them sent to /tmp first and the feature is overridden.
 	
 									# this script implements logic to ensure there is free space when merging modules on the drive because porteus could be installed on a usb. 
-									# The override setting was put in so if set to true would make it strictly hdd and no shift.
+
+
+d2dmdl="true"				# use the harddrive or usb for temp all files/work. if having a problem like extracting to tmp set this to true to use the drive
+
+                                    # true extract as normal in extramod      true default for mergesod
+									# false dont extract in extramod use tmpfs in live system. 
+									       
+
+									# The script wont by default delete the modules first so if something goes wrong theres no change
+									# The override and d2dmdl settings were put in because of imbalance of free space for different configurations
 ## End Diagnostics
 # END CHANGABLE
 
 #VARS
 workdir=/work$$						;	xopt=/mnt/live/tmp/atmp$$	# spare tmp fld
-tmp=$PWD$workdir					;	elog=/tmp/error.log					
-QEXCL=/tmp/squashexfiles.log	;	INAME=/mnt/live/memory/images
-mdlnames=()							;	candidates=()	
-pst=$PWD									;	targetem=$PWD
-oMF=/tmp/flog.log	
+tmp=$PWD$workdir					;	INAME=/mnt/live/memory/images
+elog=/tmp/error.log					;	oMF=/tmp/flog.log	
+QEXCL=/tmp/squashexfiles.log	;	passdir=$PWD  # passdir is aka PWD
+mdlnames=()							;	pst=$PWD
+candidates=()							;	targetem=$PWD							
+ng_state=$(shopt -p nullglob) 	;	shopt -s nullglob
 
 output=""									;	is_moved="false"
+
+
+
+if [[ "$d2dmdl" = "false" ]]; then [[ -d /mnt/live/tmp ]] && tmp=/mnt/live/tmp/atmp$$ && passdir="/mnt/live/tmp" || echo "no tmpfs using default tmp folder $tmp" ; fi
 
 [[ "$namingPRF" != "alpha" ]] && [[ "$namingPRF" != "numeric" ]] && echo "invalid setting namingPRF: $namingPRF" && exit 0
 if [ "$1" != "" ]; then keepMRGED="$1"; fi
@@ -67,7 +81,8 @@ if [ "$1" != "" ]; then keepMRGED="$1"; fi
 r=$( ls | grep '.*.xzm' | wc -l)
 if [ "$r" -gt 1 ]; then
 	resolve_conflict "false" "*.xzm" ".xzm" ".bak"  # cds into /tmp ($output) if moved
-	if ! is_available "*.xzm" $targetem $PWD $is_moved; then exit 1 ; fi
+
+	if ! is_available "*.xzm" $targetem $passdir $is_moved; then exit 1 ; fi
     mkdir $tmp
 	if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then astart=$(date +%s.%N); fi
     # Unpack
@@ -78,7 +93,7 @@ if [ "$r" -gt 1 ]; then
 		    if [ "$candidate" == "$mods" ]; then
 		        if ! unsquashfs -no-exit -f -dest $tmp "$mods"; then
 		            [[ -f "$oMF" ]] && rm $oMF
-		            test -d $tmp && rm -rf $tmp
+		            test -d "$tmp" && rm -rf "$tmp"
 		            red "Error failure to extract in ${PWD}: ${fname} to target $tmp" >&2
 		            cyan "Everything preserved. Check the script"
 		            exit 1
@@ -95,9 +110,10 @@ if [ "$r" -gt 1 ]; then
        	p=${file/.wh./}  # $( echo "$file" | sed -E 's|(.*\/)\.wh\.|\1|')
 		test -e "$p" && y=$( stat -c '%Y' "$p" 2>/dev/null)  # file
         x=$( stat -c '%Y' "$file" 2>/dev/null)  # .wh. 
-		if [[ -n "$y" && -n "$x" ]] && (( y < x)); then rm -rf "$p" ; fi
+		if [[ -n "$y" && -n "$x" ]] && (( y < x )); then rm -rf "$p" ; fi
 		found="false"
-		for file in "$INAME"/*/"$p"; do [ -e "$file" ] && found="true" && break ; done
+		cand=( "$INAME"/*/"$p" )
+		if ((${#cand[@]})); then found="true" ; fi
 		[[ "$found" == "true" ]] || { echo "$file" | fixsqh >> $QEXCL; test -e "$file" && rm -f "$file"; }  # exclude and remove the .wh.  file. ensure its not included
     done < <(find . -type f -name '.wh.*' -printf '%P\0')
     unset IFS  

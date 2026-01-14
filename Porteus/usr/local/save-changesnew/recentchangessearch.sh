@@ -1,5 +1,5 @@
 #!/bin/bash
-#      recentchanges search             Developer Buddy v3.0     9/19/2025
+#      recentchanges search             Developer Buddy v5.0     01/13/2026
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/rntchangesfunctions
@@ -58,7 +58,7 @@ csum="false"
 
 
 F=(/bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var)
-TAIL=(-not -type d -printf '%T@ %A@ %C@ %i %n %s %u %g %m %p\0')
+TAIL=(-not -type d -printf '%T@ %A@ %C@ %i %M %n %s %u %g %m %p\0')
 
 mkdir $tmp
 mkdir $atmp
@@ -103,6 +103,7 @@ fi
 
 [[ ! -d "$cached" ]] && mkdir $cached && chmod 700 $cached
 [[ "$checkSUM" = "true" ]] && [[ "$ANALYTICS" = "true" || "$STATPST" = "true" ]] && cyan "Running checksum." || checkSUM="false"
+
 if [ ! -s "$tout" ]; then
 	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $FEEDFILE > /dev/null 2>&1
 	find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee $toutnul > /dev/null 2>&1
@@ -114,8 +115,8 @@ else
 fi
 
 if [ "$FEEDBACK" == "true" ]; then #scrolling look
-	tr '\0' '\n' < "$FEEDFILE" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=""; sub(/^ +/, ""); print }'
-	#tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=""; sub(/^ +/, ""); print }'  
+	tr '\0' '\n' < "$FEEDFILE" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); print }'
+	#tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); print }'  
 fi 
 #while IFS= read -r -d '' y; do y="$( ap_enc "$y")" ; printf '%s\n' "$y"; done < $FEEDFILE > $xdata
 
@@ -191,7 +192,7 @@ if [ -s $SORTCOMPLETE ] ; then
     chown $USR $USRDIR$MODULENAME"$flnm"
    
 
-    isdiff "$difffile" $RECENT $TMPCOMPLETE  # <----------
+    isdiff "$difffile" $RECENT $TMPCOMPLETE
     
 	backend $5
     filterhits $RECENT $flth
@@ -201,8 +202,8 @@ fi
 
 if [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ] ; then stmp $SORTCOMPLETE && [[ ! -f /tmp/rc/full ]] && cyan "Search saved in /tmp" ; fi
 
-rm -rf $atmp
-rm -rf $tmp
+test -d "$atmp" && rm -rf "${atmp:?}"
+test -d "$tmp" && rm -rf "${tmp:?}"
 
 if [ "$ANALYTICSECT" = "true" ]; then
     el=$(awk "BEGIN {print $end - $start}")

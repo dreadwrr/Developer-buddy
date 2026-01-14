@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       12/23/2025
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       01/09/2026
 import os
 import re
 import shutil
@@ -34,13 +34,20 @@ def encr(database, opt, email, no_compression, dcr=False):
         if no_compression:
             cmd.extend(["--compress-level", "0"])
         cmd.append(database)
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, capture_output=True, text=True, check=True)
         if not dcr:
-            os.remove(database)
+            removefile(database)
         return True
     except subprocess.CalledProcessError as e:
-        print(f"[ERROR] Encryption failed: {e}")
-        return False
+        print(f"[ERROR] Failed to encrypt:  {e} return_code: {e.returncode}")
+        combined = "\n".join(filter(None, [e.stdout, e.stderr]))
+        if combined:
+            print("[OUTPUT]\n" + combined)
+    except FileNotFoundError as e:
+        print("[ERROR] File not found possibly: ", database, " error: ", e)
+    except Exception as e:
+        print(f"[ERROR] general exc encr: {e} {type(e).__name__} \n {traceback.format_exc()}")
+    return False
 
 
 def decr(src, opt):
@@ -53,29 +60,37 @@ def decr(src, opt):
                 "-o", opt,
                 src
             ]
-            subprocess.run(cmd, check=True)
+            subprocess.run(cmd, capture_output=True, text=True, check=True)
             return True
         except subprocess.CalledProcessError as e:
-            print(f"[ERROR] Decryption failed: {e}")
-            return False
+            print(f"[ERROR] Decryption failed:  {e} return_code: {e.returncode}")
+            combined = "\n".join(filter(None, [e.stdout, e.stderr]))
+            if combined:
+                print("[OUTPUT]\n" + combined)
+
+        except FileNotFoundError as e:
+            print("GPG not found. Please ensure GPG is installed. or could not find file: ", src, " error: ", e)
+        except Exception as e:
+            print(f"[ERROR] decr Unexpected exception err: {e} {type(e).__name__} \n {traceback.format_exc()}")
     else:
-        print('no .gpg file')
-        return False
+        print(f"[ERROR] File {src} not found. Ensure the .gpg file exists.")
+
+    return False
 
 
-def table_exists_and_has_data(conn, table_name):
+def table_has_data(conn, table_name):
     c = conn.cursor()
     c.execute("""
         SELECT name FROM sqlite_master
         WHERE type='table' AND name=?
     """, (table_name,))
     if not c.fetchone():
+        c.close()
         return False
     c.execute(f"SELECT 1 FROM {table_name} LIMIT 1")
-    if c.fetchone():
-        return True
-    else:
-        return False
+    res = c.fetchone() is not None
+    c.close()
+    return res
 
 
 def create_table(c, table, unique_columns, e_cols=None):
@@ -199,10 +214,22 @@ def parse_line(line):
     if len(other_fields) < 7:
         return None
 
-    timestamp1 = other_fields[0] + ' ' + other_fields[1]
-    timestamp2 = other_fields[2] + ' ' + other_fields[3]
+    timestamp1_subfld1 = None if other_fields[0] in ("", "None") else other_fields[0]
+    timestamp1_subfld2 = None if other_fields[1] in ("", "None") else other_fields[1]
+    timestamp1 = None if not timestamp1_subfld1 or not timestamp1_subfld2 else f"{timestamp1_subfld1} {timestamp1_subfld2}"
+    if not timestamp1:
+        return None
+
+    timestamp2_subfld1 = None if other_fields[2] in ("", "None") else other_fields[2]
+    timestamp2_subfld2 = None if other_fields[3] in ("", "None") else other_fields[3]
+    timestamp2 = None if not timestamp2_subfld1 or not timestamp2_subfld2 else f"{timestamp2_subfld1} {timestamp2_subfld2}"
+
     inode = other_fields[4]
-    timestamp3 = other_fields[5] + ' ' + other_fields[6]
+
+    timestamp3_subfld1 = None if other_fields[5] in ("", "None") else other_fields[5]
+    timestamp3_subfld2 = None if other_fields[6] in ("", "None") else other_fields[6]
+    timestamp3 = None if not timestamp3_subfld1 or not timestamp3_subfld2 else f"{timestamp3_subfld1} {timestamp3_subfld2}"
+
     rest = other_fields[7:]
 
     return [timestamp1, filepath, timestamp2, inode, timestamp3] + rest
@@ -231,11 +258,11 @@ def parselog(file, table, checksum):
                             print("parselog sortcomplete setting no checksum, input out of boundaries skipping")
                             continue
 
-                timestamp = None if inputln[0] in ("None", "") else inputln[0]
-                filename = None if inputln[1] in ("", "None") else inputln[1]
-                changetime = None if inputln[2] in ("", "None") else inputln[2]
+                timestamp = inputln[0]
+                filename = inputln[1]
+                changetime = inputln[2]
                 inode = None if inputln[3] in ("", "None") else inputln[3]
-                accesstime = None if inputln[4] in ("", "None") else inputln[4]
+                accesstime = inputln[4]
                 checks = None if n > 5 and inputln[5] in ("", "None") else (inputln[5] if n > 5 else None)
                 filesize = None if n > 6 and inputln[6] in ("", "None") else (inputln[6] if n > 6 else None)
                 sym = None if n <= 7 or inputln[7] in ("", "None") else inputln[7]
@@ -355,11 +382,15 @@ def main():
     parsed = []
     parsed_sys = []
 
+    outfile = getnm(dbtarget, '.db')
+    sys_table = "sys"
+
     scr = '/tmp/scr'
     cerr = '/tmp/cerr'
 
     db_error = False
     goahead = True
+    is_ps = False
     conn = None
 
     res = 0
@@ -373,9 +404,8 @@ def main():
     # with tempfile.TemporaryDirectory(dir='/tmp') as tempdir:
     #     dbopt = os.path.join(tempdir, dbopt)
 
-    dbopt = getnm(dbtarget, '.db')
     app_dir = os.path.dirname(dbtarget)
-    dbopt = os.path.join(app_dir, dbopt)
+    dbopt = os.path.join(app_dir, outfile)
 
     if os.path.isfile(dbtarget):
         sts = decr(dbtarget, dbopt)
@@ -399,21 +429,28 @@ def main():
 
         parsed = parselog(xdata, 'sortcomplete', checksum)   # SORTCOMPLETE/Log
 
-        # initial Sys profile
-        if ps:
-            sys_table = "sys"
-            if not table_exists_and_has_data(conn, sys_table) and checksum:
+        if table_has_data(conn, sys_table):
+            is_ps = True
+        else:
+            # initial Sys profile
+            if ps and checksum:
+                create_table(c, sys_table, ('timestamp', 'filename', 'changetime',), ['count INTEGER',])
 
                 parsed_sys = hash_system_profile(turbo)
 
                 if parsed_sys:
+
                     try:
 
                         insert(parsed_sys, conn, c, sys_table, "count")
+                        is_ps = True
 
                     except Exception as e:
                         print(f'sys db failed insert {e}  {type(e).__name__} \n{traceback.format_exc()}')
                         db_error = True
+
+            elif ps:
+                print('Sys profile requires the setting checksum to index')
 
         # Log
         if parsed:
@@ -421,7 +458,7 @@ def main():
 
                 try:
 
-                    hanly_parallel(rout, scr, cerr, parsed, checksum, cdiag, dbopt, ps, turbo, user)
+                    hanly_parallel(rout, scr, cerr, parsed, checksum, cdiag, dbopt, is_ps, turbo, user)
 
                 except Exception as e:
                     print(f"hanlydb failed to process on mode {turbo}: {e} {traceback.format_exc()}", file=sys.stderr)
@@ -443,6 +480,7 @@ def main():
                             print(f'Detected {x} CPU cores.')
                     if ANALYTICSECT:
                         print(f'{GREEN}Hybrid analysis on{RESET}')
+
             try:
 
                 xdata = []

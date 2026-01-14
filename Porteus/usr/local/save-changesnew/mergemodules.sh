@@ -1,5 +1,5 @@
-#!/bin/bash
-# Merge modules                                                                                 12/28/2025
+#!/usr/bin/env bash
+# Merge modules                                                                                 01/09/2026
 # only merges  *_uid_*.xzm  in $PWD extramod/ and only deletes the old on successful completion. skips _uid_L # also used for auto merging in /usr/local/bin/save-changesnew 
 . /usr/share/porteus/porteus-functions
 get_colors
@@ -24,13 +24,13 @@ ANALYTICS="true"			# display more verbose output
 ANALYTICSECT="true"	# # disable metric saving time. ect. for ANALYTICS
 
 
-keepMRGED="false"       # default is normally false but we want to rename all .xzms to .bak anyway
+keepMRGED="true"       # default is normally false but we want to rename all .xzms to .bak anyway
 										# in this script regardless of preference
 
 
 ## Diagnostics
 override="true"			# Note this only applies when keepMRGED is false. The script wont by default delete the modules first so if something goes wrong theres no change.
-										# The script first renames them to .bak to avoid file name conflicts on the final save.
+										# The script also renames them to .bak to avoid file name conflicts on the final save.
 									
 									# default true. Extract to /tmp as normal leave modules where they are as normal.
 										
@@ -57,7 +57,7 @@ archLMT="$4"
 r=$( ls | grep '_uid_' | grep -v '_uid_L' | wc -l)  # ls -l | grep -c '_uid_[^L]' original  grep -c '.*_uid_.*.xzm',  original
 if [ "$r" -gt 1 ]; then
 	resolve_conflict "_uid_" "*.xzm" ".xzm" ".bak" $is_moved $oMF  # cds into /tmp or $output if moved
-	if ! is_available "*_uid_*.xzm" $targetem "/tmp" $is_moved "true"; then exit 1 ; fi
+	if ! is_available "*_uid_*.xzm" $targetem "/mnt/live/tmp" $is_moved "true"; then exit 1 ; fi
     mkdir $tmp
 	if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then astart=$(date +%s.%N); fi
     unpack $tmp $QEXCL $oMF $elog $is_routine

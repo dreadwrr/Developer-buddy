@@ -49,9 +49,9 @@ fi
 # Handle filename conflicts and build paths
 resolve_conflict() { 
 :> $oMF
-rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
-[[ "$override" = "false" && "$keepMRGED" = "false" && -z "$rlt" ]] && { is_moved="true" ; output="/tmp/" ; }
-[[ -n "$rlt" && "$override" = "false" ]] && echo "Changes cheatcode active not first moving to /tmp as not tmpfs. continue as normal"
+rlt=$(sed -n '/changes=EXIT:/! s/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
+if [[ "$override" = "false" && "$keepMRGED" = "false" ]]; then [[ -z "$rlt" ]] && is_moved="true" && output="/tmp/" || echo "Changes cheatcode active not first moving to /tmp as not tmpfs. continue as normal" ; fi
+
 for mods in "$PWD/"$2; do 
     [[ "$1" = "_uid_" ]] && [[ "$mods" = *"_uid_L"* ]] && continue
     candidates+=("$mods") ; 
@@ -66,17 +66,21 @@ fi
 if ((${#mdlnames[@]})); then candidates=("${mdlnames[@]}") ; fi  # our .xzms for when moved to /tmp and there are other .xzm in /tmp
 }
 wh_process() {
+shopt -s nullglob
 while IFS= read -r -d '' file; do
 	k="$( echo "$file" | sed -e 's/\.wh\.//g')"  # k=$( echo "$file" | sed -E 's|(.*\/)\.wh\.|\1|') # alternative
 	test -e "$k" && rm -rf "$k" 
 	found="false"
-	for item in "$INAME"/*/"$k"; do [[ -e "$item" ]] && found="true" && break ; done
+	items=( "$INAME"/*/"$k" )
+    if ((${#items[@]})); then found="true" ; fi
+	#for item in "$INAME"/*/"$k"; do [[ -e "$item" ]] && found="true" && break ; done
 	# to exclude the .wh. file. Then remove the .wh. file from the current image.  
 	# fixsqh or fixwh functions from original that convert back to usable path after using for egrep. as egrep and grep need certain escapes
 	# mksquashfs takes a particular format for the exclude file use fixsqh.
 	[[ "$found" = "true" ]] || echo "$file" >> $2  # || { echo "$file" | fixsqh >> $QEXCL ; echo "$file" >> $EXCLUDED; test -e "$file" && rm -f "$file" ; } EXCLUDED is just a list to verify its working left in /tmp
 done < <(find "${1}/" -type f -name '.wh.*' -printf '%P\0')
 unset IFS
+shopt -u nullglob
 }
 wh_conflicts() {
 # remove conflicting whiteouts
