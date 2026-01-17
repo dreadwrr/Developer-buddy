@@ -5,7 +5,7 @@ for Porteus 5.01, 5.1 and Nemesis
 
 A Qt version for Windows 10/11. https://github.com/dreadwrr/Recentchanges <br><br>
 
-Updated bash and bash python with py version changes before release. This includes tested hash collisions, copy detection and finalized hybrid analysis <br> 
+bash and bash python have py version changes. This includes tested hash collisions, copy detection and finalized hybrid analysis <br> 
 Version available <br>
 1.2.6 Bash text backend or bash python database backend <br>
 1.2.6-py1 python edition backend database New release!<br><br>
