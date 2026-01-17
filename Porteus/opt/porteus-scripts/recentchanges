@@ -1,66 +1,68 @@
-#!/bin/bash
-. /usr/share/porteus/porteus-functions
-get_colors
-. /usr/local/save-changesnew/versionquery
-. /usr/local/save-changesnew/validprogram.sh
-eval "$(python3 /usr/local/save-changesnew/get_exports.py)"
-if [ `whoami` != "root" ]; then #if [[ $(whoami) != "root" ]]; su -c "$0"; exit fi  if [[ $(id -u) -ne 0 ]]; then sudo "$0" "$@"; exit 0; fi
-    echo "Please enter your root password below"
-	if [ "$1" == "inv" ]; then argone="noarguser" ; argtwo="noarguser" ; argf="filtered" ; else argone="$1" ; argtwo="$2"  ; fi
-	argthree=`whoami`
-    if [ -z "$argone" ]; then argone="noarguser" ; fi
-    if [ -z "$argtwo" ]; then argtwo="noarguser" ; fi
-	if [ "$2" == "inv" ]; then argtwo="noarguser" ; argf="filtered" ; fi
-	if [ "$3" == "inv" ]; then argf="filtered" ; fi
-	#if [ "$XDG_SESSION_TYPE" = "wayland" ]; then
-		su - -c "/opt/porteus-scripts/recentchanges $argone '$argtwo' $argthree '$PWD' $argf"   
-	#else
-	#	sudo -k                   #gpg 1.4 and agent 2.1.11          uncomment & comment ^
-	#	exec sudo "$0" $argone "$argtwo" $argthree "$PWD"
-	#fi
-    exit
+#!/usr/bin/env bash
+# launcher script for recentchanges			recentchanges v5.0		01/13/2026
+# Note comments are for gpg 1.4 left incase trying to use an old version. Having gpg2 is default and recommended.
+default_user="guest"
+app_install="/usr/local/save-changesnew"
+. "$app_install"/versionquery
+. "$app_install"/validprogram.sh
+. "$app_install"/rntchangesfunctions
+res=1	;	USR=$(whoami)
+if [[ "$1" = "-v" ]]; then get_vrn $1 ; elif [[ "$1" = "--help" ]] || [[ "$1" = "-h" ]] || [[ "$1" = "help" ]] || [[ "$1" = "-help" ]]; then get_vrn $1; fi
+
+if [ $USR != "root" ]; then  # if [[ $(id -u) -ne 0 ]] # if  ! id $USR >/dev/null 2>&1; then echo user: $USR not found; exit 1; fi
+
+	[[ "$1" = "query" ]] && { python3 "$app_install"/query.py $USR ; exit ; }
+	[[ "$1" = "reset" ]] && { python3 "$app_install"/query.py $USR resetgpg ; exit ; }
+	output=$( python3 "$app_install"/get_exports.py $USR) ; res=$?
+	if [[ $res -ne 0 ]]; then echo "Couldnt get config file config.toml" && exit 1 ; fi
+	eval "$output"
+	if ! gpg --list-keys | grep -q $email; then generatekey ; fi  # setup key pair for both user and root
+
+	# alternative method to launch environment for legacy and modifications
+	# sudo -k
+	# exec sudo "$0" $USR "$PWD" $1 "$2" $3  ## change for working with gpg 1.4 and agent 2.1.11 this passes environment variables of actual root used for 1.4 2.1 or if needing display
+
+	echo "Please enter your root password below"
+	su - -c "export LAUNCHED_NON_ROOT='$LAUNCHED_NON_ROOT' ; '$0' $USR '$PWD' $1 '$2' $3"  # env DISPLAY='$DISPLAY' XAUTHORITY='$XAUTHORITY' USR='$USR' 
+	res=$?
+	output_results
 fi
 
-# gpg 1.4.23 and gpg-agent 2.1.11 
-#if ! gpg-connect-agent /bye >/dev/null 2>&1; then        ## change for working with gpg 1.4 and agent 2.1.11  uncomment 851 for pid
+# export DISPLAY=:0
+# export XAUTHORITY=/home/$1/.Xauthority
+#if [ "$XDG_SESSION_TYPE" = "wayland" ]; then ; fi
+
+# gpg 1.4.23 and gpg-agent 2.1.11 legacy
+#if ! gpg-connect-agent /bye >/dev/null 2>&1; then ## change for working with gpg 1.4 and agent 2.1.11  uncomment 38 for pid
 #    green "Starting gpg-agent..."
 #    eval "$(gpg-agent --daemon)"
 #    #AGENT_PID=$(pgrep -u root -n gpg-agent)
 #    export GPG_TTY=$(tty)
 #    export GPG_AGENT_INFO=/root/.gnupg/S.gpg-agent:0:1
 #fi
-SRCDIR="noarguser"
-argf=$5
-# Handle rnt inverse switching
-arge=()
-for item in "$@"; do if [ "$item" != "inv" ]; then arge+=("$item") ; else arge+=("") ; argf="filtered" ; fi ;done
-p=${#arge[@]} ; while (( p < 5 )); do arge+="" ; ((p++)) ; done
-# Handle root call
-THETIME="${arge[1]}"
-USR="${arge[2]}"
-passdir="${arge[3]}"
-if [ -z "$argf" ]; then argf="bnk"; fi #Default
-export DISPLAY=:0 # for tkl and root xed featherpad
-export XAUTHORITY=/home/$USR/.Xauthority
-if [ "${arge[1]}" == "" ]; then THETIME="noarguser" ; fi
-if [ "${arge[2]}" == "" ] || [ "${arge[3]}" == "" ]; then USR="guest" ; passdir=$PWD ; fi #Default user
-if [ "${arge[2]}" == "SRC" ]; then echo "Incorrect usage please use recentchanges SRC s , s SRC or SRC" && exit 1; fi
-if  ! id $USR>/dev/null 2>&1; then echo "user: $USR not found"; exit 1; fi
-#Fork
-if [ "${arge[0]}" == "search" ]; then
-   	test -d "$passdir" || { echo  "not a valid directory. usage recentchanges search time."; exit 1; }
-   	python3 /usr/local/save-changesnew/recentchangessearch.py "${arge[0]}" "$THETIME" "$USR" "$passdir" $argf
-   	exit
-elif [ "${arge[0]}" == "query" ]; then
-	python3 /usr/local/save-changesnew/query.py $pydbpst $email $USR $flth $pydbpst $logpst $statpst
-	exit
+
+if [[ -z "$LAUNCHED_NON_ROOT" ]]; then
+	[[ "$default_user" != "root" ]]  && echo query and text editor cant be run as root. comment out this line to run as root. if always root set default_user to root && exit 0
+	[[ "$1" = "query" ]] && { python3 "$app_install"/query.py $default_user ; exit ; }
+	[[ "$1" = "reset" ]] && { python3 "$app_install"/query.py $default_user resetgpg ; exit ; }
+
+	output=$( python3 "$app_install"/get_exports.py $default_user) ; res=$?
+	if [[ $res -ne 0 ]]; then echo "Couldnt get config file config.toml" && exit 1 ; fi
+	eval "$output"
+
+	if [[ "$default_user" = "root" ]]; then
+		if ! gpg --list-keys | grep -q $email; then generatekey ; fi  # setup key pair for root
+	else
+		if ! gpg --list-keys | grep -q $email; then echo "set default_user to normal user and generate key pair as non root first then run search as root. both need the same key pair" ; exit ; fi
+	fi
+
+	python3 "$app_install"/rntchanges.py $default_user "$PWD" "$@"
+	res=$?
+	output_results
 fi
-# 'recentchanges'
-argf="bnk"
-THETIME="${arge[0]}" # shift for this script
-if [ "${arge[0]}" == "" ]; then THETIME="noarguser" ; fi # root call
-[ "$THETIME" == "SRC" ] &&{ SRCDIR=$THETIME; THETIME="${2:-noarguser}"; } # shift
-[ "${arge[1]}" == "SRC" ] && SRCDIR=${arge[1]} || { [[ "${arge[1],,}" == "search" ]] && echo "The SRC tag is for recentchanges only" && exit; }
-python3 /usr/local/save-changesnew/recentchangessearch.py "$THETIME" "$SRCDIR" $USR "$passdir" $argf "rnt" "Refer to /rntfiles_MDY folder for the previous search"
-exit
+
+python3 "$app_install"/rntchanges.py "$@"
+res=$?
 #if [ -n "$AGENT_PID" ]; then kill "$AGENT_PID"; fi
+exit $res
+
