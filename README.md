@@ -17,6 +17,10 @@ recentchanges<br>
 recentchanges search<br>
 recentchanges query<br>
 recentchanges reset<br><br>
+also a shortcut (for rnt search it inverses so for recentchanges search it normally doesnt apply a filter but now it will) for a file search recentchanges search it  will remove the filter as that is normally filtered.<br>
+rnt
+rnt search
+rnt query
 The command recentchanges query , uses tkinter to show the database <br> download links https://forum.porteus.org/go.php?https://drive.google.com/file/d/1IfC8x5G_c80hMTbezKU_DarK45XsqbwY/view?usp=sharing <br>or search in package manager for tk <br><br>
 Manual
 https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0  
