@@ -1,361 +1,318 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       11/19/2025
-import csv
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database.     01/09/2026
 import os
 import sqlite3
-import subprocess
 import sys
 import sysprofile
-import tempfile
 import traceback
-import time
 from hanlyparallel import hanly_parallel
-from io import StringIO
 from rntchangesfunctions import getnm
+from rntchangesfunctions import intst
+from rntchangesfunctions import decr
+from rntchangesfunctions import encr
+from rntchangesfunctions import removefile
+from pyfunctions import ccheck
 from pyfunctions import unescf_py
 from pyfunctions import getcount
 from pyfunctions import cprint
 
-count=0
+count = 0
 
-def dict_string(data: list[dict]) -> str:
-    if not data:
-        return ""
-    
-    output = StringIO()
-    writer = csv.DictWriter(output, fieldnames=data[0].keys(), delimiter='|', quoting=csv.QUOTE_MINIMAL)
-    writer.writeheader()
-    writer.writerows(data)
-    return output.getvalue()
 
-# enc mem
-def encrm(c_data: str, opt: str, r_email: str, compress: bool = True, armor: bool = False) -> bool:
-      try:
-            cmd = [
-            "gpg",
-            "--batch",
-            "--yes",
-            "--encrypt",
-            "-r", r_email,
-            "-o", opt
-            ]
+def table_has_data(conn, table_name):
+    c = conn.cursor()
+    c.execute("""
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name=?
+    """, (table_name,))
+    if not c.fetchone():
+        c.close()
+        return False
+    c.execute(f"SELECT 1 FROM {table_name} LIMIT 1")
+    res = c.fetchone() is not None
+    c.close()
+    return res
 
-            if not compress:
-                  cmd.extend(["--compress-level", "0"])
 
-            if armor:
-                  cmd.append("--armor")
+def create_table(c, table, unique_columns, e_cols=None):
+    columns = [
+        'id INTEGER PRIMARY KEY AUTOINCREMENT',
+        'timestamp TEXT',
+        'filename TEXT',
+        'changetime TEXT',
+        'inode TEXT',
+        'accesstime TEXT',
+        'checksum TEXT',
+        'filesize INTEGER',
+        'symlink TEXT',
+        'owner TEXT',
+        '`group` TEXT',
+        'permissions TEXT',
+        'casmod TEXT',
+        'lastmodified TEXT'
+    ]
+    if e_cols:
+        if isinstance(e_cols, str):
+            e_cols = [col.strip() for col in e_cols.split(',') if col.strip()]
+        columns += e_cols
 
-            result = subprocess.run(
-                  cmd,
-                  input=c_data.encode("utf-8"),
-                  check=True,
-                  stdout=subprocess.PIPE,
-                  stderr=subprocess.PIPE,
-            )
-            return True
+    col_str = ',\n      '.join(columns)
+    unique_str = ', '.join(unique_columns)
+    sql = f'''
+    CREATE TABLE IF NOT EXISTS {table} (
+    {col_str},
+    UNIQUE({unique_str})
+    )
+    '''
+    c.execute(sql)
 
-      except subprocess.CalledProcessError as e:
-            err_msg = e.stderr.decode().strip() if e.stderr else str(e)
-            print(f"[ERROR] Encryption failed: {err_msg}")
-            return False
+    sql = 'CREATE INDEX IF NOT EXISTS'
 
-# dec mem
-def decrm(src):
-      if os.path.isfile(src):
-            try:
-                  cmd = [
-                        "gpg",
-                        "--quiet",
-                        "--batch",
-                        "--yes",
-                        "--decrypt",
-                        src
-                  ]
-                  result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-                  return result.stdout 
-            except subprocess.CalledProcessError as e:
-                  print(f"[ERROR] Decryption failed: {e}")
-                  return None
-      else:
-            print('No .gpg file')
-            return None
-    
-def encr(database, opt, email, nc, md):
-    try:
-            cmd =       [
-                  "gpg",
-                  "--yes",
-                  "--encrypt",
-                  "-r", email,
-                  "-o", opt,
-            ]
-            if nc:
-                  cmd.extend(["--compress-level", "0"])
-            cmd.append(database)
-            subprocess.run(cmd, check=True)
-            if md:
-                  os.remove(database)
-            return True
-    except subprocess.CalledProcessError as e:
-            print(f"[ERROR] Encryption failed: {e}")
-            return False
-def decr(src, opt):
-      if os.path.isfile(src):
-            try:
-                  cmd = [
-                  "gpg",
-                  "--yes",
-                  "--decrypt",
-                  "-o", opt,
-                  src
-                  ]
-                  subprocess.run(cmd, check=True)
-                  return True
-            except subprocess.CalledProcessError as e:
-                  print(f"[ERROR] Decryption failed: {e}")
-                  return False
-      else:
-            print('no .gpg file')
-            return False
-def table_exists_and_has_data(conn, table_name):
-      c = conn.cursor()
-      c.execute("""
-            SELECT name FROM sqlite_master
-            WHERE type='table' AND name=?
-      """, (table_name,))
-      if not c.fetchone():
-            return False
-      c.execute(f"SELECT 1 FROM {table_name} LIMIT 1")
-      if c.fetchone():
-            return True
-      else:
-            return False
-      
-def create_table(c, table, last_column, unique_columns):
-      columns = [
-            'id INTEGER PRIMARY KEY AUTOINCREMENT',
-            'timestamp TEXT',
-            'filename TEXT',
-            'changetime TEXT',
-            'inode TEXT',
-            'accesstime TEXT',
-            'checksum TEXT',
-            'filesize TEXT',
-            'symlink TEXT',
-            'owner TEXT',
-            '`group` TEXT',
-            'permissions TEXT',
-            'casmod TEXT',
-            'lastmodified TEXT',
-            f'{last_column} TEXT',
-            'escapedpath TEXT' 
-      ]
-      col_str = ',\n      '.join(columns)
-      unique_str = ', '.join(unique_columns)
-      sql = f'''
-      CREATE TABLE IF NOT EXISTS {table} (
-      {col_str},
-      UNIQUE({unique_str})
-      )
-      '''
-      c.execute(sql)
+    if table == 'logs':
+        c.execute(f'{sql} idx_logs_checksum ON logs (checksum)')
+        c.execute(f'{sql} idx_logs_filename ON logs (filename)')
+        c.execute(f'{sql} idx_logs_checksum_filename ON logs (checksum, filename)')  # Composite
+    else:
+        c.execute(f'{sql} idx_sys_checksum ON sys (checksum)')
+        c.execute(f'{sql} idx_sys_filename ON sys (filename)')
+        c.execute(f'{sql} idx_sys_checksum_filename ON sys (checksum, filename)')
 
-      sql='CREATE INDEX IF NOT EXISTS'
-      
-      if table == 'logs':
-            c.execute(f'{sql} idx_logs_checksum ON logs (checksum)')
-            c.execute(f'{sql} idx_logs_filename ON logs (filename)')
-            c.execute(f'{sql} idx_logs_checksum_filename ON logs (checksum, filename)') # Composite
-      else:
-            c.execute(f'{sql} idx_sys_checksum ON sys (checksum)')
-            c.execute(f'{sql} idx_sys_filename ON sys (filename)')
-            c.execute(f'{sql} idx_sys_checksum_filename ON sys (checksum, filename)')
 
 def create_db(database, action=None):
-      print('Initializing database...')
- 
-      conn = sqlite3.connect(database)
-      c = conn.cursor()
-      create_table(c, 'logs', 'hardlinks', ('timestamp','filename', 'changetime')) 
+    print('Initializing database...')
 
-      create_table(c, 'sys', 'count', ('timestamp', 'filename', 'changetime',))
+    conn = sqlite3.connect(database)
+    c = conn.cursor()
 
-      c.execute('''
-      CREATE TABLE IF NOT EXISTS stats (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            action TEXT,
-            timestamp TEXT,
-            filename TEXT,
-            changetime TEXT,
-			UNIQUE(timestamp, filename, changetime)
-            )
-      ''')
-      conn.commit()
-      if action:
-            return (conn)
-      else:
-            conn.close()
+    create_table(c, 'logs', ('timestamp', 'filename', 'changetime'), ['hardlinks INTEGER',])
 
-def insert(log, conn, c, table, last_column): # Log, sys
-      global count
-      count = getcount(c)
-      
-      columns = [
-            'timestamp', 'filename', 'changetime', 'inode', 'accesstime', 
-            'checksum', 'filesize', 'symlink', 'owner', '`group`', 
-            'permissions', 'casmod', 'lastmodified', last_column, 'escapedpath'
-      ]
-      placeholders = ', '.join(['Trim(?)'] * len(columns))
-      col_str = ', '.join(columns)
-      c.executemany(
-            f'INSERT OR IGNORE INTO {table} ({col_str}) VALUES ({placeholders})',
-            log
-      )
+    create_table(c, 'sys', ('timestamp', 'filename', 'changetime',), ['count INTEGER',])
 
-      if table == 'logs':
-            blank_row = tuple([None] * len(columns))
-            c.execute(
-                  f'INSERT INTO {table} ({col_str}) VALUES ({", ".join(["?"]*len(columns))})',
-                  blank_row
-            )
-
-      conn.commit()
-
-def insert_if_not_exists(action, timestamp, filename, changetime, conn, c): # Stats 
-      timestamp = timestamp or None
-      c.execute('''
-      INSERT OR IGNORE INTO stats (action, timestamp, filename, changetime)
-      VALUES (?, ?, ?, ?)
-      ''', (action, timestamp, filename, changetime))
-      conn.commit()
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS stats (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        action TEXT,
+        timestamp TEXT,
+        filename TEXT,
+        changetime TEXT,
+        UNIQUE(timestamp, filename, changetime)
+        )
+    ''')
+    conn.commit()
+    if action:
+        return conn
+    else:
+        conn.close()
 
 
-def main(xdata, COMPLETE, dbtarget, rout, checksum, cdiag, email, ANALYTICSECT, ps, nc, user='guest'):
+def insert(log, conn, c, table, last_column):  # Log, sys
+    global count
+    count = getcount(c)
 
-      parsed = []
-      parsedsys=[]
-      dbe=False
-      goahead=True                
-      conn=None
-      dbopt=getnm(dbtarget, 'db')
+    columns = [
+        'timestamp', 'filename', 'changetime', 'inode', 'accesstime',
+        'checksum', 'filesize', 'symlink', 'owner', '`group`',
+        'permissions', 'casmod', 'lastmodified', last_column
+    ]
+    placeholders = ', '.join(['?'] * len(columns))
+    col_str = ', '.join(columns)
+    c.executemany(
+        f'INSERT OR IGNORE INTO {table} ({col_str}) VALUES ({placeholders})',
+        log
+    )
 
-      with tempfile.TemporaryDirectory(dir='/tmp') as tempdir:
-            dbopt=os.path.join(tempdir, dbopt)
+    if table == 'logs':
+        blank_row = tuple([None] * len(columns))
+        c.execute(
+                f'INSERT INTO {table} ({col_str}) VALUES ({", ".join(["?"]*len(columns))})',
+                blank_row
+        )
 
-            if os.path.isfile(dbtarget):
-                  sts=decr(dbtarget, dbopt)
-                  if not sts:
-                        print('Find out why db not decrypting or delete it to make a new one')
-                        return
-            else:
-                  try:
-                        conn = create_db(dbopt, True)
-                        cprint.green('Persistent database created')
-                        goahead=False
-                  except Exception as e:
-                        print("Failed to create db:", e)
-            if not conn:                
-                  conn = sqlite3.connect(dbopt)
-            with conn:
-                  c = conn.cursor()
-
-                  parsed=xdata
-
-                  # Proteus shield initial Sys profile
-                  if ps:
-                        sys_table="sys"
-                        if not table_exists_and_has_data(conn, sys_table) and checksum:
-                              cprint.cyan('Generating system profile from base .xzms.') 
-
-                              try:
-                                    parsedsys = sysprofile.main() # hash base xzms
-                                    
-                              except Exception as e:
-                                    print(f'sysprofile.py failed to hash. {type(e).__name__} {e} \n {traceback.format_exc()} ')
-                                    parsedsys = None
+    conn.commit()
 
 
-                              if parsedsys:
-                                    try: 
-                                          insert(parsedsys, conn, c, sys_table, "count") 
-                                          
-                                    except Exception as e:
-                                          print('sys db failed insert', e)
-                                          dbe=True
-
-                  # Log
-                  if parsed:
-                        if goahead: # Hybrid analysis. Skip first pass ect.
-
-                              try: 
-                                    
-                  
-                                    hanly_parallel(rout, parsed, checksum, cdiag, dbopt, ps, user, dbtarget)
-
-                                    x=os.cpu_count()
-                                    if x:
-                                          if os.path.isfile('/tmp/cerr'):
-                                                with open('/tmp/cerr', 'r') as f:
-                                                      contents = f.read()
-                                                if not ('Suspect' in contents or 'COLLISION' in contents):
-                                                      print(f'Detected {x} CPU cores.')
-                                          else:
-                                                print(f'Detected {x} CPU cores.')
-                                    if ANALYTICSECT:
-                                          cprint.green('Hybrid analysis on')
+def insert_if_not_exists(action, timestamp, filename, changetime, conn, c):  # Stats
+    timestamp = timestamp or None
+    c.execute('''
+    INSERT OR IGNORE INTO stats (action, timestamp, filename, changetime)
+    VALUES (?, ?, ?, ?)
+    ''', (action, timestamp, filename, changetime))
+    conn.commit()
 
 
-                              except Exception as e:
-                                    print(f"hanlydb failed to process : {e} {type(e).__name__} \n {traceback.format_exc()}", file=sys.stderr)
+def main(dbtarget, xdata, COMPLETE, logging_values, rout, scr, cerr, mMODE, checksum, cdiag, email, ANALYTICSECT, ps, compLVL, user, dcr=False):
 
-                  
-                        try: 
-                              insert(parsed, conn, c, "logs", "hardlinks")
-                              if count % 10 == 0:
-                                    print(f'{count + 1} searches in gpg database')
+    parsedsys = []
 
-                        except Exception as e:
-                              print('log db failed insert', e)
-                              dbe=True
+    outfile = getnm(dbtarget, '.db')
+    sys_table = "sys"
 
-                  # Stats
-                  if rout: 
+    new_profile = False
+    db_error = False
+    goahead = True
+    is_ps = False
+    conn = None
 
-                        if COMPLETE: # store no such files
-                              rout.extend([" ".join(map(str, item)) for item in COMPLETE])
-                            #rout.extend(" ".join(map(str, item)) for item in COMPLETE)
+    res = 0
 
-                        try:
-                              for record in rout:
-                                    parts = record.strip().split(None, 5)
-                                    if len(parts) < 6:
-                                          continue
-                                    action = parts[0]
-                                    timestamp = f'{parts[1]} {parts[2]}'
-                                    changetime = f'{parts[3]} {parts[4]}'
-                                    fp_escaped = parts[5]
-                                    fp = unescf_py(fp_escaped) 
-                                    insert_if_not_exists(action, timestamp, fp, changetime, conn, c)
+    # original with a temp dir cant leave db to reencrypt if everything succeeds but only reencryption fails. so leave in app directory with proper perms
+    # TEMPDIR = tempfile.gettempdir()
+    # TEMPDIR = tempfile.mkdtemp()
+    # os.makedirs(TEMPDIR, exist_ok=True)
+    # with tempfile.TemporaryDirectory(dir=TEMPDIR) as mainl:
+    # dbopt = getnm(dbtarget, 'db')   # generic output database
+    # with tempfile.TemporaryDirectory(dir='/tmp') as tempdir:
+    #     dbopt = os.path.join(tempdir, dbopt)
 
-                        except Exception as e:
-                              print('stats db failed to insert', e)
-                              dbe=True
+    app_dir = os.path.dirname(dbtarget)
+    dbopt = os.path.join(app_dir, outfile)
 
-                  if not dbe: # Encrypt if o.k.
-                        try:
-                              sts=encr(dbopt, dbtarget, email, nc, True)
-                              if not sts:		
-                                    print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}  before running again.')
+    if os.path.isfile(dbtarget):
+        sts = decr(dbtarget, dbopt)
+        if not sts:
+            if sts is None:
+                print(f"pstsrg unable to do hybrid analysis No key for {dbtarget} delete it to make a new one.")
+            return 2
+    else:
+        try:
+            conn = create_db(dbopt, True)
+            cprint.green('Persistent database created')
+            goahead = False
+        except Exception as e:
+            print("Failed to create db:", e)
+    if not conn:
+        if not os.path.isfile(dbopt):
+            print("pstsrg.py couldnt locate database: ", dbopt, " quiting.")
+            return 1
+        conn = sqlite3.connect(dbopt)
+    with conn:
+        c = conn.cursor()
 
-                        except Exception as e:
-                              print(f'Encryption failed: {e}')
+        if table_has_data(conn, sys_table):
+            is_ps = True
+        else:
+            # initial Sys profile
+            if ps and checksum:
 
-                  else:
-                              
-                        if os.path.isfile(dbopt):
-                              os.remove(dbopt)
-                        print(f'There is a problem with the database.')
+                create_table(c, sys_table, ('timestamp', 'filename', 'changetime',), ['count INTEGER',])
+                new_profile = True
 
-if __name__ == "__main__":
-      main()
+                try:
+
+                    parsedsys = sysprofile.main(mMODE, logging_values)  # hash base xzms
+
+                except Exception as e:
+                    print(f'sysprofile.py failed to hash. {type(e).__name__} {e} \n {traceback.format_exc()} ')
+                    parsedsys = None
+
+                if parsedsys:
+                    try:
+
+                        insert(parsedsys, conn, c, sys_table, "count")
+                        is_ps = True
+
+                    except Exception as e:
+                        print(f'sys db failed insert {e}  {type(e).__name__} \n{traceback.format_exc()}')
+                        db_error = True
+
+            elif ps:
+                print('Sys profile requires the setting checksum to index')
+
+        # Log
+        if xdata:
+
+            if goahead:  # Hybrid analysis. Skip first pass ect.
+
+                try:
+
+                    hanly_parallel(rout, scr, cerr, mMODE, xdata, checksum, cdiag, dbopt, is_ps, user, logging_values)
+
+                except Exception as e:
+                    print(f"hanlydb failed to process on mode {mMODE}: {e} {traceback.format_exc()}", file=sys.stderr)
+
+                if mMODE == 'mc':
+                    x = os.cpu_count()
+                    if x:
+                        if os.path.isfile(cerr):
+                            with open(cerr, 'r') as f:
+                                contents = f.read()
+                            if not contents:
+                                print("No output in cerr", cerr)
+                            elif ('Suspect' in contents or 'COLLISION' in contents):
+                                print("Warning:  Suspect or collision detected")
+                            else:
+                                print(f'Detected {x} CPU cores.')
+                        else:
+                            print(f'Detected {x} CPU cores.')
+                if ANALYTICSECT:
+                    cprint.green('Hybrid analysis on')
+
+            try:
+
+                parsed = []
+                for record in xdata:
+                    parsed.append(record[:14])
+
+                insert(parsed, conn, c, "logs", "hardlinks")
+                if count % 10 == 0:
+                    print(f'{count + 1} searches in gpg database')
+
+            except Exception as e:
+                print(f'log db failed insert err: {e} {type(e).__name__}  \n{traceback.format_exc()}')
+                db_error = True
+
+            # Check for hash collisions
+            if checksum and cdiag:
+                ccheck(xdata, cerr, c, ps)
+
+        # Stats
+        if rout:
+
+            if COMPLETE:  # store no such files
+                rout.extend([" ".join(map(str, item)) for item in COMPLETE])
+                # rout.extend(" ".join(map(str, item)) for item in COMPLETE)
+
+            try:
+                for record in rout:
+                    # parts = record.strip().split(None, 5)  # original
+                    parts = record.strip().split(maxsplit=5)
+                    if len(parts) < 6:
+                        continue
+                    action = parts[0]
+                    timestamp = f'{parts[1]} {parts[2]}'
+                    changetime = f'{parts[3]} {parts[4]}'
+                    fp_escaped = parts[5]
+                    fp = unescf_py(fp_escaped)
+                    insert_if_not_exists(action, timestamp, fp, changetime, conn, c)
+
+            except Exception as e:
+                print(f'stats db failed to insert err: {e}  \n{traceback.format_exc()}')
+                db_error = True
+
+    if not db_error:  # Encrypt if o.k.
+        try:
+
+            nc = intst(dbopt, compLVL)
+            sts = encr(dbopt, dbtarget, email, no_compression=nc, dcr=dcr)
+            if not sts:
+                res = 3  # & 2 gpg problem
+                print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}  before running again to preserve data.')
+
+        except Exception as e:
+            res = 3
+            print(f'Encryption failed: {e}')
+
+    else:
+        res = 4  # delete any changes made.
+        print('There is a problem with the database.')
+
+    if (dcr and res != 3) or not dcr:
+        removefile(dbopt)
+    if res == 0 and new_profile:
+        return "new_profile"
+    elif res == 0:
+        return 0
+        # return dbopt
+    elif res == 3:
+        return "encr_error"
+    return None

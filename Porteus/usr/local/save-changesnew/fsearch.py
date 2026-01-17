@@ -1,178 +1,205 @@
-# Get metadata hash of files and return array                       11/19/2025
+# Get metadata hash of files and return array 01/13/2026
+import logging
 import multiprocessing
-import traceback
 import os
+import traceback
 from datetime import datetime
 from fsearchfnts import calculate_checksum
 from fsearchfnts import get_cached
-#from fsearchfnts import issym
+from fsearchfnts import set_stat
 from fsearchfnts import upt_cache
 from pyfunctions import epoch_to_date
 from pyfunctions import escf_py
 from pyfunctions import is_integer
-from pyfunctions import unescf_py
+from pyfunctions import setup_logger
 
 fmt = "%Y-%m-%d %H:%M:%S"
 
+
 # Parallel SORTCOMPLETE search and  ctime hashing
 #
-def process_line(line, checksum, updatehlinks, file_type, CACHE_F):
-    label="Sortcomplete"
-    CSZE = 1024 * 1024
+def process_line(line, checksum, updatehlinks, file_type, search_start_dt, CACHE_F):
+    label = "Sortcomplete"
+    CSZE = 1048576
+
     lastmodified = None
     checks = None
     cam = None
-    hardlink =None
-    parts = line.split(maxsplit=8)
-    if len(parts) < 9:
+    hardlink = None
+
+    if len(line) < 11:
+        logging.debug("process_line record length less than required 11. skipping.. record: %s", line)
         return None
 
-    mod_time, access_time, change_time, inode, size, user, group, mode, escf_path = parts
+    mod_time, access_time, change_time, inode, symlink, hardlink, size, user, group, mode, file_path = line
 
-    file_name = unescf_py(escf_path)
-    if not os.path.exists(file_name):
+    escf_path = escf_py(file_path)
+    if not os.path.exists(file_path):
         return None
     mtime = epoch_to_date(mod_time)
-    if not os.path.isfile(file_name):
+    if not os.path.isfile(file_path):
         if not mtime:
             mt = datetime.now().strftime(fmt)
         else:
             mt = mtime.replace(microsecond=0)
         return ("Nosuchfile", mt, mt, escf_path)
     ctime = epoch_to_date(change_time)
-    if not ctime and file_type == "ctime":
-        return
-    if not (file_type == "ctime" and ctime > mtime) and file_type != "main": 
-        return
     if mtime is None:
         return
+    if not ctime and file_type == "ctime":
+        return
+    if not (file_type == "ctime" and ctime is not None and ctime > mtime) and file_type != "main":
+        return
+
     try:
-        if is_integer(size):
-            size_int = int(size)
-        else:
-            size_int = os.path.getsize(file_name)
+        size_int = is_integer(size)
+        if size_int is None:
+            size_int = os.path.getsize(file_path)
     except (FileNotFoundError, PermissionError, TypeError, ValueError):
+        logging.debug("process_line invalid size skipping..from find parsing: %s, for line: %s", size, line)
         size_int = None
 
+    mtime_epoch = mtime.timestamp()
     if checksum:
-        if size_int is not None and size_int > CSZE:
-            checks = get_cached(CACHE_F, size, mod_time, escf_path)
-            if checks is None:
-                label="Cwrite"
-                checks = calculate_checksum(file_name)
-        else:
-            checks = calculate_checksum(file_name)
+        if size_int is not None:
+            if size_int > CSZE:
+                cached = get_cached(CACHE_F, size_int, mtime_epoch, escf_path)
+                if cached is None:
+                    checks, file_dt, st, status = calculate_checksum(file_path, mtime, mtime_epoch, inode, size_int, retry=1, cacheable=True)
+                    if checks and file_dt:
+                        if st:
+                            if status == "Retried":
+                                if file_type != "ctime":
+                                    mtime, ctime, inode, size_int, user, group, mode, symlink, hardlink = set_stat(line, file_dt, st, inode, user, group, mode, symlink, hardlink)
 
-    if updatehlinks:
-        try:
-            # except not required but put inplace incase needing to get stat from file
-            hardlink = os.stat(file_name, follow_symlinks=False).st_nlink 
-        except FileNotFoundError as e:
-            hardlink = None
-        except Exception as e:
-            print(f"Error while trying to get hardlinks of file {file_name} {e} : {type(e).__name__}")
+                            label = "Cwrite"
+                else:
+                    checks = cached.get("checksum")
+            else:
+                checks, file_dt, st, status = calculate_checksum(file_path, mtime, mtime_epoch, inode, size_int, retry=1, cacheable=False)
+                if checks and file_dt:
+                    if st:
+                        if status == "Retried":
+                            if file_type != "ctime":
+                                mtime, ctime, inode, size_int, user, group, mode, symlink, hardlink = set_stat(line, file_dt, st, inode, user, group, mode, symlink, hardlink)
 
-    hardlink = hardlink - 1 if hardlink else None
-
-    sym = "y" if os.path.islink(file_name) else None
+    if not updatehlinks:
+        hardlink = None
+    sym = "y" if isinstance(symlink, str) and symlink.startswith("l") else None
 
     if file_type == "ctime":
         lastmodified = mtime
         mtime = ctime
         cam = "y"
-    
+
     atime = epoch_to_date(access_time)
 
-    # tuple 
+    # satisfy Pyright
+    if mtime is None or (file_type == "main" and mtime < search_start_dt):
+        logging.debug("Warning system cache conflict detected: %s mtime=%s was older than cutoff=%s which shouldnt happen", escf_path, mtime, search_start_dt)
+        return
+    elif mtime < search_start_dt and label == "Cwrite":
+        label = ""
+    mtime_epoch = mtime.timestamp()
+    # tuple
     return (
-
         label,
         mtime.replace(microsecond=0),
-        file_name,
+        file_path,
         ctime.strftime(fmt) if ctime is not None else None,
         inode,
         atime.strftime(fmt) if atime is not None else None,
         checks,
-        str(size_int),
+        size_int,
         sym,
         user,
         group,
         mode,
         cam,
         lastmodified.strftime(fmt) if lastmodified is not None else None,
-        str(hardlink),
-        escf_path
+        hardlink,
+        escf_path,
+        mtime_epoch
     )
+
 
 def process_sys_line(line, checksum):
 
-    label="Sortcomplete"
-
-    lastmodified = None
+    label = "Sortcomplete"
+    checks = None
     cam = None
     lastmodified = None
-    cval = "0"
-    parts = line.split(maxsplit=8)
-    if len(parts) < 9:
-        return None
+    count = 0
 
-    mod_time, access_time, change_time, inode, size, user, group, mode, escf_path = parts
+    fields = line.split(maxsplit=9)
+    if len(fields) < 10:
+        logging.debug("process_sys_line record length less than required 10. skipping.. record: %s", line)
+        return
 
-    file_name = unescf_py(escf_path)
-    if not os.path.exists(file_name):
+    mod_time, access_time, change_time, inode, symlink, size, user, group, mode, file_path = fields
+
+    if not os.path.exists(file_path):
         return None
     mtime = epoch_to_date(mod_time)
-    if not os.path.isfile(file_name):
+    if not os.path.isfile(file_path):
         if not mtime:
             mt = datetime.now().strftime(fmt)
         else:
             mt = mtime.replace(microsecond=0)
+        escf_path = escf_py(file_path)
         return ("Nosuchfile", mt, mt, escf_path)
     if mtime is None:
         return
-    checks = None
-    if checksum:
-        checks = calculate_checksum(file_name)
-    sym = "y" if os.path.islink(file_name) else None   
+
     try:
-        if is_integer(size):
-            size_int = int(size)
-        else:
-            size_int = os.path.getsize(file_name)
+        size_int = is_integer(size)
+        if size_int is None:
+            size_int = os.path.getsize(file_path)
     except (FileNotFoundError, PermissionError, TypeError, ValueError):
+        logging.debug("process_sys_line invalid size skipping..from find parsing: %s, for line: %s", size, line)
         size_int = None
-    ctime = epoch_to_date(change_time)    
+
+    ctime = epoch_to_date(change_time)
+
+    mtime_epoch = mtime.timestamp()
+    if checksum:
+        checks, file_dt, st, status = calculate_checksum(file_path, mtime, mtime_epoch, inode, size_int, retry=1, cacheable=False)
+        if checks and file_dt:
+            if st:
+                if status == "Retried":
+                    mtime, ctime, inode, size_int, user, group, mode, symlink, _ = set_stat(line, file_dt, st, inode, user, group, mode, symlink)
+
+    sym = "y" if isinstance(symlink, str) and symlink.startswith("l") else None
     atime = epoch_to_date(access_time)
 
-    # tuple 
     return (
         label,
         mtime.replace(microsecond=0),
-        file_name,
+        file_path,
         ctime.strftime(fmt) if ctime is not None else None,
         inode,
         atime.strftime(fmt) if atime is not None else None,
         checks,
-        str(size_int),
+        size_int,
         sym,
         user,
         group,
         mode,
         cam,
         lastmodified,
-        str(cval),
-        escf_path
+        count
     )
+
 
 def process_line_worker(args):
     try:
-        chunk, checksum, updatehlinks, file_type, table, CACHE_F = args
-    except (ValueError, Exception) as e: 
-        ems = f"Error processing line in process_line_worker: {e} : {type(e).__name__}"
-        print(ems)
-        #logging.error(f"{ems} {e}", exc_info=True)
+        chunk, checksum, updatehlinks, file_type, table, search_start_dt, process_label, logging_values, CACHE_F = args
+    except (ValueError, TypeError) as e:
+        print(f"Error process_line_worker. passed args: {args} \nerr: {e} : {type(e).__name__} \n {traceback.format_exc()}")
         return None
-            
+
+    setup_logger(logging_values[1], process_label, logging_values[0])
+
     t_chunk = len(chunk)
 
     results = []
@@ -180,13 +207,12 @@ def process_line_worker(args):
     for i, line in enumerate(chunk):
         try:
             if table != "sys":
-                result = process_line(line, checksum, updatehlinks, file_type, CACHE_F)
+                result = process_line(line, checksum, updatehlinks, file_type, search_start_dt, CACHE_F)
             else:
                 result = process_sys_line(line, checksum)
         except Exception as e:
-            ems = f"process_line_worker filetype {file_type} table {table} - Error processing line {i} in chunk of {t_chunk - 1}: {e} : {type(e).__name__} \n {traceback.format_exc()}"
-            print(ems)
-            #logging.error(f"process_line_worker Error processing line {i} in chunk {chunk_index}: {e}", exc_info=True)
+            print(f"process_line_worker - skipping - Error processing line {i} in chunk of {t_chunk - 1}: {e} : {type(e).__name__}")
+            logging.error(f"process_line_worker filetype {file_type} table {table} - Error processing line {i} in chunk of {t_chunk - 1}: {e} : {type(e).__name__}", exc_info=True)
             result = None
 
         if result is not None:
@@ -194,61 +220,77 @@ def process_line_worker(args):
     return results
 
 
-def process_lines(lines, checksum, updatehlinks, file_type, table, CACHE_F):
+def process_lines(lines, mMODE, checksum, updatehlinks, file_type, table, search_start_dt, process_label, logging_values, CACHE_F):
 
-
-    if len(lines) < 30:
-        chunk_args = [(lines, checksum, updatehlinks, file_type, table, CACHE_F)]
+    if len(lines) < 30 or mMODE == "default":
+        chunk_args = [(lines, checksum, updatehlinks, file_type, table, search_start_dt, process_label, logging_values, CACHE_F)]
         ck_results = [process_line_worker(arg) for arg in chunk_args]
     else:
-        max_workers = max(1, min(8, os.cpu_count() or 4, len(lines)))
+        min_chunk_size = 10
+        max_workers = max(1, min(8, os.cpu_count() or 4, len(lines) // min_chunk_size))
 
         chunk_size = max(1, (len(lines) + max_workers - 1) // max_workers)
         chunks = [lines[i:i + chunk_size] for i in range(0, len(lines), chunk_size)]
 
-        chunk_args = [(chunk, checksum, updatehlinks, file_type, table, CACHE_F) for chunk in chunks]
+        chunk_args = [(chunk, checksum, updatehlinks, file_type, table, search_start_dt, process_label, logging_values, CACHE_F) for chunk in chunks]
         with multiprocessing.Pool(processes=max_workers) as pool:
             ck_results = pool.map(process_line_worker, chunk_args)
 
-    results = [item for sublist in ck_results if sublist is not None for item in sublist] # flatten the list
+    results = [item for sublist in ck_results if sublist is not None for item in sublist]  # flatten the list
 
+    logger = logging.getLogger("FSEARCH")
     sortcomplete = []
     complete = []
     cwrite = []
 
     for res in results:
-        if res is None:
+        if res is None or not res:
             continue
-        if isinstance(res, tuple) and len(res) > 0: 
+        if isinstance(res, tuple) and len(res) > 3:
             if res[0] == "Nosuchfile":
-      
-                epath = escf_py(res[3]) if len(res) > 3 else ""
-
-                complete.append((res[0], res[1], res[2], epath))
-
+                complete.append((res[0], res[1], res[2], res[3]))
             elif res[0] == "Cwrite":
                 cwrite.append(res[1:])
                 sortcomplete.append(res[1:])
             else:
                 sortcomplete.append(res[1:])
 
-    existing_keys = set()
+    try:
+        # existing_keys = set()
 
-    if cwrite and table not in ('sys', 'watch'):
-        
-        if CACHE_F:
-            for row in CACHE_F:
-                key = (row["checksum"], row["size"], row["mtime"], row["path"])
-                existing_keys.add(key)
+        if table != 'sys' and cwrite:
 
-        for res in cwrite:
-            epath = res[14]
-            upt_cache(CACHE_F, existing_keys, res[6], res[0].strftime("%Y-%m-%d %H:%M:%S"), res[5], epath) 
+            # for root, versions in CACHE_F.items():
+            #     for modified_ep, row in versions.items():
+            #         key = (
+            #             row.get("checksum"),
+            #             row.get("size"),
+            #             modified_ep,
+            #             root
+            #         )
+            #         existing_keys.add(key)
+
+            for res in cwrite:
+                time_stamp = res[0].strftime("%Y-%m-%d %H:%M:%S")
+                # file_path = res[1]
+                checks = res[5]
+                file_size = res[6]
+                # user = res[8]
+                # group = res[9]
+                epath = res[14]
+                mtime_epoch = res[15]
+
+                upt_cache(CACHE_F, checks, file_size, time_stamp, mtime_epoch, epath)
+
+    except Exception as e:
+        msg = f'Error updating cache: {type(e).__name__}: {e}'
+        print(msg)
+        logger.error(msg, exc_info=True)
 
     return sortcomplete, complete
 
 
-def process_find_lines(lines, checksum, updatehlinks, file_type, table, CACHE_F):
-    return process_lines(lines, checksum, updatehlinks, file_type, table, CACHE_F)
-                                                                                            #
-                                                                    #End parallel #
+def process_find_lines(lines, mMODE, checksum, updatehlinks, file_type, table, search_start_dt, process_label, logging_values, CACHE_F):
+    return process_lines(lines, mMODE, checksum, updatehlinks, file_type, table, search_start_dt, process_label, logging_values, CACHE_F)
+#
+# End parallel #
