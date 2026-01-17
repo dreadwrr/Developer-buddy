@@ -2,7 +2,7 @@
 Python edition <br>
 Released v1.2.6-py1 with finalized, inotify wait and other features!<br><br>
 Differences from bash and bash\python backends is the find command is streamed with the main search written in python. <br><br>
-xRC inotify, isdiff, logic, output, filterhits, process hybrid analysis, filter output pretty much all the logic rewritten in python
+xRC inotify, isdiff, logic, display, filterhits, process hybrid analysis, filter output pretty much all the logic rewritten in python
 slight change in data handling with use of arrays vs files in bash ( rout the file that handles ha output and file actions)
 the filter is filter.py and there is a config.toml <br><br>
 
