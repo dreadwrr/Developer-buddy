@@ -118,8 +118,8 @@ def calculate_checksum(file_path, mtime, mod_time, inode, size_int, prev_hash=No
             else:
                 logging.debug("calculate_checksum Size was zero or unlikely hash failed tried skipping file: %s checksum %s and total_size %s", file_path, checks, total_size)
 
-    except (FileNotFoundError, PermissionError):
-        logging.error("calculate_checksum File not found or permission: %s ", file_path)
+    except (FileNotFoundError, PermissionError) as e:
+        logging.error("calculate_checksum File not found or permission: %s error: %s", file_path, e)
     except Exception as e:
         logging.error("Exception calculating checksum for file: %s total_size %s size_int %s error: %s \n", file_path, total_size, size_int, e, exc_info=True)
         return None, None, None, "Error"

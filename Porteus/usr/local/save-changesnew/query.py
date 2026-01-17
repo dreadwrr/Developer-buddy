@@ -6,7 +6,6 @@ import shutil
 import sqlite3
 import subprocess
 import sys
-import sysprofile
 import tempfile
 import tkinter as tk
 import traceback
@@ -245,14 +244,66 @@ def activateps(parsedsys, database, target, conn, cur, email, compLVL):
     return True
 
 
+def run_sys_profile(appdata_local, tempdir, database, target, config_file, email, ll_level, turbo, compLVL):
+
+    script_file = "hash_profile.py"
+    script_path = appdata_local / script_file
+    log_file = appdata_local / "logs"
+    try:
+        cmd = [
+            "sudo",
+            sys.executable,
+            "-u",
+            script_path,
+            str(appdata_local),
+            str(tempdir),
+            database,
+            target,
+            config_file,
+            email,
+            ll_level,
+            turbo,
+            str(compLVL)
+        ]
+        # script_dir = os.path.dirname(script_path)
+        script_dir = str(script_path.parent)
+        result = subprocess.Popen(cmd, cwd=script_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, universal_newlines=True)
+        stdout = result.stdout
+        if stdout is None:
+            print("stdout is None")
+            return False
+            # raise RuntimeError("stdout is None")
+        for line in stdout:
+            print(line, end="")
+
+        return_code = result.wait()
+
+        if return_code == 0:
+            return True
+
+        if result.returncode == 1:
+            print("Profile failed in", script_path)
+        print("see logfile ", log_file)
+
+    except Exception as e:
+        msg = f"Error calling {script_path} error: {e} {type(e).__name__}"
+        print(msg)
+        logging.error(msg, exc_info=True)
+    return False
+
+
 def ps(database, target, conn, cur, config_file, email, turbo, compLVL, logging_values):
-    parsed_sys = []
+
+    appdata_local = logging_values[0]
+    ll_level = logging_values[1]
+    tempdir = logging_values[2]
 
     if not table_has_data(conn, "sys"):
 
-        parsed_sys = sysprofile.main(turbo, logging_values)
+        result = run_sys_profile(appdata_local, tempdir, database, target, config_file, email, ll_level, turbo, compLVL)
 
     else:
+
         user_input = input("Previous sys data has to be cleared. continue? (y/n): ").strip().lower()
         if user_input != 'y':
             return False
@@ -262,21 +313,9 @@ def ps(database, target, conn, cur, config_file, email, turbo, compLVL, logging_
             print("initial Sys clear failed. exiting...")
             return False
 
-        parsed_sys = sysprofile.main(turbo, logging_values)
+        result = run_sys_profile(appdata_local, tempdir, database, target, config_file, email, ll_level, turbo, compLVL)
 
-    # process results
-    if parsed_sys:
-
-        if activateps(parsed_sys, database, target, conn, cur, email, compLVL):
-
-            update_config(config_file, "proteusSHIELD", "false")
-
-            return True
-        else:
-            print("Failed to insert profile into db")
-    else:
-        print(f"System profile failed in {logging_values[0]}/sysprofile")
-    return False
+    return result
 
 
 def dexec(cur, actname, limit):

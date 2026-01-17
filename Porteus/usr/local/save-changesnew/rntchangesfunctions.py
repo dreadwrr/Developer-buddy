@@ -526,18 +526,12 @@ def changeperm(path, uid, gid=0, mode=0o644):
 
 
 def get_usr():
-    USR = None
     try:
-        USR = getpass.getuser()
+        return getpass.getuser()
     except OSError:
-        print("unable to get username attempting fallback")
-    if USR:
-        return USR
-    else:
-        USR = Path.home().parts[-1]
-        if USR:
-            return USR
-    return None
+        print("unable to get username, using fallback")
+        # fallback to last folder in home path
+        return Path.home().parts[-1]
 
 
 # recentchanges
@@ -654,9 +648,9 @@ def copy_files(RECENT, RECENTNUL, TMPOPT, argone, THETIME, argtwo, USR, TEMPDIR,
 
             return result
         except Exception as e:
-            msg = f"Error copying files for recentchanges script {script_path} error:"
-            print(f"{msg} {e} {type(e).__name__}")
-            logging.error(f"{msg} {e} {type(e).__name__}", exc_info=True)
+            msg = f"Error copying files for recentchanges script {script_path} error: {e} {type(e).__name__}"
+            print(msg)
+            logging.error(msg, exc_info=True)
 
 
 def check_for_gpg():
