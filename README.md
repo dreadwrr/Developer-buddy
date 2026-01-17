@@ -1,6 +1,6 @@
-#                               01/08/2025
+#                               01/17/2026
 Python edition <br>
-Update soon to be released with finalized ha and improvements <br><br>
+Released v1.2.6 with finalized, inotify wait and other features!<br><br>
 Differences from bash and bash\python backends is the find command is streamed with the main search written in python.
 
 
