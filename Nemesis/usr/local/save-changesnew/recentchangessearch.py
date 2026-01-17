@@ -305,6 +305,9 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
 
         # Main search
 
+        current_time = datetime.now()
+        search_start_dt = (current_time - timedelta(minutes=search_time))
+
         # bypass ctime loop
         if tout:
             mmin = ["-mmin", f"-{search_time}"]
@@ -313,7 +316,7 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
 
             find_command_mmin = F + PRUNE + mmin + TAIL
             init = True
-            RECENT, COMPLETE_1, RECENTNUL, end, cstart = find_files(find_command_mmin, search_paths, mMODE, "mtime", RECENT, COMPLETE_1, RECENTNUL, init, checksum, updatehlinks, cfr, FEEDBACK, logging_values, end, cstart)  # bypass ctime loop if xRC
+            RECENT, COMPLETE_1, RECENTNUL, end, cstart = find_files(find_command_mmin, search_paths, mMODE, "mtime", RECENT, COMPLETE_1, RECENTNUL, init, checksum, updatehlinks, cfr, FEEDBACK, search_start_dt, logging_values, end, cstart)  # bypass ctime loop if xRC
         # standard execution
         else:
             cmin = ["-cmin", f"-{search_time}"]
@@ -323,7 +326,7 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
 
             find_command_cmin = F + PRUNE + cmin + TAIL
             init = True
-            tout, COMPLETE_2, RECENTNUL, end, cstart = find_files(find_command_cmin, search_paths, mMODE, "ctime", tout, COMPLETE_2, RECENTNUL, init, checksum, updatehlinks, cfr, FEEDBACK, logging_values, end, cstart)
+            tout, COMPLETE_2, RECENTNUL, end, cstart = find_files(find_command_cmin, search_paths, mMODE, "ctime", tout, COMPLETE_2, RECENTNUL, init, checksum, updatehlinks, cfr, FEEDBACK, search_start_dt, logging_values, end, cstart)
             cmin_end = time.time()
             cmin_start = current_time.timestamp()
             cmin_offset = convertn(cmin_end - cmin_start, 60, 2)
@@ -333,9 +336,8 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
                 search_paths = 'Running command:' + ' '.join(["find"] + search_list + mmin + TAIL)
             find_command_mmin = F + PRUNE + mmin + TAIL
             init = False
-            RECENT, COMPLETE_1, RECENTNUL, end, cstart = find_files(find_command_mmin, search_paths, mMODE, "mtime", RECENT, COMPLETE_1, RECENTNUL, init, checksum, updatehlinks, cfr, FEEDBACK, logging_values, end, cstart)
-        if ANALYTICSECT:
-            cend = time.time()
+            RECENT, COMPLETE_1, RECENTNUL, end, cstart = find_files(find_command_mmin, search_paths, mMODE, "mtime", RECENT, COMPLETE_1, RECENTNUL, init, checksum, updatehlinks, cfr, FEEDBACK, search_start_dt, logging_values, end, cstart)
+        cend = time.time()
         # end Main search
 
         if stopf:
@@ -363,6 +365,7 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
         SORTCOMPLETE.sort(key=lambda x: x[0])
 
         SRTTIME = SORTCOMPLETE[0][0]
+
         merged = SORTCOMPLETE[:]
 
         for entry in tout:
@@ -421,6 +424,12 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
         else:
             lines = SORTCOMPLETE
 
+        # with open("/home/guest/martar3", 'w') as f:
+        #    for entry in SORTCOMPLETE:
+        #        tss = entry[0].strftime(fmt)
+        #        fp = entry[1]
+        #        f.write(f'{tss} {fp}\n')
+
         # filter out the /tmp files
         # remove all tmp folders if it is `recentchanges` or method "rnt". if it is `recentchanges search` or method "" put them in a seperate file
         # temp = tempfile.gettempdir()
@@ -451,6 +460,12 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
         TMPOPT = filtered_lines
 
         RECENT = TMPOPT[:]
+
+        # with open("/home/guest/martar2", 'w') as f:
+        #    for entry in TMPOPT:
+        #        tss = entry[0].strftime(fmt)
+        #        fp = entry[1]
+        #        f.write(f'{tss} {fp}\n')
 
         # Apply filter used for results, copying. RECENT unfiltered stored in db.
         TMPOPT = filter_lines_from_list(TMPOPT,  escaped_user)
@@ -634,8 +649,8 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
                                 group = record[9]  # 10
                                 cam = record[11]  # 11
                                 lastmodified = record[12] if record[12] else "None None"    # 12 13
-                                is_copy = "y" if record[14] in copy_paths else "None"            # 14
-                                file_path = record[14]                                                                  # 15
+                                is_copy = "y" if record[14] in copy_paths else "None"       # 14
+                                file_path = record[14]                                      # 15
                                 # inode = record[3]
                                 # checksum = record[5]
                                 # mode = record[10]

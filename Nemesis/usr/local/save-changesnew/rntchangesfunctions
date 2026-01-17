@@ -81,6 +81,7 @@ EOF
 		fi
 		shred -u $xopt/keyparams.conf
 		if [[ "$USR" != "root" ]]; then
+            echo "Please enter password for root"
 			printf '%s' "$p" | "${cmd[@]}"  --batch --yes --pinentry-mode loopback --passphrase-fd 0 --export-secret-keys --armor $email > $xopt/key.asc
 			printf '%s' "$p" | sudo "${cmd[@]}"  --batch --yes --pinentry-mode loopback --passphrase-fd 0 --import $xopt/key.asc
 			shred -u $xopt/key.asc
@@ -111,13 +112,13 @@ EOF
 display() {
 local locale=$1
 if [[ -n "$locale" && "$dspEDITOR" != "false" ]]; then
-    if [[ -n "$dspPATH" ]]; then [[ ! -e "$dspPATH" ]] && { echo "dspPATH setting invalid - ${dspPATH} not found" >&2 ;  return 1 ; } ; "$dspPATH" $locale && return ; echo "Error: Failed to open ${locale} with ${dspPATH}" >&2 ; return 1 ; fi
-	[[ -n "$dspEDITOR" && "$dspEDITOR" != "xed" && "$dspEDITOR" != "featherpad" ]] && echo "$dspEDITOR chosen if using other editor please specify dspPATH" && exit 1 || { [[ -z "$dspEDITOR" ]] && exit 1 ; }
+    if [[ -n "$dspPATH" ]]; then [[ ! -e "$dspPATH" ]] && { echo "dspPATH setting invalid - ${dspPATH} not found" >&2 ; return 1 ; } ; "$dspPATH" "$locale" && return ; echo "Error: Failed to open ${locale} with ${dspPATH}" >&2 ; return 1 ; fi
+	[[ -n "$dspEDITOR" && "$dspEDITOR" != "xed" && "$dspEDITOR" != "featherpad" ]] && echo "$dspEDITOR chosen if using other editor please specify dspPATH" && return 1 || { [[ -z "$dspEDITOR" ]] && return 1 ; }
 	editor_path=$( which $dspEDITOR 2> /dev/null)
 	if [[ -n "$editor_path" ]]; then
-		test -e $editor_path && "$editor_path" $locale && return  || { ! test -e "$editor_path" && echo couldnt launch $dspEDITOR at "$editor_path" ; }
+		test -e $editor_path && "$editor_path" "$locale" && return || { ! test -e "$editor_path" && echo couldnt launch $dspEDITOR at "$editor_path" ; }
 	else
-		test -e /usr/bin/$dspEDITOR && /usr/bin/$dspEDITOR $locale && return  || { ! test -e /usr/bin/$dspEDITOR && echo couldnt find $dspEDITOR in path or in default /usr/bin please specify  dspPATH for editor ; }
+		test -e /usr/bin/$dspEDITOR && /usr/bin/$dspEDITOR "$locale" && return  || { ! test -e /usr/bin/$dspEDITOR && echo couldnt find $dspEDITOR in path or in default /usr/bin please specify dspPATH: "$tomlf" ; }
 	fi
 	return 1
 fi
@@ -126,8 +127,7 @@ fi
 # load text editor if user want to display as non root
 output_results() {
 	local file_out="$lclhome"/file_output
-
-	if [[ $res -eq 0 ]]; then test -f $file_out && var=$( cat "$lclhome"/file_output) && display $var ; test -f $file_out && rm $file_out ; fi
+	if [[ $res -eq 0 ]]; then test -f $file_out && var=$( cat "$lclhome"/file_output) && display "$var" ; test -f $file_out && rm $file_out ; fi
 	exit $res
 }
 
@@ -273,7 +273,8 @@ IFS=' ' read -r mtime atime itime i sym n fs onr grp pmr cFILE <<< "$cur_line"
 log_lineout $7 $8 "$log_date" "itime: $itime and mtime: $mtime , pblk after parsing line in $cur_line"
 
 cFILE="$( ap_safeline_dec "$cFILE")"
-y="$( ap_enc "$cFILE")" 
+# y="$( ap_enc "$cFILE")"  # formerlly for bash parsing
+y="$( escf "$cFILE")" 
 mtime_sec=${mtime%%.*}
 itime_sec=${itime%%.*}
 mt=$(date -d "@$mtime_sec" +"$fmt")
@@ -317,6 +318,8 @@ if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 
 					itime_frac=$(( 10#$itime_frac ))
 					mtime_frac=$(( 10#$mtime_frac ))
+                    # change_t=$(echo "scale=0; $itime * 100000000 / 1" | bc)
+                    # item_frac=$(( change_t % 100000000 ))
                     if (( itime_sec == mtime_sec && itime_frac > mtime_frac )) || (( itime_sec > mtime_sec )); then   # awk -v it="$itime" -v mt="$mtime" 'BEGIN {exit !(it > mt)}'; then
 
                         log_lineout $7 $8 "$log_date" "change time: $itime and mtime: $mtime , pblk passed processed line in $cur_line"
@@ -338,7 +341,7 @@ if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
                     log_lineout $7 $8 "$log_date" "pblk results $output"
                 fi
             else
-                log_lineout $7 $8 "$log_date" "pblk no checksum skipping $1"  # debug           
+                log_lineout $7 $8 "$log_date" "pblk no checksum skipping $1"
             fi
         else
             log_lineout $7 $8 "$log_date" "pblk checksum is false skipping $1"

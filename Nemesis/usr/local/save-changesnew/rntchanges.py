@@ -19,8 +19,8 @@
 # argtwo - search time for `recentchanges search`
 # argf - inv flag from rnt symlink
 import sys
-from query import main as query_main
 from recentchangessearch import main as recentchanges_main
+# from query import main as query_main
 
 
 # Handle inv flag
@@ -62,13 +62,13 @@ def main(argv):
     if argone == "search":  # recentchanges search
         return recentchanges_main(argone, THETIME, USR, PWD, argf, "")
 
-    elif argone == "query":
+    # elif argone == "query":
 
-        return query_main(USR)
+    #     return query_main(USR)
 
-    elif argone == "reset":
+    # elif argone == "reset":
 
-        return query_main(USR, "resetgpg")
+    #     return query_main(USR, "resetgpg")
 
     else:  # recentchanges
         argf = "bnk"

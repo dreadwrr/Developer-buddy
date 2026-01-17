@@ -6,7 +6,6 @@ import shutil
 import sqlite3
 import subprocess
 import sys
-import sysprofile
 import tempfile
 import tkinter as tk
 import traceback
@@ -29,6 +28,7 @@ from pyfunctions import reset_csvliteral
 from pyfunctions import setup_logger
 from rntchangesfunctions import cprint
 from rntchangesfunctions import getnm
+from rntchangesfunctions import get_usr
 from rntchangesfunctions import intst
 from rntchangesfunctions import removefile
 from rntchangesfunctions import update_config
@@ -244,14 +244,66 @@ def activateps(parsedsys, database, target, conn, cur, email, compLVL):
     return True
 
 
+def run_sys_profile(appdata_local, tempdir, database, target, config_file, email, ll_level, turbo, compLVL):
+
+    script_file = "hash_profile.py"
+    script_path = appdata_local / script_file
+    log_file = appdata_local / "logs"
+    try:
+        cmd = [
+            "sudo",
+            sys.executable,
+            "-u",
+            script_path,
+            str(appdata_local),
+            str(tempdir),
+            database,
+            target,
+            config_file,
+            email,
+            ll_level,
+            turbo,
+            str(compLVL)
+        ]
+        # script_dir = os.path.dirname(script_path)
+        script_dir = str(script_path.parent)
+        result = subprocess.Popen(cmd, cwd=script_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, universal_newlines=True)
+        stdout = result.stdout
+        if stdout is None:
+            print("stdout is None")
+            return False
+            # raise RuntimeError("stdout is None")
+        for line in stdout:
+            print(line, end="")
+
+        return_code = result.wait()
+
+        if return_code == 0:
+            return True
+
+        if result.returncode == 1:
+            print("Profile failed in", script_path)
+        print("see logfile ", log_file)
+
+    except Exception as e:
+        msg = f"Error calling {script_path} error: {e} {type(e).__name__}"
+        print(msg)
+        logging.error(msg, exc_info=True)
+    return False
+
+
 def ps(database, target, conn, cur, config_file, email, turbo, compLVL, logging_values):
-    parsed_sys = []
+
+    appdata_local = logging_values[0]
+    ll_level = logging_values[1]
+    tempdir = logging_values[2]
 
     if not table_has_data(conn, "sys"):
 
-        parsed_sys = sysprofile.main(turbo, logging_values)
+        result = run_sys_profile(appdata_local, tempdir, database, target, config_file, email, ll_level, turbo, compLVL)
 
     else:
+
         user_input = input("Previous sys data has to be cleared. continue? (y/n): ").strip().lower()
         if user_input != 'y':
             return False
@@ -261,21 +313,9 @@ def ps(database, target, conn, cur, config_file, email, turbo, compLVL, logging_
             print("initial Sys clear failed. exiting...")
             return False
 
-        parsed_sys = sysprofile.main(turbo, logging_values)
+        result = run_sys_profile(appdata_local, tempdir, database, target, config_file, email, ll_level, turbo, compLVL)
 
-    # process results
-    if parsed_sys:
-
-        if activateps(parsed_sys, database, target, conn, cur, email, compLVL):
-
-            update_config(config_file, "proteusSHIELD", "false")
-
-            return True
-        else:
-            print("Failed to insert profile into db")
-    else:
-        print(f"System profile failed in {logging_values[0]}/sysprofile")
-    return False
+    return result
 
 
 def dexec(cur, actname, limit):
@@ -484,10 +524,16 @@ def get_key_fingerprint(email, no_key=False):
     return None
 
 
-def gpg_can_decrypt(dbtarget):
+def gpg_can_decrypt(usr, dbtarget):
     # emtpy results
     if not os.path.isfile(dbtarget):
         return True
+    if usr != 'root':
+        st = os.stat(dbtarget)
+        is_owned_by_root = (st.st_uid == 0)
+        if is_owned_by_root:
+            print(f"{dbtarget} is owned by root. permission must be owned by {usr}. set permission to continue.")
+            sys.exit(1)
 
     result = subprocess.run(
         ["sudo", "gpg", "--decrypt", "--dry-run", dbtarget],
@@ -496,42 +542,60 @@ def gpg_can_decrypt(dbtarget):
     return result.returncode == 0
 
 
-def delete_gpg_keys(usr, email, dbtarget, ctimecache, no_key):
+def delete_gpg_keys(usr, email, dbtarget, ctimecache):
 
-    def exec_delete_keys(usr, email, fingerprint, follow_up=False):
+    def exec_delete_keys(usr, current_usr, email, fingerprint):
         silent: dict[str, Any] = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
-        if usr == 'root' or follow_up:
+
+        if usr == 'root':
             subprocess.run(["gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
             subprocess.run(["gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
         else:
             subprocess.run(["gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
             subprocess.run(["gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
-            subprocess.run(["sudo", "gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
-            subprocess.run(["sudo", "gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
+            if current_usr == 'root':
+                subprocess.run(["sudo", "-u", usr, "gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
+                subprocess.run(["sudo", "-u", usr, "gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
+            else:
+                subprocess.run(["sudo", "gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
+                subprocess.run(["sudo", "gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
         print("Keys cleared for", email, " fingerprint: ", fingerprint)
 
     while True:
 
-        uinp = input(f"Reset\\delete gpg keys for {email} (Y/N): ").strip().lower()
+        uinp = input(f"Warning recent.gpg will be cleared. Reset\\delete gpg keys for {email} (Y/N): ").strip().lower()
         if uinp == 'y':
             confirm = input("Are you sure? (Y/N): ").strip().lower()
             if confirm == 'y':
-                fingerprint = get_key_fingerprint(email, no_key=no_key)
-                if fingerprint:
-                    removefile(ctimecache)
-                    exec_delete_keys(usr, email, fingerprint)
 
-                    # situation could happen when theres two keys pairs and above only thought root had the key
-                    # but the user may have an invalid key still so delete there too
-                    if usr != 'root' and no_key:
-                        fingerprint = get_key_fingerprint(email, no_key=False)
-                        if fingerprint:
-                            exec_delete_keys(usr, email, fingerprint, follow_up=True)
-                    print(f"\nDelete {dbtarget} if it exists as it uses the old key pair.")
+                result = False
+
+                current_usr = get_usr()
+
+                # look in root for key
+                fingerprint = get_key_fingerprint(email, no_key=True)
+                if fingerprint:
+                    result = True
+                    # delete for user and root
+                    exec_delete_keys(usr, current_usr, email, fingerprint)
+
+                # look for key in user
+                fingerprint = get_key_fingerprint(email, no_key=False)
+                if fingerprint:
+                    result = True
+                    exec_delete_keys(usr, current_usr, email, fingerprint)
+
+                removefile(ctimecache)
+                removefile(dbtarget)
+
+                if result:
+
+                    # print(f"\nDelete {dbtarget} if it exists as it uses the old key pair.")
                     return 1
                 else:
                     print(f"No key found for {email}")
                     return 2
+
             else:
                 uinp = 'n'
 
@@ -558,7 +622,7 @@ def reset_gpg_keys(usr, email, dbtarget, ctimecache, agnostic_check, no_key=Fals
     elif agnostic_check is True and no_key is False:
         print("only user has key. Select n and manually import the key for root to fix it. or delete the key pair to reset state.\n")
     print("A problem was detected with key pair. ")
-    return delete_gpg_keys(usr, email, dbtarget, ctimecache, no_key)
+    return delete_gpg_keys(usr, email, dbtarget, ctimecache)
 
 
 def main(usr, reset=None):
@@ -585,7 +649,8 @@ def main(usr, reset=None):
     no_key = False
 
     if reset:
-        return delete_gpg_keys(usr, email, dbtarget, ctimecache, no_key=no_key)
+
+        return delete_gpg_keys(usr, email, dbtarget, ctimecache)
 
     try:
 
@@ -596,15 +661,16 @@ def main(usr, reset=None):
 
             dbopt = os.path.join(tempdir, output)
 
-            # application runs as root check that there are no problems there
+            #  the search runs as root check that there are no problems there
 
-            if not gpg_can_decrypt(dbtarget):
+            if not gpg_can_decrypt(usr, dbtarget):
                 agnostic_check = True
 
             # can easily break if trying to automate fixing keys. let the user do it if wanted.
 
             result = decr(dbtarget, dbopt)
             if result:
+
                 # User has key root doesnt. give instructions to fix it or just delete the pair to reset
                 if agnostic_check:
                     reset_gpg_keys(usr, email, dbtarget, ctimecache, agnostic_check, no_key=no_key)
@@ -732,8 +798,8 @@ def main(usr, reset=None):
             elif result is None:
                 no_key = True
 
-                # Root has key user doesnt. try to resolve key problem
                 if not agnostic_check:
+                    # Root has key user doesnt. try to resolve key problem
                     reset_gpg_keys(usr, email, dbtarget, ctimecache, agnostic_check, no_key=no_key)
 
                 else:
@@ -741,9 +807,11 @@ def main(usr, reset=None):
                     print(f"No key for {dbtarget} or {ctime_path} delete it to make a new one.")
 
             else:
-                # if no recent.gpg file exception
+
                 if os.path.isfile(dbtarget):
-                    print('Find out why not decrypting or delete it to make a new one for file: ', dbtarget)
+                    print('Find out why not decrypting. If unable to fix call: recentchanges reset  . unable to decrypt file: ', dbtarget)
+
+                # else if no recent.gpg there was an exception
                 return 1
 
     except Exception as e:

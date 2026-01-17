@@ -170,7 +170,8 @@ def main(dbtarget, xdata, COMPLETE, logging_values, rout, scr, cerr, mMODE, chec
     if os.path.isfile(dbtarget):
         sts = decr(dbtarget, dbopt)
         if not sts:
-            print('Find out why db not decrypting or delete it to make a new one')
+            if sts is None:
+                print(f"pstsrg unable to do hybrid analysis No key for {dbtarget} delete it to make a new one.")
             return 2
     else:
         try:

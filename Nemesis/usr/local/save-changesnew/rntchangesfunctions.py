@@ -301,7 +301,7 @@ def porteus_linux_check():
 
 
 # One search ctime > mtime for downloaded, copied or preserved metadata files. cmin. Main search for mtime newer than mmin.
-def find_files(find_command, search_paths, mMODE, file_type, RECENT, COMPLETE, RECENTNUL, init, checksum, updatehlinks, cfr, FEEDBACK, logging_values, end, cstart):
+def find_files(find_command, search_paths, mMODE, file_type, RECENT, COMPLETE, RECENTNUL, init, checksum, updatehlinks, cfr, FEEDBACK, search_start_dt, logging_values, end, cstart):
 
     table = "logs"
     try:
@@ -355,9 +355,9 @@ def find_files(find_command, search_paths, mMODE, file_type, RECENT, COMPLETE, R
         cprint.cyan("Running checksum")
 
     if file_type == "mtime":
-        RECENT, COMPLETE = process_find_lines(records, mMODE, checksum, updatehlinks, "main", table, 'FSEARCH', logging_values, cfr)
+        RECENT, COMPLETE = process_find_lines(records, mMODE, checksum, updatehlinks, "main", table, search_start_dt, 'FSEARCH', logging_values, cfr)
     elif file_type == "ctime":
-        RECENT, COMPLETE = process_find_lines(records, mMODE, checksum, updatehlinks, "ctime", table, 'FSEARCH', logging_values, cfr)
+        RECENT, COMPLETE = process_find_lines(records, mMODE, checksum, updatehlinks, "ctime", table, search_start_dt, 'FSEARCH', logging_values, cfr)
     else:
         raise ValueError(f"Unknown file type: {file_type}")
 
@@ -526,18 +526,12 @@ def changeperm(path, uid, gid=0, mode=0o644):
 
 
 def get_usr():
-    USR = None
     try:
-        USR = getpass.getuser()
+        return getpass.getuser()
     except OSError:
-        print("unable to get username attempting fallback")
-    if USR:
-        return USR
-    else:
-        USR = Path.home().parts[-1]
-        if USR:
-            return USR
-    return None
+        print("unable to get username, using fallback")
+        # fallback to last folder in home path
+        return Path.home().parts[-1]
 
 
 # recentchanges
@@ -654,9 +648,9 @@ def copy_files(RECENT, RECENTNUL, TMPOPT, argone, THETIME, argtwo, USR, TEMPDIR,
 
             return result
         except Exception as e:
-            msg = f"Error copying files for recentchanges script {script_path} error:"
-            print(f"{msg} {e} {type(e).__name__}")
-            logging.error(f"{msg} {e} {type(e).__name__}", exc_info=True)
+            msg = f"Error copying files for recentchanges script {script_path} error: {e} {type(e).__name__}"
+            print(msg)
+            logging.error(msg, exc_info=True)
 
 
 def check_for_gpg():
@@ -810,30 +804,36 @@ def encrm(c_data: str, opt: str, r_email: str, no_compression: bool = True, armo
 
 # dec mem
 def decrm(src):
-    if os.path.isfile(src):
-        try:
-            cmd = [
-                "gpg",
-                "--quiet",
-                "--batch",
-                "--yes",
-                "--decrypt",
-                src
-            ]
 
-            result = subprocess.run(cmd, check=True, capture_output=True, text=True, encoding="utf-8")
+    try:
+        cmd = [
+            "gpg",
+            "--quiet",
+            "--batch",
+            "--yes",
+            "--decrypt",
+            src
+        ]
 
-            return result.stdout
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")  # check=True removed for parsing errors
+        if result.returncode != 0:
+            if result.returncode == 2:
+                stderr = (result.stderr or "").lower()
+                if "permission" not in stderr and "pinentry" not in stderr:
+                    # No key
+                    return None
+            raise subprocess.CalledProcessError(result.returncode, cmd, output=result.stdout, stderr=result.stderr)
+        return result.stdout
 
-        except subprocess.CalledProcessError as e:
-            print(f"[ERROR] Cache Decryption failed: {e} {type(e).__name__} \n {traceback.format_exc()}")
-            combined = "\n".join(filter(None, [e.stdout, e.stderr]))
-            if combined:
-                print(combined)
-            return None
-    else:
-        print('No .gpg cache file', src)
-        return None
+    except subprocess.CalledProcessError as e:
+        print(f"[ERROR] Cache Decryption failed: {e} {type(e).__name__} \n {traceback.format_exc()}")
+        combined = "\n".join(filter(None, [e.stdout, e.stderr]))
+        if combined:
+            print(combined)
+        if "permission" in (e.stderr or "").lower():
+            print("Invalid password or Pinentry problem ensure using the correct pinentry package 15.0 or current. current for porteus alpha")
+            print("Alternatively try to use pinentry-gtk-2 so root can prompt for password**")
+        return False
 
 
 def encr(database, opt, email, no_compression, dcr=False):
@@ -876,9 +876,11 @@ def decr(src, opt):  # traceback ****
             ]
             result = subprocess.run(cmd, capture_output=True, text=True)  # check=True
 
-            if result.returncode == 2:
-                return None
-            elif result.returncode != 0:
+            if result.returncode != 0:
+                if result.returncode == 2:
+                    if "pinentry" not in (result.stderr or "").lower():
+                        # No key
+                        return None
                 raise subprocess.CalledProcessError(result.returncode, cmd, output=result.stdout, stderr=result.stderr)
             return True
 
@@ -904,8 +906,10 @@ def decr_ctime(CACHE_F):
 
     csv_path = decrm(CACHE_F)
     if not csv_path:
+        if csv_path is None:
+            print("Root doesnt have the key.")
+            print("if having problems run recentchanges query to try to repair key pair or delete the file.")
         print(f"Unable to retrieve cache file {CACHE_F} quitting.")
-        print("if having problems run recentchanges query to try to repair key pair or delete the file.")
         sys.exit(1)
 
     cfr_src = {}

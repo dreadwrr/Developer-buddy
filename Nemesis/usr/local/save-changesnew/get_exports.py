@@ -52,6 +52,7 @@ def get_exports():
 
     export_a = {
         "lclhome": str(appdata_local),
+        "tomlf": str(toml_file),
         "LAUNCHED_NON_ROOT": user,
         "XDG_CONFIG_HOME": xdg
     }

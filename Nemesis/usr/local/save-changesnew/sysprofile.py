@@ -157,8 +157,9 @@ def main(turbo, logging_values):
 
     diff = systemf_set - xdata_set
 
-    xdata, COMPLETE_2 = process_lines(xdata_raw, turbo, True, False, "main", "sys", "PROCESS_SYS", logging_values, CACHE_F)
-    systemf, COMPLETE_1 = process_lines(list(diff), turbo, False, False, "main", "sys", "PROCESS_SYS", logging_values, CACHE_F)
+    search_start_dt = None
+    xdata, COMPLETE_2 = process_lines(xdata_raw, turbo, True, False, "main", "sys", search_start_dt, "PROCESS_SYS", logging_values, CACHE_F)
+    systemf, COMPLETE_1 = process_lines(list(diff), turbo, False, False, "main", "sys", search_start_dt, "PROCESS_SYS", logging_values, CACHE_F)
 
     SORTCOMPLETE = xdata + systemf
 

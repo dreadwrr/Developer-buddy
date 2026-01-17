@@ -18,7 +18,7 @@ fmt = "%Y-%m-%d %H:%M:%S"
 
 # Parallel SORTCOMPLETE search and  ctime hashing
 #
-def process_line(line, checksum, updatehlinks, file_type, CACHE_F):
+def process_line(line, checksum, updatehlinks, file_type, search_start_dt, CACHE_F):
     label = "Sortcomplete"
     CSZE = 1048576
 
@@ -95,8 +95,11 @@ def process_line(line, checksum, updatehlinks, file_type, CACHE_F):
     atime = epoch_to_date(access_time)
 
     # satisfy Pyright
-    if mtime is None:
+    if mtime is None or (file_type == "main" and mtime < search_start_dt):
+        logging.debug("Warning system cache conflict detected: %s mtime=%s was older than cutoff=%s which shouldnt happen", escf_path, mtime, search_start_dt)
         return
+    elif mtime < search_start_dt and label == "Cwrite":
+        label = ""
     mtime_epoch = mtime.timestamp()
     # tuple
     return (
@@ -190,7 +193,7 @@ def process_sys_line(line, checksum):
 
 def process_line_worker(args):
     try:
-        chunk, checksum, updatehlinks, file_type, table, process_label, logging_values, CACHE_F = args
+        chunk, checksum, updatehlinks, file_type, table, search_start_dt, process_label, logging_values, CACHE_F = args
     except (ValueError, TypeError) as e:
         print(f"Error process_line_worker. passed args: {args} \nerr: {e} : {type(e).__name__} \n {traceback.format_exc()}")
         return None
@@ -204,7 +207,7 @@ def process_line_worker(args):
     for i, line in enumerate(chunk):
         try:
             if table != "sys":
-                result = process_line(line, checksum, updatehlinks, file_type, CACHE_F)
+                result = process_line(line, checksum, updatehlinks, file_type, search_start_dt, CACHE_F)
             else:
                 result = process_sys_line(line, checksum)
         except Exception as e:
@@ -217,10 +220,10 @@ def process_line_worker(args):
     return results
 
 
-def process_lines(lines, mMODE, checksum, updatehlinks, file_type, table, process_label, logging_values, CACHE_F):
+def process_lines(lines, mMODE, checksum, updatehlinks, file_type, table, search_start_dt, process_label, logging_values, CACHE_F):
 
     if len(lines) < 30 or mMODE == "default":
-        chunk_args = [(lines, checksum, updatehlinks, file_type, table, process_label, logging_values, CACHE_F)]
+        chunk_args = [(lines, checksum, updatehlinks, file_type, table, search_start_dt, process_label, logging_values, CACHE_F)]
         ck_results = [process_line_worker(arg) for arg in chunk_args]
     else:
         min_chunk_size = 10
@@ -229,7 +232,7 @@ def process_lines(lines, mMODE, checksum, updatehlinks, file_type, table, proces
         chunk_size = max(1, (len(lines) + max_workers - 1) // max_workers)
         chunks = [lines[i:i + chunk_size] for i in range(0, len(lines), chunk_size)]
 
-        chunk_args = [(chunk, checksum, updatehlinks, file_type, table, process_label, logging_values, CACHE_F) for chunk in chunks]
+        chunk_args = [(chunk, checksum, updatehlinks, file_type, table, search_start_dt, process_label, logging_values, CACHE_F) for chunk in chunks]
         with multiprocessing.Pool(processes=max_workers) as pool:
             ck_results = pool.map(process_line_worker, chunk_args)
 
@@ -241,7 +244,7 @@ def process_lines(lines, mMODE, checksum, updatehlinks, file_type, table, proces
     cwrite = []
 
     for res in results:
-        if res is None:
+        if res is None or not res:
             continue
         if isinstance(res, tuple) and len(res) > 3:
             if res[0] == "Nosuchfile":
@@ -287,7 +290,7 @@ def process_lines(lines, mMODE, checksum, updatehlinks, file_type, table, proces
     return sortcomplete, complete
 
 
-def process_find_lines(lines, mMODE, checksum, updatehlinks, file_type, table, process_label, logging_values, CACHE_F):
-    return process_lines(lines, mMODE, checksum, updatehlinks, file_type, table, process_label, logging_values, CACHE_F)
+def process_find_lines(lines, mMODE, checksum, updatehlinks, file_type, table, search_start_dt, process_label, logging_values, CACHE_F):
+    return process_lines(lines, mMODE, checksum, updatehlinks, file_type, table, search_start_dt, process_label, logging_values, CACHE_F)
 #
 # End parallel #
