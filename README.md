@@ -20,7 +20,8 @@ recentchanges reset<br><br>
 also a shortcut<br>
 rnt<br>
 rnt search<br>
-rnt query<br><br>
+rnt query<br>
+rnt reset<br><br>
 for rnt search it inverses. recentchanges search it normally doesnt apply the filter but now it will. for a new than file search with recentchanges search myfile it will remove the filter as that is normally filtered.<br><br>
 The command recentchanges query , uses tkinter to show the database <br> download links https://forum.porteus.org/go.php?https://drive.google.com/file/d/1IfC8x5G_c80hMTbezKU_DarK45XsqbwY/view?usp=sharing <br>or search in package manager for tk <br><br>
 Manual
