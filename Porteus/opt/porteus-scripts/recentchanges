@@ -103,7 +103,7 @@ export STATPST="true" # persistent storage searches encrypted in /usr/local/save
                                     # Only overhead is gpg compression set compression to off. At large size speeds can increase by as much as 50%.
                                     # if you prefer security turn ANALYTICS false and use this
 
-export xRC="false"	# false - default. run inotifywait for one hour to look for new files where ctime > mtime in /changes.
+export xRC="true"	# false - default. run inotifywait for one hour to look for new files where ctime > mtime in /changes.
 									# this is for downloads or copies with preserved metadata pacman slackpkg ect.
 									# if false the files will still show up. It just dynamically bypasses a section of the script if $tout is already made.T
 									# With this setting If true can bypass 1 of 2 search loops and reduce process overhead as the search is already there effectively increasing the overall speed
