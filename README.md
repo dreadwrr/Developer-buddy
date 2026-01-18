@@ -1,6 +1,7 @@
 #                               01/17/2026
 Python edition <br>
 Released v1.2.6-py1 with finalized, inotify wait and other features!<br><br>
+Updated launch script with switching done in python. To allow for compatibility with wayland and other distros<br><br> 
 Differences from bash and bash\python backends is the find command is streamed with the main search written in python. <br><br>
 Full logging system, xRC inotify, isdiff, logic, display, filterhits, process hybrid analysis, filter output pretty much all the logic rewritten in python
 slight change in data handling with use of arrays vs files in bash ( rout the file that handles ha output and file actions)
