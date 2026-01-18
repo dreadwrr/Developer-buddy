@@ -186,8 +186,9 @@ if [ -s $SORTCOMPLETE ] ; then
 
     difffile=$USRDIR$MODULENAME"${flnmdff}"
 
-    [[ -n "$OLDSORTED" ]] && test -e $OLDSORTED && comm -23 "$OLDSORTED" $logf > "$difffile"
-	[[ "$nodiff" = "false" ]] && test -e $tmp$MODULENAME"$flnm" && { OLDSORTED=$tmp$MODULENAME"$flnm" ; comm -23 "$OLDSORTED" $logf; } > "$difffile" && nodiff="true"
+    [[ -n "$OLDSORTED" ]] && test -e $OLDSORTED && sort -o $OLDSORTED $OLDSORTED && comm -23 "$OLDSORTED" $logf > "$difffile"
+
+	[[ "$nodiff" = "false" ]] && test -e $tmp$MODULENAME"$flnm" && { OLDSORTED=$tmp$MODULENAME"$flnm" ; sort -o $OLDSORTED $OLDSORTED ; comm -23 "$OLDSORTED" $logf; } > "$difffile" && nodiff="true"
     cp $logf $USRDIR$MODULENAME"$flnm"
     chown $USR $USRDIR$MODULENAME"$flnm"
    

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# supress output helper script to launch inotifywait optional logging   01/13/2026
+# supress output helper script to launch inotifywait optional logging   09/15/2025 01/13/2026
 #nohup /usr/local/save-changesnew/inotify "$@" > /dev/null 2>&1 &
+# SCRIPT_PATH="$( dirname "$0")"
 fmt="%Y-%m-%d %H:%M:%S"
 log_date=$(date +"$fmt")
 echo $log_date > /tmp/inotify.log
