@@ -1,8 +1,8 @@
 #!/bin/bash
-#   Developer buddy 5.0 core                                               01/09/2026
+#   Developer buddy 5.0 core                                               01/17/2026
 
 
-# Filter terminal or suppress browser. common items to exclude from prompt      .  regex  notes: ([^/]*)$  
+# Filter terminal or suppress browser. common items to exclude from prompt      .  regex  notes: ([^/]*)$
 sbwr() {
 webb=(
     'mozilla'
@@ -38,7 +38,7 @@ if [ "$POSTOP" == "true" ]; then
 	fi
     if [ -f $USRDIR/doctrine.tsv ]; then
         /usr/local/save-changesnew/updateconfig.sh $2 "POSTOP" "true"  # change POSTOP in /usr/local/bin/recentchanges to false. script was added for python tk  # sed -i 's/^export POSTOP="true"/export POSTOP="false"/' $2  original
-        
+
     else
 
 		# check in rout if it was a copy
@@ -51,7 +51,7 @@ if [ "$POSTOP" == "true" ]; then
 		else
 			echo "rout doesnt exist"
 		fi
-	
+
 		#pull from sortcomplete for prestated data
         echo -e "Datetime\tFile\tSize(kb)\tType\tSymlink\tChange_time\tcam\tAccessed\tOwner\tStatable\tCopy" > $atmp/doctrine
         while IFS= read -r x || [ -n "$x" ]; do
@@ -105,7 +105,7 @@ local r
 local sf=$MODULENAME"_"$FLBRAND
 if (( tmpSRHS > 0 )); then
     test -d /tmp/rc || mkdir /tmp/rc
-	r=$(find /tmp/rc -maxdepth 1 -type f -name '*rntfiles_MDY*' 2>/dev/null | wc -l)
+	r=$(find /tmp/rc -maxdepth 1 -type f -name "*${MODULENAME}_MDY*" 2>/dev/null | wc -l)
     if [ "$r" -eq "$tmpSRHS" ]; then
         test -f /tmp/rc/full || { touch /tmp/rc/full ; cyan "searches builtup in /tmp/rc"; }
         for file in "/tmp/rc"$MODULENAME"_MDY"*
@@ -316,7 +316,7 @@ fi
 stealth() {
 local file="$1"		;	local label="$2"	
 local cksum="$3"	;	local current_size="$4"
-local original_size="$5"	
+local original_size="$5"
 local delta abs_delta
 if [ "$current_size" -ge 0 ] 2>/dev/null && [ "$original_size" -ge 0 ] 2>/dev/null; then
 	delta=$(( current_size - original_size ))
@@ -348,7 +348,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 	y="${tmp%\"*}"
 	read -r f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 _ f12 f13 f14 f15 _ _ f18 _ <<< "$p"  # skip symlink lmt and finally hardlinks if enabled
 	in="$f6"
-	if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then 	
+	if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then
 		if [ "$1" == "A" ]; then found_line="${ref_map[$y]}" ; else found_line=$( grep -F "\"$y\"" "$ofile" | tail -n 1) ; fi  # for line in "${ref_lines[@]}"; do if [[ "$line" == *"$y"* ]]; then found_line="$line" ; fi ; done regular array old multicore using grep*
 		if [ -n "$found_line" ]; then
 			original_ln="$found_line"
@@ -428,7 +428,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
                         else
                             echo "Deleted $dt $dt $label" >> $rout
                         fi
-					fi        
+					fi
 				else
 					if [ "$checkSUM" == "true" ]; then
 						if (( oin != in )); then
@@ -485,7 +485,7 @@ if [ "$mMODE" == "mc" ] && (( x > 100 )); then
 else
 	cores=""
     # mapfile -t ref_lines < "$2" old array 
-	declare -A ref_map  # key="$(cut -d' ' -f3 <<< "$p")"                     
+	declare -A ref_map  # key="$(cut -d' ' -f3 <<< "$p")"
 	while read -r p; do key="$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")" ; ref_map["$key"]="$p" ; done < $2
 	hablk "A" $TMPCOMPLETE
 fi
@@ -589,6 +589,13 @@ suffixes=(
     "xDiffFromLast"
 )
 }
+# inotify, clearcache
+get_inclusion() {
+rlt=$(sed -n 's/.*export logpst=\([^ ]*\).*/\1/p' "$1") ; rltt=$(sed -n 's/.*export statpst=\([^ ]*\).*/\1/p' "$1") ; rlttt=$(sed -n 's/.*export pydbpst=\([^ ]*\).*/\1/p' "$1") ; mail=$(sed -n 's/.*export email=\([^ ]*\).*/\1/p' "$1")
+rlt=${rlt//\"/} ; rltt=${rltt//\"/} ; rlttt=${rlttt//\"/} ; mail=${mail//\"/}
+[ -z "$rlt" ] && rlt="$logpst" ; [ -z "$rltt" ] && rltt="$statpst" ; [ -z "$rlttt" ] && rlttt="$pydbpst" ; [ -z "$mail" ] && mail=$email
+}
+
 inclusions() {
 # local results=${LCLMODULENAME:0:3}
 local c=$SORTCOMPLETE
@@ -609,9 +616,9 @@ if [ "$diffrlt" == "false" ] && [ "$nodiff" == "true" ];then green " Nothing in 
 display() {
 local locale=$1
 if [ "$dspEDITOR" != "false" ]; then
-	[[ "$dspEDITOR" = "xed" ]] && test -e /usr/bin/xed && xed $locale"$2" 
+	[[ "$dspEDITOR" = "xed" ]] && test -e /usr/bin/xed && xed $locale"$2"
 	[[ "$dspEDITOR" = "xed" ]] && ! test -e /usr/bin/xed && echo $dspEDITOR not installed 
-	[[ "$dspEDITOR" = "featherpad" ]] && test -e /usr/bin/featherpad && featherpad $locale"$2" 
+	[[ "$dspEDITOR" = "featherpad" ]] && test -e /usr/bin/featherpad && featherpad $locale"$2"
   	[[ "$dspEDITOR" = "featherpad" ]] && ! test -e /usr/bin/featherpad && echo $dspEDITOR not installed
 fi
 }
@@ -652,7 +659,7 @@ k="${k//\\ap0A/$'\n'}" ; k="${k//\\ap5c/\\}" ; printf '%s' "$k"
 # Escape existing if filename has \ap5c, \ap22, \ap0A in actual input. then completly encode
 ap_enc() {
 local o="$1"
-o="${o//\\/\\ap5c}" ; o="${o//$'\n'/\\ap0A}"  ; o="${o//\"/\\ap22}" ; o="${o//$'\t'/\\ap09}" ; o="${o// /\\ap20}"  
+o="${o//\\/\\ap5c}" ; o="${o//$'\n'/\\ap0A}"  ; o="${o//\"/\\ap22}" ; o="${o//$'\t'/\\ap09}" ; o="${o// /\\ap20}"
 printf '%s' "$o"
 }
 # decrypt for file operations
@@ -669,13 +676,13 @@ printf '%s' "$k"
 }
 # used for file output
 escf() {
-local o="$1" 
+local o="$1"
 o="${o//\\/\\ap5c}"
 #o="${o//\\/\\\\}"
 o="${o//$'\n'/\\ap0A}"
 o="${o//\"/\\ap22}"
 # o="${o//$/\\\$}"
-# o="${o//$'\t'/\\t}" 
+# o="${o//$'\t'/\\t}"
 printf '%s' "$o"
 }
 unescf() {
@@ -685,7 +692,7 @@ k="${k//\\ap22/\"}"
 k="${k//\\ap5c/\\}"
 #k="${k//\\\\/\\}" 
 #  k="${k//\\\$/\$}"
-# k="${k//\\t/$'\t'}" 
+# k="${k//\\t/$'\t'}"
 printf '%s' "$k"
 }
 pyerrblk() {
@@ -786,25 +793,25 @@ if [[ "$csum" == "true" ]]; then
 fi
 # test -e $TMPDIR && rm -rf "${TMPDIR:?}"
 if [ "$POSTOP" == "false" ]; then test -f $rout && rm $rout ; fi
-test -f $slog && rm $slog 
+test -f $slog && rm $slog
 }
 strup() { /usr/local/save-changesnew/start_inotify $log_file $LCLMODULENAME $CACHE_F "$checkSUM" $updatehlinks "ctime" 3600 ; }
 intst() {
 local sz
 #Init
 if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
-if [[ "$updatehlinks" = "true" && "$backend" != "database" ]]; then updatehlinks="false" ; fi 
+if [[ "$updatehlinks" = "true" && "$backend" != "database" ]]; then updatehlinks="false" ; fi
 if [[ "$mMODE" == "mc" ]]; then
 	cores=$( nproc 2>/dev/null || echo 1)
 	max_jobs=$(( cores > 16 ? 16 : cores ))
-fi	
+fi
 if [ "$xRC" == "true" ]; then
 	if pgrep -af 'save-changesnew/inotify' > /dev/null; then
 		if [ -f "$log_file" ]; then
 			cp $log_file $tout
-			rm $log_file		
-		fi		
-        if pkill -f 'inotifywait -m -r -e create -e moved_to --format /%w%f%0'; then
+			rm $log_file
+		fi
+        if pkill -f 'inotifywait -m -r -e create -e moved_to --format %e|%w%f%0'; then
             :>$log_file
             strup
         else
@@ -813,11 +820,11 @@ if [ "$xRC" == "true" ]; then
         fi
 	else
 		test -e $log_file	&& rm $log_file
-		strup	
+		strup
 	fi
 else
     if pgrep -af 'save-changesnew/inotify' > /dev/null; then
-        pkill -f 'inotifywait -m -r -e create -e moved_to --format /%w%f%0'
+        pkill -f 'inotifywait -m -r -e create -e moved_to --format %e|%w%f%0'
         test -e $log_file && rm $log_file
     fi
 fi
@@ -912,50 +919,55 @@ local key="$inode|$size|$mtime"
 grep -m1 "^${key}   " "$CACHE_F" | awk -F $'\t' '{print $2}'
 }
 # [[:space:]]
-normalize_ts() { printf "%.6f\n" "$1" ; }
+
+normalize_ts() { printf "%.9f\n" "$1" ; }
 
 calculate_csum() {
 local fmt="%Y-%m-%d %H:%M:%S"
-# current file stats
+# file stats
 local xmode="$1"				;	local file_path="$2"
 local modified_epoch=$3	;	local ino=$4
 local sze=$5
-
+local x=$6
+local delay=$7
 # globals from sblk are csum mtime itime mt ct fs i sym n onr grp pmr
-#
 # checksum verification and or updated stats
 local f1 f2 f3 f4 mod_time
-local ctime_epoch frac len
-local mt_original
+#local frac
+#local mt_original
+local ctime_epoch len
 local a_ino a_sym a_nlnk a_sze a_onr a_grp a_prm
 local c r
 local checks
 local prev_hash=""
 #
-local x=1
 if [ "$ino" -ge 0 ] 2>/dev/null && [ "$sze" -ge 0 ] 2>/dev/null; then
 	while (( x >= 0 )); do
 		r=""
 	    checks=$( md5sum "$file_path" 2>/dev/null)
 		if [[ -n "$checks" ]]; then
 			checks=${checks%% *}
-			# on second or later iteration and not ctime as ctime would be identical
-			if [[ -n "$prev_hash" && "$xmode" = "main" && "$checks" = "$prev_hash" ]]; then
+			# on second or later iteration and not ctime as ctime could no longer be > mtime now
+			if [[ -n "$prev_hash" && "$xmode" = "main" && "$checks" = "$prev_hash" ]]; then  # && "$xmode" = "main"
 				if [ "$a_ino" -ge 0 ] 2>/dev/null; then
 					# update only needed stats
-					csum=$checks
+					check_sum=$checks
 					mtime=$modified_epoch
-					frac=${mt_original#*.}
-					len=${#frac}   
-					if (( len > 0 )); then
-						if [[ "$frac" =~ ^0+$ ]]; then
-							usec=$mt_original
-						fi
-					fi
-					itime=$ctime_epoch
-					mt=$(date -d "@${mtime%%.*}" +"$fmt")
-					ct=$(date -d "@${itime%%.*}" +"$fmt")
-					fs=$a_sze			
+                    itime=$ctime_epoch
+                    # if storing microseconds this would grab nano second for usec compariso
+                    #frac=${mt_original#*.}
+                    #len=${#frac}   
+                    #if (( len > 0 )); then
+                    #	if [[ "$frac" =~ ^0+$ ]]; then
+                    #		usec=$mt_original
+                    #	fi
+                    #fi
+                    mtime_sec=${mtime%%.*}
+                    itime_sec=${itime%%.*}
+					mt=$(date -d "@$mtime_sec" +"$fmt")
+                    ct=$(date -d "@$itime_sec" +"$fmt" 2> /dev/null)
+					fs=$a_sze
+
 					# the inode changed update all global file stats
 					if (( ino != a_ino )); then
 						i=$a_ino
@@ -974,20 +986,16 @@ if [ "$ino" -ge 0 ] 2>/dev/null && [ "$sze" -ge 0 ] 2>/dev/null; then
 				mod_time="$f1 $f2"
 				c=$( date -d "$mod_time" +%s.%N 2>/dev/null)
 				[[ -z "$c" ]] && break # mtime is required
-				# if it matches the find command mtime and size and the inode didnt change
+                # mt_original=$c
+                c=$(normalize_ts "$c")
+				# if it matches the find command mtime and size and the inode didnt change return the checksum
 				if [[ -z "$prev_hash" ]]; then
-					mt_original=$c
-					c=$(normalize_ts "$c")
-					modified_epoch=$(normalize_ts "$modified_epoch")
 					if [[ "$c" == "$modified_epoch" && -n "$a_ino" && -n "$a_sze" ]] && (( ino == a_ino )) && (( sze == a_sze )); then
-						# no need to update global file stats
-						csum=$checks
-						#mtime=$modified_epoch
-						#fs=$a_sze
+						check_sum=$checks
 						return 0
 					fi
 				fi
-				# retry
+	    		# else retry
 				modified_epoch=$c
 				change_time="$f3 $f4"
 				if [[ -n "$change_time" ]]; then
@@ -995,6 +1003,7 @@ if [ "$ino" -ge 0 ] 2>/dev/null && [ "$sze" -ge 0 ] 2>/dev/null; then
 				fi
 				ctime_epoch=$r
 				prev_hash="$checks"
+                sleep $delay
 			fi
 		else
 			break
@@ -1019,7 +1028,7 @@ local lmt=""
 cur_line="$( ap_safeline "$1")"
 IFS=' ' read -r mtime atime itime i sym fs onr grp pmr cFILE <<< "$cur_line"
 cFILE="$( ap_safeline_dec "$cFILE")"
-y="$( ap_enc "$cFILE")" 
+y="$( ap_enc "$cFILE")"
 mt=$(date -d "@${mtime%%.*}" +"$fmt")
 ct=$(date -d "@${itime%%.*}" +"$fmt")
 if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
@@ -1035,7 +1044,7 @@ if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 	    	adtcmd=""
 		fi
         # (( ${itime%%.*} > ${mtime%%.*} )) && { cam="y" ; lmt=$mt ; mt=$ct ; }
-		ats=$(date -d "@${atime%%.*}" +"$fmt")			
+		ats=$(date -d "@${atime%%.*}" +"$fmt")
 		ct=${ct:-None None}
 		ats=${ats:-None None}
         lmt=${lmt:-None None}
@@ -1064,20 +1073,20 @@ if { [[ "$5" = "ctime" ]] && (( ${itime%%.*} > ${mtime%%.*} )); } || [[ "$5" = "
 	#log_date="$(date +"$fmt")"
 	#echo "$log_date creation time: $itime and mtime: $mtime , sblk passed processing line in $cur_line" >> /tmp/output  # debug
 	cFILE="$( ap_safeline_dec "$cFILE")"
-    y="$( ap_enc "$cFILE")" 
+    y="$( ap_enc "$cFILE")"
     mt=$(date -d "@${mtime%%.*}" +"$fmt")
     ct=$(date -d "@${itime%%.*}" +"$fmt")
     if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 	    if [ -n "$mt" ]; then
-		    frac=${mtime#*.}
-		    len=${#frac}   
-		    if (( len > 0 )); then
-			    if [[ "$frac" =~ ^0+$ ]]; then
-				    usec=$mtime
-			    fi
-		    fi
+			#frac=${mtime#*.} # if storing microsecond get the fractions here first
+			#len=${#frac}
+			#if (( len > 0 )); then
+			#    if [[ "$frac" =~ ^0+$ ]]; then
+			#	    usec=$mtime
+			#    fi
+			#fi
 		    #if (( len == 6 )); then
-		    #	us=${frac:0:6}   
+		    #	us=${frac:0:6}
 		    #	if [ "$us" == "000000" ]; then
 		    #		usec="y"
 		    #	fi
@@ -1085,7 +1094,7 @@ if { [[ "$5" = "ctime" ]] && (( ${itime%%.*} > ${mtime%%.*} )); } || [[ "$5" = "
 		    #	us=${frac:0:9}
 		    #	if [ "$us" == "000000000" ]; then
 		    #		usec="y"
-		    #	fi   
+		    #	fi
 		    #fi
 			mtime=$(normalize_ts "$mtime")
 		    if [ "$4" == "true" ]; then
@@ -1104,15 +1113,22 @@ if { [[ "$5" = "ctime" ]] && (( ${itime%%.*} > ${mtime%%.*} )); } || [[ "$5" = "
 			    fs=${fs:-None} 
 			    [[ "$sym" == l* ]] && sl="y" ; sl=${sl:-None}  # [[ -L "$cFILE" ]] && sl="y" ; sl=${sl:-None}
 			    wnr=${onr:-None} ; grp=${grp:-None} ; pmn=${pmr:-None}
-                
+
 			    adtcmd="$csum $fs $sl $wnr $grp $pmn"
+				frac=${mtime#*.}
+				len=${#frac}
+				if (( len > 0 )); then
+					if [[ "$frac" =~ ^0+$ ]]; then
+						usec=$mtime
+					fi
+				fi
 		    else
 	        	adtcmd=""
 		    fi
 
             [[ "$updatehlinks" = "true" ]] && nlinks=$n
 			[[ "$5" = "ctime" ]] && { cam="y" ; lmt=$mt ; mt=$ct ; }
-		    ats=$(date -d "@${atime%%.*}" +"$fmt")			
+		    ats=$(date -d "@${atime%%.*}" +"$fmt")
 		    ct=${ct:-None None}
 		    ats=${ats:-None None}
             lmt=${lmt:-None None}
@@ -1125,7 +1141,118 @@ if { [[ "$5" = "ctime" ]] && (( ${itime%%.*} > ${mtime%%.*} )); } || [[ "$5" = "
     fi
 #else
 #	echo "$log_date sblk continued  $1" >> /tmp/output  # debug
-fi  
+fi
+}
+
+log_lineout() { [[ "$1" = "true" ]] && echo "$3 $4" >> $2 ; }
+# Inotifyloop variant of sblk design to get the checksum and verify ctime greater than mtime afterwards. although its ctime, it passes main as xmode to calculate_checksum**
+# Adding any sort of delays is for small scale so it is set to 0. max would be .5 seconds. Situation if 10000 files were created times that by delays and its bad.
+# Could do parallel processing with xargs in inotify.sh would fix that and a delay of 2 seconds would be good.
+# If the threshold is high better to implement CREATED event and put filepath to array then on CLOSE_WRITE check this array and hash. This
+# can be implemented in python as bash its too complicated. do cache files over 1MB.
+pblk() {
+local fmt="%Y-%m-%d %H:%M:%S"
+local cache_flg="false"
+local len y r
+local cam sl lmt cFILE retries
+local log_date
+local debug_log="$7"
+local debug_file="$8"
+r=""				;	sl=""
+lmt=""			;	nlinks=""
+cam="None"	;	usec="None"
+check_sum=""
+
+local retries=2
+local delay=0
+
+[[ "$7" = "true" ]] && log_date="$(date +"$fmt")"
+
+cur_line="$( ap_safeline "$1")"
+log_lineout $7 $8 "$log_date" "pblk line in $cur_line"  # debug
+IFS=' ' read -r mtime atime itime i sym n fs onr grp pmr cFILE <<< "$cur_line"
+log_lineout $7 $8 "$log_date" "itime: $itime and mtime: $mtime , pblk after parsing line in $cur_line"
+
+cFILE="$( ap_safeline_dec "$cFILE")"
+y="$( ap_enc "$cFILE")"
+# y="$( escf "$cFILE")"  # used in py versions
+mtime_sec=${mtime%%.*}
+itime_sec=${itime%%.*}
+mt=$(date -d "@$mtime_sec" +"$fmt")
+ct=$(date -d "@$itime_sec" +"$fmt")
+if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
+    if [ -n "$mt" ]; then
+
+		mtime=$(normalize_ts "$mtime")
+	    if [ "$4" == "true" ]; then
+		    [[ -e "$CACHE_F" ]] && r=$(get_cached $i $fs $mtime)
+            if [[ -n "$r" ]]; then
+                check_sum="$r"
+            else
+			    calculate_csum "main" "$cFILE" $mtime $i $fs $retries $delay
+                cache_flg="true"
+            fi
+            if [[ -n "$check_sum" ]]; then
+                fs=${fs:-None}
+                [[ "$sym" == l* ]] && sl="y" ; sl=${sl:-None}  # [[ -L "$cFILE" ]] && sl="y" ; sl=${sl:-None}
+                wnr=${onr:-None} ; grp=${grp:-None} ; pmn=${pmr:-None}
+                adtcmd="$check_sum $fs $sl $wnr $grp $pmn"
+		        mtime_frac=${mtime#*.}
+		        len=${#mtime_frac}
+		        if (( len > 0 )); then
+			        if [[ "$mtime_frac" =~ ^0+$ ]]; then
+				        usec=$mtime
+			        fi
+		        fi
+                [[ "$updatehlinks" = "true" ]] && nlinks=$n
+                ats=$(date -d "@${atime%%.*}" +"$fmt")
+                [[ -z "$ct" ]] && log_lineout $7 $8 "$log_date" "Warning ct is null failed in pblk $output" && ct="None None" # ct=${ct:-None None}
+                ats=${ats:-None None}
+                lmt=${lmt:-None None}
+                itime=$(normalize_ts "$itime")
+
+                [[ "$7" = "true" ]] && log_date="$(date +"$fmt")"
+
+                if [[ -n "$itime" && "$5" = "ctime" ]]; then
+
+                    itime_frac=${itime#*.}
+
+					itime_frac=$(( 10#$itime_frac ))
+					mtime_frac=$(( 10#$mtime_frac ))
+                    # change_t=$(echo "scale=0; $itime * 100000000 / 1" | bc) # Nemesis doesnt have bc use awk
+                    # itime_frac=$(( change_t % 100000000 ))
+                    if (( itime_sec == mtime_sec && itime_frac > mtime_frac )) || (( itime_sec > mtime_sec )); then   # awk -v it="$itime" -v mt="$mtime" 'BEGIN {exit !(it > mt)}'; then
+
+                        log_lineout $7 $8 "$log_date" "change time: $itime and mtime: $mtime , pblk passed processed line in $cur_line"
+                        cam="y" ; lmt=$mt ; mt=$ct
+                        output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $usec $nlinks"
+                        if [[ "$cache_flg" = "true" ]] && (( fs > 1000000 )); then upt_cache "$i" "$fs" "$mtime" "$check_sum" "$y" "$6" ; fi
+                        printf '%s\n' "$output" >> $2
+
+
+                    else
+                        log_lineout $7 $8 "$log_date" "pblk failed to process. itime $itime and mtime $mtime ctime was <= mtime skipped. line $1"
+                        output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $usec $nlinks"
+                        log_lineout $7 $8 "$log_date" "pblk results $output"
+                    fi
+                else
+
+                    [[ "$5" != "ctime" ]] && log_lineout $7 $8 "$log_date" "ctime is not set. currently set to $5 continue $1"
+                    output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $usec $nlinks"
+                    log_lineout $7 $8 "$log_date" "pblk results $output"
+                fi
+            else
+                log_lineout $7 $8 "$log_date" "pblk no checksum skipping $1"
+            fi
+        else
+            log_lineout $7 $8 "$log_date" "pblk checksum is false skipping $1"
+	    fi
+    else
+        log_lineout $7 $8 "$log_date" "pblk parsing error skipped $1"
+    fi
+else
+    log_lineout $7 $8 "$log_date" "change time: $itime and mtime: $mtime , sblk Nosuchfile line $cur_line"
+fi
 }
 search() {
 local x p y
@@ -1133,13 +1260,13 @@ x=$(tr -cd '\0' < "$1" | wc -c)
 if [[ "$mMODE" = "default" ]] || (( x < 100 )); then
     while IFS= read -r -d '' p ; do 
         [[ -z "$p" ]] && continue
-        sblk "$p" $2 $3 $4 $5 $CACHE_F         
+        sblk "$p" $2 $3 $4 $5 $CACHE_F
     done < $1
 	unset IFS
 else
     y=$(( (x + max_jobs - 1) / max_jobs ))
-    #y=200																					
-    xargs -0 -n "$y" -P "$max_jobs" /usr/local/save-changesnew/mainloop $atmp$workfld $4 $5 $6 $updatehlinks $CACHE_F < $1                                            
+    #y=200
+    xargs -0 -n "$y" -P "$max_jobs" /usr/local/save-changesnew/mainloop $atmp$workfld $4 $5 $6 $updatehlinks $CACHE_F < $1
     if [[ "$5" = "main" ]]; then
         isoutput mainloop1* mainloop2* $2 $3
         isoutput cache1* $CACHE_F
@@ -1151,7 +1278,7 @@ fi
 }
 ctimeloop() {
 # what is not in the main search 
-sort -z -o $2 $1                
+sort -z -o $2 $1
 sort -z -o $tout $toutnul
 comm -z -23 $tout $2 > $TMPCOMPLETE
 if [ -s $TMPCOMPLETE ]; then	

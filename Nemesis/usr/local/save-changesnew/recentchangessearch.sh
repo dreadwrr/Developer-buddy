@@ -185,10 +185,9 @@ if [ -s $SORTCOMPLETE ] ; then
 	[[ "$nodiff" = "false" ]] && test -e $tmp$MODULENAME"$flnm" && { OLDSORTED=$tmp$MODULENAME"$flnm" ; comm -23 "$OLDSORTED" $logf; } > "$difffile" && nodiff="true"
     cp $logf $USRDIR$MODULENAME"$flnm"
     chown $USR $USRDIR$MODULENAME"$flnm"
-   
 
     isdiff "$difffile" $RECENT $TMPCOMPLETE
-    
+
 	backend $5
     filterhits $RECENT $flth
     postop $SORTCOMPLETE $6 $5 $flsrh
