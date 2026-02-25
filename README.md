@@ -9,7 +9,7 @@ Qt version for linux https://github.com/dreadwrr/Recentchanges-Linux<br><br>
 Version available <br>
 1.2.7 Bash text backend or bash python database backend - updated with Qt version hybrid analysis <br>
 <br>
-will update the python to 1.2.7 version after seeing changes from qt version <br>
+will update 1.2.6-py to 1.2.7 version after making any changes in qt version <br>
 1.2.6-py1 python edition backend database New release!<br><br>
 
 
