@@ -107,7 +107,7 @@ namingPRF="alpha"				# default alpha
 
 
 # CHANGABLE BOOLEANS
-mrgAEX="true"				# the changes are copied to the merge with the exclusions. Then this setting would apply to whether to apply 
+mrgAEX="true"				# the changes are copied to the merge with the exclusions. Then this setting would apply to whether to apply
 									# those exclusions for the final module.  the exclusions could have changed and this can reduce the final module size
 									# which is why its default
 
@@ -215,7 +215,12 @@ if [ "$d2drive" == "false" ] || { [ "$d2drive" == "true" ] && [ "$d2dmdl" == "fa
 if [ "$rlt" != "" ]; then
     if [ "$rlt" == "/" ]; then rlt="" ; fi
 	[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt}
-	[[ "$rlt" == *"$target"* ]] && rlt=${rlt%/} && target=""
+	if [[ "$rlt" == *"$target"* ]]; then
+		rlt=${rlt%/}
+		target=""
+	else
+		target=$rlt
+	fi
 	osize=$( du -sb "${target}${rlt}${MODULENM}/" | cut -f1)
     : > /tmp/incfilter.log
     if [ "$d2drive" == "true" ]; then
@@ -297,7 +302,7 @@ if [ "$rlt" != "" ]; then
                                 fi
 
                                 mv $UPDATE "${target}${rlt}${MODULENM}.bak.log"
-                                
+
                             elif [ "$logSPRF" == "stop" ]; then
                                 adtCMD=""
                                 if [ "$ANALYTICS" == "true" ]; then
@@ -444,7 +449,7 @@ if [ "$rlt" != "" ]; then
             c=$( sed -nE 's/.*original count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n 1)
             c="${c:-0}"
             if (( c != 0 )); then cyan " Since the original backup was first made sent" $(( ( c + z ) / mbyte )) "MB worth of data" ; fi
-              
+
             if [ "$logSPRF" != "stop" ] && [ "$nLOG" == "true" ]; then
                 size=$( stat -c %s "${target}${sfilesrlt}${MODULENM}.bak.log")
                 if (( size > logSIZE * mbyte )); then
@@ -457,7 +462,7 @@ if [ "$rlt" != "" ]; then
             green "Current size of backup: $(( csize / mbyte )) MB"         #actual size of backup
 
             if [ "$nLOG" == "true" ]; then echo ; cyan "You saved $(( (nsize - csize) / mbyte )) MB by generating this backup." ; fi
-            
+
             if [ "$ANALYTICSECT" == "true" ] ; then el=$(awk "BEGIN {print $end - $start}") ; printf "Saving took %.3f seconds.\n" "$el" ; fi
             if [ "$sentinal" == "true" ]; then
                 rm $UPDATE
@@ -500,7 +505,7 @@ if [ "$rlt" != "" ]; then
 		fi
 		end=$(date +%s.%N)
         cyan "Your changes backup has been created! in ${target}${rlt}/" ; cyan "${MODULENM}.bak/"
-        
+
         if [ "$ANALYTICS" == "true" ]; then
 			if [ "$ANALYTICSECT" == "true" ] ; then el=$(awk "BEGIN {print $end - $start}") ; printf "Saving took %.3f seconds.\n" "$el" ; echo ; fi
             csize=$( du -sb "${target}${rlt}${MODULENM}.bak/" | cut -f1)
@@ -637,7 +642,7 @@ else # Graphics mode
 					qtn=0
 				    [[ -n "$elapse" ]] && qtn=$elapse
 				    smp=$el
-				    
+
 					#[[ -n "$elapse" ]] && qtn=${elapse/.} ; smp=${el/.} # fails on octal > 7 use awk
 
 				    if awk "BEGIN {exit !($qtn != 0 && $qtn < $smp)}"; then
