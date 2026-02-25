@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# save-changesnew functions to move options further up the script             01/13/2026
+# save-changesnew functions to move options further up the script             02/25/2026
 . /usr/local/save-changesnew/mergemodulesfunctions
 dycmb() {
 TFLD=""
@@ -60,8 +60,8 @@ glog() {
 local k
 local p
 if [ -f ${target}${rlt}${MODULENM}.bak.log ]; then
-	b=$( sed -nE 's/.original count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n1)
-	c=$( sed -nE 's/.total count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n1)
+	b=$( sed -nE 's/.*original count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n1)
+	c=$( sed -nE 's/.*total count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n1)
 	k=$( sed -nE 's/.*original size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n1)
 fi
 : "${b:-0}"
@@ -122,7 +122,7 @@ candidates=() ; mdlnames=()
 output=""
 # starting in $target$em saved to $pst
 # Apply write forward merging (guardian) to save writes. More can go wrong implemented guardian for logic
-h=$(find $target$em -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' -print0 | xargs -0 ls -t | head -n 1)  # newest.  ls -tr oldest
+h=$(find $target$em -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' -print0 | xargs -0 -r ls -t | head -n 1)  # newest.  ls -tr oldest
 if [[ -f /dev/shm/xsc && -n "$h" && -f "$h" ]]; then
 	if [[ "$mdlMRGPRF" = "forward" ]]; then
 		u=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' | wc -l)
@@ -379,7 +379,7 @@ if [[ "$1" = "true" ]]; then
         [[ "$found" == "true" ]] || { echo "$y" | fixwh >> $EXCL; echo "$y" | fixsqh >> $EXFILES ; echo "$y" >> $EXCLUDED; test -e "$mtmp/$y" && rm -f "$mtmp/$y"; }
     done
 	shopt -u nullglob
-    test -s "$EXCL" && { find $FOLDERS -type d | egrep -vf $EXCL || find $FOLDERS -type d; } > $SFOLDERS
+    { test -s "$EXCL" && find $FOLDERS -type d | egrep -vf $EXCL || find $FOLDERS -type d; } > $SFOLDERS
 	for y in $(find $mtmp -name ".wh.*"); do
         f="$(echo "$y" | sed -e "s^$mtmp^^g" -e 's^\.wh\.^^g')"
         test -e "$f" && rm "$y";

@@ -11,7 +11,6 @@ from tkinter import ttk
 from collections import defaultdict
 from collections import Counter
 from datetime import datetime
-from pathlib import Path
 from pstsrg import decr
 from pstsrg import encr
 from pstsrg import hash_system_profile
@@ -25,7 +24,7 @@ from pyfunctions import intst
 from pyfunctions import is_integer
 from pyfunctions import to_bool
 from pyfunctions import update_config
-# 01/09/2026
+# 02/23/2026
 
 # see pyfunctions.py cache clear patterns for db
 
@@ -88,6 +87,9 @@ def hardlinks(database, target, conn, cur, email, compLVL):
     try:
         is_error = False
 
+        cur.execute("SELECT filename, inode FROM logs WHERE hardlinks is NOT NULL and hardlinks != ''")
+        file_rows = cur.fetchall()
+
         # Prompt to delete previous hardlink data
         cur.execute("SELECT COUNT(*) FROM logs WHERE hardlinks IS NOT NULL AND hardlinks != ''")
         count = cur.fetchone()[0]
@@ -98,6 +100,7 @@ def hardlinks(database, target, conn, cur, email, compLVL):
                 conn.commit()
             else:
                 return 0
+
         cmd = [
             "find",
             "/bin", "/etc", "/home", "/lib", "/lib64", "/opt", "/root", "/sbin", "/usr", "/var",
@@ -107,29 +110,39 @@ def hardlinks(database, target, conn, cur, email, compLVL):
             "-printf", "%i %n %p\n"
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
+        ret_code = result.returncode
+        is_error = False
+        if ret_code != 0:
+            if ret_code not in (0, 1):
+                is_error = True
             for line in result.stderr.splitlines():
-                if "Transport" not in line:
-                    if not is_error:
-                        is_error = True
-                        print(f"find exited with {result.returncode}. An error occured while retrieving hardlinks:")
-                    print(line)
+                print(line)
+            if is_error:
+                print(f"find exited with {ret_code}. An error occurred while retrieving hardlinks:")
+                return 1
+                # if "Transport" not in line:
+                #     if not is_error:
+                #         is_error = True
+                #         print(f"find exited with {result.returncode}. An error occured while retrieving hardlinks:")
+                #     print(line)
 
         # Build filesystem
         fs_inode_map = defaultdict(list)
         for line in result.stdout.splitlines():
-            inode_str, count_str, path = line.strip().split(None, 2)
+            parts = line.strip().split(None, 2)
+            if len(parts) != 3:
+                continue
+            inode_str, count_str, path = parts
             inode = int(inode_str)
             count_val = int(count_str)
             fs_inode_map[inode].append((count_val, path))
 
-        rows = []
-        if fs_inode_map:
-            cur.execute("SELECT filename, inode FROM logs")
-            rows = cur.fetchall()
+        if not fs_inode_map or not file_rows:
+            print("No results nothing to set")
+            return True
 
         db_inode_map = defaultdict(set)
-        for filename, inode in rows:
+        for filename, inode in file_rows:
             if not filename:
                 continue
             if os.path.isfile(filename):
@@ -147,6 +160,7 @@ def hardlinks(database, target, conn, cur, email, compLVL):
                     matches.append((1, inode, path))
 
         if matches:
+            cur.execute("UPDATE logs SET hardlinks = NULL WHERE hardlinks IS NOT NULL AND hardlinks != ''")
             cur.executemany(
                 "UPDATE logs SET hardlinks = ? WHERE inode = ? AND filename = ?",
                 matches
@@ -232,7 +246,7 @@ def clear_sys(database, target, conn, cur, config_file, email, compLVL, dcr=True
 
 def activateps(parsedsys, database, target, conn, cur, email, compLVL):
     try:
-        insert(parsedsys, conn, cur, "sys", "count")
+        insert(parsedsys, conn, cur, "sys", ['count', 'mtime_us'])
         nc = intst(database, compLVL)
         rlt = encr(database, target, email, no_compression=nc, dcr=True)
         if rlt:
@@ -496,7 +510,7 @@ def main():
                         total_filesize = 0
                         valid_entries = 0
                         for filesize in filesizes:
-                            if filesize and is_integer(filesize[0]):  # Check if filesize is valid (not None or blank)
+                            if filesize and is_integer(filesize[0]):
                                 total_filesize += int(filesize[0])
                                 valid_entries += 1
                         if valid_entries > 0:
@@ -514,12 +528,11 @@ def main():
                         filenames = cur.fetchall()
                         extensions = []
                         for entry in filenames:
-                            filepath = Path(entry[0])
-                            filename = filepath.name
-                            if filename.startswith('.') or '.' not in filename:
-                                ext = '[no extension]'
+                            filepath = entry[0]
+                            if '.' in filepath:
+                                ext = '.' + filepath.split('.')[-1] if '.' in filepath else ''
                             else:
-                                ext = '.' + '.'.join(filename.split('.')[1:])
+                                ext = '[no extension]'
                             extensions.append(ext)
                         if extensions:
                             counter = Counter(extensions)

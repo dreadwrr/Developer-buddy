@@ -1,6 +1,7 @@
 #!/bin/bash
 . /usr/local/save-changesnew/rntchangesfunctions
 . /usr/local/save-changesnew/save-changesnewfnts
+fmt="%Y-%m-%d %H:%M:%S"
 prefix=mainloop1
 prefixt=mainloop2
 prefixth=cache1

@@ -24,13 +24,13 @@ ANALYTICS="true"			# display more verbose output
 ANALYTICSECT="true"	# # disable metric saving time. ect. for ANALYTICS
 
 
-keepMRGED="true"       # default is normally false but we want to rename all .xzms to .bak anyway
+keepMRGED="false"       # default is normally false but we want to rename all .xzms to .bak anyway
 										# in this script regardless of preference
 
 
 ## Diagnostics
 override="true"			# Note this only applies when keepMRGED is false. The script wont by default delete the modules first so if something goes wrong theres no change.
-										# The script also renames them to .bak to avoid file name conflicts on the final save.
+										# The script first renames them to .bak to avoid file name conflicts on the final save.
 									
 									# default true. Extract to /tmp as normal leave modules where they are as normal.
 										

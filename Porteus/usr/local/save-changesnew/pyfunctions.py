@@ -6,7 +6,7 @@ import traceback
 from collections import defaultdict
 from datetime import datetime
 
-# Cache clear patterns to delete from db
+# Cache clear patterns to delete from db - see /usr/local/save-changesnew/clearcache to reset filter hits ln33
 
 cache_clear = [
     "%caches%",
@@ -20,7 +20,6 @@ cache_clear = [
     "%usr/share/mime/image%",
     "%release/cache%"
 ]
-
 
 CYAN = "\033[36m"
 RED = "\033[31m"
@@ -39,7 +38,7 @@ def collision(cursor, is_sys):
         if is_sys:
             tables = ['logs', 'sys']
             union_sql = " UNION ALL ".join([
-                f"SELECT filename, checksum, filesize FROM {t} WHERE checksum IS NOT NULL and symlink is NULL" for t in tables
+                f"SELECT filename, checksum, filesize FROM {t} WHERE checksum IS NOT NULL" for t in tables
             ])
             query = f"""
                 WITH combined AS (
@@ -62,8 +61,6 @@ def collision(cursor, is_sys):
                 AND a.filename < b.filename
                 AND a.filesize != b.filesize
                 WHERE a.checksum IS NOT NULL
-                    AND a.symlink IS NULL
-                    AND b.symlink IS NULL
                 ORDER BY a.checksum, a.filename
             """
 
@@ -96,21 +93,23 @@ def detect_copy(filename, inode, checksum, cursor, ps):
         cursor.execute(query, (checksum,))
 
     candidates = cursor.fetchall()
-    # for o_filename, o_inode in candidates:
-    #     if o_filename != filename or o_inode != inode:
-    #         return True
-    for _, o_inode in candidates:
+
+    for row in candidates:
+
+        _, o_inode = row
+        #     if o_filename != filename or o_inode != inode:
+        #         return True
         if o_inode != inode:
             return True
-
-    return None
+    return False
 
 
 def get_recent_changes(filename, cursor, table, e_cols=None):
     columns = [
         "timestamp", "filename", "changetime", "inode",
-        "accesstime", "checksum", "filesize", "owner",
-        "`group`", "permissions", "symlink", "casmod"
+        "accesstime", "checksum", "filesize", "symlink",
+        "owner", "`group`", "permissions", "symlink",
+        "casmod", "mtime_us"
     ]
     if e_cols:
         if isinstance(e_cols, str):
@@ -156,8 +155,9 @@ def increment_f(conn, c, records):
             c.execute("""
                 INSERT OR IGNORE INTO sys (
                     timestamp, filename, changetime, inode, accesstime, checksum,
-                    filesize, symlink, owner, `group`, permissions, casmod, lastmodified, count
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    filesize, symlink, owner, `group`, permissions, casmod, lastmodified,
+                    count, mtime_us
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, record)
 
             if c.rowcount > 0:
@@ -175,37 +175,9 @@ def increment_f(conn, c, records):
     return True
 
 
-# Bulk insert
-# def increment_f_bulk(conn, c, records):
-
-#     if not records:
-#         return False
-
-#     sql_insert = """
-#         INSERT INTO sys (
-#             timestamp, filename, changetime, inode, accesstime, checksum,
-#             filesize, symlink, owner, `group`, permissions, casmod, count
-#         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-#     """
-
-#     try:
-#         c.executemany(sql_insert, records)
-#         sql_update = "UPDATE sys SET count = count + 1 WHERE filename = ?"
-#         filenames = [(record[1],) for record in records]
-#         c.executemany(sql_update, filenames)
-#         conn.commit()
-
-#         return True
-
-#     except Exception as e:
-#         conn.rollback()
-#         print(f"Error while insert sys records skipping {type(e).__name__} : {e}")
-#         return False
-
-
-def ccheck(xdata, cerr, c, ps):
+def collision_check(xdata, cerr, c, ps):
     reported = set()
-
+    csum = False
     colcheck = collision(c, ps)
 
     if colcheck:
@@ -218,19 +190,20 @@ def ccheck(xdata, cerr, c, ps):
             with open(cerr, "a", encoding="utf-8") as f:
                 for record in xdata:
                     filename = record[1]
-                    csum = record[5]
+                    checks = record[5]
                     size_non_zero = record[6]
-                    sym = record[7]
-                    if sym != 'y' and size_non_zero:
-                        key = (filename, csum)
+                    if size_non_zero:
+                        key = (filename, checks)
                         if key in collision_map:
                             for other_file, file_hash, size1, size2 in collision_map[key]:
                                 pair = tuple(sorted([filename, other_file]))
                                 if pair not in reported:
+                                    csum = True
                                     print(f"COLLISION: {filename} {size1} vs {other_file} {size2} | Hash: {file_hash}", file=f)
                                     reported.add(pair)
         except IOError as e:
             print(f"Failed to write collisions: {e} {type(e).__name__}  \n{traceback.format_exc()}")
+    return csum
 
 
 def matches_any_pattern(s, patterns):
@@ -371,15 +344,17 @@ def sys_record_flds(record, sys_records, prev_count):
         record[10],  # permissions
         record[11],  # casmod
         record[12],  # lastmodified
-        prev_count  # incremented count
+        prev_count,  # incremented count
+        record[13]
     ))
 
 
 def is_integer(value):
     try:
-        return int(value)
+        int(value)
+        return True
     except (ValueError, TypeError):
-        return None
+        return False
 
 
 def is_valid_datetime(value, fmt):

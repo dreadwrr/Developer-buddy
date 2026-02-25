@@ -454,7 +454,7 @@ if [ -s $flth ]; then
 	if [ "$outputTFILE" = "true" ]  && [ "$STATPST" == "false" ] && [ -d $trc ]; then test -e $output_file && green "Report in /tmp" ; cp $output_file /tmp$report ; fi
 	z="Cache items can be cleared with cache clear script /usr/local/save-changesnew/. takes one arg username or default guest will be used"
 	[[ "$ANALYTICS" == "true" ]] && (( srhc % 5 == 0 )) && echo "$z"
-	[[ "$STATPST" == "true" ]] && (( srhc % 50 == 0 )) && echo "$z"
+	[[ "$STATPST" == "true" ]] && (( srhc % 10 == 0 )) && echo "$z"
 	if [ "$outputPSTFILE" == "true" ] && [ "$STATPST" == "true" ]  && [ "$genPSTTFILE" == "true" ] && [ -s $logpst ]; then
 		green "Report in /Downloads along with heuristics"
 		cp $output_file /home/$2/Downloads$report

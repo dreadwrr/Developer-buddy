@@ -10,6 +10,7 @@ if [[ $(whoami) != "root" ]]; then su - -c "/usr/local/save-changesnew/clearcach
 USR="$1"
 [[ -z "$USR" ]] && USR="guest"
 
+
 # deletes from logs. ANALYTICS  deletes frm logs. STATPST  logs and stats
 patterns=(
     'caches'
@@ -27,6 +28,7 @@ patterns=(
     '/usr/local/save-changesnew/flth\.csv'
 ) 
 
+
 # Then to reset filter hits on cache clear, add literal here ${2}
 clear_flth() {
 if [ -z "${patterns+x}" ]; then patterns=() ; fi
@@ -35,6 +37,7 @@ patterns+=("\/home\/'\"\${2}\"'\/\.local\/state\/wireplumber")
 # patterns+=("\.local\/share")  example as flth.csv is literal.  anything after "sed -i '/ and before /d'
 for pat in "${patterns[@]}"; do lno=$(grep -Fn "sed -i '/$pat/d'" "$flth" | cut -d: -f1) ; if [[ -n $lno ]]; then sed -i "${lno}s/,[0-9]\+\$/,0/" $flth ; fi ; done
 }
+
 
 #declare -p patterns . prints the array  # echo "sed -i \"\|$pat|d\" \"$1\"  debug output
 clear_c() { for pat in "${patterns[@]}"; do sed -i "\|$pat|d" $1 ; done ; }
