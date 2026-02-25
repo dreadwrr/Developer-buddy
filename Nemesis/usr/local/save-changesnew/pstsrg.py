@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       01/09/2026
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       02/25/2026
 import os
 import re
 import shutil
@@ -10,7 +10,7 @@ import traceback
 from hanlyparallel import hanly_parallel
 from pyfunctions import ap_decode
 from pyfunctions import CYAN, GREEN, RESET
-from pyfunctions import ccheck
+from pyfunctions import collision_check
 from pyfunctions import getcount
 from pyfunctions import getnm
 from pyfunctions import intst
@@ -99,7 +99,7 @@ def create_table(c, table, unique_columns, e_cols=None):
         'timestamp TEXT',
         'filename TEXT',
         'changetime TEXT',
-        'inode TEXT',
+        'inode INTEGER',
         'accesstime TEXT',
         'checksum TEXT',
         'filesize INTEGER',
@@ -143,9 +143,9 @@ def create_db(database, action=False):
     conn = sqlite3.connect(database)
     c = conn.cursor()
 
-    create_table(c, 'logs', ('timestamp', 'filename', 'changetime'), ['hardlinks INTEGER',])
+    create_table(c, 'logs', ('timestamp', 'filename', 'changetime', 'checksum'), ['hardlinks INTEGER', 'mtime_us INTEGER'])
 
-    create_table(c, 'sys', ('timestamp', 'filename', 'changetime',), ['count INTEGER',])
+    create_table(c, 'sys', ('timestamp', 'filename', 'changetime', 'checksum'), ['count INTEGER', 'mtime_us INTEGER'])
 
     c.execute('''
     CREATE TABLE IF NOT EXISTS stats (
@@ -164,15 +164,20 @@ def create_db(database, action=False):
         conn.close()
 
 
-def insert(log, conn, c, table, last_column):  # Log, sys
+def insert(log, conn, c, table, add_column=None):  # Log, sys
     global count
     count = getcount(c)
 
     columns = [
         'timestamp', 'filename', 'changetime', 'inode', 'accesstime',
         'checksum', 'filesize', 'symlink', 'owner', '`group`',
-        'permissions', 'casmod', 'lastmodified', last_column
+        'permissions', 'casmod', 'lastmodified'
     ]
+    if add_column:
+        if isinstance(add_column, (tuple, list)):
+            columns.extend(add_column)
+        else:
+            raise TypeError("add_column must be str, tuple, or list")
     placeholders = ', '.join(['?'] * len(columns))
     col_str = ', '.join(columns)
     c.executemany(
@@ -235,6 +240,16 @@ def parse_line(line):
     return [timestamp1, filepath, timestamp2, inode, timestamp3] + rest
 
 
+def _to_int_or_none(value, field, line):
+    if value in ("", "None", None):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        print(f"parselog invalid integer {field} {value} {line}")
+        return None
+
+
 def parselog(file, table, checksum):
 
     results = []
@@ -261,10 +276,10 @@ def parselog(file, table, checksum):
                 timestamp = inputln[0]
                 filename = inputln[1]
                 changetime = inputln[2]
-                inode = None if inputln[3] in ("", "None") else inputln[3]
+                ino = None if inputln[3] in ("", "None") else inputln[3]
                 accesstime = inputln[4]
                 checks = None if n > 5 and inputln[5] in ("", "None") else (inputln[5] if n > 5 else None)
-                filesize = None if n > 6 and inputln[6] in ("", "None") else (inputln[6] if n > 6 else None)
+                sze = None if n > 6 and inputln[6] in ("", "None") else (inputln[6] if n > 6 else None)
                 sym = None if n <= 7 or inputln[7] in ("", "None") else inputln[7]
                 onr = None if n <= 8 or inputln[8] in ("", "None") else inputln[8]
                 gpp = None if n <= 9 or inputln[9] in ("", "None") else inputln[9]
@@ -273,23 +288,27 @@ def parselog(file, table, checksum):
                 timestamp1 = None if n <= 12 or inputln[12] in ("", "None") else inputln[12]
                 timestamp2 = None if n <= 13 or inputln[13] in ("", "None") else inputln[13]
                 lastmodified = None if not timestamp1 or not timestamp2 else f"{timestamp1} {timestamp2}"
-                usec = None if n <= 14 or inputln[14] in ("", "None") else inputln[14]
-                hardlink_count = None if n <= 15 or inputln[15] in ("", "None") else inputln[15]
-
+                hardlink_count = None if n <= 14 or inputln[14] in ("", "None") else inputln[14]
+                inode = _to_int_or_none(ino, "inode", line)
+                filesize = _to_int_or_none(sze, "filesize", line)
                 if table == 'sys':
+                    us = timestamp1
+                    usec = _to_int_or_none(us, "usec", line)
                     count = 0
-                    results.append((timestamp, filename, changetime, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, cam, lastmodified, count))
+                    results.append((timestamp, filename, changetime, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, cam, lastmodified, count, usec))
                 elif table == 'sortcomplete':
+                    if checksum:
+                        us = None if n <= 15 or inputln[15] in ("", "None") else inputln[15]
 
                     if not checksum:
                         cam = checks
                         timestamp1 = filesize
                         timestamp2 = sym
                         lastmodified = None if not timestamp1 or not timestamp2 else f"{timestamp1} {timestamp2}"
-                        usec = onr
-                        hardlink_count = gpp
+                        hardlink_count = onr
+                        us = _to_int_or_none(gpp, "gpp", line)
                         checks = filesize = sym = onr = gpp = None
-
+                    usec = _to_int_or_none(us, "usec", line) if checksum else us
                     results.append((timestamp, filename, changetime, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, cam, lastmodified, hardlink_count, usec))
                 else:
                     raise ValueError("Supplied table not in accepted boundaries: sys or sortcomplete. value supplied", table)
@@ -388,6 +407,7 @@ def main():
     scr = '/tmp/scr'
     cerr = '/tmp/cerr'
 
+    csum = False
     db_error = False
     goahead = True
     is_ps = False
@@ -434,7 +454,7 @@ def main():
         else:
             # initial Sys profile
             if ps and checksum:
-                create_table(c, sys_table, ('timestamp', 'filename', 'changetime',), ['count INTEGER',])
+                create_table(c, sys_table, ('timestamp', 'filename', 'changetime' 'checksum',), ['count INTEGER', 'mtime_us INTEGER'])
 
                 parsed_sys = hash_system_profile(turbo)
 
@@ -442,8 +462,7 @@ def main():
 
                     try:
 
-                        insert(parsed_sys, conn, c, sys_table, "count")
-                        is_ps = True
+                        insert(parsed_sys, conn, c, sys_table, ['count', 'mtime_us'])
 
                     except Exception as e:
                         print(f'sys db failed insert {e}  {type(e).__name__} \n{traceback.format_exc()}')
@@ -458,36 +477,18 @@ def main():
 
                 try:
 
-                    hanly_parallel(rout, scr, cerr, parsed, checksum, cdiag, dbopt, is_ps, turbo, user)
+                    csum = hanly_parallel(rout, scr, cerr, parsed, ANALYTICSECT, checksum, cdiag, dbopt, is_ps, turbo, user)
 
                 except Exception as e:
                     print(f"hanlydb failed to process on mode {turbo}: {e} {traceback.format_exc()}", file=sys.stderr)
 
-                if turbo == 'mc':
-                    x = os.cpu_count()
-                    if x:
-                        if os.path.isfile(cerr):
-                            contents = None
-                            with open(cerr, 'r') as f:
-                                contents = f.read()
-                            if not contents:
-                                print("No output in cerr", cerr)
-                            elif ('Suspect' in contents or 'COLLISION' in contents):
-                                print("Warning:  Suspect or collision detected")
-                            else:
-                                print(f'Detected {x} CPU cores.')
-                        else:
-                            print(f'Detected {x} CPU cores.')
-                    if ANALYTICSECT:
-                        print(f'{GREEN}Hybrid analysis on{RESET}')
-
             try:
 
-                xdata = []
-                for record in parsed:
-                    xdata.append(record[:-1])   # remove the epoch that was used in hanly. it was carried over from bash
+                # xdata = []
+                # for record in parsed:
+                #     xdata.append(record[:-1])   # remove the epoch that was used in hanly. it was carried over from bash
 
-                insert(xdata, conn, c, "logs", "hardlinks")
+                insert(parsed, conn, c, "logs", ['hardlinks', 'mtime_us'])
                 if count % 10 == 0:
                     print(f'{count + 1} searches in gpg database')
 
@@ -497,7 +498,14 @@ def main():
 
             # Check for hash collisions
             if checksum and cdiag:
-                ccheck(xdata, cerr, c, ps)
+                if collision_check(parsed, cerr, c, ps):
+                    csum = True
+
+            if turbo == 'mc':
+                x = os.cpu_count()
+                if x:
+                    if not csum:
+                        print(f'Detected {x} CPU cores.')
 
         # Stats
         if os.path.isfile(rout):

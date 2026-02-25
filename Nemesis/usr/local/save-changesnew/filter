@@ -59,10 +59,7 @@ sed -i '/\.xsession/d' $1 $3
 sed -i '/\/home\/'"${2}"'\/\.config/d' $1 $3
 #sed -i '/\/home\/'"${2}"'\/\.config\/save-changesnew/d' $1 $3
 #sed -i '/\/home\/'"${2}"'\/Downloads\/rntfiles/d' $1 $3
-sed -i '/\/usr\/local\/save-changesnew\/logs\.gpg/d' $1 $3
-sed -i '/\/usr\/local\/save-changesnew\/recent\.gpg/d' $1 $3
-sed -i '/\/usr\/local\/save-changesnew\/stats\.gpg/d' $1 $3
-sed -i '/\/usr\/local\/save-changesnew\/flth\.csv/d' $1 $3
+
 
 
 # we dont want   root .auth90

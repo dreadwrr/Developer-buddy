@@ -1,12 +1,10 @@
 
-# hybrid analysis  01/09/2025
+# hybrid analysis  02/23/2025
 import os
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 from pyfunctions import escf_py
-from pyfunctions import epoch_to_date
-from pyfunctions import goahead
 from pyfunctions import is_integer
 from pyfunctions import is_valid_datetime
 from pyfunctions import new_meta
@@ -44,6 +42,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr):
     sys_records = []
 
     fmt = "%Y-%m-%d %H:%M:%S"
+    csum = False
 
     with sqlite3.connect(dbopt) as conn:
         cur = conn.cursor()
@@ -77,7 +76,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr):
 
             previous = recent_entries
 
-            if ps and recent_sys and len(recent_sys) > 12:
+            if ps and recent_sys and len(recent_sys) > 14:
 
                 previous_timestamp = parse_datetime(recent_sys[0], fmt)
 
@@ -100,12 +99,15 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr):
                     #     insert_sys_entry(entry, record, recent_sys, sys_records)
                     # else:
                     #     insert_sys_entry(entry, record, recent_sys, sys_records)
-                entry["sys"].append("")
-                prev_count = recent_sys[-1]
-                sys_record_flds(record, sys_records, prev_count)
+                    prev_count = recent_sys[-1]
+                    sys_record_flds(record, sys_records, prev_count)
+                else:
+                    print("sys table missing timestamp skipped")
+                    continue
 
-            if previous is None or len(previous) < 12:
+            if previous is None or len(previous) < 14:
                 continue
+
             if checksum:
                 if not record[5] or not previous[5]:
                     continue
@@ -114,91 +116,89 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr):
                     results.append(entry)
                     continue
 
-                current_size = is_integer(record[6])
-                original_size = is_integer(previous[6])
+                current_size = record[6]
+                original_size = previous[6]
 
             if not is_sys:
                 previous_timestamp = parse_datetime(previous[0], fmt)
 
-            if (is_integer(record[3]) is not None and is_integer(previous[3]) is not None  # inode format check
+            if (is_integer(record[3]) and is_integer(previous[3])   # inode format check
                     and previous_timestamp):
                 recent_cam = record[11]
                 previous_cam = previous[11]
                 cam_file = (recent_cam == "y" or previous_cam == "y")
 
                 mtime_usec_zero = record[14]
-                if mtime_usec_zero:
-                    # microsecond all zero
+                if is_integer(mtime_usec_zero) and mtime_usec_zero % 1_000_000 == 0:
                     entry["scr"].append(f'Unusual modified time file has microsecond all zero: {label} at mtime {mtime_usec_zero}')
 
                 if recent_timestamp == previous_timestamp:
-                    file_path = Path(filename)
-
                     if checksum:
+                        # file_path = Path(filename)
+                        # st = goahead(file_path)
+                        # if st == "Nosuchfile":
+                        #     entry["flag"].append(f'Deleted {record[0]} {record[0]} {label}')
+                        #     results.append(entry)
+                        #     continue
+                        # elif st:
+                        # a_mod = st.st_mtime
+                        # afrm_dt = epoch_to_date(a_mod)
+                        # a_mod_us = st.st_mtime_ns // 1000
+                        # a_size = st.st_size
+                        # a_ino = st.st_ino
+                        # try:
+                        # auid = pwd.getpwuid(st.st_uid).pw_name
+                        # except KeyError:
+                        # logs.append(("DEBUG", f""hanly failed to convert convert uid to user name for user {st.st_uid} line: {record}"))
+                        # auid = str(st.st_uid)
+                        # try:
+                        # agid = grp.getgrgid(st.st_gid).gr_name
+                        # except KeyError:
+                        # logs.append(("DEBUG", f""hanly failed to convert gid to group name{st.st_gid} line: {record}"))
+                        # agid = str(st.st_gid)
+                        # aperm = oct(stat.S_IMODE(st.st_mode))[2:]  # '644'
+                        # aperm = stat.filemode(st.st_mode) # '-rw-r--r--'
+                        # a_ctime = st.st_ctime
+                        # ctime_str = epoch_to_date(a_ctime).replace(microsecond=0)
+                        if is_valid_datetime(record[4], fmt):  # access time format check
+                            previous_mtime_us = previous[13]
+                            if isinstance(previous_mtime_us, int) and mtime_usec_zero == previous_mtime_us:
+                                if not cam_file:
+                                    if record[5] != previous[5]:
+                                        csum = True
+                                        entry["flag"].append(f'Suspect {record[0]} {record[2]} {label}')
+                                        entry["cerr"].append(f'Suspect file: {label} previous checksum {previous[5]} currently {record[5]}. changed without a new modified time.')
 
-                        st = goahead(file_path)
-                        if st == "Nosuchfile":
-                            entry["flag"].append(f'Deleted {record[0]} {record[0]} {label}')
-                            results.append(entry)
-                            continue
-                        elif st:
+                                if record[3] == previous[3]:  # inode
 
-                            a_mod = st.st_mtime
-                            a_size = st.st_size
-                            # a_ino = st.st_ino
-                            # auid = pwd.getpwuid(st.st_uid).pw_name
-                            # agid = grp.getgrgid(st.st_gid).gr_name
-                            # aperm = oct(stat.S_IMODE(st.st_mode))[2:]  # '644'
-                            # aperm = stat.filemode(st.st_mode) # '-rw-r--r--'
-                            # a_ctime = st.st_ctime
-                            # ctime_str = epoch_to_date(a_ctime).replace(microsecond=0)  # dt obj. convert to str .strftime(fmt)
-                            # recent_changetime = parse_datetime(record[2])
-
-                            afrm_dt = epoch_to_date(a_mod)
-                            if afrm_dt and is_valid_datetime(record[4], fmt):  # access time format check
-                                afrm_dt = afrm_dt.replace(microsecond=0)
-
-                                if afrm_dt == previous_timestamp:
-
-                                    if not cam_file:
-                                        if record[5] != previous[5]:
-                                            entry["flag"].append(f'Suspect {record[0]} {record[2]} {label}')
-                                            entry["cerr"].append(f'Suspect file: {label} previous checksum {previous[5]} currently {record[5]}. changed without a new modified time.')
-
-                                    if record[3] == previous[3]:  # inode
-
-                                        metadata = (previous[7], previous[8], previous[9])
-                                        if new_meta((record[8], record[9], record[10]), metadata):
-                                            entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
-                                            entry["scr"].append(f'Permissions of file: {label} changed {metadata[0]} {metadata[1]} {metadata[2]} → {record[8]} {record[9]} {record[10]}')
-
-                                else:  # Shifted during search
-
-                                    if not cam_file:
-                                        if cdiag:
-                                            entry["scr"].append(f'File changed during the search. {label} at {afrm_dt}. Size was {original_size}, now {a_size}')
-                                        else:
-                                            entry["scr"].append('File changed during search. File likely changed. system cache item.')
-
-                                        # since the modified time changed you could rerun all the checks in the else block below. It would make the function messy with refactoring the below else block. Also these
-                                        # files are either system or cache files. Would also lead to repeated feedback when the search is ran again. These checks provide feedback of what files are actively
-                                        # changing on the system.
-
-                                        # md5 = None  for detecting Suspicious file. where same mtime different checksum
-                                        # if current_size is not None:
-                                        #     if current_size > CSZE:
-                                        #         md5 =
-                                        #     else:
-                                        #         md5 = record[5] # file wasnt cached and was calculated in fsearch earlier
-                                        # md5 = calculate_checksum(file_path)
-                                        # if md5:
-                                        #     if md5 != previous[5]:
-                                        #         stealth(filename, label, entry, a_size, original_size, cdiag)
-                                        # if a_ino == previous[3]:
-                                        #     metadata = (previous[7], previous[8], previous[9])
-                                        #     if new_meta((auid, agid, aperm), metadata):
-                                        #         entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
-                                        #         entry["scr"].append(f'Permissions of file: {label} changed {metadata[0]} {metadata[1]} {metadata[2]} → {auid} {agid} {aperm}')
+                                    metadata = (previous[8], previous[9], previous[10])
+                                    if new_meta((record[8], record[9], record[10]), metadata):
+                                        entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
+                                        entry["scr"].append(f'Permissions of file: {label} changed {metadata[0]} {metadata[1]} {metadata[2]} → {record[8]} {record[9]} {record[10]}')
+                                    # else:  # Shifted during search
+                                    #     if not cam_file:
+                                    #         if cdiag:
+                                    #             entry["scr"].append(f'File changed during the search. {label} at {afrm_dt}. Size was {original_size}, now {a_size}')
+                                    #         else:
+                                    #             entry["scr"].append('File changed during search. File likely changed. system cache item.')
+                                    # since the modified time changed you could rerun all the checks in the else block below. It would make the function messy with refactoring the below else block. Also these
+                                    # files are either system or cache files. Would also lead to repeated feedback when the search is ran again. These checks provide feedback of what files are actively
+                                    # changing on the system.
+                                    # md5 = None  for detecting Suspicious file. where same mtime different checksum
+                                    # if current_size is not None:
+                                    #     if current_size > CSZE:
+                                    #         md5 =
+                                    #     else:
+                                    #         md5 = record[5] # file wasnt cached and was calculated in fsearch earlier
+                                    # md5 = calculate_checksum(file_path)
+                                    # if md5:
+                                    #     if md5 != previous[5]:
+                                    #         stealth(filename, label, entry, a_size, original_size, cdiag)
+                                    # if a_ino == previous[3]:
+                                    #     metadata = (previous[7], previous[8], previous[9])
+                                    #     if new_meta((auid, agid, aperm), metadata):
+                                    #         entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
+                                    #         entry["scr"].append(f'Permissions of file: {label} changed {metadata[0]} {metadata[1]} {metadata[2]} → {auid} {agid} {aperm}')
 
                 else:
 
@@ -220,7 +220,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr):
                                 entry["flag"].append(f'Modified {record[0]} {record[2]} {label}')
                                 stealth(filename, label, entry, current_size, original_size, cdiag)
                             else:
-                                metadata = (previous[7], previous[8], previous[9])
+                                metadata = (previous[8], previous[9], previous[10])
                                 if new_meta((record[8], record[9], record[10]), metadata):
                                     entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
                                     entry["scr"].append(f'Permissions of file: {label} changed {metadata[0]} {metadata[1]} {metadata[2]} → {record[8]} {record[9]} {record[10]}')
@@ -252,4 +252,4 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr):
             if entry["cerr"] or entry["flag"] or entry["scr"] or entry["sys"]:
                 results.append(entry)
 
-    return results, sys_records
+    return results, sys_records, csum

@@ -40,9 +40,9 @@ keepMRGED="true"       # default is delete the old ones after merging
 
 
 ## Diagnostics
-override="true"			# Note this only applied when keepMRGED is false. 
+override="true"			# Note this only applies when keepMRGED is false. 
 
-									# false. Move the modules to tmp to free up space on the drive. default false
+									# default false. Move the modules first to tmp to free up space on the drive.
 
 									# true. You dont want them sent to /tmp first and the feature is overridden.
 	
@@ -50,9 +50,8 @@ override="true"			# Note this only applied when keepMRGED is false.
 
 
 d2dmdl="true"				# use the harddrive or usb for temp all files/work. if having a problem like extracting to tmp set this to true to use the drive
-
-									# false dont extract in extramod. false default.
-									# true extract as normal to tmpfs in live system
+									# true extract in extramod. default 
+									# false extract as normal to tmpfs in live system 
 
 									# The script wont by default delete the modules first so if something goes wrong theres no change
 									# The override and d2dmdl settings were put in because of imbalance of free space for different configurations
@@ -148,4 +147,3 @@ fi
 test -f $QEXCL && rm -f $QEXCL ; test -f $elog && rm -f $elog ; test -d "$tmp" && rm -rf "${tmp:?}"
 # Notes quick reference
 #k=$( echo "$file" | sed -e 's@.*/@@')   # grabs the filename from the path
-

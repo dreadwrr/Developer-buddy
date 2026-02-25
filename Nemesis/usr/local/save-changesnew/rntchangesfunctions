@@ -1,5 +1,5 @@
 #!/bin/bash
-#   Developer buddy 5.0 core                                               01/17/2026
+#   Developer buddy 5.0 core                                               02/25/2026
 
 
 # Filter terminal or suppress browser. common items to exclude from prompt      .  regex  notes: ([^/]*)$
@@ -218,7 +218,7 @@ if [ "$STATPST" == "true" ]; then
 			while IFS= read -r line; do
 				read -r f1 f2 f3 f4 f5 _ <<< "$line"
 				[[ -n "$f5" ]] || continue
-				cFILE="$f3"				
+				cFILE="$f3"
 				odt="$f1 $f2"
 				oct="$f4 $f5"
 				key="$odt $cFILE $oct"
@@ -230,7 +230,7 @@ if [ "$STATPST" == "true" ]; then
 				dt="$f1 $f2"
 				ct="$f4 $f5"
 				key="$dt $cFILE $ct"
-				if [[ -z "${ref_map[$key]}" ]]; then echo "$p" >> "$source" ; ref_map["$key"]=1 ; fi		
+				if [[ -z "${ref_map[$key]}" ]]; then echo "$p" >> "$source" ; ref_map["$key"]=1 ; fi
 				# r=$( grep -F "$dt \"$y\" $ct" $source)  # moved to use assoc array same as stat
 				# [[ -z "$r" ]] &&  echo "$p" >> $source
 			done < $1
@@ -337,8 +337,11 @@ if [ "$current_size" -ge 0 ] 2>/dev/null && [ "$original_size" -ge 0 ] 2>/dev/nu
 fi
 }
 hablk() {
-local cam_file tmp afrm label
-local m n y
+local original_ln
+local cam_file tmp label
+local dt omt ct
+local ocam cam usec ousec
+local n y
 csm="false"
 :> $TMPCOMPLETE
 while IFS= read -r p || [[ -n "$p" ]]; do
@@ -346,13 +349,13 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 	found_line=""
 	tmp="${p#*\"}"
 	y="${tmp%\"*}"
-	read -r f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 _ f12 f13 f14 f15 _ _ f18 _ <<< "$p"  # skip symlink lmt and finally hardlinks if enabled
+	read -r f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 _ f12 f13 f14 f15 _ _ _ f19 <<< "$p"  # skip symlink lmt and finally hardlinks if enabled
 	in="$f6"
 	if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then
 		if [ "$1" == "A" ]; then found_line="${ref_map[$y]}" ; else found_line=$( grep -F "\"$y\"" "$ofile" | tail -n 1) ; fi  # for line in "${ref_lines[@]}"; do if [[ "$line" == *"$y"* ]]; then found_line="$line" ; fi ; done regular array old multicore using grep*
 		if [ -n "$found_line" ]; then
 			original_ln="$found_line"
-			read -r of1 of2 _ _ _ of6 of7 of8 of9 of10 _ of12 of13 of14 of15 _ _ of18 _ <<< "$original_ln"  # skip filename changetime symlink lmt and finally hardlinks if enabled
+			read -r of1 of2 _ _ _ of6 of7 of8 of9 of10 _ of12 of13 of14 of15 _ _ _ of19 <<< "$original_ln"  # skip filename changetime symlink lmt and finally hardlinks if enabled
 			cFILE="$( ap_dec "$y")"
             label="$( ap_filedec "$y")"
             oat="$of7 $of8" ; cat="$f7 $f8"
@@ -367,7 +370,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 				fi
                 ocs="$of9" ; cs="$f9" ; os="$of10" ; csze="$f10" ; ocam="$of15" ; cam="$f15"
                 [[ "$cs" != "None" && "$ocs" != "None" ]] || continue
-                usec="$f18" ; ousec="$of18"
+                usec="$f19" ; ousec="$of19"
                 if [ -z "$usec" ] || [ -z "$ousec" ]; then  # ensure full entries
                     continue
                 fi
@@ -382,52 +385,27 @@ while IFS= read -r p || [[ -n "$p" ]]; do
                 fi
 				if [ "$dt" == "$omt" ]; then
 					if [ "$checkSUM" == "true" ]; then
-                        if [ "$usec" != "None" ]; then
-                            n=${usec%%.*}
-                            if [ "$n" -ge 0 ] 2>/dev/null; then
-                            	echo "Unusual modified time file has microsecond all zero: $label. at mtime $usec" >> $slog
-                            fi
-                        fi
-					    # read a_mod i fs au ag apmr < <(stat --format="%Y %i %s %U %G %a" "$cFILE" 2>/dev/null)
-                        read a_mod fs < <(stat --format="%Y %s" "$cFILE" 2>/dev/null)
-					    afrm=$(date -d "@$a_mod" +"$fmt" 2>/dev/null)
-                        if [ -n "$afrm" ]; then
-                            if [ "$afrm" == "$dt" ]; then
-                                if [ "$cs" != "$ocs" ] && [ "$cam_file" == "false" ]; then
-                                    echo "Suspect $dt $ct $label" >> $rout
-                                    echo "Suspect file: $label previous checksum ${ocs} currently ${cs}.changed without a new modified time." >> $cerr
-                                fi
-                                if (( oin == in )); then
-                                    if newmeta $f12 $f13 $f14 $of12 $of13 $of14; then
-                                        echo "Metadata $dt $ct $label" >> $rout
-                                        echo "Permissions of file: $label changed $of12 $of13 $of14 → $f12 $f13 $f14" >> $slog
-                                    fi
-                                fi
-                            else
-								if [ "$cam_file" == "false" ]; then
-	                                m="File changed during the search."
-	                                if [ "$cdiag" == "true" ]; then
-		                                echo "$m $label at ${afrm} initially ${dt}. Size was $os, now $fs." >> $slog
-	                                else
-		                                echo "$m $label. File likely changed. system cache item." >> $slog
-	                                fi
-                                    #a_checksum=$(md5sum "$cFILE" 2> /dev/null | awk '{print $1}')
-                                    #if [ -n "$a_checksum" ] && [ "$a_checksum" != "$ocs" ]; then
-                                    #	stealth "$cFILE" "$label" $a_checksum $fs $csze
-                                    #fi
-                                    #if [ "$i" -ge 0 ] 2>/dev/null; then
-                                    #	if [ "$i" == "$oin" ]; then
-                                    #        if newmeta $au $ag $apmr $of12 $of13 $of14; then
-                                    #            echo "Metadata $dt $ct $label" >> $rout
-                                    #            echo "Permissions of file: $label changed $of12 $of13 $of14 → $au $ag $apmr" >> $slog
-                                    #        fi
-                                    #	fi
-                                    #fi
-							    fi
-                            fi
-                        else
-                            echo "Deleted $dt $dt $label" >> $rout
-                        fi
+						if [ "$usec" -ge 0 ] 2>/dev/null; then
+							if (( usec % 1000000 == 0 )); then
+								echo "Unusual modified time file has microsecond all zero: $label. at mtime $usec" >> $slog
+							fi
+							if [ "$ousec" -ge 0 ] 2>/dev/null; then
+								if [ "$usec" == "$ousec" ]; then
+									if [ "$cs" != "$ocs" ] && [ "$cam_file" == "false" ]; then
+										echo "Suspect $dt $ct $label" >> $rout
+										echo "Suspect file: $label previous checksum ${ocs} currently ${cs}.changed without a new modified time." >> $cerr
+									fi
+									if (( oin == in )); then
+										if newmeta $f12 $f13 $f14 $of12 $of13 $of14; then
+											echo "Metadata $dt $ct $label" >> $rout
+											echo "Permissions of file: $label changed $of12 $of13 $of14 → $f12 $f13 $f14" >> $slog
+										fi
+									fi
+								else
+									echo "original mtime_us missing"
+								fi
+							fi
+						fi
 					fi
 				else
 					if [ "$checkSUM" == "true" ]; then
@@ -531,7 +509,7 @@ done < $1
 [[ "$flg" == "true" ]] && return 1 || return 0
 }
 processha() {
-local action filepath 
+local action filepath
 local ts1 ts2 y
 local invr="$3"
 [[ -z "$invr" ]] && invr="$1"
@@ -598,10 +576,10 @@ rlt=${rlt//\"/} ; rltt=${rltt//\"/} ; rlttt=${rlttt//\"/} ; mail=${mail//\"/}
 
 inclusions() {
 # local results=${LCLMODULENAME:0:3}
-local c=$SORTCOMPLETE
-sed -i '/\/usr\/local\/save-changesnew\/flth\.csv/d' $c  # sed -i '/\/tmp/\/rnt/d' $2
+local c=$1
+# sed -i '/\/usr\/local\/save-changesnew\/flth\.csv/d' $c  # sed -i '/\/tmp/\/rnt/d' $2
 sed -i '/\/home\/'"${USR}"'\/Downloads\/'"${LCLMODULENAME}x"'/d' $c
-for var in logpst statpst pydbpst; do gp="${!var}" ; sed -i "\|$gp|d" $c ; done
+for var in flth logpst statpst pydbpst; do gp="${!var}" ; sed -i "\|$gp|d" $c ; done
 }
 
 clearlogs() {
@@ -795,12 +773,12 @@ fi
 if [ "$POSTOP" == "false" ]; then test -f $rout && rm $rout ; fi
 test -f $slog && rm $slog
 }
-strup() { /usr/local/save-changesnew/start_inotify $log_file $LCLMODULENAME $CACHE_F "$checkSUM" $updatehlinks "ctime" 3600 ; }
+strup() { /usr/local/save-changesnew/start_inotify $log_file $LCLMODULENAME $CACHE_F "$checkSUM" "ctime" 3600 ; }
 intst() {
 local sz
 #Init
 if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
-if [[ "$updatehlinks" = "true" && "$backend" != "database" ]]; then updatehlinks="false" ; fi
+
 if [[ "$mMODE" == "mc" ]]; then
 	cores=$( nproc 2>/dev/null || echo 1)
 	max_jobs=$(( cores > 16 ? 16 : cores ))
@@ -876,7 +854,6 @@ done
 }
 process_sort() {
 local filepath cFILE dt r y
-[[ "$updatehlinks" = "true" ]] && green "Updating hardlinks"
 while IFS= read -r y; do 
 	read -r f1 f2 f3 _  <<< "$y"
 	dt="$f1 $f2" ; cFILE="$f3"
@@ -903,10 +880,10 @@ while IFS= read -r y; do
 done < $2 >> $1
 }
 upt_cache() {
-local inode=$1 
-local size=$2 
-local mtime=$3 
-local checksum=$4 
+local inode=$1
+local size=$2
+local mtime=$3
+local checksum=$4
 local path="$5"
 local cache_file=$6
 printf '%s|%s|%s\t%s\t%s\n' "$inode" "$size" "$mtime" "$checksum" "$path" >> "$cache_file"
@@ -916,59 +893,47 @@ local inode=$1
 local size=$2
 local mtime=$3
 local key="$inode|$size|$mtime"
-grep -m1 "^${key}   " "$CACHE_F" | awk -F $'\t' '{print $2}'
+grep -m1 "^${key}	" "$CACHE_F" | awk -F $'\t' '{print $2}'
 }
 # [[:space:]]
-
-normalize_ts() { printf "%.9f\n" "$1" ; }
-
+normalize_ts() { printf "%.6f\n" "$1" ; }
 calculate_csum() {
-local fmt="%Y-%m-%d %H:%M:%S"
-# file stats
 local xmode="$1"				;	local file_path="$2"
 local modified_epoch=$3	;	local ino=$4
-local sze=$5
-local x=$6
+local sze=$5	;	local x=$6
 local delay=$7
-# globals from sblk are csum mtime itime mt ct fs i sym n onr grp pmr
-# checksum verification and or updated stats
-local f1 f2 f3 f4 mod_time
-#local frac
-#local mt_original
-local ctime_epoch len
-local a_ino a_sym a_nlnk a_sze a_onr a_grp a_prm
+# local debug_log=$8
+# local debug_file=$9
+# local log_date=${10}
+# globals are fmt csum mtime itime mt ct fs i sym n onr grp pmr
+local ctime_epoch
+local f1 f2 f3 f4 a_ino a_sym a_nlnk a_sze a_onr a_grp a_prm
+local mod_time change_time
 local c r
 local checks
 local prev_hash=""
-#
+# local max_retries=0
+
 if [ "$ino" -ge 0 ] 2>/dev/null && [ "$sze" -ge 0 ] 2>/dev/null; then
 	while (( x >= 0 )); do
 		r=""
 	    checks=$( md5sum "$file_path" 2>/dev/null)
 		if [[ -n "$checks" ]]; then
 			checks=${checks%% *}
-			# on second or later iteration and not ctime as ctime could no longer be > mtime now
-			if [[ -n "$prev_hash" && "$xmode" = "main" && "$checks" = "$prev_hash" ]]; then  # && "$xmode" = "main"
+			if [[ -n "$prev_hash" && "$checks" = "$prev_hash" ]]; then
+
 				if [ "$a_ino" -ge 0 ] 2>/dev/null; then
 					# update only needed stats
 					check_sum=$checks
 					mtime=$modified_epoch
                     itime=$ctime_epoch
-                    # if storing microseconds this would grab nano second for usec compariso
-                    #frac=${mt_original#*.}
-                    #len=${#frac}   
-                    #if (( len > 0 )); then
-                    #	if [[ "$frac" =~ ^0+$ ]]; then
-                    #		usec=$mt_original
-                    #	fi
-                    #fi
                     mtime_sec=${mtime%%.*}
                     itime_sec=${itime%%.*}
+					mtime_frac=${mtime#*.}
 					mt=$(date -d "@$mtime_sec" +"$fmt")
                     ct=$(date -d "@$itime_sec" +"$fmt" 2> /dev/null)
 					fs=$a_sze
-
-					# the inode changed update all global file stats
+					# the inode changed update all remaining stats
 					if (( ino != a_ino )); then
 						i=$a_ino
 						sym=$a_sym
@@ -979,28 +944,38 @@ if [ "$ino" -ge 0 ] 2>/dev/null && [ "$sze" -ge 0 ] 2>/dev/null; then
 					fi
 					return 0
 				fi
+
 			fi
 			if (( x > 0 )); then
-				read f1 f2 _ f3 f4 _ a_ino a_sym a_nlnk a_sze a_onr a_grp a_prm < <( stat --format="%y %z %i %A %h %s %U %G %a" "$file_path" 2>/dev/null)  # %A
+				read -r f1 f2 _ f3 f4 _ a_ino a_sym a_nlnk a_sze a_onr a_grp a_prm < <( stat --format="%y %z %i %A %h %s %U %G %a" "$file_path" 2>/dev/null)  # %A
 				[[ -z "$a_prm" ]] && break
 				mod_time="$f1 $f2"
-				c=$( date -d "$mod_time" +%s.%N 2>/dev/null)
-				[[ -z "$c" ]] && break # mtime is required
-                # mt_original=$c
+				c=$( date -d "$mod_time" +%s.%N 2>/dev/null)  # %6N
+				[[ -z "$c" ]] && echo "no modified time calculate_checksum error" && return 2  # mtime required # log_lineout $debug_log $debug_file "$log_date" "calculate checksum failed to convert timestamp retry $(( max_retries - x ))"
                 c=$(normalize_ts "$c")
-				# if it matches the find command mtime and size and the inode didnt change return the checksum
-				if [[ -z "$prev_hash" ]]; then
-					if [[ "$c" == "$modified_epoch" && -n "$a_ino" && -n "$a_sze" ]] && (( ino == a_ino )) && (( sze == a_sze )); then
-						check_sum=$checks
+
+				# if it matches the find command or if two stats match return the checksum
+				if [[ "$c" == "$modified_epoch" && -n "$a_ino" && -n "$a_sze" ]] && (( ino == a_ino )) && (( sze == a_sze )); then
+					check_sum=$checks
+					if [[ -z "$prev_hash" ]]; then
+						return 0
+					else
+						mtime=$modified_epoch
+		                itime=$ctime_epoch
+			            mtime_sec=${mtime%%.*}
+			            itime_sec=${itime%%.*}
+						mtime_frac=${mtime#*.}
+						mt=$(date -d "@$mtime_sec" +"$fmt")
+		                ct=$(date -d "@$itime_sec" +"$fmt" 2> /dev/null)
 						return 0
 					fi
 				fi
+
 	    		# else retry
 				modified_epoch=$c
 				change_time="$f3 $f4"
-				if [[ -n "$change_time" ]]; then
-					r=$( date -d "$change_time" +%s.%N 2>/dev/null)
-				fi
+				r=$( date -d "$change_time" +%s.%N 2>/dev/null)
+				[[ -n "$r" ]] && r=$(normalize_ts "$r") || echo "calculate_checksum changetime was null"  # debug warning # log_lineout $debug_log $debug_file "$log_date" "calculate_csum Warning ct is null on retried. retry $(( max_retries - x ))" && return 1
 				ctime_epoch=$r
 				prev_hash="$checks"
                 sleep $delay
@@ -1011,44 +986,54 @@ if [ "$ino" -ge 0 ] 2>/dev/null && [ "$sze" -ge 0 ] 2>/dev/null; then
 	    (( x-- ))
 	done
 fi
+# log_lineout $debug_log $debug_file "$log_date" "calculate_csum failed no checksum skipping. retry $(( max_retries - x ))"
 return 1
 }
-
 # Used for sysprofile as you dont want to cache the checksum
 rblk() {
-local lmt 
-local cFILE ; local y
-local fmt="%Y-%m-%d %H:%M:%S"
-local sl=""
+local cur_line cFILE y
+local mtime_oct
 local cam="None"
 
-local lmt=""
-#usec="None"
+sl=""
+check_sum=""
 
 cur_line="$( ap_safeline "$1")"
-IFS=' ' read -r mtime atime itime i sym fs onr grp pmr cFILE <<< "$cur_line"
+read -r mtime atime itime i sym fs onr grp pmr cFILE <<< "$cur_line"
+
 cFILE="$( ap_safeline_dec "$cFILE")"
 y="$( ap_enc "$cFILE")"
+mtime_sec=${mtime%%.*}
+itime_sec=${itime%%.*}
 mt=$(date -d "@${mtime%%.*}" +"$fmt")
 ct=$(date -d "@${itime%%.*}" +"$fmt")
 if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 	if [ -n "$mt" ]; then
+
+		mtime=$(normalize_ts "$mtime")
+		itime=$(normalize_ts "$itime")
+		mtime_frac=${mtime#*.}
+
+		[[ "$sym" == l* ]] && sl="y"
 		if [ "$4" == "true" ]; then
-			calculate_csum "main" "$cFILE" $mtime $i $fs
-			csum=${csum:-None}
-			fs=${fs:-None} 
-			[[ "$sym" == l* ]] && sl="y" ; sl=${sl:-None}  # [[ -L "$cFILE" ]] && sl="y" ; sl=${sl:-None}
-			wnr=${onr:-None} ; grp=${grp:-None} ; pmn=${pmr:-None}
-			adtcmd="$csum $fs $sl $wnr $grp $pmn $cam"
-		else
-	    	adtcmd=""
+			if [[ -z "$sl" ]]; then
+				calculate_csum "main" "$cFILE" $mtime $i $fs 2 0
+			fi
 		fi
-        # (( ${itime%%.*} > ${mtime%%.*} )) && { cam="y" ; lmt=$mt ; mt=$ct ; }
+
+		check_sum=${check_sum:-None}
+		fs=${fs:-None} ; sl=${sl:-None}
+		wnr=${onr:-None} ; grp=${grp:-None} ; pmn=${pmr:-None}
+		adtcmd="$check_sum $fs $sl $wnr $grp $pmn $cam"
+
 		ats=$(date -d "@${atime%%.*}" +"$fmt")
 		ct=${ct:-None None}
 		ats=${ats:-None None}
-        lmt=${lmt:-None None}
-		output="$mt \"$y\" $ct $i $ats $adtcmd"  # $lmt $usec
+
+		mtime_oct=$(( 10#$mtime_frac ))
+		mtime_us=$(( mtime_sec * 1000000 + (mtime_oct) ))
+
+		output="$mt \"$y\" $ct $i $ats $adtcmd $mtime_us"
 		printf '%s\n' "$output" >> $2
 	fi
 else
@@ -1058,82 +1043,74 @@ fi
 }
 # Mainloop do cache files over 1MB.
 sblk() {
-local fmt="%Y-%m-%d %H:%M:%S"
-local frac len y r
+local y r
+local itime_frac itime_oct mtime_oct mtime_us csum_rlt
 local cam sl lmt cFILE
-r=""				;	sl=""
-lmt=""			;	nlinks=""
-cam="None"	;	usec="None"
-csum=""
+local cache_flg="false"
+
+r=""					;	sl=""
+lmt=""				;	nlinks=""
+cam="None"
+check_sum=""
+
 #log_date="$(date +"$fmt")"
 #echo "$log_date sblk line in $cur_line" >> /tmp/output  # debug
+
 cur_line="$( ap_safeline "$1")"
-IFS=' ' read -r mtime atime itime i sym n fs onr grp pmr cFILE <<< "$cur_line"
-if { [[ "$5" = "ctime" ]] && (( ${itime%%.*} > ${mtime%%.*} )); } || [[ "$5" = "main" ]]; then
+read -r mtime atime itime i sym n fs onr grp pmr cFILE <<< "$cur_line"
+
+cFILE="$( ap_safeline_dec "$cFILE")"
+y="$( ap_enc "$cFILE")"
+
+mtime_sec=${mtime%%.*}
+itime_sec=${itime%%.*}
+mt=$(date -d "@$mtime_sec" +"$fmt")
+ct=$(date -d "@$itime_sec" +"$fmt")
+if { [[ "$5" = "ctime" ]] && [[ -n "$ct" ]] && [[ "$itime" > "$mtime" ]]; } || [[ "$5" = "main" ]]; then
 	#log_date="$(date +"$fmt")"
 	#echo "$log_date creation time: $itime and mtime: $mtime , sblk passed processing line in $cur_line" >> /tmp/output  # debug
-	cFILE="$( ap_safeline_dec "$cFILE")"
-    y="$( ap_enc "$cFILE")"
-    mt=$(date -d "@${mtime%%.*}" +"$fmt")
-    ct=$(date -d "@${itime%%.*}" +"$fmt")
     if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 	    if [ -n "$mt" ]; then
-			#frac=${mtime#*.} # if storing microsecond get the fractions here first
-			#len=${#frac}
-			#if (( len > 0 )); then
-			#    if [[ "$frac" =~ ^0+$ ]]; then
-			#	    usec=$mtime
-			#    fi
-			#fi
-		    #if (( len == 6 )); then
-		    #	us=${frac:0:6}
-		    #	if [ "$us" == "000000" ]; then
-		    #		usec="y"
-		    #	fi
-		    #elif (( len == 9 )); then
-		    #	us=${frac:0:9}
-		    #	if [ "$us" == "000000000" ]; then
-		    #		usec="y"
-		    #	fi
-		    #fi
 			mtime=$(normalize_ts "$mtime")
+			itime=$(normalize_ts "$itime")
+			mtime_frac=${mtime#*.}
 		    if [ "$4" == "true" ]; then
-			    if (( fs > 1000000 )); then
-					[[ -e "$CACHE_F" ]] && r=$(get_cached "$i" "$fs" "$mtime")
-                    if [[ -n "$r" ]]; then
-                        csum="$r"
-                    else
-						calculate_csum $5 "$cFILE" $mtime $i $fs
-                        [[ -n "$csum" ]] && upt_cache "$i" "$fs" "$mtime" "$csum" "$y" "$6"
-                    fi
-				else
-					calculate_csum $5 "$cFILE" $mtime $i $fs
-			    fi
-			    csum=${csum:-None}
-			    fs=${fs:-None} 
-			    [[ "$sym" == l* ]] && sl="y" ; sl=${sl:-None}  # [[ -L "$cFILE" ]] && sl="y" ; sl=${sl:-None}
-			    wnr=${onr:-None} ; grp=${grp:-None} ; pmn=${pmr:-None}
-
-			    adtcmd="$csum $fs $sl $wnr $grp $pmn"
-				frac=${mtime#*.}
-				len=${#frac}
-				if (( len > 0 )); then
-					if [[ "$frac" =~ ^0+$ ]]; then
-						usec=$mtime
+				[[ "$sym" == l* ]] && sl="y" && check_sum="None"
+				if [[ -z "$sl" ]]; then
+					if (( fs > 1000000 )); then
+						[[ -e "$CACHE_F" ]] && mtime_us=$(( mtime_sec * 1000000 + (10#$mtime_frac) )) && r=$(get_cached $i $fs $mtime_us)
+		                if [[ -n "$r" ]]; then
+		                    check_sum="$r"
+		                else
+							calculate_csum $5 "$cFILE" $mtime $i $fs 1 0
+							csum_rlt=$?
+							(( csum_rlt == 2 )) && return 1
+							cache_flg="true"
+		                fi
+					else
+						calculate_csum $5 "$cFILE" $mtime $i $fs 1 0
 					fi
 				fi
+			    check_sum=${check_sum:-None}
+			    fs=${fs:-None} ; sl=${sl:-None}
+			    wnr=${onr:-None} ; grp=${grp:-None} ; pmn=${pmr:-None}
+			    adtcmd="$check_sum $fs $sl $wnr $grp $pmn"
 		    else
 	        	adtcmd=""
 		    fi
-
-            [[ "$updatehlinks" = "true" ]] && nlinks=$n
-			[[ "$5" = "ctime" ]] && { cam="y" ; lmt=$mt ; mt=$ct ; }
-		    ats=$(date -d "@${atime%%.*}" +"$fmt")
-		    ct=${ct:-None None}
-		    ats=${ats:-None None}
-            lmt=${lmt:-None None}
-		    output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $usec $nlinks"
-		    printf '%s\n' "$output" >> $2
+			if { [[ "$5" = "ctime" ]] && [[ -n "$ct" ]] && [[ "$itime" > "$mtime" ]]; } || [[ "$5" = "main" ]]; then
+				nlinks=$n
+				ats=$(date -d "@${atime%%.*}" +"$fmt")
+				ct=${ct:-None None}
+				ats=${ats:-None None}
+		        lmt=${lmt:-None None}
+				[[ "$5" = "ctime" ]] && { cam="y" ; lmt=$mt ; mt=$ct ; }
+				mtime_oct=$(( 10#$mtime_frac ))
+				mtime_us=$(( mtime_sec * 1000000 + (mtime_oct) ))
+				output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $nlinks $mtime_us"
+				if [[ "$cache_flg" = "true" ]] && (( fs > 1000000 )); then upt_cache "$i" "$fs" "$mtime_us" "$check_sum" "$y" "$6" ; fi
+				printf '%s\n' "$output" >> $2
+			fi
 	    fi
     else
 	    [[ -z "$mt" ]] && { crt=$(date +"$fmt") ; mt=$crt; }
@@ -1143,102 +1120,103 @@ if { [[ "$5" = "ctime" ]] && (( ${itime%%.*} > ${mtime%%.*} )); } || [[ "$5" = "
 #	echo "$log_date sblk continued  $1" >> /tmp/output  # debug
 fi
 }
-
 log_lineout() { [[ "$1" = "true" ]] && echo "$3 $4" >> $2 ; }
-# Inotifyloop variant of sblk design to get the checksum and verify ctime greater than mtime afterwards. although its ctime, it passes main as xmode to calculate_checksum**
+# Inotifyloop variant of sblk design to get the checksum and verify ctime greater than mtime afterwards.
 # Adding any sort of delays is for small scale so it is set to 0. max would be .5 seconds. Situation if 10000 files were created times that by delays and its bad.
 # Could do parallel processing with xargs in inotify.sh would fix that and a delay of 2 seconds would be good.
-# If the threshold is high better to implement CREATED event and put filepath to array then on CLOSE_WRITE check this array and hash. This
+# If the threshold is high better to implement CREATED event filepath to array then on CLOSE_WRITE check this array and hash. This
 # can be implemented in python as bash its too complicated. do cache files over 1MB.
 pblk() {
-local fmt="%Y-%m-%d %H:%M:%S"
-local cache_flg="false"
-local len y r
-local cam sl lmt cFILE retries
-local log_date
 local debug_log="$7"
 local debug_file="$8"
+local cam sl lmt cFILE 
+local itime_frac itime_oct mtime_oct mtime_us csum_rlt r y
+local log_date
+local cache_flg="false"
+local cdir="/tmp/dbctimecache/"
+
 r=""				;	sl=""
 lmt=""			;	nlinks=""
-cam="None"	;	usec="None"
+cam="None"
 check_sum=""
-
-local retries=2
-local delay=0
 
 [[ "$7" = "true" ]] && log_date="$(date +"$fmt")"
 
 cur_line="$( ap_safeline "$1")"
-log_lineout $7 $8 "$log_date" "pblk line in $cur_line"  # debug
-IFS=' ' read -r mtime atime itime i sym n fs onr grp pmr cFILE <<< "$cur_line"
+log_lineout $7 $8 "$log_date" "pblk line in $cur_line"
+read -r mtime atime itime i sym n fs onr grp pmr cFILE <<< "$cur_line"
 log_lineout $7 $8 "$log_date" "itime: $itime and mtime: $mtime , pblk after parsing line in $cur_line"
 
 cFILE="$( ap_safeline_dec "$cFILE")"
 y="$( ap_enc "$cFILE")"
-# y="$( escf "$cFILE")"  # used in py versions
+
 mtime_sec=${mtime%%.*}
 itime_sec=${itime%%.*}
 mt=$(date -d "@$mtime_sec" +"$fmt")
 ct=$(date -d "@$itime_sec" +"$fmt")
 if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
     if [ -n "$mt" ]; then
+		[[ -z "$ct" ]] && log_lineout $7 $8 "$log_date" "Warning ct is null on input to pblk $1" && return 1
+		mtime=$( normalize_ts "$mtime")
+		itime=$(normalize_ts "$itime")
+		mtime_frac=${mtime#*.}
 
-		mtime=$(normalize_ts "$mtime")
 	    if [ "$4" == "true" ]; then
-		    [[ -e "$CACHE_F" ]] && r=$(get_cached $i $fs $mtime)
-            if [[ -n "$r" ]]; then
-                check_sum="$r"
-            else
-			    calculate_csum "main" "$cFILE" $mtime $i $fs $retries $delay
-                cache_flg="true"
-            fi
+			[[ "$sym" == l* ]] && sl="y" && check_sum="None"
+			if [[ -z "$sl" ]]; then
+				[[ -e "$CACHE_F" ]] && mtime_us=$(( mtime_sec * 1000000 + (10#$mtime_frac) )) && r=$(get_cached $i $fs $mtime_us)
+		        if [[ -n "$r" ]]; then
+		            check_sum="$r"
+		        else
+					calculate_csum "main" "$cFILE" $mtime $i $fs 2 0 $debug_log $debug_file $log_date
+					csum_rlt=$?
+					(( csum_rlt == 0 )) || return 1
+		            cache_flg="true"
+		        fi
+			fi
             if [[ -n "$check_sum" ]]; then
-                fs=${fs:-None}
-                [[ "$sym" == l* ]] && sl="y" ; sl=${sl:-None}  # [[ -L "$cFILE" ]] && sl="y" ; sl=${sl:-None}
+
+                fs=${fs:-None} ; sl=${sl:-None}
                 wnr=${onr:-None} ; grp=${grp:-None} ; pmn=${pmr:-None}
                 adtcmd="$check_sum $fs $sl $wnr $grp $pmn"
-		        mtime_frac=${mtime#*.}
-		        len=${#mtime_frac}
-		        if (( len > 0 )); then
-			        if [[ "$mtime_frac" =~ ^0+$ ]]; then
-				        usec=$mtime
-			        fi
-		        fi
-                [[ "$updatehlinks" = "true" ]] && nlinks=$n
+                nlinks=$n
                 ats=$(date -d "@${atime%%.*}" +"$fmt")
-                [[ -z "$ct" ]] && log_lineout $7 $8 "$log_date" "Warning ct is null failed in pblk $output" && ct="None None" # ct=${ct:-None None}
+
+				ct=${ct:-None None}
                 ats=${ats:-None None}
                 lmt=${lmt:-None None}
-                itime=$(normalize_ts "$itime")
 
                 [[ "$7" = "true" ]] && log_date="$(date +"$fmt")"
 
-                if [[ -n "$itime" && "$5" = "ctime" ]]; then
+                if [[ -n "$ct" && "$5" = "ctime" ]]; then
 
-                    itime_frac=${itime#*.}
-
-					itime_frac=$(( 10#$itime_frac ))
-					mtime_frac=$(( 10#$mtime_frac ))
-                    # change_t=$(echo "scale=0; $itime * 100000000 / 1" | bc) # Nemesis doesnt have bc use awk
+                    # change_t=$(echo "scale=0; $itime * 100000000 / 1" | bc)
                     # itime_frac=$(( change_t % 100000000 ))
-                    if (( itime_sec == mtime_sec && itime_frac > mtime_frac )) || (( itime_sec > mtime_sec )); then   # awk -v it="$itime" -v mt="$mtime" 'BEGIN {exit !(it > mt)}'; then
+                    itime_frac=${itime#*.}
+					itime_oct=$(( 10#$itime_frac ))
+					mtime_oct=$(( 10#$mtime_frac ))
+					mtime_us=$(( mtime_sec * 1000000 + mtime_oct ))
+
+                    if (( itime_sec == mtime_sec && itime_oct > mtime_oct )) || (( itime_sec > mtime_sec )); then   # awk -v it="$itime" -v mt="$mtime" 'BEGIN {exit !(it > mt)}'; then
 
                         log_lineout $7 $8 "$log_date" "change time: $itime and mtime: $mtime , pblk passed processed line in $cur_line"
-                        cam="y" ; lmt=$mt ; mt=$ct
-                        output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $usec $nlinks"
-                        if [[ "$cache_flg" = "true" ]] && (( fs > 1000000 )); then upt_cache "$i" "$fs" "$mtime" "$check_sum" "$y" "$6" ; fi
-                        printf '%s\n' "$output" >> $2
 
+                        cam="y" ; lmt=$mt ; mt=$ct
+
+                        output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $nlinks $mtime_us"
+
+                        if [[ "$cache_flg" = "true" ]] && (( fs > 1000000 )); then [[ -d $cdir ]] || mkdir -p $cdir ; upt_cache "$i" "$fs" "$mtime_us" "$check_sum" "$y" "$6" ; fi
+
+                        printf '%s\n' "$output" >> $2
 
                     else
                         log_lineout $7 $8 "$log_date" "pblk failed to process. itime $itime and mtime $mtime ctime was <= mtime skipped. line $1"
-                        output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $usec $nlinks"
+                        output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $nlinks $mtime_us"
                         log_lineout $7 $8 "$log_date" "pblk results $output"
                     fi
                 else
-
                     [[ "$5" != "ctime" ]] && log_lineout $7 $8 "$log_date" "ctime is not set. currently set to $5 continue $1"
-                    output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $usec $nlinks"
+                    output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $nlinks $mtime_us"
                     log_lineout $7 $8 "$log_date" "pblk results $output"
                 fi
             else
@@ -1248,7 +1226,7 @@ if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
             log_lineout $7 $8 "$log_date" "pblk checksum is false skipping $1"
 	    fi
     else
-        log_lineout $7 $8 "$log_date" "pblk parsing error skipped $1"
+        log_lineout $7 $8 "$log_date" "Warning mt is null on input to pblk skipped $1"
     fi
 else
     log_lineout $7 $8 "$log_date" "change time: $itime and mtime: $mtime , sblk Nosuchfile line $cur_line"
@@ -1266,7 +1244,7 @@ if [[ "$mMODE" = "default" ]] || (( x < 100 )); then
 else
     y=$(( (x + max_jobs - 1) / max_jobs ))
     #y=200
-    xargs -0 -n "$y" -P "$max_jobs" /usr/local/save-changesnew/mainloop $atmp$workfld $4 $5 $6 $updatehlinks $CACHE_F < $1
+    xargs -0 -n "$y" -P "$max_jobs" /usr/local/save-changesnew/mainloop $atmp$workfld $4 $5 $6 $CACHE_F < $1
     if [[ "$5" = "main" ]]; then
         isoutput mainloop1* mainloop2* $2 $3
         isoutput cache1* $CACHE_F
@@ -1277,7 +1255,7 @@ else
 fi
 }
 ctimeloop() {
-# what is not in the main search 
+# what is not in the main search
 sort -z -o $2 $1
 sort -z -o $tout $toutnul
 comm -z -23 $tout $2 > $TMPCOMPLETE
@@ -1285,4 +1263,3 @@ if [ -s $TMPCOMPLETE ]; then
 	search $TMPCOMPLETE $tout $COMPLETE $checkSUM "ctime" batch2
 fi
 }
-

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#inotify db5 					01/17/2026
+#inotify db5 					02/25/2026
 #SCRIPT_PATH="$( dirname "$0")"
 #. "$SCRIPT_PATH"/rntchangesfunctions
 . /usr/local/save-changesnew/rntchangesfunctions
@@ -10,6 +10,7 @@
 # metadata where ctime is greater than mtime. This is because they would not show up in a regular file search.
 #
 # result bypassing, one of two loops, the ctime loop. Any files over 1MB are cached for this script and the main search mtime loop
+
 
 # inclusions from app. also .wh. files that can appear from watching changes. possibly want to filter out other files ie share/Trash
 inotifyexl() {
@@ -32,7 +33,7 @@ fmt="%Y-%m-%d %H:%M:%S"
 BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
 efile="/usr/local/bin/recentchanges"
 
-# These can be user set so call get_inclusions and get form recentchanges script. Below default paths in case cant find
+# These can be user set so call get_inclusions and get form recentchanges script. Below default fallbacks in case cant find
 logpst="/usr/local/save-changesnew/logs.gpg"			;	statpst="/usr/local/save-changesnew/stats.gpg"
 pydbpst="/usr/local/save-changesnew/recent.gpg"		;	email="john.doe@email.com"
 rlt=""
@@ -44,13 +45,11 @@ log_file=$1
 LCLMODULENAME="$2"
 CACHE_F="$3"
 checkSUM="$4"
-updatehlinks="$5"
-xMODE="$6"
-time="$7"
+xMODE="$5"
+time="$6"
 match_found=0
 dpaths=()
 
-SECONDS=0
 time_out=160
 retried=0
 LIMIT=3
@@ -60,7 +59,7 @@ j=${sleep_times[sleep_index]}
 prev_size=-1
 incr=0
 
-debug_log="true"
+debug_log="false"
 debug_file=/tmp/inotify.log
 pblk_log_file=/tmp/output
 
@@ -149,7 +148,7 @@ timeout "$time" inotifywait -m -r -e create -e moved_to --format '%e|%w%f%0' "${
 		fi
 
         if (( match_found == 0 )); then
-
+			SECONDS=0
             log_lineout $debug_log $debug_file "$log_date" "notify matched input to pblk waiting for stable size $o"
 			while (( SECONDS < time_out )); do
 				(( incr++ ))

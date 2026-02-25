@@ -126,7 +126,7 @@ if [ -s $SORTCOMPLETE ]; then
 
 	# Insert $tout \ deduplicate
 	merge_ctime $SORTCOMPLETE $tout $PRD  #if [ -s $tout ]; then awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts >= tme) print }' $tout >> $SORTCOMPLETE ; fi  # original doesnt dedupe
-	inclusions
+	inclusions $SORTCOMPLETE
 
 	if [ "$flsrh" != "true" ]; then
 		s=$(date -d "$SRTTIME" "+%s")
@@ -136,7 +136,6 @@ if [ -s $SORTCOMPLETE ]; then
 	fi
 	sort -u -o $SORTCOMPLETE $SORTCOMPLETE
 
-    # if [[ "$updatehlinks" = "true" && "$backend" = "database" && "$STATPST" = "true" ]]; then ulink $SORTCOMPLETE $tout; fi
 	process_sort $SORTCOMPLETE $TMPOPT  #decode from log \ search results 
 	#	awk '{print $1, $2}' $SORTCOMPLETE > $tout      original
 	#	perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' "$SORTCOMPLETE" > "$TMPCOMPLETE"
