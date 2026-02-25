@@ -46,7 +46,7 @@ get_colors
 # Note:  to see search results for tmp files /tmp use `recentchanges search` and output will be in /Downloads.
 
 
-export backend="database" # default normal    bash 2 gpg and queries text based stable tested
+export backend="default" # default normal    bash 2 gpg and queries text based stable tested
 											# database   binary database faster queries 1 gpg and python (easier ha)
 
 export email="john.doe@email.com" # default for asymmetrical gpg auth for STATPST
@@ -103,7 +103,7 @@ export STATPST="true" # persistent storage searches encrypted in /usr/local/save
                                     # Only overhead is gpg compression set compression to off. At large size speeds can increase by as much as 50%.
                                     # if you prefer security turn ANALYTICS false and use this
 
-export xRC="true"	# false - default. run inotifywait for one hour to look for new files where ctime > mtime in /changes.
+export xRC="false"	# false - default. run inotifywait for one hour to look for new files where ctime > mtime in /changes.
 									# this is for downloads or copies with preserved metadata pacman slackpkg ect.
 									# if false the files will still show up. It just dynamically bypasses a section of the script if $tout is already made.T
 									# With this setting If true can bypass 1 of 2 search loops and reduce process overhead as the search is already there effectively increasing the overall speed
@@ -127,7 +127,6 @@ export checkSUM="true"	# compare file checksums for slight changes
 export cdiag="true"       # add extra detail like filesize in output and critical events. Also check for hash collisions.
 export supbrwr="true"   # supress cache warnings on terminal from known browsers? Mozilla... ect list top of rntfuncions
 export supress="false"  # ..      all cdiag output to terminal except critical events
-export updatehlinks="true"   # scan for accurate hardlinks in db. alternatively use Set hardlinks button
 
 
 export POSTOP="false" # Diagnostics. Create file doctrine. Runs post search operation that can only be done at this time as search is relevant
@@ -299,7 +298,7 @@ if [ -s $SORTCOMPLETE ]; then
 	syschg="true"
 	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE ; SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') ; PRD=$SRTTIME
 	merge_ctime $SORTCOMPLETE $tout $PRD
-	inclusions
+	inclusions $SORTCOMPLETE
 	s=$(date -d "$SRTTIME" "+%s")
 	if [ "$THETIME" == "noarguser" ]; then RANGE=$(( s + 300 )) ; else RANGE=$(( s + argone )) ; fi # filter out non existant files ect
 	PRD=$(date -d "@$RANGE" +"$fmt")
@@ -309,6 +308,7 @@ if [ -s $SORTCOMPLETE ]; then
 	sort -o $TMPOPT $TMPOPT
 fi
 
+inclusions $RECENT
 /usr/local/save-changesnew/filter $RECENT $USR
 
 # Copy files
@@ -466,6 +466,7 @@ difffile="/tmp${MODULENAME}xSystemDiffFromLastSearch${argone}"
 if [ -s $SORTCOMPLETE ]; then
     if [ -n "$OLDSORTED" ] && [ -s $OLDSORTED ]; then
     	sed -i '/^[[:space:]]*$/d' $OLDSORTED
+        sort -o $OLDSORTED $OLDSORTED
         comm -23 $OLDSORTED $TMPOPT > $difffile
         isdiff $difffile $TMPOPT $TMPCOMPLETE
     fi
