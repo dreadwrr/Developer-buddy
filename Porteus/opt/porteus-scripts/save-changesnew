@@ -36,7 +36,7 @@ if ! id $theUSER >/dev/null 2>&1; then echo "user:" ${2} "not found"; exit 0 ; f
 #CHANGABLE					# As changes exit uses changes-commit turn backup on to save a backup /changes.bak/
 
 BACKUP="true"				# Turn on backup feature of Developer buddy 5.0 to hdd on/off           
-										# How does it works       1. changes commit --> 2. hard disk (normal changes-commit) --> 3 changes.bak (BACKUP)
+										# How does it works       1. changes commit --> 2. hard disk (normal changes-commit) --> 3 changes.bak (BACKUP)       . 
 										# if true run this backup script after changes-commit.
 										# changes=EXIT:      to backup call `save-changesnew backup`
 										# changes=     `save-changesnew`    is the backup

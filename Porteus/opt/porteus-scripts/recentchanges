@@ -1,37 +1,34 @@
 #!/usr/bin/env bash
-# launcher script for recentchanges			recentchanges v5.0		01/13/2026
+# launcher script for recentchanges			recentchanges v5.0		02/25/2026
 # Note comments are for gpg 1.4 left incase trying to use an old version. Having gpg2 is default and recommended.
-default_user="guest"
 app_install="/usr/local/save-changesnew"
 . "$app_install"/versionquery
 . "$app_install"/validprogram.sh
 . "$app_install"/rntchangesfunctions
 res=1	;	USR=$(whoami)
 if [[ "$1" = "-v" ]]; then get_vrn $1 ; elif [[ "$1" = "--help" ]] || [[ "$1" = "-h" ]] || [[ "$1" = "help" ]] || [[ "$1" = "-help" ]]; then get_vrn $1; fi
-
-if [ $USR != "root" ]; then  # if [[ $(id -u) -ne 0 ]] # if  ! id $USR >/dev/null 2>&1; then echo user: $USR not found; exit 1; fi
-
+if [ $USR != "root" ]; then
 	[[ "$1" = "query" ]] && { python3 "$app_install"/query.py $USR ; exit ; }
-	[[ "$1" = "reset" ]] && { python3 "$app_install"/query.py $USR resetgpg ; exit ; }
-	output=$( python3 "$app_install"/get_exports.py $USR) ; res=$?
-	if [[ $res -ne 0 ]]; then echo "Couldnt get config file config.toml" && exit 1 ; fi
-	eval "$output"
-	if ! gpg --list-keys | grep -q $email; then generatekey ; fi  # setup key pair for both user and root
-
-	# alternative method to launch environment for legacy and modifications
-	# sudo -k
-	# exec sudo "$0" $USR "$PWD" $1 "$2" $3  ## change for working with gpg 1.4 and agent 2.1.11 this passes environment variables of actual root used for 1.4 2.1 or if needing display
-
+   setup_exports
+	#alternative to launch environment for legacy and modifications gpg 1.4 and agent 2.1.11 or if needing display
+	#sudo -k ; exec sudo XDG_CONFIG_HOME="$XDG_CONFIG_HOME" LAUNCHED_NON_ROOT="$LAUNCHED_NON_ROOT" -- "$0" $USR "$PWD" $1 "$2" $3  # change for working with 
 	echo "Please enter your root password below"
+	#su - root -s /bin/bash -c 'export XDG_CONFIG_HOME="$1" ; export LAUNCHED_NON_ROOT="$2" ; exec "$3" "$4" "$5" "$6" "$7" "$8"' _ "$XDG_CONFIG_HOME" "$LAUNCHED_NON_ROOT" "$0" "$USR" "$PWD" "$1" "$2" "$3"
 	su - -c "export LAUNCHED_NON_ROOT='$LAUNCHED_NON_ROOT' ; '$0' $USR '$PWD' $1 '$2' $3"  # env DISPLAY='$DISPLAY' XAUTHORITY='$XAUTHORITY' USR='$USR' 
 	res=$?
 	output_results
 fi
-
+if [[ -z "$LAUNCHED_NON_ROOT" ]]; then
+	echo query and text editor cant be run as root. comment out this line if always run as root && exit 0
+	[[ "$1" = "query" ]] && { python3 "$app_install"/query.py $USR ; exit ; }
+   setup_exports
+	python3 "$app_install"/rntchanges.py $USR "$PWD" "$@"
+	res=$?
+	output_results
+fi
 # export DISPLAY=:0
 # export XAUTHORITY=/home/$1/.Xauthority
 #if [ "$XDG_SESSION_TYPE" = "wayland" ]; then ; fi
-
 # gpg 1.4.23 and gpg-agent 2.1.11 legacy
 #if ! gpg-connect-agent /bye >/dev/null 2>&1; then ## change for working with gpg 1.4 and agent 2.1.11  uncomment 38 for pid
 #    green "Starting gpg-agent..."
@@ -40,27 +37,6 @@ fi
 #    export GPG_TTY=$(tty)
 #    export GPG_AGENT_INFO=/root/.gnupg/S.gpg-agent:0:1
 #fi
-
-if [[ -z "$LAUNCHED_NON_ROOT" ]]; then
-	[[ "$default_user" != "root" ]]  && echo query and text editor cant be run as root. comment out this line to run as root. if always root set default_user to root && exit 0
-	[[ "$1" = "query" ]] && { python3 "$app_install"/query.py $default_user ; exit ; }
-	[[ "$1" = "reset" ]] && { python3 "$app_install"/query.py $default_user resetgpg ; exit ; }
-
-	output=$( python3 "$app_install"/get_exports.py $default_user) ; res=$?
-	if [[ $res -ne 0 ]]; then echo "Couldnt get config file config.toml" && exit 1 ; fi
-	eval "$output"
-
-	if [[ "$default_user" = "root" ]]; then
-		if ! gpg --list-keys | grep -q $email; then generatekey ; fi  # setup key pair for root
-	else
-		if ! gpg --list-keys | grep -q $email; then echo "set default_user to normal user and generate key pair as non root first then run search as root. both need the same key pair" ; exit ; fi
-	fi
-
-	python3 "$app_install"/rntchanges.py $default_user "$PWD" "$@"
-	res=$?
-	output_results
-fi
-
 python3 "$app_install"/rntchanges.py "$@"
 res=$?
 #if [ -n "$AGENT_PID" ]; then kill "$AGENT_PID"; fi
