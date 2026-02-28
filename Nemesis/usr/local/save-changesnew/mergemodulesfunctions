@@ -1,0 +1,225 @@
+#!/usr/bin/env bash
+clear_mnt() {
+if mountpoint -q "$dest"; then
+	if ! umount "$dest"; then
+		echo "Warning: failed to unmount $dest" >&2
+		return 1
+	fi
+fi
+[[ -d "$dest" ]] && rm -rf "$dest"
+}
+startmnt() {
+local rlt=0 ; local is_merge="$1"
+dest="/mnt/loop-$(basename "$mods" .xzm)"
+[[ -d $dest ]] && { echo "Error: $dest mount dir already exists. remove and try again." && rlt=1; } || mkdir $dest
+if mountpoint -q $dest; then echo "Error: $dest already mounted. Everything preserved."; rlt=1; fi
+if [ ! -f "$mods" ]; then echo "Error: In wrong directory. '$dest' not found."; rlt=1; fi
+if (( rlt != 0 )); then [[ "$1" = "true" ]] && mount -o remount,udba=none / ; exit $rlt ; fi
+}
+# if there is less space than the size of the modules on the drive return 2. Return 2 as cant continue.
+# if there is not enough space 2.15x the .xzm size on drive in tmpfs. return 1 as it means there is enough to save normally so could prompt.
+is_available() {
+local input="$1"		;       local passdir="$2"
+local output="$3"		;       local is_moved="$4"  # modules moved account for space
+local lswitch="$5"
+local sz w req
+local u=0
+local ms="Not enough space in"
+local msg=""
+[[ "$input" != "*.xzm" ]] && msg="If space is limited try mergemodulesod and keepMRGED false manually"
+p=$(df --output=avail $passdir | tail -1)
+for mods in "$passdir/"$1 ; do [[  ! -f "$mods" ]] && continue ; [[ -n "$lswitch" && "$mods" == *_uid_L* ]] && continue ; sz=$(du -sk "$mods" | cut -f1) ; u=$(( u + sz )) ; done
+[[ "$4" = "true" ]] && p=$(( p + u ))
+w=$p
+if [ "$output" != "$passdir" ]; then
+	w=$(df --output=avail "$output" | tail -1) 
+	[[ "$4" = "true" ]] && w=$(( w - u ))
+fi
+req=$(( u * 215 / 100 ))
+# size would be somewhere less than p but close to. return 2 because just cancel here
+if (( p < u )); then
+    echo "$ms $PWD. need $(( u / 1024)) MB. $msg"
+	return 2
+# space to extract to target
+elif (( req >= w )); then   # return 1 prompt user if just save normally as there is space on the drive
+    echo "$ms $output. $w free and $(( req / 1024)) MB required to extract."
+	return 1
+fi
+}
+# Handle filename conflicts and build paths
+resolve_conflict() { 
+:> $oMF
+rlt=$(sed -n '/changes=EXIT:/! s/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
+if [[ "$override" = "false" && "$keepMRGED" = "false" ]]; then [[ -z "$rlt" ]] && is_moved="true" && output="/tmp/" || echo "Changes cheatcode active not first moving to /tmp as not tmpfs. continue as normal" ; fi
+
+for mods in "$PWD/"$2; do 
+    [[ "$1" = "_uid_" ]] && [[ "$mods" = *"_uid_L"* ]] && continue
+    candidates+=("$mods") ; 
+    fname="$( basename "$mods")"
+    [[ "$is_moved" = "false" ]] && fname="${fname%"$3"}$4" && echo "$mods" >> $oMF
+    test -e "$output$fname" && { red "Filename conflict $output$fname already exists." ; test -e $oMF && rm $oMF ; exit 1; }
+done
+if [ "$is_moved" == "true" ]; then
+    for ofile in "${candidates[@]}"; do fname="$( basename "$ofile")" ; mv "$ofile" "$output$fname" ; mdlnames+=("$output$fname") ; echo $output$fname ; done >> $oMF
+    cd $output || exit
+fi
+if ((${#mdlnames[@]})); then candidates=("${mdlnames[@]}") ; fi  # our .xzms for when moved to /tmp and there are other .xzm in /tmp
+}
+wh_process() {
+shopt -s nullglob
+while IFS= read -r -d '' file; do
+	k="$( echo "$file" | sed -e 's/\.wh\.//g')"  # k=$( echo "$file" | sed -E 's|(.*\/)\.wh\.|\1|') # alternative
+	test -e "$k" && rm -rf "$k" 
+	found="false"
+	items=( "$INAME"/*/"$k" )
+    if ((${#items[@]})); then found="true" ; fi
+	#for item in "$INAME"/*/"$k"; do [[ -e "$item" ]] && found="true" && break ; done
+	# to exclude the .wh. file. Then remove the .wh. file from the current image.  
+	# fixsqh or fixwh functions from original that convert back to usable path after using for egrep. as egrep and grep need certain escapes
+	# mksquashfs takes a particular format for the exclude file use fixsqh.
+	[[ "$found" = "true" ]] || echo "$file" >> $2  # || { echo "$file" | fixsqh >> $QEXCL ; echo "$file" >> $EXCLUDED; test -e "$file" && rm -f "$file" ; } EXCLUDED is just a list to verify its working left in /tmp
+done < <(find "${1}/" -type f -name '.wh.*' -printf '%P\0')
+unset IFS
+shopt -u nullglob
+}
+wh_conflicts() {
+# remove conflicting whiteouts
+cd $1 || exit
+while IFS= read -r -d '' y; do
+	f="$(echo "$y" | sed -e "s^$2^^g" -e 's^\.wh\.^^g')"
+	test -e "$f" && rm "$y"
+done < <( find $2 -name ".wh.*" -printf '%p\0')
+}
+unpack() {
+local output="$1"
+local QEXCL="$2"
+local oMF="$3"
+local elog="$4"
+local is_routine="$5"
+local is_merge="$6"
+local dest ; local x=0
+:> $2
+for mods in "$PWD/"*_uid_*.xzm; do
+	if (( x == 0 )); then cd "$1" || { [[ -n "$is_merge" ]] && mount -o remount,udba=none / ; exit 1 ; } ; fi
+	((x++))
+	for candidate in "${candidates[@]}"; do
+	    if [ "$candidate" == "$mods" ]; then
+			startmnt $is_merge
+			mount -o loop $mods $dest
+            #
+			wh_process $dest $2
+			# from above we cant remove the .wh. here as readonly
+			cp -afv $dest/. $1 2> >(tee $4 >&2)
+			ret=$?
+			if [ "$ret" -ne 0 ]; then
+				if grep -v '\.wh\.' $4 > /dev/null; then
+					red "Error processing one of the modules ${mods}"
+                    echo "dest $dest"
+                    echo "output $1"
+					cyan "Everything preserved. Check the script and try again. check $4"
+					clear_mnt
+					test -e $3 && rm $3
+				    test -d "$1" && rm -rf "${1:?}"
+					if [[ "$is_routine" = "true" ]]; then
+						echo "Error in unpack function from: $dest to $1. count $x Module $mods . error_code $ret" >> $4
+					fi
+					if [[ -n "$is_merge" ]]; then mount -o remount,udba=none / ; fi
+					exit 1
+				else
+					cyan "White out file detected and processed"  >&2
+				fi
+			fi
+			clear_mnt
+	    fi
+	done
+done
+unset IFS
+# remove the processed whiteouts or with QEXCL in package_xzm
+if [ -s $2 ]; then
+	while IFS= read -r p || [[ -n "$p" ]]; do test -e "$p" && rm -f "$p" ; done < $2
+	unset IFS
+	rm $2
+fi
+#find . -name ".wh.*" -exec rm -r {} \;  # alternatively delete all .wh. files in .xzm as changes exit isnt implemented in Nemesis yet.
+wh_conflicts $ch $1 
+}
+# First rename to .bak prevent naming conflicts.
+package_xzm() {
+local input="$1"
+local keepMRGED="$2"
+local elog="$3"
+local is_routine="$4"  # its called by main script
+local is_merge="$5"  # is from save-changesnew have to unmount on failure
+local output="$6"
+base_cmd=(mksquashfs "$1" "${PWD}/${rname}" -comp $cmode)  # "${adtcmd[@]}"
+[[ -s "$QEXCL" ]] && base_cmd+=(-ef $QEXCL)
+while IFS= read -r ofile; do [[ -z "$ofile" || "$ofile" == \#* ]] && continue ; fname="$( basename "${ofile%.xzm}").bak" ; mv "$ofile" "$output$fname" ; done < "$oMF"  
+unset IFS
+"${base_cmd[@]}"
+ret=$?
+if [ "$ret" -ne 0 ]; then
+    red "Error making the new module: ${rname}" >&2
+	if [ -n "$output" ]; then
+    	cyan "Modules are renamed .bak in $output"
+	fi
+	echo "Everything preserved. error_code $ret"
+    test -e $QEXCL && rm $QEXCL
+	rm $oMF
+	test -d "$input" && rm -rf "${input:?}"
+    if [[ "$is_routine" = "true" ]]; then
+		echo "Error making new mdl: $rname from $input to $PWD. in package_xzm function error_code $ret" >> $3; echo "$3"
+        [[ -n "$6" ]] && echo "output arg6 $output indicating the modules were moved" >> $3
+	fi
+	if [[ "$is_merge" = "true" ]]; then mount -o remount,udba=none / ; fi
+	exit 1
+fi
+# cleanup
+if [ "$keepMRGED" == "false" ]; then 
+	while IFS= read -r ofile; do [[ -z "$ofile" || "$ofile" == \#* ]] && continue ; fname="$( basename "${ofile%.xzm}").bak" ; test -f "$output$fname" && rm -f "$output$fname" ; done < $oMF
+	unset IFS
+fi
+rm $oMF
+}
+# .xzm backup
+is_rollback() {
+local input="$1"
+local ROLLBCK="$3"
+local is_routine="$6"
+local admsg=""
+local file_out
+local r
+if [ "$3" == "true" ] && [ "$6" == "true" ]; then 
+	if [ -d archive/$2 ]; then
+		r=$(find archive/$2 -maxdepth 1 -type f -name '*.bak' 2>/dev/null | wc -l)
+		if [ "$r" -ge "$5" ]; then
+			for mods in archive/$2/*$2*.bak; do
+				[[ -f "$mods" ]] || continue
+				rm -f "$mods"
+				test -f "${mods}.txt" && rm "${mods}.txt"
+				break
+			done
+		fi
+	else
+		mkdir -p archive/$2
+	fi
+	file_out="archive/${2}/${rname%.xzm}.bak" ; cp "$rname" "$file_out"
+	[[ "$4" = "true" ]] && admsg="with filemanifest rollsumry" && BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'` && { find $1 -type f -printf '%P\n' ; echo ; echo $BRAND ; } >> "${file_out}.txt"
+	[[ "$ANALYTICS" = "true" ]] && echo "Module backed up ${PWD}/archive/_uid_/ ${admsg}"
+fi
+}
+renmmdl() {
+local oMF=/tmp/flog.log ;   local drt=$2 ; 
+local output=""             ;   candidates=()
+is_moved="false"
+[[ -z "$drt" ]] && src=".bak" && dst=".xzm"
+[[ -n "$drt" ]] && [[ "$drt" == "-r" ]] && src=".xzm" && dst=".bak" || { [[ -n "$drt" ]] && echo invalid flag && exit ; }
+r=$( ls | grep ".*${1}.*${src}" | grep -v "$dst" | wc -l)
+if [ "$r" -gt 0 ]; then
+	resolve_conflict  $1 "*$1*$src" $src $dst
+    while IFS= read -r ofile; do  [[ -z "$ofile" || "$ofile" == \#* ]] && continue ; fname="${ofile%"$src"}$dst" ; mv "$ofile" "$fname" ; done < $oMF
+    rm $oMF
+else
+    cyan "no ${src} $1 did you mean ${dst} use -r flag to reverse"
+fi
+}
+

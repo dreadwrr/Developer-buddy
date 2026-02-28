@@ -1,0 +1,247 @@
+#!/usr/bin/env bash
+#	rntfiles.xzm or -SRC application.xzm to /tmp																						01/09/2026
+SCRIPT_PATH="$( dirname "$0")"
+. "$SCRIPT_PATH"/rntchangesfunctions
+. "$SCRIPT_PATH"/validprogram.sh
+. /usr/share/porteus/porteus-functions
+
+get_colors
+tmp=/tmp/tmp$$  															;	work=work$$
+workdir=/myfiles															;	chxzm=/rntfiles.xzm   
+TMPCOMPLETE=$tmp/tmp_complete.txt							;   TMPOPT=$tmp/tmp_holding
+RECENTAPP=$tmp/list_recentapp_filtered.txt					;	atmp=/tmp/atmp$$
+RSYNCEXCL=$tmp/list_filesexclude.txt							;	UPDATE=$tmp/save.transferlog.tmp
+SORTCOMPLETE=$tmp/list_complete_sorted.txt				;   SVFOLDERS=$tmp/save.rncfoldersmanifest.tmp
+xdata=/logs_stats.log													;   SVFILES=$tmp/save.rncfilesmanifest.tmp	
+xdata2=/logs.log.log														;	RECENT=$tmp/list_recentchanges_filtered
+BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')	;	tout=$atmp/toutput.tmp
+FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
+
+validrlt="false"																;   validpdt="false"  # valid product
+# indicates a previous search
+smsg="false"                                                                ;   autooutput="false"
+goahead="true"
+
+
+tfile=$atmp$xdata
+tfile2=$atmp$xdata2
+
+argone="$1"
+THETIME="$2"
+[[ "$3" = "SRC" ]] && SRCDIR="$3"
+USR="$4"
+xzmname="$5"
+ptmp="$6"
+
+
+# applicable files
+tmpopt_out="$7"  # filtered file list
+[[ -s /tmp/"$7" ]] || { echo "recentchanges main list not found" && exit 3 ; }
+sortcomplete_out="$8"  # SORTCOMPLETE for file times.
+[[ -s /tmp/"$8" ]] || { echo "recentchanges null list not found" && exit 3 ; }
+
+archivesrh=$9
+cmode=${10}  
+autooutput=${11}
+
+chown root:root -R $ptmp
+chmod 755 $ptmp
+mkdir $tmp
+mkdir $tmp$workdir
+mkdir $atmp
+
+
+# move each file away to new staging
+mv "/tmp/$tmpopt_out" $tmp/
+mv "/tmp/$sortcomplete_out" $tmp/
+# mv "/tmp/$tout_out" $atmp/
+#test -f "/tmp/$tout_out/" && rm "/tmp/$tout_out"
+
+if ! grep -Eiq "nemesis|porteus" /etc/os-release; then [[ ! -f /etc/porteus-version ]] && goahead="false" ; fi
+if grep -Eiq "artix" /etc/os-release; then [[ -d  /mnt/live/tmp ]] && goahead="true" ; fi
+
+cut -d " " -f3- $TMPOPT > $RECENT  # filepaths from sorted list.
+
+:>$tfile
+
+if [ "$goahead" == "true" ]; then
+	# Copy files
+
+	while IFS= read -r x; do y="$( unescf "$x")" ; if cp -a --parents "$y" "$tmp$workdir" > /dev/null 2>> $tfile; then printf '%s \n' "$x success" >> $UPDATE; else echo "Failed to copy: $y" >&2; echo "ERROR: $x" >> $UPDATE; fi; done < $RECENT
+	unset IFS
+
+	if [ -s $tfile ]; then echo >> $UPDATE ; fi
+	test -e $tfile && rm $tfile
+	echo $BRAND >> $UPDATE
+	find $tmp$workdir -not -type d -print0 > $SVFILES
+	:> $tout
+	while IFS= read -r -d '' x; do x="$( escf "$x")"; echo "$x" ; done < $SVFILES >> $tout
+	mv $tout $SVFILES
+	sed -i -e "s|$tmp$workdir||g" $SVFILES
+	cat $SVFILES | sed -e 's![^/]*$!!g' > $SVFOLDERS
+fi
+# make .xzm from root folder
+if [ "$SRCDIR" == "SRC" ] && [ "$goahead" == "true" ]; then
+    arrfiles=()
+    appname=$xzmname
+    FLTOUT="/tmp/${appname}ItemsFilteredout"
+    test -e "/tmp/${appname}.xzm" && rm "/tmp/${appname}.xzm"
+    rm "/tmp/"*"_xdata" 2> /dev/null
+    rlt="$( validprogram $SVFOLDERS)"
+ 	if [ "$rlt" == "/" ]; then echo Fatal error. exiting. && exit 1 ; fi
+    if [ "$rlt" != "" ]; then
+        cat $SVFILES | grep "${rlt}" > $RECENTAPP ; cat $SVFILES | grep -v "${rlt}" > $RSYNCEXCL
+		find $tmp$workdir -type d -empty -delete  # skip any file with new lines for exclude file
+		while IFS= read -r p || [ -n "$p" ]; do p="${p#/}" ; p="${p//\\\\n/$'\n'}" ; p="${p//\\ap5c/\\}" ; echo "$p" >> $tfile ; done < $RSYNCEXCL  # This is for our SRC files after finding root
+        test -s $tfile && mksquashfs $tmp$workdir "/tmp/${appname}.xzm" -comp $cmode -ef $tfile || { [[ ! -s "$tfile" ]] && mksquashfs $tmp$workdir "/tmp/${appname}.xzm" -comp $cmode ; }
+        cp $RECENTAPP "/tmp/${appname}_xdata" ; echo $BRAND >> "/tmp/${appname}_xdata"
+        sort -o $RECENTAPP $RECENTAPP
+        cat $SORTCOMPLETE | grep -Ff $RECENTAPP | tee $TMPCOMPLETE > /dev/null
+        endtm=$( gettime $SORTCOMPLETE "$TMPCOMPLETE" "/tmp/${appname}_xdata" )
+        printf "\n\n" >> "/tmp/${appname}_xdata"
+        cat $SORTCOMPLETE | grep -Fvf $RECENTAPP > $TMPCOMPLETE
+	    cd $tmp$workdir || exit
+	    srcpath="${rlt#?}"
+		:> $tfile
+		r=$( find "${rlt}" -type f | wc -l)  # system
+		s=$(grep -n 'MDY' "/tmp/${appname}_xdata" | head -n 1 | cut -d: -f1)
+		if [[ -n "$s" ]]; then s=$(( s - 1 )) ; else s=0 ; fi
+		x=0
+		y=$( wc -l < $RECENTAPP)  # copied
+		while IFS= read -r -d '' f ; do p="$( escf "$f")" ; printf '%s\n' "$p" >> $tfile ;  x=$(( x + 1 )) ; done < <(find "${srcpath}" \( -type f -o -type l \) -print0)  # Our system files is what we should be comparing
+		{ echo Root:"${rlt}" ; echo "File count: "$x "of ${y}" ; echo "System count: "$r ; echo ; echo ; } >> "/tmp/${appname}_xdata"   
+		if (( x < y )); then
+			sort -o $tfile $tfile
+			sort $RECENT > $tfile2
+			comm -23 $tfile $tfile2 > $tout
+			{ echo ; echo "Transfer: File transfer failed. " ; echo ; echo "Following file(s) were not transfered:" ; cat $tout ;} >> "/tmp/${appname}_xdata"
+		elif (( x == y)); then
+			{ echo "Transfer: File transfer verified " ; echo ; } >> "/tmp/${appname}_xdata"
+		else
+			{ echo "SRC mode failed. use recentchanges to package application." ; } >> "/tmp/${appname}_xdata"
+		fi
+		if (( r > s )); then echo "Status: Possibly missed base directory. Confirm files or use recentchanges for rntfiles.xzm." >> "/tmp/${appname}_xdata" ; fi
+
+        if [ -s $TMPCOMPLETE ]; then { echo ; echo "Items filterout from filtered files."; echo ; cat $TMPCOMPLETE; }  >> "/tmp/${appname}_xdata" ; else echo "No items filtered out from filter."  >>"/tmp/${appname}_xdata" ; fi
+        # original 
+        #find "$tmp$workdir$rlt" -type f -print0 > $TMPCOMPLETE
+        #while IFS= read -r -d '' f; do  f="$( escf "$f")" ; arrfiles=("${arrfiles[@]}" "${f##*/}"); done < $TMPCOMPLETE
+        while IFS= read -r f; do arrfiles=("${arrfiles[@]}" "${f##*/}"); done < $RECENTAPP  # save overhead by reading off $RECENTAPP for the names
+        echo $BRAND >> $RECENTAPP
+
+		if [ "$autooutput" == "false" ]; then
+
+		    x=${#arrfiles[@]}
+		    y=0
+		    echo
+		    for i in "${arrfiles[@]}" ; do
+		        p=$(( y + 1 ))
+		        printf "%2d %-40s\t\t" "$p" "${i}"
+		        (( y++ ))
+		        if  [ $(( y % 2 )) -eq 0 ]; then
+		            echo -en "\n"
+		        else
+		            if (( y == x )); then
+		                echo -en "\n"
+		            fi
+		        fi
+		        if (( y > 70 )); then
+		            break
+		        fi
+		    done
+		    echo "Root folder" "${rlt##*/}"
+			echo "Press enter for default filename"
+			echo "Filename or Selection:"
+			read usrslc
+		    if [ "$usrslc" != "" ]; then
+		        if [ "$usrslc" -ge 0 ]  2>/dev/null; then
+		            echo selected "$usrslc"
+		            if [ "${#arrfiles[@]}" -ge "$usrslc" ]; then
+		                filename="${arrfiles[$(( usrslc - 1 ))]}"
+		            else
+		                echo
+		                echo "Using default filename."
+		                filename="$appname"
+		            fi
+		        else
+		            filename="$usrslc" #User entered
+		        fi
+		    else
+		        filename="$appname" #Default
+		    fi
+		else
+			filename="$appname"
+		fi
+
+		fn=$(printf '%b' "$filename") ; fn=$(basename "$fn") ; fn=$(echo "$fn" | sed -E 's/(.*)\.[^./]{3,4}$/\1/') ; fn="${fn// /_}" #fn=$( echo "$fn" | sed -e 's/\...$//' -e 's/\....$//' -e 's/ /_/g')
+        if [ "$fn" != "$appname" ]; then mv "/tmp/${appname}.xzm" "/tmp/${fn}.xzm" ; mv "/tmp/${appname}_xdata" "/tmp/${fn}_xdata" ; fi
+		validpdt="true"
+        chown $USR "/tmp/${fn}.xzm"
+        chown $USR "/tmp/${fn}_xdata"
+    fi
+fi
+
+echo $BRAND >> $SVFILES
+cd /tmp || exit
+MODULENAME=${chxzm:0:9}
+LCLMODULENAME=${chxzm:1:8}
+chxzmnm=$MODULENAME"manifest.txt"
+moduledir=$MODULENAME"_"$FLBRAND
+FLTOUT="/tmp"$MODULENAME"ItemsFilteredout"
+k=$( head -n1 $SVFILES | grep "MDY")
+
+#Are there files for recentchanges, move old files, ect
+if [ -z "$k" ]; then
+	validrlt="true"
+    r=$(find . -maxdepth 1 -type d -name '*rntfiles_MDY*' | wc -l) #Move
+    if (( r == archivesrh )); then for folder in "/tmp"${MODULENAME}_MDY* ;  do rm -r $folder ; break ; done ; fi
+    mkdir "/tmp"$moduledir && chown $USR "/tmp"$moduledir
+    mv $LCLMODULENAME"xSystemchanges"* "/tmp"$moduledir 2> /dev/null ; mv $LCLMODULENAME"xSystemDiffFromLastSearch"* "/tmp"$moduledir 2> /dev/null
+    h=$( find "/tmp$moduledir" -type f | wc -l) ; [[ "$h" -gt 0 ]] && smsg="true"
+    test -e /tmp"$chxzm" && mv /tmp"$chxzm" "/tmp"$moduledir ; test -e "/tmp"$chxzmnm && mv "/tmp"$chxzmnm "/tmp"$moduledir; test -e "/tmp"$MODULENAME"Transferlog" && mv "/tmp"$MODULENAME"Transferlog" "/tmp"$moduledir
+    
+    test -e  "/tmp"$MODULENAME"ItemsFilteredout" && rm  "/tmp"$MODULENAME"ItemsFilteredout"
+
+    if [ "$SRCDIR" != "SRC" ] && [ "$goahead" == "true" ]; then # make rntfiles.xzm from all filtered
+	    if mksquashfs $tmp$workdir "/tmp"$chxzm -comp $cmode; then validpdt="true"; fi
+	    cp $SVFILES "/tmp"$chxzmnm
+	    cp $UPDATE  "/tmp"$MODULENAME"Transferlog"
+        if [ "$validrlt" == "true" ]; then
+            sort -o $RECENT $RECENT
+            cat $SORTCOMPLETE | grep -Fvf $RECENT > $FLTOUT ; echo $BRAND >> $FLTOUT
+            cat $SORTCOMPLETE | grep -Ff $RECENT | tee $TMPCOMPLETE > /dev/null
+            sed -i '/^[[:space:]]*$/d' $TMPCOMPLETE
+            endtm=$( gettime $SORTCOMPLETE $TMPCOMPLETE "/tmp"$chxzmnm)
+        fi
+        chown $USR "/tmp"$chxzm ; chown $USR "/tmp"$chxzmnm ; chown $USR "/tmp"$MODULENAME"Transferlog" ; chown $USR $FLTOUT
+        test -e "/tmp"$moduledir && chown $USR "/tmp"$moduledir
+    fi
+fi
+
+
+#postop $TMPOPT $0
+
+#Cleanup
+test -d "$tmp" && rm -rf "${tmp:?}" 
+test -d "$atmp" && rm -rf "${atmp:?}"
+
+if [ "$validrlt" == "true" ] && [ "$validpdt" == "true" ] && [ "$goahead" == "true" ]; then
+    imsg="Your module has been created. in /tmp"
+    echo
+    if [ "$SRCDIR" == "SRC" ]; then
+        cyan "${imsg} ${filename}.xzm"
+    else
+		imsg=$(cat <<EOF
+$imsg
+Total pull range: ${endtm} $chxzm including a file manifest
+EOF
+)
+		cyan "$imsg"
+    fi
+    
+fi
+if [ "$validrlt" == "true" ] && [ "$smsg" == "true" ]; then  # everything smooth and there is a previous search
+    echo "prev" 
+elif [ "$validrlt" == "false" ]; then  # something went wrong
+    echo "nofiles"
+fi
