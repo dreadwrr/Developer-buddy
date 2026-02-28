@@ -1,10 +1,16 @@
 [Desktop Entry]
-Version=1.0
-Type=Application
-Name=save changesnew conf
+Categories=Network;
+Comment[en_US]=Opens the config directory
 Comment=Opens the config directory
-Exec=nemo /home/guest/.config/save-changesnew
+Exec=xdg-open /usr/local/save-changesnew/config
+GenericName[en_US]=Savechangesnew
+GenericName=Savechangesnew-conf
 Icon=folder
+MimeType=
+Name[en_US]=Save changes new-conf
+Name=Save changes new-conf
+StartupNotify=true
 Terminal=false
-Categories=Network
-Name=save changesnew-conf
+Type=Application
+Version=1.0
+X-KDE-SubstituteUID=false

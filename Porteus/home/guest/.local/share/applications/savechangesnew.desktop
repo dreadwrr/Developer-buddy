@@ -1,11 +1,17 @@
 [Desktop Entry]
-Name=save/backup changes
-Exec=/usr/local/bin/save-changesnew
-Comment=
-Terminal=true
-PrefersNonDefaultGPU=false
+Categories=Network;
+Comment[en_US]=Save changes if EXIT:
+Comment=Save changes if EXIT:
+Exec=/usr/bin/save-changesnew
+GenericName[en_US]=Save changes new
+GenericName=Save changes new
 Icon=/home/guest/.config/save-changesnew/icons/flatpak.svg
+MimeType=
+Name[en_US]=Save changes new
+Name=Save changes new
+StartupNotify=true
+Terminal=true
+TryExec=/usr/bin/save-changesnew
 Type=Application
-Name=save changes new
-Categories=Network
-
+Version=1.0
+X-KDE-SubstituteUID=false
