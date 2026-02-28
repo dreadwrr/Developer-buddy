@@ -134,7 +134,7 @@ fi
 # load text editor if user want to display as non root
 output_results() {
 	local file_out="$lclhome"/file_output
-	if [[ $res -eq 0 ]]; then test -f $file_out && var=$( cat "$lclhome"/file_output) && display "$var" ; fi  #  test -f $file_out && rm $file_out
+	if [[ $res -eq 0 ]]; then test -f $file_out && var=$( cat "$lclhome"/file_output) && display "$var" ; fi  # test -f $file_out && rm $file_out ; 
 	exit $res
 }
 
@@ -153,7 +153,7 @@ local inode=$1
 local size=$2
 local mtime=$3
 local key="$inode|$size|$mtime"
-grep -m1 "^${key}   " "$CACHE_F" | awk -F $'\t' '{print $2}'
+grep -m1 "^${key}	" "$CACHE_F" | awk -F $'\t' '{print $2}'
 }
 # [[:space:]]
 normalize_ts() { printf "%.6f\n" "$1" ; }

@@ -222,12 +222,12 @@ def rotate_cache(cfr, CACHE_F):
                 try:
                     _, size, mtime_epoch = metadata.split("|")  # inode not used
                     size = int(size)
+
                     mtime_epoch = int(mtime_epoch)
                 except ValueError:
                     print(f"Skipping malformed metadata in cache file: {metadata}")
                     logging.error("Failed to parse metadata in cache file line: %s", line)
                     continue
-
                 time_stamp_frm = epoch_to_date(mtime_epoch / 1_000_000)
                 if time_stamp_frm:
                     time_stamp = time_stamp_frm.replace(microsecond=0)

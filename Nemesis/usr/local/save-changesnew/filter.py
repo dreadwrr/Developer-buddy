@@ -1,6 +1,6 @@
-# Filter modified date: 02/26/2025       SN:049BN6KZ01
+# Filter modified date: 01/08/2025       SN:049BN6KZ01
 #
-#   Notes: has porteus 5.01 and 5.1 built in
+#   Notes: Nemesis 25.04
 #
 #  [^/]+ match up to only one directory level example somepath/[^/]+/thisdir
 # /.*?/ non greedily match up to and including first directory found. ie somepath/.*?/thisdir
@@ -24,17 +24,11 @@ def get_exclude_patterns():
 
         # Additional exclusions
         r'/usr/share/mime',
-        r'/home/{{user}}/\.Xauthority',
-        r'/usr/share/glib-2\.0/schemas',
-
-        r'/usr/lib64/libXc',
-        r'/usr/lib64/libudev',
-        r'/var/db/sudo/lectured/1000',
         r'/home/{{user}}/\.config',
-        r'/home/{{user}}/\.config/dolphinrc',
-        r'/home/{{user}}/\.config/konsolerc',
-        r'/home/{{user}}/\.config/featherpad/fp\.conf',
-        r'/\.config/glib-2\.0/settings/keyfile',
+        r'/home/{{user}}/\.Xauthority',
+        r'/home/{{user}}/\.local/state/wireplumber',
+        r'/root/\.Xauthority',
+        r'/root/\.local/state/wireplumber',
 
         r'\.bash_history',
         r'\.cache',
@@ -47,7 +41,6 @@ def get_exclude_patterns():
         r'\.xsession',
 
         # Inclusions from script
-        # r'/usr/local/save-changesnew/ctimecache\.gpg',
         # r'/usr/local/save-changesnew/recent\.gpg',
         # r'/usr/local/save-changesnew/flth\.csv',
 
@@ -57,7 +50,6 @@ def get_exclude_patterns():
         r'/root/\.xauth',
 
         # Firefox-specific exclusions
-
         r'release/cookies\.sqlite-wal',
         r'release/sessionstore-backups',
         r'release/aborted-session-ping',

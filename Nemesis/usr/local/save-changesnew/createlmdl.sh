@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # Merge changes modules _uid_xxxx to _uid_Lxxxx with deletions applied                          01/09/2026
-
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/save-changesnewfnts

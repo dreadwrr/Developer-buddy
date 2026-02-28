@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Merge on drive. custom method for merging with xzm2dir. od stands for on drive or overdrive.       02/25/2026
+# Merge on drive. custom method for merging with xzm2dir. od stands for on drive or overdrive.       01/09/2026
 # Merges 2 or more modules on the drive to handle .wh. files after merging. Doesnt use /tmp because .wh. cant be copied or stated unless mounted. 
 #
 # How it works. Merge the modules in a /tmp folder in PWD or extramod. Afterwards stat the .wh. files and if the .wh. file is newer
