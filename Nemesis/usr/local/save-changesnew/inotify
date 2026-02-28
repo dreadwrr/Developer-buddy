@@ -1,16 +1,25 @@
 #!/usr/bin/env bash
 #inotify db5 					02/25/2026
-#SCRIPT_PATH="$( dirname "$0")"
-#. "$SCRIPT_PATH"/rntchangesfunctions
-. /usr/local/save-changesnew/rntchangesfunctions
+SCRIPT_PATH="$( dirname "$0")"
+. "$SCRIPT_PATH"/rntchangesfunctions
 
-# inotify to watching either / or /mnt/live/memory/changes. filters out some files and also browser suppressions in sbwr array. see rntchangesfunctions
+# inotify to watching either / or /mnt/live/memory/changes. filters out some files and also browser suppressions in sbwr array
 # Also filters out app inclusions in inotifyexl array
 # purpose to prepare hashed files that are downloads from a package manager or are copied files that have preserved
 # metadata where ctime is greater than mtime. This is because they would not show up in a regular file search.
 #
-# result bypassing, one of two loops, the ctime loop. Any files over 1MB are cached for this script and the main search mtime loop
+# result bypassing, one of two loops, the ctime loop. Any files over 1MB are cached and are picked up
+# by recentchangessearch app and stored in ctimecache.gpg.
 
+# Filter terminal or supress browser. common items to exclude from prompt      .  regex  notes: ([^/]*)$
+sbwr() {
+webb=(
+    'mozilla'
+	'\.mozilla'
+	'chromium-ungoogled'
+# other
+)
+}
 
 # inclusions from app. also .wh. files that can appear from watching changes. possibly want to filter out other files ie share/Trash
 inotifyexl() {
@@ -18,35 +27,28 @@ inclusion=(
 	'.*/\.wh\.([^/]*)$'
 	".*/Downloads/${LCLMODULENAME}x"
 	"/tmp/${LCLMODULENAME}x"
-	"/tmp/rc/${LCLMODULENAME}_MDY"
 	"/tmp/${LCLMODULENAME}_MDY_[^/]*/${LCLMODULENAME}x.+$"
-	"/usr/local/save-changesnew/flth.csv"
+	"$SCRIPT_PATH/flth.csv"
+	"$SCRIPT_PATH/recent.gpg"
+	"$SCRIPT_PATH/ctimecache.gpg"
+	"$SCRIPT_PATH/file_output"
 	"$log_file"
 )
 }
-
 
 #VARS
 #atmp=/tmp/myfld$$
 ch="/mnt/live/memory/changes"
 fmt="%Y-%m-%d %H:%M:%S"
 BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
-efile="/usr/local/bin/recentchanges"
-
-# These can be user set so call get_inclusions and get form recentchanges script. Below default fallbacks in case cant find
-logpst="/usr/local/save-changesnew/logs.gpg"			;	statpst="/usr/local/save-changesnew/stats.gpg"
-pydbpst="/usr/local/save-changesnew/recent.gpg"		;	email="john.doe@email.com"
-rlt=""
-rltt=""
-rlttt=""
-mail=""
 
 log_file=$1
 LCLMODULENAME="$2"
 CACHE_F="$3"
 checkSUM="$4"
-xMODE="$5"
-time="$6"
+HOME_DIR="$5"
+xMODE="$6"
+time="$7"
 match_found=0
 dpaths=()
 
@@ -59,11 +61,9 @@ j=${sleep_times[sleep_index]}
 prev_size=-1
 incr=0
 
-debug_log="false"
+debug_log="true"
 debug_file=/tmp/inotify.log
 pblk_log_file=/tmp/output
-
-get_inclusion "$efile"
 
 :> $CACHE_F ; :> $pblk_log_file
 
@@ -71,16 +71,16 @@ echo "$BRAND inoftiy started" >> $debug_file
 
 
 F=(
-	'bin'
+	'bin' 
 	'etc'
 	'home'
-	'lib'
-	'lib64'
-	'opt'
-	'root'
-	'sbin'
+	'lib' 
+	'lib64' 
+	'opt' 
+	'root' 
+	'sbin' 
 	'tmp'
-	'usr'
+	'usr' 
 	'var'
 )
 
@@ -98,7 +98,6 @@ done
 
 sbwr
 inotifyexl
-inclusion+=("$rlt") ; inclusion+=("$rltt") ; inclusion+=("$rlttt")
 
 timeout "$time" inotifywait -m -r -e create -e moved_to --format '%e|%w%f%0' "${dpaths[@]}" | while read -r -d '' o; do
 
@@ -148,7 +147,7 @@ timeout "$time" inotifywait -m -r -e create -e moved_to --format '%e|%w%f%0' "${
 		fi
 
         if (( match_found == 0 )); then
-			SECONDS=0
+            SECONDS=0
             log_lineout $debug_log $debug_file "$log_date" "notify matched input to pblk waiting for stable size $o"
 			while (( SECONDS < time_out )); do
 				(( incr++ ))

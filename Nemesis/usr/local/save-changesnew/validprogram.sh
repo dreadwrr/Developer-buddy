@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #     recentchanges general functions    validprogram       gettime                                                                07/4/2025
 #This function returns the root directory or null if it is in  /  of system
 validprogram() {
@@ -40,7 +40,6 @@ echo "${BASEDIR}"
 #iis system directory and return the root directory
 insetdirectory() {
 local result
-local newdir
 local d
 local template=()
 template+=("/home/$USR/Downloads/")

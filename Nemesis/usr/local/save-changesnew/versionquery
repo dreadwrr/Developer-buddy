@@ -1,7 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
 get_vrn(){
 if [ "$1" = "-v" ]; then
-   echo "version 5.0"
+   echo "version 5.0 h&k enterprisez 01/15/2026"
    echo
    echo "recentchanges aka Developer buddy"
    echo
@@ -22,8 +22,8 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    echo
    echo "recentchanges s         where s is time in seconds"
    echo
-   printf "usage:    recentchanges \t\t grab all files 5 minutes or new		these will include system search as well\n"
-   printf  "usage:    recentchanges 30	\t grab all files 30 seconds or newer\n"
+   echo -e "usage:    recentchanges \t\t grab all files 5 minutes or new		these will include system search as well"
+   echo -e "usage:    recentchanges 30	\t grab all files 30 seconds or newer"
    echo
    echo
    echo "Modes"
@@ -45,7 +45,7 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    printf "recentchanges SRC \t\t  Target a root directory. Useful if you compiled an application.\n\n"
    echo     " examples:"
    echo     " recentchanges SRC, recentchanges 60 SRC or recentchanges SRC 180"
-   echo   
+   echo
    echo
    echo " This feature will package an application with a customized name into an .xzm"
    echo " It allows to focus the search and exclude even files that made it past the filter."
@@ -57,14 +57,28 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    echo
    echo "Query"
    echo
-   echo "Find out information about files from searches. backend set to default will use query script. database uses query.py"
-   echo "ANALYTICS uses logs from /tmp and with a seperate set of heuristics. STATPST is from logs and stats in .gpgs"
+   echo "Find out information about files from searches."
    echo
    echo "Inverse the search with Symlink"
    echo
    printf "rnt \t\t shortcut for recentchanges doesnt inverse\n"
    printf "rnt search \t search for filtered rather than unfiltered files\t output /Downloads\n"
    printf "rnt search myfile.txt      search for unfiltered rather than filtered files newer than myfile\t . \n"
+   echo
+   echo
+   echo "If having problems with keys."
+   echo "1. Try to delete the all .gpg and to make new ones. 2. Failing that do the same as 1 but change email in config.toml"
+   echo 
+   echo "or option 3."
+   echo "delete the keys for user and root"
+   echo "gpg --list-keys . grab the key fingerprint the long string for the email in config.toml."
+   echo "as user gpg --delete-sercet-keys <fingerprint>"
+   echo "gpg --delete-keys <fingerprint>"
+   echo "then as root. sudo su"
+   echo "gpg --delete-sercret-keys <fingerprint>"
+   echo "gpg --delete-keys <fingerprint>"
+   echo
+   echo "failing that use \`recentchanges reset\` for instructions and or to delete the key pair and reset"
    exit
 fi
 exit 1

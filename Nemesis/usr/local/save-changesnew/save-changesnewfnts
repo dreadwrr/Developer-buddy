@@ -122,8 +122,8 @@ override="true"  # dont shift as experimental only used in merge scripts
 output=""
 # starting in $target$em saved to $pst
 # Apply write forward merging (guardian) to save writes. More can go wrong implemented guardian for logic
-h=$(find $target$em -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' -print0 | xargs -0 -r ls -t | head -n 1)  # newest.  ls -tr oldest
-if [[ -f /dev/shm/xsc && -n "$h" && -f "$h" ]]; then
+# h=$(find $target$em -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' -print0 | xargs -0 -r ls -t | head -n 1)  # newest.  ls -tr oldest
+if [[ -f /dev/shm/xsc ]]; then
 	if [[ "$mdlMRGPRF" = "forward" ]]; then
 		u=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' | wc -l)
 	fi
@@ -184,7 +184,7 @@ if [[ -f /dev/shm/xsc && -n "$h" && -f "$h" ]]; then
 			package_xzm $mtmp $keepMRGED $elog $is_routine $is_merge $output
 			is_rollback $mtmp "_uid_" $ROLLBCK $ROLLSUMRY $archLMT $is_routine
 			test -e $SFILES && rm $SFILES
-			echo "${target}${em}/${rname}" > /dev/shm/xsc
+			echo "$target$em/$rname" > /dev/shm/xsc
 		fi
     # normal saving
 	else
@@ -195,30 +195,26 @@ if [[ -f /dev/shm/xsc && -n "$h" && -f "$h" ]]; then
 			echo "Couldnt find last save point looking for next closest"
 			goahead="false"
 			firstsv=""
-			#cdiff=""
 			srt_time_epoch=$(date -d "$(uptime -s)" +%s)
 			while IFS= read -r -d '' file; do
 				(( t++ ))
-				if (( c == 0 )); then
-					mt=$(stat -c %Y "$file")
-					if (( mt > srt_time_epoch )); then
-						firstsv=$file
-						c=$t
-					fi
-				fi
-			done < <( find "$target$em" -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' -print0)
+		        if (( c == 0 )); then
+		            if (( mt > srt_time_epoch )); then
+		                c=$t
+		                tfile=$file
+		            fi
+		        fi
+			done < <( find "$target$em" -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' -print0 | sort -z)
 			unset IFS
-			if [ -n "$firstsv" ]; then h=$firstsv ; fi
 			if [ -f "$h" ]; then
-				[[ $t -eq $c ]] && echo "Merging single module"
+				(( c > 0 && c == t )) && echo Merging single module
 				goahead="true"
-				tfile=$h
 				echo "$tfile" > /dev/shm/xsc
 			fi
 		fi
 		# extract all modules to tmpfs to build what files we have since boot
 		if [[ "$goahead" = "true" ]]; then
-			for mods in "${target}${em}/"*_uid_*.xzm; do 
+			for mods in "$target$em/"*_uid_*.xzm; do 
 				[[ "$mods" == *_uid_L* || ! -f "$mods" ]] && continue
 			    if (( r == 0 )); then
 			        if [ "$mods" == "$tfile" ]; then
@@ -246,24 +242,25 @@ if [[ -f /dev/shm/xsc && -n "$h" && -f "$h" ]]; then
 		trlt=$?
 		errblk "$mtmp"
 		test -e $LOGDIR/$LOGFILE && rm $LOGDIR/$LOGFILE  # dont exclude the log file
-		find $mtmp -type f -printf '%P\n' > $tmp/contents  # the changes
+		find $mtmp -type f -printf '%P\n' > $tmp/contents
+
         # what would be transfered then infer what to exclude with rsync dryrun
-		createlog $mtmp $tmp $UPDATE $oMF 
+		createlog $mtmp $tmp $UPDATE $oMF
+
 		c="${mtmp#/}"  # --out-format="%f" consistent log depends on version of rsync ** important
 		sed -i -e "\|$c/\.|d" -e "s|$c/||" -e '/^\./d' $UPDATE  # remove the unusable first line  .
 		cp $UPDATE $keep
-		# oMF is log its made at the same time
-		#$keep           what needs to be transfered with usable paths
-		#$remove       what should not be copied
+
 		cat $tmp/contents | grep -Fvf $keep > $remove # the changes folder - what would be transfered = remove
-		cat $remove >> $EXFILES # exclude these
+		cat $remove >> $EXFILES
+
 		labelmk $oMF # copy\insert log before .xzm
-		# cp $EXFILES /tmp/myfile.txt  debug
+
 		# mksquashfs $ch /tmp/megar.xzm -comp $cmode -ef $EXFILES  debug
-		base_cmd=(mksquashfs $ch "${target}${em}/${rname}" -comp $cmode -ef $EXFILES)  
+		base_cmd=(mksquashfs $ch "$target$em/$rname" -comp $cmode -ef $EXFILES)  
 		# [[ -s "$QEXCL" ]] && base_cmd+=(-ef $QEXCL)  # add excluded .wh. to EXFILES if needed
 		if [ "$FEEDBACK" != "true" ]; then "${base_cmd[@]}" > /dev/null ; else "${base_cmd[@]}" ; fi
-		if [ "$goahead" == "false" ]; then echo "${target}${em}/${rname}" > /dev/shm/xsc ; fi
+		if [ "$goahead" == "false" ]; then echo "$target$em/$rname" > /dev/shm/xsc ; fi
 		# module saved
 	fi
 # first save on startup

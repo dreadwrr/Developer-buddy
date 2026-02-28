@@ -1,413 +1,80 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       02/25/2026
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database.     02/26/2026
 import os
-import re
-import shutil
 import sqlite3
-import subprocess
 import sys
+import sysprofile
 import traceback
+from collections import defaultdict
+from gpgcrypto import decr
+from gpgcrypto import encr
 from hanlyparallel import hanly_parallel
-from pyfunctions import ap_decode
-from pyfunctions import CYAN, GREEN, RESET
-from pyfunctions import collision_check
-from pyfunctions import getcount
-from pyfunctions import getnm
-from pyfunctions import intst
-from pyfunctions import removefile
-from pyfunctions import to_bool
+from rntchangesfunctions import cnc
+from rntchangesfunctions import name_of
+from rntchangesfunctions import removefile
+from pyfunctions import cprint
+from pyfunctions import unescf_py
+from query import blank_count
+from pysql import collision
+from pysql import create_db
+from pysql import create_table
+from pysql import insert
+from pysql import insert_if_not_exists
+from pysql import table_has_data
 
-# Globals
+
 count = 0
-QUOTED_RE = re.compile(r'"((?:[^"\\]|\\.)*)"')
 
 
-def encr(database, opt, email, no_compression, dcr=False):
-    try:
-        cmd = [
-                "gpg",
-                "--yes",
-                "--encrypt",
-                "-r", email,
-                "-o", opt,
-        ]
-        if no_compression:
-            cmd.extend(["--compress-level", "0"])
-        cmd.append(database)
-        subprocess.run(cmd, capture_output=True, text=True, check=True)
-        if not dcr:
-            removefile(database)
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"[ERROR] Failed to encrypt:  {e} return_code: {e.returncode}")
-        combined = "\n".join(filter(None, [e.stdout, e.stderr]))
-        if combined:
-            print("[OUTPUT]\n" + combined)
-    except FileNotFoundError as e:
-        print("[ERROR] File not found possibly: ", database, " error: ", e)
-    except Exception as e:
-        print(f"[ERROR] general exc encr: {e} {type(e).__name__} \n {traceback.format_exc()}")
-    return False
+def collision_check(xdata, cerr, c, ps):
+    reported = set()
+    csum = False
+    colcheck = collision(c, ps)
 
+    if colcheck:
 
-def decr(src, opt):
-    if os.path.isfile(src):
+        collision_map = defaultdict(set)
+        for a_filename, b_filename, file_hash, size_a, size_b in colcheck:
+            collision_map[a_filename, file_hash].add((b_filename, file_hash, size_a, size_b))
+            collision_map[b_filename, file_hash].add((a_filename, file_hash, size_b, size_a))
         try:
-            cmd = [
-                "gpg",
-                "--yes",
-                "--decrypt",
-                "-o", opt,
-                src
-            ]
-            subprocess.run(cmd, capture_output=True, text=True, check=True)
-            return True
-        except subprocess.CalledProcessError as e:
-            print(f"[ERROR] Decryption failed:  {e} return_code: {e.returncode}")
-            combined = "\n".join(filter(None, [e.stdout, e.stderr]))
-            if combined:
-                print("[OUTPUT]\n" + combined)
-
-        except FileNotFoundError as e:
-            print("GPG not found. Please ensure GPG is installed. or could not find file: ", src, " error: ", e)
-        except Exception as e:
-            print(f"[ERROR] decr Unexpected exception err: {e} {type(e).__name__} \n {traceback.format_exc()}")
-    else:
-        print(f"[ERROR] File {src} not found. Ensure the .gpg file exists.")
-
-    return False
-
-
-def table_has_data(conn, table_name):
-    c = conn.cursor()
-    c.execute("""
-        SELECT name FROM sqlite_master
-        WHERE type='table' AND name=?
-    """, (table_name,))
-    if not c.fetchone():
-        c.close()
-        return False
-    c.execute(f"SELECT 1 FROM {table_name} LIMIT 1")
-    res = c.fetchone() is not None
-    c.close()
-    return res
-
-
-def create_table(c, table, unique_columns, e_cols=None):
-    columns = [
-        'id INTEGER PRIMARY KEY AUTOINCREMENT',
-        'timestamp TEXT',
-        'filename TEXT',
-        'changetime TEXT',
-        'inode INTEGER',
-        'accesstime TEXT',
-        'checksum TEXT',
-        'filesize INTEGER',
-        'symlink TEXT',
-        'owner TEXT',
-        '`group` TEXT',
-        'permissions TEXT',
-        'casmod TEXT',
-        'lastmodified TEXT'
-    ]
-    if e_cols:
-        if isinstance(e_cols, str):
-            e_cols = [col.strip() for col in e_cols.split(',') if col.strip()]
-        columns += e_cols
-
-    col_str = ',\n      '.join(columns)
-    unique_str = ', '.join(unique_columns)
-    sql = f'''
-    CREATE TABLE IF NOT EXISTS {table} (
-    {col_str},
-    UNIQUE({unique_str})
-    )
-    '''
-    c.execute(sql)
-
-    sql = 'CREATE INDEX IF NOT EXISTS'
-
-    if table == 'logs':
-        c.execute(f'{sql} idx_logs_checksum ON logs (checksum)')
-        c.execute(f'{sql} idx_logs_filename ON logs (filename)')
-        c.execute(f'{sql} idx_logs_checksum_filename ON logs (checksum, filename)')  # Composite
-    else:
-        c.execute(f'{sql} idx_sys_checksum ON sys (checksum)')
-        c.execute(f'{sql} idx_sys_filename ON sys (filename)')
-        c.execute(f'{sql} idx_sys_checksum_filename ON sys (checksum, filename)')
-
-
-def create_db(database, action=False):
-    print('Initializing database...')
-
-    conn = sqlite3.connect(database)
-    c = conn.cursor()
-
-    create_table(c, 'logs', ('timestamp', 'filename', 'changetime', 'checksum'), ['hardlinks INTEGER', 'mtime_us INTEGER'])
-
-    create_table(c, 'sys', ('timestamp', 'filename', 'changetime', 'checksum'), ['count INTEGER', 'mtime_us INTEGER'])
-
-    c.execute('''
-    CREATE TABLE IF NOT EXISTS stats (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        action TEXT,
-        timestamp TEXT,
-        filename TEXT,
-        changetime TEXT,
-        UNIQUE(timestamp, filename, changetime)
-        )
-    ''')
-    conn.commit()
-    if action:
-        return (conn)
-    else:
-        conn.close()
-
-
-def insert(log, conn, c, table, add_column=None):  # Log, sys
-    global count
-    count = getcount(c)
-
-    columns = [
-        'timestamp', 'filename', 'changetime', 'inode', 'accesstime',
-        'checksum', 'filesize', 'symlink', 'owner', '`group`',
-        'permissions', 'casmod', 'lastmodified'
-    ]
-    if add_column:
-        if isinstance(add_column, (tuple, list)):
-            columns.extend(add_column)
-        else:
-            raise TypeError("add_column must be str, tuple, or list")
-    placeholders = ', '.join(['?'] * len(columns))
-    col_str = ', '.join(columns)
-    c.executemany(
-        f'INSERT OR IGNORE INTO {table} ({col_str}) VALUES ({placeholders})',
-        log
-    )
-
-    if table == 'logs':
-        blank_row = tuple([None] * len(columns))
-        c.execute(
-                f'INSERT INTO {table} ({col_str}) VALUES ({", ".join(["?"]*len(columns))})',
-                blank_row
-        )
-
-    conn.commit()
-
-
-def insert_if_not_exists(action, timestamp, filename, changetime, conn, c):  # Stats
-    timestamp = timestamp or None
-    c.execute('''
-    INSERT OR IGNORE INTO stats (action, timestamp, filename, changetime)
-    VALUES (?, ?, ?, ?)
-    ''', (action, timestamp, filename, changetime))
-    conn.commit()
-
-
-def parse_line(line):
-    quoted_match = QUOTED_RE.search(line)
-    if not quoted_match:
-        return None
-    raw_filepath = quoted_match.group(1)
-
-    filepath = ap_decode(raw_filepath)
-
-    # Remove quoted path
-    line_without_file = line.replace(quoted_match.group(0), '').strip()
-    other_fields = line_without_file.split()
-
-    if len(other_fields) < 7:
-        return None
-
-    timestamp1_subfld1 = None if other_fields[0] in ("", "None") else other_fields[0]
-    timestamp1_subfld2 = None if other_fields[1] in ("", "None") else other_fields[1]
-    timestamp1 = None if not timestamp1_subfld1 or not timestamp1_subfld2 else f"{timestamp1_subfld1} {timestamp1_subfld2}"
-    if not timestamp1:
-        return None
-
-    timestamp2_subfld1 = None if other_fields[2] in ("", "None") else other_fields[2]
-    timestamp2_subfld2 = None if other_fields[3] in ("", "None") else other_fields[3]
-    timestamp2 = None if not timestamp2_subfld1 or not timestamp2_subfld2 else f"{timestamp2_subfld1} {timestamp2_subfld2}"
-
-    inode = other_fields[4]
-
-    timestamp3_subfld1 = None if other_fields[5] in ("", "None") else other_fields[5]
-    timestamp3_subfld2 = None if other_fields[6] in ("", "None") else other_fields[6]
-    timestamp3 = None if not timestamp3_subfld1 or not timestamp3_subfld2 else f"{timestamp3_subfld1} {timestamp3_subfld2}"
-
-    rest = other_fields[7:]
-
-    return [timestamp1, filepath, timestamp2, inode, timestamp3] + rest
-
-
-def _to_int_or_none(value, field, line):
-    if value in ("", "None", None):
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        print(f"parselog invalid integer {field} {value} {line}")
-        return None
-
-
-def parselog(file, table, checksum):
-
-    results = []
-
-    with open(file, 'r') as file:
-
-        for line in file:
-            try:
-                inputln = parse_line(line)
-                if not inputln or not inputln[1].strip():
-                    continue
-
-                n = len(inputln)
-                if table == 'sortcomplete':
-                    if checksum:
-                        if n < 15:
-                            print("parselog sortcomplete setting checksum, input out of boundaries skipping")
-                            continue
-                    else:
-                        if n < 10:
-                            print("parselog sortcomplete setting no checksum, input out of boundaries skipping")
-                            continue
-
-                timestamp = inputln[0]
-                filename = inputln[1]
-                changetime = inputln[2]
-                ino = None if inputln[3] in ("", "None") else inputln[3]
-                accesstime = inputln[4]
-                checks = None if n > 5 and inputln[5] in ("", "None") else (inputln[5] if n > 5 else None)
-                sze = None if n > 6 and inputln[6] in ("", "None") else (inputln[6] if n > 6 else None)
-                sym = None if n <= 7 or inputln[7] in ("", "None") else inputln[7]
-                onr = None if n <= 8 or inputln[8] in ("", "None") else inputln[8]
-                gpp = None if n <= 9 or inputln[9] in ("", "None") else inputln[9]
-                pmr = None if n <= 10 or inputln[10] in ("", "None") else inputln[10]
-                cam = None if n <= 11 or inputln[11] in ("", "None") else inputln[11]
-                timestamp1 = None if n <= 12 or inputln[12] in ("", "None") else inputln[12]
-                timestamp2 = None if n <= 13 or inputln[13] in ("", "None") else inputln[13]
-                lastmodified = None if not timestamp1 or not timestamp2 else f"{timestamp1} {timestamp2}"
-                hardlink_count = None if n <= 14 or inputln[14] in ("", "None") else inputln[14]
-                inode = _to_int_or_none(ino, "inode", line)
-                filesize = _to_int_or_none(sze, "filesize", line)
-                if table == 'sys':
-                    us = timestamp1
-                    usec = _to_int_or_none(us, "usec", line)
-                    count = 0
-                    results.append((timestamp, filename, changetime, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, cam, lastmodified, count, usec))
-                elif table == 'sortcomplete':
-                    if checksum:
-                        us = None if n <= 15 or inputln[15] in ("", "None") else inputln[15]
-
-                    if not checksum:
-                        cam = checks
-                        timestamp1 = filesize
-                        timestamp2 = sym
-                        lastmodified = None if not timestamp1 or not timestamp2 else f"{timestamp1} {timestamp2}"
-                        hardlink_count = onr
-                        us = _to_int_or_none(gpp, "gpp", line)
-                        checks = filesize = sym = onr = gpp = None
-                    usec = _to_int_or_none(us, "usec", line) if checksum else us
-                    results.append((timestamp, filename, changetime, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, cam, lastmodified, hardlink_count, usec))
-                else:
-                    raise ValueError("Supplied table not in accepted boundaries: sys or sortcomplete. value supplied", table)
-            except Exception as e:
-                print(f'Problem detected in parser parselog for line {line} err: {type(e).__name__}: {e}')
-
-    return results
-
-
-def statparse(line, outputlist):
-    parts = line.strip().split(maxsplit=5)
-    if len(parts) < 6:
-        return
-    action = parts[0]
-    date = None if parts[1] == "None" else parts[1]
-    time = None if parts[2] == "None" else parts[2]
-    cdate = None if parts[3] == "None" else parts[3]
-    ctime = None if parts[4] == "None" else parts[4]
-    fp = parts[5]
-    filename = fp.strip()
-
-    timestamp = None if date is None or time is None else f"{date} {time}"
-    changetime = None if cdate is None or ctime is None else f"{cdate} {ctime}"
-
-    if filename:
-        outputlist.append((action, timestamp, changetime, filename))
-
-
-def hash_system_profile(turbo):
-
-    sys_results = []
-
-    print(f'{CYAN}Generating system profile from base .xzms.{RESET}')
-    print("Turbo is:", turbo)
-    result = subprocess.run(["/usr/local/save-changesnew/sysprofile", turbo], capture_output=True, text=True)
-    r = result.returncode
-
-    if r != 0:
-        if r == 6:
-            print("SORTCOMPLETE was empty.")
-        else:
-            print("return code:", r)
-        print("Bash failed to hash profile.")
-    else:
-        try:
-
-            sortcomplete_path = result.stdout.strip()
-
-            if os.path.isfile(sortcomplete_path):
-
-                checkSUM = True
-                sys_results = parselog(sortcomplete_path, 'sys', checkSUM)   # sys
-
-                sortcomplete_dir = os.path.dirname(sortcomplete_path)
-
-                if os.path.isdir(sortcomplete_dir):
-                    if "tmp" in sortcomplete_dir and "_" in sortcomplete_path:
-                        shutil.rmtree(sortcomplete_dir)
-            else:
-                print("hash_system_profile Missing SORTCOMPLETE")
-
-            return sys_results
-
-        except Exception as e:
-            print(f"exception hash_system_profile likely parsing error: {e} :{type(e).__name__} \n{traceback.format_exc()}")
-
-    return None
-
-
-# trying to insert data if anything fails dont encrypt it at the end .
-# if hybrid analysis fails it doesnt effect the data
-# if only encryption fails leave the db file so it can be manually encrypted with pasted command.
-# error codes 2 & 3 are gpg problems. error code 4 is database problem. error code 1 is permissive or general failure
-def main():
-
-    xdata = sys.argv[1]   # data source
-    COMPLETE = sys.argv[2]   # nsf
-    dbtarget = sys.argv[3]   # the target
-    rout = sys.argv[4]    # tmp holds action
-    checksum = to_bool(sys.argv[5])   # important
-    cdiag = to_bool(sys.argv[6])    # setting
-    user = sys.argv[7]
-    email = sys.argv[8]
-    turbo = sys.argv[9]   # mc
-    ANALYTICSECT = to_bool(sys.argv[10])
-    ps = to_bool(sys.argv[11])   # proteusshield
-    compLVL = int(sys.argv[12])
-
-    stats = []
-    parsed = []
-    parsed_sys = []
-
-    outfile = getnm(dbtarget, '.db')
+            with open(cerr, "a", encoding="utf-8") as f:
+                for record in xdata:
+                    filename = record[1]
+                    checks = record[5]
+                    size_non_zero = record[6]
+                    if size_non_zero:
+                        key = (filename, checks)
+                        if key in collision_map:
+                            for other_file, file_hash, size1, size2 in collision_map[key]:
+                                pair = tuple(sorted([filename, other_file]))
+                                if pair not in reported:
+                                    csum = True
+                                    print(f"COLLISION: {filename} {size1} vs {other_file} {size2} | Hash: {file_hash}", file=f)
+                                    reported.add(pair)
+        except IOError as e:
+            print(f"Failed to write collisions: {e} {type(e).__name__}  \n{traceback.format_exc()}")
+    return csum
+
+
+def main(dbtarget, xdata, COMPLETE, user_setting, logging_values, rout, scr, cerr, dcr=False):
+
+    user = user_setting['USR']
+    email = user_setting['email']
+    mMODE = user_setting['mMODE']
+    ANALYTICSECT = user_setting['ANALYTICSECT']
+    checksum = user_setting['checksum']
+    cdiag = user_setting['cdiag']
+    ps = user_setting['ps']
+    compLVL = user_setting['compLVL']
+
+    parsedsys = []
+
+    outfile = name_of(dbtarget, '.db')
     sys_table = "sys"
 
-    scr = '/tmp/scr'
-    cerr = '/tmp/cerr'
-
     csum = False
+    new_profile = False
     db_error = False
     goahead = True
     is_ps = False
@@ -420,22 +87,24 @@ def main():
     # TEMPDIR = tempfile.mkdtemp()
     # os.makedirs(TEMPDIR, exist_ok=True)
     # with tempfile.TemporaryDirectory(dir=TEMPDIR) as mainl:
-    # dbopt = getnm(dbtarget, 'db')   # generic output database
+    # dbopt = name_of(dbtarget, 'db')   # generic output database
     # with tempfile.TemporaryDirectory(dir='/tmp') as tempdir:
     #     dbopt = os.path.join(tempdir, dbopt)
 
-    app_dir = os.path.dirname(dbtarget)
+    # app_dir = os.path.dirname(dbtarget)
+    app_dir = logging_values[2]
     dbopt = os.path.join(app_dir, outfile)
 
     if os.path.isfile(dbtarget):
         sts = decr(dbtarget, dbopt)
         if not sts:
-            print('Find out why db not decrypting or delete it to make a new one.')
+            if sts is None:
+                print(f"pstsrg unable to do hybrid analysis No key for {dbtarget} delete it to make a new one.")
             return 2
     else:
         try:
-            conn = create_db(dbopt, action=True)
-            print(f'{GREEN}Persistent database created.{RESET}')
+            conn = create_db(dbopt, True)
+            cprint.green('Persistent database created')
             goahead = False
         except Exception as e:
             print("Failed to create db:", e)
@@ -447,22 +116,28 @@ def main():
     with conn:
         c = conn.cursor()
 
-        parsed = parselog(xdata, 'sortcomplete', checksum)   # SORTCOMPLETE/Log
-
         if table_has_data(conn, sys_table):
             is_ps = True
         else:
             # initial Sys profile
             if ps and checksum:
-                create_table(c, sys_table, ('timestamp', 'filename', 'changetime' 'checksum',), ['count INTEGER', 'mtime_us INTEGER'])
 
-                parsed_sys = hash_system_profile(turbo)
+                create_table(c, sys_table, ('timestamp', 'filename', 'changetime', 'checksum'), ['count INTEGER', 'mtime_us INTEGER'])
+                new_profile = True
 
-                if parsed_sys:
+                try:
+
+                    parsedsys = sysprofile.main(mMODE, logging_values)  # hash base xzms
+
+                except Exception as e:
+                    print(f'sysprofile.py failed to hash. {type(e).__name__} {e} \n {traceback.format_exc()} ')
+                    parsedsys = None
+
+                if parsedsys:
 
                     try:
 
-                        insert(parsed_sys, conn, c, sys_table, ['count', 'mtime_us'])
+                        insert(parsedsys, conn, c, sys_table, ['count', 'mtime_us'])
 
                     except Exception as e:
                         print(f'sys db failed insert {e}  {type(e).__name__} \n{traceback.format_exc()}')
@@ -472,23 +147,26 @@ def main():
                 print('Sys profile requires the setting checksum to index')
 
         # Log
-        if parsed:
-            if goahead:   # Hybrid analysis. Skip first pass ect.
+        if xdata:
+
+            if goahead:  # Hybrid analysis. Skip first pass ect.
 
                 try:
 
-                    csum = hanly_parallel(rout, scr, cerr, parsed, ANALYTICSECT, checksum, cdiag, dbopt, is_ps, turbo, user)
+                    csum = hanly_parallel(rout, scr, cerr, mMODE, xdata, ANALYTICSECT, checksum, cdiag, dbopt, is_ps, user, logging_values)
 
                 except Exception as e:
-                    print(f"hanlydb failed to process on mode {turbo}: {e} {traceback.format_exc()}", file=sys.stderr)
+                    print(f"hanlydb failed to process on mode {mMODE}: {e} {traceback.format_exc()}", file=sys.stderr)
 
             try:
 
-                # xdata = []
-                # for record in parsed:
-                #     xdata.append(record[:-1])   # remove the epoch that was used in hanly. it was carried over from bash
+                parsed = []
+                for record in xdata:
+                    parsed.append(record[:16])  # trim esc_path from end
 
                 insert(parsed, conn, c, "logs", ['hardlinks', 'mtime_us'])
+
+                count = blank_count(c)
                 if count % 10 == 0:
                     print(f'{count + 1} searches in gpg database')
 
@@ -498,38 +176,33 @@ def main():
 
             # Check for hash collisions
             if checksum and cdiag:
-                if collision_check(parsed, cerr, c, ps):
+                if collision_check(xdata, cerr, c, ps):
                     csum = True
 
-            if turbo == 'mc':
+            if mMODE == 'mc':
                 x = os.cpu_count()
                 if x:
                     if not csum:
                         print(f'Detected {x} CPU cores.')
-
         # Stats
-        if os.path.isfile(rout):
+        if rout:
+
+            if COMPLETE:  # store no such files
+                rout.extend([" ".join(map(str, item)) for item in COMPLETE])
+                # rout.extend(" ".join(map(str, item)) for item in COMPLETE)
 
             try:
-
-                with open(rout, 'r', newline='') as record:
-                    for line in record:
-                        statparse(line, stats)
-
-                if os.path.isfile(COMPLETE) and os.path.getsize(COMPLETE) > 0:
-                    with open(COMPLETE, 'r', newline='') as records:
-                        for line in records:
-                            statparse(line, stats)
-
-                if stats:
-
-                    for record in stats:
-                        action = record[0]
-                        timestamp = record[1]
-                        changetime = record[2]
-                        fp = record[3]
-
-                        insert_if_not_exists(action, timestamp, fp, changetime, conn, c)
+                for record in rout:
+                    # parts = record.strip().split(None, 5)  # original
+                    parts = record.strip().split(maxsplit=5)
+                    if len(parts) < 6:
+                        continue
+                    action = parts[0]
+                    timestamp = f'{parts[1]} {parts[2]}'
+                    changetime = f'{parts[3]} {parts[4]}'
+                    fp_escaped = parts[5]
+                    fp = unescf_py(fp_escaped)
+                    insert_if_not_exists(action, timestamp, fp, changetime, conn, c)
 
             except Exception as e:
                 print(f'stats db failed to insert err: {e}  \n{traceback.format_exc()}')
@@ -538,11 +211,11 @@ def main():
     if not db_error:  # Encrypt if o.k.
         try:
 
-            nc = intst(dbopt, compLVL)
-            sts = encr(dbopt, dbtarget, email, no_compression=nc, dcr=True)
+            nc = cnc(dbopt, compLVL)
+            sts = encr(dbopt, dbtarget, email, no_compression=nc, dcr=dcr)
             if not sts:
                 res = 3  # & 2 gpg problem
-                print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}   before running again.')
+                print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}  before running again to preserve data.')
 
         except Exception as e:
             res = 3
@@ -552,14 +225,13 @@ def main():
         res = 4  # delete any changes made.
         print('There is a problem with the database.')
 
-    if res != 3:
+    if (dcr and res != 3) or not dcr:
         removefile(dbopt)
-
-    return res
-
-
-if __name__ == "__main__":
-    if len(sys.argv) < 13:
-        print("pstsrg Not enough arguments. quitting")
-        sys.exit(1)
-    sys.exit(main())
+    if res == 0 and new_profile:
+        return "new_profile"
+    elif res == 0:
+        return 0
+        # return dbopt
+    elif res == 3:
+        return "encr_error"
+    return None
