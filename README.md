@@ -1,4 +1,4 @@
-#                               02/25/2026
+#                               02/28/2026
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
 
 for Porteus 5.01, 5.1 and Nemesis 
@@ -7,10 +7,11 @@ A Qt version for Windows 10/11. https://github.com/dreadwrr/Recentchanges <br>
 Qt version for linux https://github.com/dreadwrr/Recentchanges-Linux<br><br>
 
 Version available <br>
+1.2.7-py new release! <br>
 1.2.7 Bash text backend or bash python database backend - updated with Qt version hybrid analysis <br>
 <br>
-will update 1.2.6-py to 1.2.7 version after making any changes in qt version <br>
-1.2.6-py1 python edition backend database New release!<br><br>
+
+
 
 
 Commands:<br>
