@@ -1,5 +1,5 @@
 #!/bin/bash
-#                                               Developer Buddy v5.0                Jan 13, 2026
+#                                               Developer Buddy v5.0                Dec 31, 2025
 #   this script works for two modes porteus nemesis graphics and changes.
 # borrowed script items source
 # # Author: fanthom <fanthom@porteus.org>
@@ -107,7 +107,7 @@ namingPRF="alpha"				# default alpha
 
 
 # CHANGABLE BOOLEANS
-mrgAEX="true"				# the changes are copied to the merge with the exclusions. Then this setting would apply to whether to apply 
+mrgAEX="true"				# the changes are copied to the merge with the exclusions. Then this setting would apply to whether to apply
 									# those exclusions for the final module.  the exclusions could have changed and this can reduce the final module size
 									# which is why its default
 
@@ -215,7 +215,12 @@ if [ "$d2drive" == "false" ] || { [ "$d2drive" == "true" ] && [ "$d2dmdl" == "fa
 if [ "$rlt" != "" ]; then
     if [ "$rlt" == "/" ]; then rlt="" ; fi
 	[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt}
-	[[ "$rlt" == *"$target"* ]] && rlt=${rlt%/} && target=""
+	if [[ "$rlt" == *"$target"* ]]; then
+		rlt=${rlt%/}
+		target=""
+	else
+		target=$rlt
+	fi
 	osize=$( du -sb "${target}${rlt}${MODULENM}/" | cut -f1)
     : > /tmp/incfilter.log
     if [ "$d2drive" == "true" ]; then
@@ -685,3 +690,4 @@ test -e /tmp/incfilter.log && rm /tmp/incfilter.log
 test -e $tmp && rm -rf ${tmp:?} 
 test -e $mtmp && rm -rf ${mtmp:?}
 sleep 5 && exit
+
