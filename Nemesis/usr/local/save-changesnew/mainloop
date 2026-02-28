@@ -1,0 +1,27 @@
+#!/bin/bash
+. /usr/local/save-changesnew/rntchangesfunctions
+. /usr/local/save-changesnew/save-changesnewfnts
+fmt="%Y-%m-%d %H:%M:%S"
+prefix=mainloop1
+prefixt=mainloop2
+prefixth=cache1
+atmp="$1"
+checkSUM="$2"
+xmode="$3"
+[[ "$4" = "batch2" ]] && prefix=mainloop3 && prefixt=mainloop4 && prefixth=cache2
+CACHE_F="$5"
+shift 6
+
+# $atmp "false" "main" "batch2"
+SORTCOMPLETE="${atmp}/${prefix}_${RANDOM}$(rand_alpha)$$_tmp.log"
+NFS="${atmp}/${prefixt}_${RANDOM}$(rand_alpha)$$_tmp.log"
+CACHE="${atmp}/${prefixth}_${RANDOM}$(rand_alpha)$$_tmp.log"
+
+if [[ -n "$CACHE_F" ]]; then
+    for f in "$@"; do
+	    sblk "$f" $SORTCOMPLETE $NFS $checkSUM $xmode $CACHE
+    done
+else
+	echo "mainloop Incorrect arguments supplied"
+fi
+

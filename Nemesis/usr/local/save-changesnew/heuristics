@@ -1,0 +1,286 @@
+#!/bin/bash
+# 08/11/2025
+asz() {
+awk '
+{
+    # Remove quotes from file path
+    path = $2
+    gsub(/^"|"$/, "", path)
+
+    inode = $4
+    filesize = $7
+
+    # Example: accumulate total size
+    total_size += filesize
+    file_count++
+}
+END {
+    if (file_count > 0) {
+        avg_size_kb = total_size / file_count / 1024
+        printf "Average file size: %.2f KB\n", avg_size_kb
+    } else {
+        print "No file sizes."
+    }
+}' "$1"
+}
+#    if (f[2] ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/ && f[3] ~ /^[0-9]{2}:[0-9]{2}:[0-9]{2}$/) {
+#        cmd = "date -d \"" f[2] " " f[3] "\" +%s"
+aat() {
+awk '
+{
+    match($0, /"([^"]+)"/)
+    rest = substr($0, RSTART + RLENGTH)
+    split(rest, f, " ")
+
+    # Assuming f[1..2] after the quote are old date/time, f[3] is inode
+    date_idx = 4  # access date
+    time_idx = 5  # access time
+
+    if (f[date_idx] ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/ && f[time_idx] ~ /^[0-9]{2}:[0-9]{2}:[0-9]{2}$/) {
+        cmd = "date -d \"" f[date_idx] " " f[time_idx] "\" +%s"
+        cmd | getline e
+        close(cmd)
+        sum += e
+        count++
+        if (count == 1 || e < first) first = e
+        if (count == 1 || e > last)  last  = e
+    }
+}
+END {
+    if (count > 0) {
+        avg = int(sum/count)
+        cmd="date -d @" first " \"+%Y-%m-%d %H:%M:%S\""; cmd|getline fdate; close(cmd)
+        cmd="date -d @" last  " \"+%Y-%m-%d %H:%M:%S\""; cmd|getline ldate; close(cmd)
+        cmd="date -d @" avg   " \"+%Y-%m-%d %H:%M:%S\""; cmd|getline adate; close(cmd)
+        print "Earliest:", fdate, "\nLatest:  ", ldate, "\nAverage: ", adate
+    } else {
+        print "No valid access times found."
+    }
+}
+' "$1"
+}
+#most common file extension or if none then output none.
+ext() {
+#awk '{print $3}' logfile.txt | grep -oE '\.[^./ ]+$' | sort | uniq -c | sort -nr | head -3      only extensions
+awk '{
+    # Extract quoted file path using regex
+    match($0, /"[^"]+"/, path_match)
+    path = path_match[0]
+    gsub(/"/, "", path)
+
+    # Extract filename from path
+    n = split(path, parts, "/")
+    fname = parts[n]
+
+    # Extract extension
+    if (fname ~ /\.[^./]+$/) {
+        ext = substr(fname, index(fname, "."))
+    } else {
+        ext = "[no extension]"
+    }
+
+    print ext
+}' $1 | sort | uniq -c | sort -nr | head -3
+echo
+}
+#Avg hour top or bottom of hour? time? of entire logs or statpst
+hr() {
+	awk '
+	{
+		date = $1
+		time = $2
+
+		# Skip lines without valid time
+		if (length(time) < 5) next
+
+		hour = substr(time, 1, 2)
+		minute = substr(time, 4, 2)
+
+		# Validate hour and minute
+		if (hour ~ /^[0-9]{2}$/ && minute ~ /^[0-9]{2}$/) {
+			count[date, hour]++
+			days[date] = 1
+			minutes_arr[date, hour, minute]++
+		}
+	}
+
+	END {
+		day_count = length(days)
+		if (day_count == 0) {
+			print "No data to process."
+			exit 1
+		}
+
+		# Sum counts per hour across all days
+		for (key in count) {
+			split(key, parts, SUBSEP)
+			hour = parts[2]
+			hour_totals[hour] += count[key]
+		}
+
+		max_avg = -1
+		max_hour = -1
+
+		# Find hour with highest average activity
+		for (h = 0; h < 24; h++) {
+			hh = sprintf("%02d", h)
+			avg = (hour_totals[hh] ? hour_totals[hh] / day_count : 0)
+			if (avg > max_avg) {
+				max_avg = avg
+				max_hour = h
+			}
+		}
+
+		max_hour_str = sprintf("%02d", max_hour)
+
+		# Calculate weighted average minute within peak hour
+		sum_minutes = 0
+		total_counts = 0
+		for (key in minutes_arr) {
+			split(key, parts, SUBSEP)
+			d = parts[1]
+			h = parts[2]
+			m = parts[3] + 0
+			if (h == max_hour_str) {
+				c = minutes_arr[key]
+				sum_minutes += m * c
+				total_counts += c
+			}
+		}
+
+		avg_minute = (total_counts > 0) ? sum_minutes / total_counts : 0
+		avg_min_int = int(avg_minute)
+
+		# Decide top or bottom half
+		half = (avg_minute < 30) ? "top of the hour" : "bottom of the hour"
+
+		printf "Avg time of file activity: %02d:%02d (%.2f minutes)\n", max_hour, avg_min_int, avg_minute
+		printf "(%s)\n", half
+	}
+	' "$1"
+}
+
+{
+echo "Top 5 files created (awk generated)"
+awk '
+{
+    # Split line by comma
+    n = split($0, fields, ",")
+
+    # Join fields from 3rd to end in case filepath contains commas
+    filepath = fields[3]
+    for (i = 4; i <= n; i++) filepath = filepath "," fields[i]
+
+    # Trim leading/trailing spaces
+    gsub(/^ +| +$/, "", filepath)
+
+    print filepath
+}' "$1" | sort | uniq -c | sort -nr | head -n 5
+
+# Session type
+#
+echo "Type" #Heuristic session?
+awk -v RS="" -v limit=15 '
+# Function to convert timestamp to epoch
+function to_epoch(ts,    cmd, epoch) {
+  cmd = "date -d \"" ts "\" +%s"
+  cmd | getline epoch
+  close(cmd)
+  return epoch
+}
+
+# First pass: collect all sessions
+{
+  sessions[NR] = $0
+}
+
+END {
+  session_limit = 15
+  start = (NR > session_limit) ? NR - session_limit + 1 : 1
+
+  for (i = start; i <= NR; i++) {
+    process_session(sessions[i], i - start + 1)
+  }
+}
+
+# Function to process a session and print classification
+function process_session(block, snum,    lines, n, i, parts, timestamp, times, gaps_sum, gaps_count, max_gap, gap, avg_gap, threshold, formatted_timestamp) {
+  n = split(block, lines, "\n")
+  delete times
+
+  # Extract timestamp from the first line and store it in `formatted_timestamp`
+  split(lines[1], parts, " ")aat $ofile
+  formatted_timestamp = parts[1] " " parts[2]
+
+  # Calculate the epoch times for each line
+  for (i = 1; i <= n; i++) {
+    split(lines[i], parts, " ")
+    timestamp = parts[1] " " parts[2]
+    times[i] = to_epoch(timestamp)
+  }
+
+  gaps_sum = 0
+  gaps_count = 0
+  max_gap = 0
+
+  # Calculate gaps between consecutive entries
+  for (i = 2; i <= n; i++) {
+    gap = times[i] - times[i-1]
+    gaps_sum += gap
+    gaps_count++
+    if (gap > max_gap) max_gap = gap
+  }
+
+  avg_gap = (gaps_count > 0) ? gaps_sum / gaps_count : 0
+  threshold = 60
+
+  # Output the session with date and time of the first log entry
+  if (max_gap > threshold) {
+    print "Snapshot " snum ": " formatted_timestamp " - Separate session (max gap " max_gap "s > " threshold "s)"
+  } else {
+    print "Snapshot " snum ": " formatted_timestamp " - Burst session (max gap " max_gap "s ≤ " threshold "s)"
+  }
+}
+' "$1"
+echo; echo "Most Replaced by inode (awk generated)"
+awk -v RS="" -v max=7 '
+function process_snapshot(snapshot, i, lines, path, inode, rest, n, fields, pos) {
+  n = split(snapshot, lines, "\n")
+  for (i = 1; i <= n; i++) {
+    if (match(lines[i], /"([^"]+)"/, m)) {
+      path = m[1]
+
+      # Split remainder of the line after quoted path
+      rest = substr(lines[i], RSTART + RLENGTH)
+      nfields = split(rest, fields, /[ \t]+/)
+
+      # inode is the 2nd field after the quoted path
+      inode = (nfields >= 3) ? fields[3] : ""
+
+      if (path == "" || inode == "") continue
+
+      if (prev_inode[path] && prev_inode[path] != inode) {
+        changes[path]++
+        found = 1
+      }
+      prev_inode[path] = inode
+    }
+  }
+}
+
+{
+  snapshots[NR] = $0
+}
+
+END {
+  start = (NR > max) ? NR - max + 1 : 1
+  for (i = start; i <= NR; i++) process_snapshot(snapshots[i])
+
+  if (found) {
+    for (p in changes) print changes[p], p
+  } else {
+    print "No results"
+  }
+}
+' "$1" | sort -rn | head -7
+} >> $2 2>&1

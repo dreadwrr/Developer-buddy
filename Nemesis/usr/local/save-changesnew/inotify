@@ -1,0 +1,206 @@
+#!/usr/bin/env bash
+#inotify db5 					02/25/2026
+#SCRIPT_PATH="$( dirname "$0")"
+#. "$SCRIPT_PATH"/rntchangesfunctions
+. /usr/local/save-changesnew/rntchangesfunctions
+
+# inotify to watching either / or /mnt/live/memory/changes. filters out some files and also browser suppressions in sbwr array. see rntchangesfunctions
+# Also filters out app inclusions in inotifyexl array
+# purpose to prepare hashed files that are downloads from a package manager or are copied files that have preserved
+# metadata where ctime is greater than mtime. This is because they would not show up in a regular file search.
+#
+# result bypassing, one of two loops, the ctime loop. Any files over 1MB are cached for this script and the main search mtime loop
+
+
+# inclusions from app. also .wh. files that can appear from watching changes. possibly want to filter out other files ie share/Trash
+inotifyexl() {
+inclusion=(
+	'.*/\.wh\.([^/]*)$'
+	".*/Downloads/${LCLMODULENAME}x"
+	"/tmp/${LCLMODULENAME}x"
+	"/tmp/rc/${LCLMODULENAME}_MDY"
+	"/tmp/${LCLMODULENAME}_MDY_[^/]*/${LCLMODULENAME}x.+$"
+	"/usr/local/save-changesnew/flth.csv"
+	"$log_file"
+)
+}
+
+
+#VARS
+#atmp=/tmp/myfld$$
+ch="/mnt/live/memory/changes"
+fmt="%Y-%m-%d %H:%M:%S"
+BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
+efile="/usr/local/bin/recentchanges"
+
+# These can be user set so call get_inclusions and get form recentchanges script. Below default fallbacks in case cant find
+logpst="/usr/local/save-changesnew/logs.gpg"			;	statpst="/usr/local/save-changesnew/stats.gpg"
+pydbpst="/usr/local/save-changesnew/recent.gpg"		;	email="john.doe@email.com"
+rlt=""
+rltt=""
+rlttt=""
+mail=""
+
+log_file=$1
+LCLMODULENAME="$2"
+CACHE_F="$3"
+checkSUM="$4"
+xMODE="$5"
+time="$6"
+match_found=0
+dpaths=()
+
+time_out=160
+retried=0
+LIMIT=3
+sleep_index=0
+sleep_times=(0.125 0.225 0.5 2 4)
+j=${sleep_times[sleep_index]}
+prev_size=-1
+incr=0
+
+debug_log="true"
+debug_file=/tmp/inotify.log
+pblk_log_file=/tmp/output
+
+get_inclusion "$efile"
+
+:> $CACHE_F ; :> $pblk_log_file
+
+echo "$BRAND inoftiy started" >> $debug_file
+
+
+F=(
+	'bin'
+	'etc'
+	'home'
+	'lib'
+	'lib64'
+	'opt'
+	'root'
+	'sbin'
+	'tmp'
+	'usr'
+	'var'
+)
+
+
+pst=$PWD
+ch="${ch%/}"
+[[ -d $ch ]] && { cd $ch && abpath="$ch/" || exit ; } || { [[ ! -d $ch ]] && cd "/" && abpath="/" || exit ; }
+cd $pst || exit
+
+for w in "${F[@]}"; do
+    if [[ -d "$abpath$w" ]]; then
+        dpaths+=( "$abpath$w" )
+    fi
+done
+
+sbwr
+inotifyexl
+inclusion+=("$rlt") ; inclusion+=("$rltt") ; inclusion+=("$rlttt")
+
+timeout "$time" inotifywait -m -r -e create -e moved_to --format '%e|%w%f%0' "${dpaths[@]}" | while read -r -d '' o; do
+
+    [[ "$debug_log" = "true" ]] && log_date=$(date +"$fmt")
+    event=${o%%|*}
+    o=${o#*|}
+
+	if [[ $abpath != "/" ]]; then o="${o#$ch}" ; fi
+
+    log_lineout $debug_log $debug_file "$log_date" "File event: $event file: $o"
+
+    if [[ -d "$o" ]]; then
+        log_lineout $debug_log $debug_file "$log_date" "Directory created: $o"
+        #incase the file is created at the same time ie scripts or a process and could be missed by intoify. however during testing -r captures it
+		#find "$o" -cmin -5 -not -type d -printf '%T@ %A@ %C@ %i %M %n %s %u %g %m %p\0' |
+		#while IFS= read -r -d '' record; do
+		#	if [[ "$o" =~ \.(tmp|swp|bak|part|crdownload|partial|lock)$ ]]; then continue ; fi  
+		#	echo "$log_date found new file in dir $o" >> /tmp/inotify.log
+		#	sblk "$record" "$log_file" "/dev/null" "$checkSUM" "$xMODE" "$CACHE_F"
+		#done
+        continue
+
+    elif [[ -f "$o" ]]; then 
+        log_lineout $debug_log $debug_file "$log_date" "inotify found checking for matches $o"
+        # if [[ "$o" =~ \.(tmp|swp|bak|part|crdownload|partial|lock)$ ]]; then continue ; fi  original
+		if [[ "$o" == *.* ]]; then
+			ext="${o##*.}"
+			ext="${ext,,}"
+			if [[ "$ext" =~ ^(tmp|swp|bak|part|crdownload|partial|lock)$ ]]; then
+				continue
+			fi
+		fi
+        match_found=0
+        for item in "${webb[@]}"; do
+            if [[ "$o" =~ $item ]]; then
+                match_found=1
+                break
+            fi
+        done
+		if (( match_found == 0 )); then
+			for item in "${inclusion[@]}"; do
+				if [[ "$o" =~ $item ]]; then
+					match_found=1
+					break
+				fi
+			done
+		fi
+
+        if (( match_found == 0 )); then
+			SECONDS=0
+            log_lineout $debug_log $debug_file "$log_date" "notify matched input to pblk waiting for stable size $o"
+			while (( SECONDS < time_out )); do
+				(( incr++ ))
+				curr_size=$(stat -c %s "$o" 2>/dev/null || echo -1)
+				(( curr_size < 0 )) && break  # Nosuchfile
+				if (( curr_size == prev_size )); then
+					(( retried++ ))
+					[[ $retried -ge $LIMIT ]] && break  # found
+					sleep_index=0
+					j=${sleep_times[0]}
+				else
+					retried=0
+					(( sleep_index < ${#sleep_times[@]} - 1 )) && ((sleep_index++))
+					j=${sleep_times[sleep_index]}
+				fi
+				prev_size="$curr_size" && sleep $j
+			done
+			[[ "$debug_log" = "true" ]] && log_date=$(date +"$fmt")
+			log_lineout $debug_log $debug_file "$log_date" "inotify size stabilized for pblk $o"
+
+            # stat --printf="%y %x %z %i %A %h %s %U %G %a %n" "$o"  # alternative doesnt print microsecond**
+            # y 2026-01-14 00:48:20.527855839
+            # have to parse with date -d "2026-01-14 00:48:20.527855839" +%s.%N 2>/dev/null
+		    { find "$o" -printf "%T@ %A@ %C@ %i %M %n %s %u %g %m %p\0" 2>/dev/null; } |
+		    while IFS= read -r -d '' record; do
+				[[ -z "$record" ]] && continue
+
+		        pblk "$record" "$log_file" "/dev/null" $checkSUM $xMODE "$CACHE_F" $debug_log "$pblk_log_file"
+
+		    done
+        else
+            log_lineout $debug_log $debug_file "$log_date" "inotify found excluded by matching skipped. for $o"
+        fi
+     else
+        log_lineout $debug_log $debug_file "$log_date" "inotify file not found or parsing error. for $o"
+    fi
+done
+test -e $log_file && rm $log_file
+# original drafting
+#RS=$'\x1E'  # | sed "s/$/$RS/"  seperator   , then decode # file="${o//$RS/$'\n'}" 
+# { stat --format="%Y %X %Z %i %h %s %U %G %a %n" "$o" 2>/dev/null; printf '\0'; } | sblk /dev/stdin "$log_file" "/dev/null" $checkSUM $xMODE $CACHE_F  original appends \n before \0
+# { stat --printf="%Y %X %Z %i %h %s %U %G %a %n" "$o" 2>/dev/null ; printf '\0;' } | sblk /dev/stdin "$log_file" "/dev/null" $checkSUM $xMODE $CACHE_F
+#dpaths+=("/var") # downloads can be in 
+# collect some directories
+#while IFS= read -r d; do dpaths+=("$d") ; done < <(find /tmp -type d )
+#"${dpaths[@]}"
+
+# alternative,  limit scope to avoid max_user_watches limit
+#while IFS= read -r d; do dpaths+=("$d") ; done < <(find /var -maxdepth 5 -type d ) #
+
+# find /var -maxdepth 1 -type l   find symlinks
+# find /mnt/live/memory/changes -type d | wc -l   count how many directories are in changes
+
+# downloads can be in /tmp , /var   /var/slapt-get    /var/cache    etc
+# if it is another distro we dont want changes **
