@@ -1,7 +1,9 @@
 #                               02/28/2026
 Python edition <br>
-v1.2.7-py1 Released!
-
+v1.2.7-py1 Released! <br>
+New symlink target changed detection <br>
+Build system profile in python <br>
+New updates to save-changesnew <br><br>
 Released v1.2.6-py1 with finalized, inotify wait and other features!<br><br>
 Updated launch script for compatibility with wayland and other distros<br><br> 
 Differences from bash and bash\python backends is the find command is streamed with the main search written in python. <br><br>
