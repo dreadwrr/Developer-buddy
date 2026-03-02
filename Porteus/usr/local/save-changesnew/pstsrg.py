@@ -108,6 +108,7 @@ def create_table(c, table, unique_columns, e_cols=None):
         '`group` TEXT',
         'permissions TEXT',
         'casmod TEXT',
+        'target TEXT',
         'lastmodified TEXT'
     ]
     if e_cols:
@@ -171,7 +172,7 @@ def insert(log, conn, c, table, add_column=None):  # Log, sys
     columns = [
         'timestamp', 'filename', 'changetime', 'inode', 'accesstime',
         'checksum', 'filesize', 'symlink', 'owner', '`group`',
-        'permissions', 'casmod', 'lastmodified'
+        'permissions', 'casmod', 'target', 'lastmodified'
     ]
     if add_column:
         if isinstance(add_column, (tuple, list)):
@@ -288,28 +289,48 @@ def parselog(file, table, checksum):
                 timestamp1 = None if n <= 12 or inputln[12] in ("", "None") else inputln[12]
                 timestamp2 = None if n <= 13 or inputln[13] in ("", "None") else inputln[13]
                 lastmodified = None if not timestamp1 or not timestamp2 else f"{timestamp1} {timestamp2}"
-                hardlink_count = None if n <= 14 or inputln[14] in ("", "None") else inputln[14]
+                hardlink = None if n <= 14 or inputln[14] in ("", "None") else inputln[14]
                 inode = _to_int_or_none(ino, "inode", line)
-                filesize = _to_int_or_none(sze, "filesize", line)
+
                 if table == 'sys':
+                    filesize = _to_int_or_none(sze, "filesize", line)
                     us = timestamp1
                     usec = _to_int_or_none(us, "usec", line)
                     count = 0
-                    results.append((timestamp, filename, changetime, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, cam, lastmodified, count, usec))
+
+                    target = None
+                    if sym == 'y':
+                        try:
+                            target = os.readlink(filename)
+                        except OSError:
+                            print("skipped error resolving symlink target, file: %s", filename)
+
+                    results.append((timestamp, filename, changetime, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, cam, target, lastmodified, count, usec))
                 elif table == 'sortcomplete':
                     if checksum:
+                        filesize = _to_int_or_none(sze, "filesize", line)
                         us = None if n <= 15 or inputln[15] in ("", "None") else inputln[15]
-
+                        usec = _to_int_or_none(us, "usec", line) if checksum else us
+                        hashed = None if n <= 16 or inputln[16] in ("", "None") else inputln[16]
                     if not checksum:
+                        filesize = None
                         cam = checks
-                        timestamp1 = filesize
+                        timestamp1 = sze
                         timestamp2 = sym
                         lastmodified = None if not timestamp1 or not timestamp2 else f"{timestamp1} {timestamp2}"
-                        hardlink_count = onr
-                        us = _to_int_or_none(gpp, "gpp", line)
+                        hardlink = onr
+                        usec = _to_int_or_none(gpp, "gpp", line)
+                        hashed = pmr
                         checks = filesize = sym = onr = gpp = None
-                    usec = _to_int_or_none(us, "usec", line) if checksum else us
-                    results.append((timestamp, filename, changetime, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, cam, lastmodified, hardlink_count, usec))
+                    hardlink_count = _to_int_or_none(hardlink, "hardlink_count", line) if checksum else hardlink
+                    target = hashed
+                    if sym == 'y':
+                        try:
+                            target = os.readlink(filename)
+                        except OSError:
+                            print("skipped error resolving symlink target, file: %s", filename)
+
+                    results.append((timestamp, filename, changetime, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, cam, target, lastmodified, hardlink_count, usec))
                 else:
                     raise ValueError("Supplied table not in accepted boundaries: sys or sortcomplete. value supplied", table)
             except Exception as e:
@@ -454,7 +475,7 @@ def main():
         else:
             # initial Sys profile
             if ps and checksum:
-                create_table(c, sys_table, ('timestamp', 'filename', 'changetime' 'checksum',), ['count INTEGER', 'mtime_us INTEGER'])
+                create_table(c, sys_table, ('timestamp', 'filename', 'changetime', 'checksum',), ['count INTEGER', 'mtime_us INTEGER'])
 
                 parsed_sys = hash_system_profile(turbo)
 

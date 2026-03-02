@@ -1,5 +1,5 @@
 
-# hybrid analysis  02/23/2025
+# hybrid analysis  03/02/2025
 import os
 import sqlite3
 from datetime import datetime, timedelta
@@ -54,7 +54,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr):
             original_size = None
             is_sys = False
 
-            if len(record) < 15:
+            if len(record) < 16:
                 continue
 
             entry = {"cerr": [], "flag": [], "scr": [], "sys": [], "dcp": []}
@@ -116,19 +116,21 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr):
                     results.append(entry)
                     continue
 
+                recent_sym = record[7]
+                previous_sym = previous[7]
                 current_size = record[6]
                 original_size = previous[6]
 
             if not is_sys:
                 previous_timestamp = parse_datetime(previous[0], fmt)
 
-            if (is_integer(record[3]) and is_integer(previous[3])   # inode format check
-                    and previous_timestamp):
+            if (is_integer(record[3]) and is_integer(previous[3])
+                    and previous_timestamp):  # inode format check
                 recent_cam = record[11]
                 previous_cam = previous[11]
                 cam_file = (recent_cam == "y" or previous_cam == "y")
 
-                mtime_usec_zero = record[14]
+                mtime_usec_zero = record[15]
                 if is_integer(mtime_usec_zero) and mtime_usec_zero % 1_000_000 == 0:
                     entry["scr"].append(f'Unusual modified time file has microsecond all zero: {label} at mtime {mtime_usec_zero}')
 
@@ -160,6 +162,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr):
                         # aperm = stat.filemode(st.st_mode) # '-rw-r--r--'
                         # a_ctime = st.st_ctime
                         # ctime_str = epoch_to_date(a_ctime).replace(microsecond=0)
+
                         if is_valid_datetime(record[4], fmt):  # access time format check
                             previous_mtime_us = previous[13]
                             if isinstance(previous_mtime_us, int) and mtime_usec_zero == previous_mtime_us:
@@ -220,12 +223,21 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr):
                                 entry["flag"].append(f'Modified {record[0]} {record[2]} {label}')
                                 stealth(filename, label, entry, current_size, original_size, cdiag)
                             else:
-                                metadata = (previous[8], previous[9], previous[10])
-                                if new_meta((record[8], record[9], record[10]), metadata):
-                                    entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
-                                    entry["scr"].append(f'Permissions of file: {label} changed {metadata[0]} {metadata[1]} {metadata[2]} → {record[8]} {record[9]} {record[10]}')
-                                if not cam_file:
-                                    entry["flag"].append(f'Touched {record[0]} {record[2]} {label}')
+
+                                if recent_sym == "y" and previous_sym == "y":
+                                    link_target = record[12]
+                                    prev_target = previous[12]
+                                    if link_target != prev_target:
+                                        entry["scr"].append(f'Symlink target change {prev_target} → {link_target}')
+
+                                else:
+                                    metadata = (previous[8], previous[9], previous[10])
+                                    if new_meta((record[8], record[9], record[10]), metadata):
+                                        entry["flag"].append(f'Metadata {record[0]} {record[2]} {label}')
+                                        entry["scr"].append(f'Permissions of file: {label} changed {metadata[0]} {metadata[1]} {metadata[2]} → {record[8]} {record[9]} {record[10]}')
+                                    else:
+                                        if not cam_file:
+                                            entry["flag"].append(f'Touched {record[0]} {record[2]} {label}')
 
                     else:
                         if record[3] != previous[3]:

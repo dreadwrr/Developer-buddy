@@ -1,5 +1,5 @@
 #!/bin/bash
-#   Developer buddy 5.0 core                                               02/25/2026
+#   Developer buddy 5.0 core                                               03/02/2026
 
 
 # Filter terminal or suppress browser. common items to exclude from prompt      .  regex  notes: ([^/]*)$  
@@ -21,7 +21,7 @@ function blue(){ echo $txtblue "$1" $rst; }
 }
 postop() {
 local -A ref_lines
-local filepath size_kb stbool sym onr mtyp chgtime found_rout
+local filepath size_kb stbool is_sym sym onr mtyp chgtime found_rout tgt is_cam
 local action copy cam
 local f y dt at sz
 local invr="$3"
@@ -53,9 +53,12 @@ if [ "$POSTOP" == "true" ]; then
 		fi
 
 		#pull from sortcomplete for prestated data
-        echo -e "Datetime\tFile\tSize(kb)\tType\tSymlink\tChange_time\tcam\tAccessed\tOwner\tStatable\tCopy" > $atmp/doctrine
+		printf 'Datetime\tFile\tSize(kb)\tType\tSymlink\tTarget\tChange_time\tcam\tAccessed\tOwner\tStatable\tCopy\n' > $atmp/doctrine
         while IFS= read -r x || [ -n "$x" ]; do
-			mtyp="Unknown"
+			mtyp=""
+		    sym=""
+    		tgt=""
+			cam=""
 		    stbool=""
 			copy=""
 		    size_kb=0
@@ -69,13 +72,14 @@ if [ "$POSTOP" == "true" ]; then
 			chgtime="$f4 $f5"
 			at="$f7 $f8"
 			if [ "$f10" -ge 0 ] 2>/dev/null; then size_kb=$(( f10 / 1024 )); fi
-			sym=$f11
+			is_sym=$f11
 			onr=$f12
-			cam=$f15
-            if [ -f "$filepath" ]; then
-                # if [ -L "$filepath" ]; then sym="y"; fi
+			is_cam=$f15
+            if [ -f "$filepath" ]  || [ -L "$filepath" ]; then
+                [[ "$is_sym" == "y" ]] && sym="y"
 				sz=$(stat --format="%s" "$filepath" 2>/dev/null)
 			    if [ -n "$sz" ]; then
+					[[ "$sym" = "y" ]] && { tgt=$( readlink "$filepath") || tgt="${tgt:-N/A}" ; }
 					stbool="y"
 				    size_kb=$(( sz / 1024 ))
 		            mtyp=$( file --brief --mime-type "$filepath")
@@ -89,12 +93,13 @@ if [ "$POSTOP" == "true" ]; then
 						copy="y"
 					fi
 				fi
-                echo -e "$dt\t$y\t$size_kb\t$mtyp\t$sym\t$chgtime\t$cam\t$at\t$onr\t$stbool\t$copy" >> $atmp/doctrine
+				if [ "$is_cam" == "y" ]; then cam="y" ; fi
+				printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$dt" "$y" "$size_kb" "$mtyp" "$sym" "$tgt" "$chgtime" "$cam" "$at" "$onr" "$stbool" "$copy" >> $atmp/doctrine
             fi
         done < $tfile
         unset IFS
         head -1 $atmp/doctrine > $USRDIR/doctrine.tsv
-        tail -n +2 $atmp/doctrine | sort -t$'\t' -k3,3n -k9,9 >> $USRDIR/doctrine.tsv
+        tail -n +2 $atmp/doctrine | sort -t$'\t' -k10,10 -k3,3n >> $USRDIR/doctrine.tsv
         green "File doctrine.tsv created in $USRDIR"
         #column -t -s $'\t' $USRDIR/doctrine.tsv      this command prints a nice tab seperated log
     fi
@@ -142,6 +147,11 @@ done < $lt
 unset IFS
 rm $lt
 }
+remove_gpg() {
+	test -f "$logpst" && rm -f "$logpst"
+	test -f "$statpst" && rm -f "$statpst"
+	test -f "$pydbpst" && rm -f "$pydbpst"
+}
 generatekey() {
 	# 5.1 porteus   GPG 2.x+ generate key but if 5.01 has GPG2 do it too
 	if which gpg2 > /dev/null 2>&1 || gpg --version | grep -q "(GnuPG) 2"; then #gpg --full-generate-key
@@ -165,6 +175,8 @@ EOF
 			gpg --batch --pinentry-mode loopback --passphrase "$p" --generate-key /tmp/keyparams.conf
 		fi
 		shred -u /tmp/keyparams.conf
+		# [[ -n "$home_dir" && "$home_dir" != "/" ]] && test -d "$home_dir" && find "$home_dir" -maxdepth 1 -type f -name '*.gpg' -exec rm -f -- {} +
+		remove_gpg
 		echo "GPG key generated for ${email}."
 	else
 		if ! gpg --with-keygrip --list-secret-keys >/dev/null 2>&1; then
@@ -411,13 +423,13 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 	found_line=""
 	tmp="${p#*\"}"
 	y="${tmp%\"*}"
-	read -r f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 _ f12 f13 f14 f15 _ _ _ f19 <<< "$p"  # skip symlink lmt and finally hardlinks if enabled
+	read -r f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 f14 f15 _ _ _ f19 f20 <<< "$p"  # skip symlink lmt and finally hardlinks if enabled
 	in="$f6"
 	if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then
 		if [ "$1" == "A" ]; then found_line="${ref_map[$y]}" ; else found_line=$( grep -F "\"$y\"" "$ofile" | tail -n 1) ; fi  # for line in "${ref_lines[@]}"; do if [[ "$line" == *"$y"* ]]; then found_line="$line" ; fi ; done regular array old multicore using grep*
 		if [ -n "$found_line" ]; then
 			original_ln="$found_line"
-			read -r of1 of2 _ _ _ of6 of7 of8 of9 of10 _ of12 of13 of14 of15 _ _ _ of19 <<< "$original_ln"  # skip filename changetime symlink lmt and finally hardlinks if enabled
+			read -r of1 of2 _ _ _ of6 of7 of8 of9 of10 of11 of12 of13 of14 of15 _ _ _ of19 of20 <<< "$original_ln"  # skip filename changetime symlink lmt and finally hardlinks if enabled
 			cFILE="$( ap_dec "$y")"
             label="$( ap_filedec "$y")"
             oat="$of7 $of8" ; cat="$f7 $f8"
@@ -430,12 +442,13 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 					echo "Deleted $dt $dt $label" >> $rout
                     continue
 				fi
-                ocs="$of9" ; cs="$f9" ; os="$of10" ; csze="$f10" ; ocam="$of15" ; cam="$f15"
+                ocs="$of9" ; cs="$f9" ; os="$of10" ; csze="$f10" ; sym="$f11" ; osym="$of11" ; ocam="$of15" ; cam="$f15"
                 [[ "$cs" != "None" && "$ocs" != "None" ]] || continue
                 usec="$f19" ; ousec="$of19"
                 if [ -z "$usec" ] || [ -z "$ousec" ]; then  # ensure full entries
                     continue
                 fi
+				lt=$f20 ; olt=$of20
             else
                 ocam="$of9" ; cam="$f9"
             fi
@@ -453,9 +466,11 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 							fi
 							if [ "$ousec" -ge 0 ] 2>/dev/null; then
 								if [ "$usec" == "$ousec" ]; then
-									if [ "$cs" != "$ocs" ] && [ "$cam_file" == "false" ]; then
-										echo "Suspect $dt $ct $label" >> $rout
-										echo "Suspect file: $label previous checksum ${ocs} currently ${cs}.changed without a new modified time." >> $cerr
+									if [ "$cam_file" == "false" ] && [ "$sym" != "y" ]; then
+										if [ "$cs" != "$ocs" ]; then
+											echo "Suspect $dt $ct $label" >> $rout
+											echo "Suspect file: $label previous checksum ${ocs} currently ${cs}.changed without a new modified time." >> $cerr
+										fi
 									fi
 									if (( oin == in )); then
 										if newmeta $f12 $f13 $f14 $of12 $of13 $of14; then
@@ -463,8 +478,6 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 											echo "Permissions of file: $label changed $of12 $of13 $of14 → $f12 $f13 $f14" >> $slog
 										fi
 									fi
-								else
-									echo "original mtime_us missing"
 								fi
 							fi
 						fi
@@ -483,13 +496,22 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 								echo "Modified $dt $ct $label" >> $rout
 								stealth "$y" "$label" $cs $csze $os
 							else
-								if newmeta $f12 $f13 $f14 $of12 $of13 $of14; then
-									echo "Metadata $dt $ct $label" >> $rout
-									echo "Permissions of file: $label changed $of12 $of13 $of14 → $f12 $f13 $f14" >> $slog
-                                fi
-                                if [ "$cam_file" == "false" ]; then
-                                   echo "Touched $dt $ct $label" >> $rout
-                                fi
+								if [ "$sym" == "y" ] && [ "$osym" == "y" ]; then
+									if [ -n "$lt" ] && [ -n "$olt" ]; then
+										if [ "$lt" != "$olt" ]; then
+											echo "Symlink target changed for file: $label  $lt → $olt" >> $slog
+										fi
+									fi
+								else
+									if newmeta $f12 $f13 $f14 $of12 $of13 $of14; then
+										echo "Metadata $dt $ct $label" >> $rout
+										echo "Permissions of file: $label changed $of12 $of13 $of14 → $f12 $f13 $f14" >> $slog
+		                            else
+				                        if [ "$cam_file" == "false" ]; then
+				                           echo "Touched $dt $ct $label" >> $rout
+				                        fi
+									fi
+								fi
 							fi
 						fi
 					else
@@ -1054,7 +1076,7 @@ return 1
 }
 # Used for sysprofile as you dont want to cache the checksum
 rblk() {
-local cur_line cFILE y
+local cur_line cFILE y sl
 local mtime_oct
 local cam="None"
 
@@ -1107,20 +1129,23 @@ fi
 # Mainloop do cache files over 1MB.
 sblk() {
 local y r
+local cur_line left link
 local itime_frac itime_oct mtime_oct mtime_us csum_rlt
 local cam sl lmt cFILE
 local cache_flg="false"
-
+local hashed adt_flds
 r=""					;	sl=""
 lmt=""				;	nlinks=""
-cam="None"
+cam="None"		; 	hashed=""
 check_sum=""
 
+# 2026-03-02 00:31:17 "/usr/local/stats.gpg" 2026-03-02 00:31:17 120453 2026-03-02 00:31:17  None None None 1 1772440277550975 
 #log_date="$(date +"$fmt")"
 #echo "$log_date sblk line in $cur_line" >> /tmp/output  # debug
 
 cur_line="$( ap_safeline "$1")"
-read -r mtime atime itime i sym n fs onr grp pmr cFILE <<< "$cur_line"
+IFS='|' read -r left link <<< "$cur_line"
+read -r mtime atime itime i sym n fs onr grp pmr cFILE <<< "$left"
 
 cFILE="$( ap_safeline_dec "$cFILE")"
 y="$( ap_enc "$cFILE")"
@@ -1138,7 +1163,13 @@ if { [[ "$5" = "ctime" ]] && [[ -n "$ct" ]] && [[ "$itime" > "$mtime" ]]; } || [
 			itime=$(normalize_ts "$itime")
 			mtime_frac=${mtime#*.}
 		    if [ "$4" == "true" ]; then
-				[[ "$sym" == l* ]] && sl="y" && check_sum="None"
+
+				if [ -n "$link" ]; then  # "$sym" == l*
+					sl="y" && check_sum="None"
+					hashed=$(printf '%s' "$link" | md5sum)
+					hashed=${hashed%% *}
+				fi
+
 				if [[ -z "$sl" ]]; then
 					if (( fs > 1000000 )); then
 						[[ -e "$CACHE_F" ]] && mtime_us=$(( mtime_sec * 1000000 + (10#$mtime_frac) )) && r=$(get_cached $i $fs $mtime_us)
@@ -1163,14 +1194,16 @@ if { [[ "$5" = "ctime" ]] && [[ -n "$ct" ]] && [[ "$itime" > "$mtime" ]]; } || [
 		    fi
 			if { [[ "$5" = "ctime" ]] && [[ -n "$ct" ]] && [[ "$itime" > "$mtime" ]]; } || [[ "$5" = "main" ]]; then
 				nlinks=$n
+				[[ "$5" = "ctime" ]] && { cam="y" ; lmt=$mt ; mt=$ct ; }
 				ats=$(date -d "@${atime%%.*}" +"$fmt")
 				ct=${ct:-None None}
 				ats=${ats:-None None}
 		        lmt=${lmt:-None None}
-				[[ "$5" = "ctime" ]] && { cam="y" ; lmt=$mt ; mt=$ct ; }
 				mtime_oct=$(( 10#$mtime_frac ))
 				mtime_us=$(( mtime_sec * 1000000 + (mtime_oct) ))
-				output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $nlinks $mtime_us"
+
+				[[ -z "$adtcmd" ]] && adt_flds=$cam || adt_flds="$adtcmd $cam"
+				output="$mt \"$y\" $ct $i $ats $adt_flds $lmt $nlinks $mtime_us $hashed"
 				if [[ "$cache_flg" = "true" ]] && (( fs > 1000000 )); then upt_cache "$i" "$fs" "$mtime_us" "$check_sum" "$y" "$6" ; fi
 				printf '%s\n' "$output" >> $2
 			fi
@@ -1192,22 +1225,25 @@ log_lineout() { [[ "$1" = "true" ]] && echo "$3 $4" >> $2 ; }
 pblk() {
 local debug_log="$7"
 local debug_file="$8"
+local cur_line left link
 local cam sl lmt cFILE 
 local itime_frac itime_oct mtime_oct mtime_us csum_rlt r y
 local log_date
 local cache_flg="false"
 local cdir="/tmp/dbctimecache/"
-
+local hashed
 r=""				;	sl=""
 lmt=""			;	nlinks=""
-cam="None"
+cam="None"	;	hashed=""
 check_sum=""
 
 [[ "$7" = "true" ]] && log_date="$(date +"$fmt")"
 
 cur_line="$( ap_safeline "$1")"
 log_lineout $7 $8 "$log_date" "pblk line in $cur_line"
-read -r mtime atime itime i sym n fs onr grp pmr cFILE <<< "$cur_line"
+
+IFS='|' read -r left link <<< "$cur_line"
+read -r mtime atime itime i sym n fs onr grp pmr cFILE <<< "$left"
 log_lineout $7 $8 "$log_date" "itime: $itime and mtime: $mtime , pblk after parsing line in $cur_line"
 
 cFILE="$( ap_safeline_dec "$cFILE")"
@@ -1225,7 +1261,12 @@ if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 		mtime_frac=${mtime#*.}
 
 	    if [ "$4" == "true" ]; then
-			[[ "$sym" == l* ]] && sl="y" && check_sum="None"
+
+			if [ -n "$link" ]; then  # "$sym" == l*
+				sl="y" && check_sum="None"
+				hashed=$(printf '%s' "$link" | md5sum)
+				hashed=${hashed%% *}
+			fi
 			if [[ -z "$sl" ]]; then
 				[[ -e "$CACHE_F" ]] && mtime_us=$(( mtime_sec * 1000000 + (10#$mtime_frac) )) && r=$(get_cached $i $fs $mtime_us)
 		        if [[ -n "$r" ]]; then
@@ -1266,7 +1307,7 @@ if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 
                         cam="y" ; lmt=$mt ; mt=$ct
 
-                        output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $nlinks $mtime_us"
+                        output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $nlinks $mtime_us $hashed"
 
                         if [[ "$cache_flg" = "true" ]] && (( fs > 1000000 )); then [[ -d $cdir ]] || mkdir -p $cdir ; upt_cache "$i" "$fs" "$mtime_us" "$check_sum" "$y" "$6" ; fi
 

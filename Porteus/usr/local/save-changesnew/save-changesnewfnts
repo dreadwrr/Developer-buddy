@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# save-changesnew functions to move options further up the script             02/25/2026
+# save-changesnew functions to move options further up the script             03/02/2026
 . /usr/local/save-changesnew/mergemodulesfunctions
 dycmb() {
 TFLD=""
@@ -96,7 +96,9 @@ errmsg() { mount -o remount,udba=none / ; if [ "$1" != "false" ]; then test -d "
 errblk() { [[ "$trlt" -ne 0 ]] && errmsg "$mtmp" "$2" ; }
 # Find out the files that have changed with dry run
 createlog() {
-rsync -an --out-format="%n" "$1/" "$2" --exclude '.wh.*' --exclude-from=$EXFILES > $3 # what changed  # | sed "s|^$1/||"  if using %f remove prefix **
+cmd=(rsync)
+if [ "$checkSUM" == "true" ]; then cmd+=(-anc) ; else cmd+=(-an) ; fi
+"${cmd[@]}" --out-format="%n" "$1/" "$2" --exclude '.wh.*' --exclude-from=$EXFILES > $3 # what changed  # | sed "s|^$1/||"  if using %f remove prefix **
 rsync -anv "$1/" "$2" --exclude '.wh.*' --exclude-from=$EXFILES > $4 # rsync log
 }
 # Labelling before making .xzm from $ch
@@ -110,7 +112,7 @@ fi
 }
 # Make a new .xzm take into account previous changes so we have a small .xzm if still in session. for _uid_. if we are at the module archLMT merge first
 newuid() {
-local c=0 ; local t=0 ; local r=0
+local t=0 ; local c ; local r=0 
 local u=0 ; local rlt=0
 local keep=$tmp/outfile  # perishable
 local remove=$tmp/deletre  # ..
@@ -122,14 +124,14 @@ candidates=() ; mdlnames=()
 output=""
 # starting in $target$em saved to $pst
 # Apply write forward merging (guardian) to save writes. More can go wrong implemented guardian for logic
-h=$(find $target$em -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' -print0 | xargs -0 -r ls -t | head -n 1)  # newest.  ls -tr oldest
-if [[ -f /dev/shm/xsc && -n "$h" && -f "$h" ]]; then
+# h=$(find $target$em -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' -exec ls -t {} + | head -n 1)  # newest.  ls -tr oldest # -print0 | xargs -0 -r ls -t | head -n 1
+if [[ -f /dev/shm/xsc ]]; then
 	if [[ "$mdlMRGPRF" = "forward" ]]; then
 		u=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' | wc -l)
 	fi
 	if (( u > mdllmt)); then
 		echo "Hit module merge limit merging on write forward"
-		resolve_conflict "_uid_" "*.xzm" ".xzm" ".bak" $is_moved $oMF
+		resolve_conflict "_uid_" "*.xzm" ".xzm" ".bak"
         lswitch="true"
 		is_available "*_uid_*.xzm" $target$em "/tmp" $is_moved $lswitch
 		ret=$?
@@ -183,41 +185,41 @@ if [[ -f /dev/shm/xsc && -n "$h" && -f "$h" ]]; then
 			cd $target$em
 			package_xzm $mtmp $keepMRGED $elog $is_routine $is_merge $output
 			is_rollback $mtmp "_uid_" $ROLLBCK $ROLLSUMRY $archLMT $is_routine
-			echo "${target}${em}/${rname}" > /dev/shm/xsc
+			echo "$target$em/$rname" > /dev/shm/xsc
 		fi
     # normal saving
 	else
 		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then astart=$(date +%s.%N); fi
 		cd $mtmp || exit
+
 		tfile=$( cat /dev/shm/xsc)
-		if [ ! -f $tfile ]; then  # use the first since boot failing that use h (newest) from above
+		if [ ! -f "$tfile" ]; then  # use the first since boot failing that use h (newest) from above
 			echo "Couldnt find last save point looking for next closest"
-			goahead="false"			
+			goahead="false"		
 			firstsv=""
-			#cdiff=""
 			srt_time_epoch=$(date -d "$(uptime -s)" +%s)
 			while IFS= read -r -d '' file; do
 				(( t++ ))
-				if (( c == 0 )); then
-					mt=$(stat -c %Y "$file")
-					if (( mt > srt_time_epoch )); then
-						firstsv=$file
-						c=$t
-					fi
-				fi
-			done < <( find "$target$em" -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' -print0)
+				mt=$(stat -c %Y "$file")
+                if (( c == 0 )); then
+                    if (( mt > srt_time_epoch )); then
+                        c=$t
+                        tfile=$file
+                    fi
+                fi
+
+			done < <( find "$target$em" -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' -print0 | sort -z)
 			unset IFS
-			if [ -n "$firstsv" ]; then h=$firstsv ; fi
-			if [ -f "$h" ]; then
-				[[ $t -eq $c ]] && echo "Merging single module"
+			if [ -f "$tfile" ]; then
+				(( c > 0 && c == t )) && echo Merging single module
 				goahead="true"
-				tfile=$h
 				echo "$tfile" > /dev/shm/xsc
 			fi
 		fi
+
 		# extract all modules to tmpfs to build what files we have since boot
 		if [[ "$goahead" = "true" ]]; then
-			for mods in "${target}${em}/"*_uid_*.xzm; do 
+			for mods in "$target$em/"*_uid_*.xzm; do
 				[[ "$mods" == *_uid_L* || ! -f "$mods" ]] && continue
 			    if (( r == 0 )); then
 			        if [ "$mods" == "$tfile" ]; then
@@ -227,6 +229,7 @@ if [[ -f /dev/shm/xsc && -n "$h" && -f "$h" ]]; then
 			    if (( r )); then
 					startmnt $is_merge
 					mount -o loop $mods $dest
+                    find "$dest/" -type f -name '.wh.*' -printf '%P\n' > $tmp/whmarkers 
 					rsync -a "$dest/" "$tmp" --exclude '.wh.*'
 					rlt=$?
 					if [ "$rlt" -ne 0 ]; then 
@@ -238,39 +241,63 @@ if [[ -f /dev/shm/xsc && -n "$h" && -f "$h" ]]; then
 			    fi
 			done
 		fi
+
 		aend=$(date +%s.%N)
 		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then elapse=$( awk "BEGIN {print $aend - $astart}"); fi
-        # save changes into seperate directory
+
 		rsync -a "$ch/" "$mtmp" --exclude '.wh.*' --exclude-from=$EXFILES  # total current files
 		trlt=$?
 		errblk "$mtmp"
 		test -e $LOGDIR/$LOGFILE && rm $LOGDIR/$LOGFILE  # dont exclude the log file
-		find $mtmp -type f -printf '%P\n' > $tmp/contents  # the changes
-        # what would be transfered then infer what to exclude with rsync dryrun
-		createlog $mtmp $tmp $UPDATE $oMF
+		find $mtmp -type f -printf '%P\n' > $tmp/contents
+
+        # what would be transfered with rsync dryrun 
+        createlog $mtmp $tmp $UPDATE $oMF
 
         # consistent log depends on version of rsync ** important
 
-        #c="${mtmp#/}"  # --out-format="%f" full path. 
+        # --out-format="%f" full path. see ln 107
+        #c="${mtmp#/}"  
         #sed -i -e "\|$c/\.|d" -e "s|$c/||" -e '/^\./d' $UPDATE
-		# cat $tmp/contents | grep -Fxvf $keep > $remove # total files - what would be transfered = remove
+        #cp $UPDATE $keep  # what needs to be transfered with usable paths
 
-        sed -i -e '/^\./d' -e '/\/$/d' $UPDATE  # --out-format="%n" using relative # remove the unusable first line  . and any ending in /
+        # --out-format="%n" using relative
+        sed -i -e '/^\./d' -e '/\/$/d' $UPDATE # remove the unusable first line  . and any ending in /
+		cp $UPDATE $keep  # what needs to be transfered with usable paths
 
-		cp $UPDATE $keep
-		# oMF is log made after at the same time
-		#$keep           what needs to be transfered with usable paths
-		#$remove       what should not be copied
+		cat $tmp/contents | grep -Fxvf $keep > $remove # the changes folder - what would be transfered = remove
+		cat $remove >> $EXFILES
 
-		cat $tmp/contents | grep -Fvf $keep > $remove # the changes folder - what would be transfered = remove
-		cat $remove >> $EXFILES # exclude these
 		labelmk $oMF # copy\insert log before .xzm
-		# cp $EXFILES /tmp/myfile.txt  debug
-		# mksquashfs $ch /tmp/megar.xzm -comp $cmode -ef $EXFILES  debug
-		base_cmd=(mksquashfs $ch "${target}${em}/${rname}" -comp $cmode -ef $EXFILES)  
+
+        # on subsequent runs compare to the most recent extracted the .wh. so not including duplicate .wh.
+        # if whmarkers is unavailable fall back
+        shopt -s nullglob
+        while IFS= read -r -d '' file; do
+            
+            if [[ -e "$tmp"/whmarkers ]]; then
+                grep -Fxq -- "$file" "$tmp"/whmarkers || echo "$file" >> $EXFILES
+            else
+                k="$( echo "$file" | sed -e 's/\.wh\.//g')"  # k=$( echo "$file" | sed -E 's|(.*\/)\.wh\.|\1|') # alternative
+                found="false"
+                items=( "$INAME"/*/"$k" )
+                if ((${#items[@]})); then found="true" ; fi
+                test -e "$tmp/$k" && found="true"
+                [[ "$found" = "true" ]] || echo "$file" >> $EXFILES
+            fi
+        done < <(find "$ch/" -type f -name '.wh.*' -printf '%P\0')
+        shopt -u nullglob
+
+        # cp $tmp/contents /home/guest/contents  # debug
+        # cp $keep /home/guest/keep  # debug
+		# cp $EXFILES /home/guest/excludes  # debug
+		# mksquashfs $ch /mnt/sda3/changes.xzm -comp $cmode -ef $EXFILES  # debug
+
+		base_cmd=(mksquashfs $ch "$target$em/$rname" -comp $cmode -ef $EXFILES)  
 		# [[ -s "$QEXCL" ]] && base_cmd+=(-ef $QEXCL)  # add excluded .wh. to EXFILES if needed
+
 		if [ "$FEEDBACK" != "true" ]; then "${base_cmd[@]}" > /dev/null ; else "${base_cmd[@]}" ; fi
-        if [ "$goahead" == "false" ]; then echo "${target}${em}/${rname}" > /dev/shm/xsc ; fi
+        if [ "$goahead" == "false" ]; then echo "$target$em/$rname" > /dev/shm/xsc ; fi
 		# module saved
 	fi
 # first save on startup
@@ -300,13 +327,15 @@ all=()
 keep=()
 mkdir $tmp
 mkdir $mtmp
+#
 cp $EXFILES $QEXCL  # Backup EXFILES because we have to manipulate it to work with mksquash. EXFILES has all exclusions from changes-commit and VARS processed at top of script
+#
 # Process wildcards for mksquashfs
 while IFS= read -r l; do [[ -z "$l" ]] && continue ; if [[ "$l" == \** ]]; then echo "$l" ; fi ; done < $EXFILES > $exclfiles  # read patterns from $EXCLUDE ie *share/Trash* 
 # $tryncexl is excld.ini. 
 # $exclfiles our patterns from $EXCLUDE
 # Instead of sed can use  -printf '%P\n'  <--- works
-while IFS= read -r p; do [[ -z "$p" || "$p" =~ ^# ]] && continue ; find "$ch" -path "$ch"/$p \( -type f -o -type d \) -print | sed "s|^$ch/||" ; done < <(cat $trsyncexl $exclfiles ) >> $EXFILES  # search the wildcards for mksquashfs
+while IFS= read -r p; do [[ -z "$p" || "$p" =~ ^# ]] && continue ; find "$ch" -path "$ch/$p" \( -type f -o -type d \) -print | sed "s|^$ch/||" ; done < <(cat $trsyncexl $exclfiles ) >> $EXFILES  # search the wildcards for mksquashfs
 # all base folders in changes
 while IFS= read -r d; do all+=("$(basename "$d")") ; done < <(find "$ch" -maxdepth 1 -mindepth 1 ) # ! -name ".wh.*"  
 unset IFS 
@@ -333,8 +362,8 @@ else
 	    echo "Files changed while saving copying to tmp..."
         cp $QEXCL $EXFILES # reset exclusions for rsync
 		normalop="false"
-        procxzm $normalop  # copy log and exclude with rsync.
-	    base_cmd=(mksquashfs $mtmp "${target}${em}/${rname}" -comp $cmode)  # make the module
+        procxzm $normalop "false"  # copy log and exclude with rsync.
+	    base_cmd=(mksquashfs $mtmp "$target$em/$rname" -comp $cmode)  # make the module
         if [ "$FEEDBACK" != "true" ]; then "${base_cmd[@]}" > /dev/null ; else "${base_cmd[@]}" ; fi
     fi
 fi
@@ -390,22 +419,18 @@ fi
 # _uid_ or _uid_L
 base_cmd=(rsync -aHv "${adtcmd[@]}" --exclude-from=$trsyncexl) && [[ -s "$EXFILES" ]] && base_cmd+=(--exclude-from=$EXFILES)
 run_cmd "${base_cmd[@]}" $FOLDERS "$mtmp/" ; errblk "$mtmp"  # merge
+
 # could be new exclusions
 # -mindepth 1 so doesnt list $mtmp itself
-if [[ "$mrgAEX" = "true" ]]; then
-    cd $mtmp || { mount -o remount,udba=none /; exit; }
-    while IFS= read -r ex; do 
-        [ -n "$ex" ] || continue
+if [[ "$mrgAEX" = "true" && -z "$2" ]]; then
+    cd "$mtmp" || { mount -o remount,udba=none /; exit; }
+    while IFS= read -r ex; do
+        [[ -z "$ex" || "$ex" == \#* ]] && continue
         ex="${ex%/}"
-		# remove dir excludes
-        if [[ "$ex" == */* ]]; then 
-            find "$mtmp" -mindepth 1 -path "$mtmp/$ex" -exec rm -rf -- {} +
-		# pattern glob
-        else 
-            find "$mtmp" -mindepth 1 -name "$ex" -exec rm -rf -- {} + 
-        fi 
-    done < <(cat "$trsyncexl" "$EXFILES") 
+        find "$mtmp" -mindepth 1 -path "$mtmp/$ex" -exec rm -rf -- {} +
+    done < <(cat "$trsyncexl" "$EXFILES")
 fi
+
 brnd $UPDATE
 label
 }
@@ -443,7 +468,7 @@ local xsize c  ; local instm="$1"
     fi
     SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'` ;  rname="${mdlnm}${SERIAL}_uid_L${ssbn}.xzm"
     if [ "$instm" != "nolmdl" ]; then
-		cmd=(mksquashfs $mtmp "${target}${em}/${rname}" -comp $cmode -ef $EXFILES -ef $trsyncexl)
+		cmd=(mksquashfs $mtmp "$target$em/$rname" -comp $cmode -ef $EXFILES -ef $trsyncexl)
         [[ -s "$QEXCL" ]] && cmd+=(-ef "$QEXCL") ; "${cmd[@]}"
         end=$(date +%s.%N)
     else

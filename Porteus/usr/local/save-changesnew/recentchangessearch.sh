@@ -1,8 +1,9 @@
 #!/bin/bash
-#      recentchanges search             Developer Buddy v5.0     01/13/2026
+#      recentchanges search             Developer Buddy v5.0     03/02/2026
 . /usr/share/porteus/porteus-functions
 get_colors
-. /usr/local/save-changesnew/rntchangesfunctions
+: "${home_dir:=/usr/local/save-changesnew}"
+. "$home_dir/rntchangesfunctions"
 USR=$3
 if [ "$USR" == "" ]; then echo please call from recentchanges; exit; fi
 if [ "$4" == "" ]; then echo "incorrect usage please call from recentchanges"; exit 1; fi
@@ -37,7 +38,7 @@ SORTCOMPLETE=$tmp/list_complete_sorted.txt				;		xdata3=$atmp$workdir/temp_log.l
 TMPOUTPUT=$tmp/list_tmp_sorted.txt							;		tfile=$atmp$xdata
 TMPOPT=$tmp/tmp_holding											;		tfile2=$atmp$xdata2
 COMPLETE=$tmp/list_complete.txt									;		pytmp=$atmp/pytmp.tmp
-COMPLETENUL=$tmp/list_completenul.txt						;		flth=/usr/local/save-changesnew/flth.csv
+COMPLETENUL=$tmp/list_completenul.txt						;		flth="$home_dir/flth.csv"
 TMPCOMPLETE=$tmp/tmp_complete.txt							;		LCLMODULENAME=${chxzm:1:8}
 slog=/tmp/scr																;		USRDIR=/home/$USR/Downloads
 cerr=/tmp/cerr																;		log_file=/tmp/file_creation_log.txt
@@ -58,7 +59,7 @@ csum="false"
 
 
 F=(/bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var)
-TAIL=(-not -type d -printf '%T@ %A@ %C@ %i %M %n %s %u %g %m %p\0')
+TAIL=(-not -type d -printf '%T@ %A@ %C@ %i %M %n %s %u %g %m %p|%l\0')
 
 mkdir $tmp
 mkdir $atmp
@@ -115,7 +116,7 @@ else
 fi
 
 if [ "$FEEDBACK" == "true" ]; then #scrolling look
-	tr '\0' '\n' < "$FEEDFILE" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); print }'
+	tr '\0' '\n' < "$FEEDFILE" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); sub(/\|$/, "") ; print }'
 	#tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); print }'  
 fi 
 #while IFS= read -r -d '' y; do y="$( ap_enc "$y")" ; printf '%s\n' "$y"; done < $FEEDFILE > $xdata
@@ -156,7 +157,7 @@ fi
 if [ "$5" == "filtered" ] || [ "$flsrh" == "true" ]; then
 	logf="$TMPOPT"
 	if [ "$5" == "filtered" ] && [ "$flsrh" == "true" ]; then logf=$RECENT ; fi 
-    /usr/local/save-changesnew/filter $TMPOPT $USR
+    "$home_dir/filter" $TMPOPT $USR
 fi
 
 cd $USRDIR || exit

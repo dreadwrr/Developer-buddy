@@ -104,12 +104,13 @@ def detect_copy(filename, inode, checksum, cursor, ps):
     return False
 
 
+#  previous_mtime_us = previous[13]
 def get_recent_changes(filename, cursor, table, e_cols=None):
     columns = [
         "timestamp", "filename", "changetime", "inode",
         "accesstime", "checksum", "filesize", "symlink",
-        "owner", "`group`", "permissions", "symlink",
-        "casmod", "mtime_us"
+        "owner", "`group`", "permissions", "casmod",
+        "target", "mtime_us"
     ]
     if e_cols:
         if isinstance(e_cols, str):
@@ -155,9 +156,9 @@ def increment_f(conn, c, records):
             c.execute("""
                 INSERT OR IGNORE INTO sys (
                     timestamp, filename, changetime, inode, accesstime, checksum,
-                    filesize, symlink, owner, `group`, permissions, casmod, lastmodified,
-                    count, mtime_us
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    filesize, symlink, owner, `group`, permissions, casmod,
+                    target, lastmodified, count, mtime_us
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, record)
 
             if c.rowcount > 0:
@@ -343,9 +344,10 @@ def sys_record_flds(record, sys_records, prev_count):
         record[9],  # group
         record[10],  # permissions
         record[11],  # casmod
-        record[12],  # lastmodified
+        record[12],  # target
+        record[13],  # lastmodified
         prev_count,  # incremented count
-        record[13]
+        record[15]
     ))
 
 
