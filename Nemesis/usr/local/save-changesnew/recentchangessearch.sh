@@ -1,5 +1,5 @@
 #!/bin/bash
-#      recentchanges search             Developer Buddy v5.0    01/09/2026
+#      recentchanges search             Developer Buddy v5.0    03/02/2026
 # If some as root calls the program with 2 arguments thats not intended use so exit
 # we would fail to get our correct username such as they put a second bogus argument
 . /usr/share/porteus/porteus-functions
@@ -54,7 +54,7 @@ syschg="false"						;		csm="false"
 csum="false"
 
 F=(/bin /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var)
-TAIL=(-not -type d -printf '%T@ %A@ %C@ %i %M %n %s %u %g %m %p\0')
+TAIL=(-not -type d -printf '%T@ %A@ %C@ %i %M %n %s %u %g %m %p|%l\0')
 
 mkdir $tmp
 mkdir $atmp
@@ -110,7 +110,7 @@ else
 fi
 
 if [ "$FEEDBACK" == "true" ]; then #scrolling look
-	tr '\0' '\n' < "$FEEDFILE" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); print }'
+	tr '\0' '\n' < "$FEEDFILE" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); sub(/\|$/, "") ; print }'
 	#tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); print }'  
 fi 
 #while IFS= read -r -d '' y; do y="$( ap_enc "$y")" ; printf '%s\n' "$y"; done < $FEEDFILE > $xdata

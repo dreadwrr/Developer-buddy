@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import getpass
 import os
 import shutil
 import sqlite3
@@ -7,7 +8,9 @@ import sys
 import tempfile
 import tkinter as tk
 import traceback
+from pathlib import Path
 from tkinter import ttk
+from typing import Any
 from collections import defaultdict
 from collections import Counter
 from datetime import datetime
@@ -24,7 +27,7 @@ from pyfunctions import intst
 from pyfunctions import is_integer
 from pyfunctions import to_bool
 from pyfunctions import update_config
-# 02/23/2026
+# 03/02/2026
 
 # see pyfunctions.py cache clear patterns for db
 
@@ -53,6 +56,7 @@ def redraw_table(table, cur, table_name):
         "owner": 65,
         "group": 65,
         "casmod": 65,
+        "target": 65,
         "lastmodified": 150,
         "hardlinks": 65,
         "symlink": 65,
@@ -414,7 +418,7 @@ def results(database, target, conn, cur, email, user, config_path, turbo, compLV
                 tree.column(col, width=270, anchor="w", stretch=True)
             elif col in ("owner", "group", "casmod", "hardlinks", "symlink"):
                 tree.column(col, width=65, anchor="w", stretch=False)
-            elif col in ("permission",):
+            elif col in ("permissions",):
                 tree.column(col, width=150, anchor="w", stretch=False)
             else:
                 tree.column(col, width=120, anchor="w", stretch=True)
@@ -466,6 +470,101 @@ def showdb(question):
             print("Invalid input, please enter 'Y' or 'N'.")
 
 
+def get_user():
+    """ read from environ inaccurate """
+    user = None
+    try:
+        user = getpass.getuser()
+        #  user = pwd.getpwuid(os.geteuid()).pw_name
+    except (KeyError, OSError):
+        print("unable to get username attempting fallback")
+    if not user:
+        try:
+            user = Path.home().parts[-1]
+        except RuntimeError as e:
+            raise RuntimeError("unable to find current user.") from e
+    return user
+
+
+# required for batch deleting keys
+def get_key_fingerprint(email, no_key=False):
+    cmd = ["gpg", "--list-keys", "--with-colons", email]
+    # if no_key:
+    #     cmd = ["sudo"] + cmd
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True
+    )
+    for line in result.stdout.split('\n'):
+        if line.startswith('fpr:'):
+            return line.split(':')[9]
+    return None
+
+
+def delete_gpg_keys(usr, email, dbtarget, logpst, statpst):
+
+    def exec_delete_keys(usr, current_usr, email, fingerprint):
+        silent: dict[str, Any] = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+
+        if usr == 'root':
+            subprocess.run(["gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
+            subprocess.run(["gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
+        else:
+            subprocess.run(["gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
+            subprocess.run(["gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
+            if current_usr == 'root':
+                subprocess.run(["sudo", "-u", usr, "gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
+                subprocess.run(["sudo", "-u", usr, "gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
+            else:
+                subprocess.run(["sudo", "gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
+                subprocess.run(["sudo", "gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
+        print("Keys cleared for", email, " fingerprint: ", fingerprint)
+
+    while True:
+
+        uinp = input(f"Warning recent.gpg will be cleared. Reset\\delete gpg keys for {email} (Y/N): ").strip().lower()
+        if uinp == 'y':
+            confirm = input("Are you sure? (Y/N): ").strip().lower()
+            if confirm == 'y':
+
+                result = False
+
+                current_usr = get_user()
+
+                # # look in root for key
+                # fingerprint = get_key_fingerprint(email, no_key=True)
+                # if fingerprint:
+                #     result = True
+                #     # delete for user and root
+                #     exec_delete_keys(usr, current_usr, email, fingerprint)
+
+                # look for key in user
+                fingerprint = get_key_fingerprint(email)
+                if fingerprint:
+                    result = True
+                    exec_delete_keys(usr, current_usr, email, fingerprint)
+
+                # removefile(ctimecache)
+                # removefile(dbtarget)
+
+                if result:
+                    # print(f"\nDelete {dbtarget} if it exists as it uses the old key pair.")
+                    return 0
+                else:
+                    print(f"No key found for {email}")
+                    return 2
+
+            else:
+                uinp = 'n'
+
+        if uinp == 'n':
+            print("quit")
+            return 1
+        else:
+            print("Invalid input, please enter 'Y' or 'N'.")
+
+
 def main():
 
     config_path = sys.argv[1]
@@ -475,8 +574,15 @@ def main():
     turbo = sys.argv[5]
     compLVL = int(sys.argv[6])
     checkSUM = to_bool(sys.argv[7])
+    reset = to_bool(sys.argv[8]) if len(sys.argv) > 8 else False
+    logpst = sys.argv[9] if len(sys.argv) > 9 else None
+    statpst = sys.argv[10] if len(sys.argv) > 10 else None
 
     output = getnm(dbtarget, '.db')
+
+    if reset and logpst and statpst:
+
+        return delete_gpg_keys(usr, email, dbtarget, logpst, statpst)
 
     try:
         with tempfile.TemporaryDirectory(dir='/tmp') as tempdir:
@@ -510,9 +616,11 @@ def main():
                         total_filesize = 0
                         valid_entries = 0
                         for filesize in filesizes:
-                            if filesize and is_integer(filesize[0]):
-                                total_filesize += int(filesize[0])
-                                valid_entries += 1
+                            if is_integer(filesize[0]):
+                                sze = int(filesize[0])
+                                if sze > 0:
+                                    total_filesize += sze
+                                    valid_entries += 1
                         if valid_entries > 0:
                             avg_filesize = total_filesize / valid_entries
                             avg_filesize_kb = int(avg_filesize / 1024)
