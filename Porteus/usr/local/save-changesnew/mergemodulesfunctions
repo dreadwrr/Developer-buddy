@@ -86,7 +86,7 @@ wh_conflicts() {
 # remove conflicting whiteouts
 cd $1 || exit
 while IFS= read -r -d '' y; do
-	f="$(echo "$y" | sed -e "s^$2^^g" -e 's^\.wh\.^^g')"
+	f="$(echo "$y" | sed -e "s|^$2/||" -e 's|\.wh\.||g')"
 	test -e "$f" && rm "$y"
 done < <( find $2 -name ".wh.*" -printf '%p\0')
 }

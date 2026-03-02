@@ -191,7 +191,6 @@ if [[ -f /dev/shm/xsc ]]; then
 	else
 		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then astart=$(date +%s.%N); fi
 		cd $mtmp || exit
-
 		tfile=$( cat /dev/shm/xsc)
 		if [ ! -f "$tfile" ]; then  # use the first since boot failing that use h (newest) from above
 			echo "Couldnt find last save point looking for next closest"
@@ -228,14 +227,21 @@ if [[ -f /dev/shm/xsc ]]; then
 			    fi
 			    if (( r )); then
 					startmnt $is_merge
-					mount -o loop $mods $dest
+					if ! mount -o loop "$mods" "$dest"; then
+						goahead="false"
+						mount -o remount,udba=none / ; clear_mnt
+						echo "Failed to mount module: $mods use umount $dest and remove the folder to continue"
+						return 1
+					fi
+
                     find "$dest/" -type f -name '.wh.*' -printf '%P\n' > $tmp/whmarkers 
 					rsync -a "$dest/" "$tmp" --exclude '.wh.*'
 					rlt=$?
 					if [ "$rlt" -ne 0 ]; then 
-						mount -o remount,udba=none /
-						test -d "$tmp" && rm -rf ${tmp:?} ; clear_mnt
-						echo "failed to extract in newuid(). if unable resolve remove /dev/shm/xsc" && exit 1
+						goahead="false"
+						mount -o remount,udba=none / ; clear_mnt
+						echo "failed to extract in newuid(). if unable resolve remove /dev/shm/xsc"
+						return 1
 					fi
 					clear_mnt
 			    fi
@@ -410,7 +416,7 @@ if [[ "$1" = "true" ]]; then
 	shopt -u nullglob
     { test -s "$EXCL" && find $FOLDERS -type d | egrep -vf $EXCL || find $FOLDERS -type d; } > $SFOLDERS
 	for y in $(find $mtmp -name ".wh.*"); do
-        f="$(echo "$y" | sed -e "s^$mtmp^^g" -e 's^\.wh\.^^g')"
+        f="$(echo "$y" | sed -e "s|^$mtmp/||g" -e 's|\.wh\.||g')"
         test -e "$f" && rm "$y";
     done
     unset IFS
@@ -907,7 +913,7 @@ if [ "$rlt" != "" ]; then
             fi
             if [ "$u" == "true" ]; then
 				test -d $part"/archive" && mv $part"/archive" "$target$em" ; test -e $part"/lscheck" && mv $part"/lscheck" "$target$em" ; test -e $part"/mergemodules" && rm $part"/mergemodules"  
-                test -e $part"/mergemodulesod" && rm $part"/mergemodulesod" ; test -e $part"/createlmodule" && rm $part"/createmodule" ; test -e $part"/renameLbak" && rm $part"/renameLbak" 
+                test -e $part"/mergemodulesod" && rm $part"/mergemodulesod" ; test -e $part"/createlmodule" && rm $part"/createlmodule" ; test -e $part"/renameLbak" && rm $part"/renameLbak" 
 				test -e $part"/renamebak" && rm $part"/renamebak"
             fi
             if [ "$u" == "true" ] && [ -d "$part" ] && [ -z "$(ls -A "$part")" ]; then
