@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #   Analytics porteus
-#   recentchanges. Developer buddy      make xzm     01/13/2026  v5.0
+#   recentchanges. Developer buddy      make xzm     03/02/2026  v5.0
 # entry point for recentchanges.
 #
 #   recentchanges. aka Developer buddy      recentchanges / recentchanges search
@@ -46,7 +46,7 @@ get_colors
 # Note:  to see search results for tmp files /tmp use `recentchanges search` and output will be in /Downloads.
 
 
-export backend="default" # default normal    bash 2 gpg and queries text based stable tested
+export backend="database" # default normal    bash 2 gpg and queries text based stable tested
 											# database   binary database faster queries 1 gpg and python (easier ha)
 
 export email="john.doe@email.com" # default for asymmetrical gpg auth for STATPST
@@ -134,7 +134,7 @@ export POSTOP="false" # Diagnostics. Create file doctrine. Runs post search oper
                                     #
                                     # if it is run again and a file is still there it will not run the POSTOP and the script will set POSTOP to false to itself
 
-export proteusSHIELD="true"	# take initial hash of base modules 001-core.. ect database mode
+export proteusSHIELD="false"	# take initial hash of base modules 001-core.. ect database mode
 ## End Diagnostics
 
 export MODULENAME="rntfiles"    # prefix for search result file
@@ -193,6 +193,15 @@ if [ "${arge[0]}" == "search" ]; then
    	test -d "${passdir}" || { echo  "not a valid directory. usage recentchanges search time."; exit 1; }
    	source /usr/local/save-changesnew/recentchangessearch.sh "${arge[0]}" "$THETIME" $USR "$passdir" $argf "$0"
    	exit
+elif [ "${arge[0]}" == "reset" ]; then
+	if [ "$STATPST" == "true" ]; then
+		python3 /usr/local/save-changesnew/query.py "$0" "$pydbpst" "root" $email $mMODE $compLVL $checkSUM "true" "$logpst" "$statpst"
+		ret=$?
+		[[ $ret -eq 0 ]] && { remove_gpg ; exit 0 ; }
+		exit 1
+	else
+		echo "reset requries STATPST for default or database key reset" && exit 1
+	fi
 elif [ "${arge[0]}" == "query" ]; then
 	if [ "$backend" == "default" ]; then  
         /usr/local/save-changesnew/query "$THETIME" $USR "$passdir"
@@ -246,7 +255,7 @@ approval="true"														;	nc="false"
 csum="false"
 
 F=( /bin /etc /home /lib /lib64 /opt /root /sbin /usr /var )
-TAIL=( -not -type d -printf '%T@ %A@ %C@ %i %M %n %s %u %g %m %p\0' )
+TAIL=(-not -type d -printf '%T@ %A@ %C@ %i %M %n %s %u %g %m %p|%l\0')
 
 mkdir $tmp
 mkdir $tmp$workdir
@@ -284,9 +293,17 @@ else
 	end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && [[ "$ANALYTICSECT" ]] && cstart=$(date +%s.%N)
 fi
 
-if [ "$FEEDBACK" == "true" ]; then tr '\0' '\n' < "$RECENTNUL" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); print }' ; fi  #scrolling look  #tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); print }'  
+if [ "$FEEDBACK" == "true" ]; then tr '\0' '\n' < "$RECENTNUL" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); sub(/\|$/, "") ;print }' ; fi  #scrolling look  #tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); print }'  
 
-while IFS= read -r -d '' y; do x="$(printf '%s' "$y" | cut -d' ' -f11-)";  x="$(escf "$x")"; printf '%s\n' "$x" ; done < $RECENTNUL > $RECENT # Used to copy files \n delimited it is the filtered list
+# cur_line="$( ap_safeline "$1")"
+
+while IFS= read -r -d '' y; do 
+	IFS='|' read -r left _ <<< "$y"
+	read -r _ _ _ _ _ _ _ _ _ _ x <<< "$left"
+	x="$(escf "$x")"
+	printf '%s\n' "$x"
+done < $RECENTNUL > $RECENT # Used to copy files \n delimited it is the filtered list
+
 
 search $RECENTNUL $SORTCOMPLETE $COMPLETE $checkSUM "main"  # mtime append ctimeloop in range later
 cend=$(date +%s.%N)
