@@ -1,6 +1,6 @@
-#                               02/28/2026
+#                               03/02/2026
 Python edition <br>
-v1.2.7-py1 Released! <br>
+v1.2.8-py1 Released! for porteus currently updating nemesis py ver<br>
 New symlink target changed detection <br>
 Build system profile in python <br>
 New updates to save-changesnew <br><br>
