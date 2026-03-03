@@ -1,6 +1,8 @@
 #                               03/02/2026
 Python edition <br>
 v1.2.8-py1 Released! for porteus currently updating nemesis py ver<br>
+New module creation logic for save-changesnew <br>
+Enhanced gpg key creation logic and other fixes to bring py ver up to date <br>
 New symlink target changed detection <br>
 Build system profile in python <br>
 New updates to save-changesnew <br><br>
