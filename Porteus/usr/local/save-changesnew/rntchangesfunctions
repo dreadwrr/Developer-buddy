@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#   Developer buddy 5.0 core                                               02/25/2026
+#   Developer buddy 5.0 core                                               03/02/2026
 
 # ascii positional encoding
 # escape input newlines for parsing
@@ -53,6 +53,10 @@ k="${k//\\ap5c/\\}"
 printf '%s' "$k"
 }
 
+remove_gpg() {
+local files=("$app_install/recent.gpg" "$app_install/ctimecache.gpg")
+if [[ $USR == "root" ]]; then rm -f "${files[@]}" 2> /dev/null; else sudo rm -f "${files[@]}" 2> /dev/null; fi
+}
 generatekey() {
 	# 5.1 porteus   GPG 2.x+ generate key but if 5.01 has GPG2 do it too
 
@@ -72,13 +76,8 @@ Passphrase: $p
 %commit
 %echo done
 EOF
-		if which gpg2 > /dev/null 2>&1; then
-			cmd=(gpg2)
-			"${cmd[@]}" --batch --pinentry-mode loopback --passphrase "$p" --generate-key $xopt/keyparams.conf
-		else
-			cmd=(gpg)
-			"${cmd[@]}" --batch --pinentry-mode loopback --passphrase "$p" --generate-key $xopt/keyparams.conf
-		fi
+		if which gpg2 > /dev/null 2>&1; then cmd=(gpg2) ; else cmd=(gpg) ; fi
+		"${cmd[@]}" --batch --pinentry-mode loopback --passphrase "$p" --generate-key $xopt/keyparams.conf
 		shred -u $xopt/keyparams.conf
 		if [[ "$USR" != "root" ]]; then
             echo "Please enter password for root"
@@ -88,6 +87,7 @@ EOF
 			printf "trust\n5\ny\nquit\n" | sudo "${cmd[@]}"  --command-fd 0 --edit-key $email
 		fi
 		test -d "$xopt" && rm -rf "$xopt"
+		remove_gpg
 		echo "GPG key generated for ${email}."
 	else
 		if ! gpg --with-keygrip --list-secret-keys >/dev/null 2>&1; then
@@ -113,6 +113,7 @@ setup_exports() {
 	output=$( python3 "$app_install"/get_exports.py $USR) ; res=$?
 	if [[ $res -ne 0 ]]; then echo "Couldnt get config file config.toml" && exit 1 ; fi
 	eval "$output"
+	[[ "$1" = "reset" ]] && { python3 "$app_install"/rntchanges.py reset "$USR" "$email" "$app_install" ; exit ; }
 	if ! gpg --list-keys | grep -q $email; then generatekey ; fi  # setup key pair for both user and root
 }
 
@@ -121,9 +122,9 @@ local locale=$1
 if [[ -n "$locale" && "$dspEDITOR" != "false" ]]; then
     if [[ -n "$dspPATH" ]]; then [[ ! -e "$dspPATH" ]] && { echo "dspPATH setting invalid - ${dspPATH} not found" >&2 ; return 1 ; } ; "$dspPATH" "$locale" && return ; echo "Error: Failed to open ${locale} with ${dspPATH}" >&2 ; return 1 ; fi
 	[[ -n "$dspEDITOR" && "$dspEDITOR" != "xed" && "$dspEDITOR" != "featherpad" ]] && echo "$dspEDITOR chosen if using other editor please specify dspPATH" && return 1 || { [[ -z "$dspEDITOR" ]] && return 1 ; }
-	editor_path=$( which $dspEDITOR 2> /dev/null)
+	editor_path=$( which "$dspEDITOR" 2> /dev/null)
 	if [[ -n "$editor_path" ]]; then
-		test -e $editor_path && "$editor_path" "$locale" && return || { ! test -e "$editor_path" && echo couldnt launch $dspEDITOR at "$editor_path" ; }
+		test -e "$editor_path" && "$editor_path" "$locale" && return || { ! test -e "$editor_path" && echo couldnt launch $dspEDITOR at "$editor_path" ; }
 	else
 		test -e /usr/bin/$dspEDITOR && /usr/bin/$dspEDITOR "$locale" && return  || { ! test -e /usr/bin/$dspEDITOR && echo couldnt find $dspEDITOR in path or in default /usr/bin please specify dspPATH: "$tomlf" ; }
 	fi
@@ -153,7 +154,7 @@ local inode=$1
 local size=$2
 local mtime=$3
 local key="$inode|$size|$mtime"
-grep -m1 "^${key}   " "$CACHE_F" | awk -F $'\t' '{print $2}'
+grep -m1 "^${key}	" "$CACHE_F" | awk -F $'\t' '{print $2}'
 }
 # [[:space:]]
 normalize_ts() { printf "%.6f\n" "$1" ; }

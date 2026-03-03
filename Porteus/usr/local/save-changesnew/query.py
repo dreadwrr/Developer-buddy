@@ -598,9 +598,11 @@ def main(usr, reset=None):
                         total_filesize = 0
                         valid_entries = 0
                         for filesize in filesizes:
-                            if filesize and is_integer(filesize[0]):  # Check if filesize is valid (not None or blank)
-                                total_filesize += int(filesize[0])
-                                valid_entries += 1
+                            if is_integer(filesize[0]):
+                                sze = int(filesize[0])
+                                if sze > 0:
+                                    total_filesize += sze
+                                    valid_entries += 1
                         if valid_entries > 0:
                             avg_filesize = total_filesize / valid_entries
                             avg_filesize_kb = int(avg_filesize / 1024)

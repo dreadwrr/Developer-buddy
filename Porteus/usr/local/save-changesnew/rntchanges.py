@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# v5.0                                                       02/26/2026
+# v5.0                                                       03/02/2026
 # This script is the entry point for recentchanges. The inv flag is passed in from from /usr/local/save-changesnew/filteredsearch script from /usr/local/bin/rnt symlink
 #
 # There are 2 positional arguments. a third is the inv flag and is filtered out before executing script.
@@ -19,7 +19,7 @@
 # argtwo - search time for `recentchanges search`
 # argf - inv flag from rnt symlink
 import sys
-from query import main as query_main
+from gpgkeymanagement import remove_gpg_keys
 from recentchangessearch import main as recentchanges_main
 
 
@@ -38,7 +38,8 @@ def main(argv):
 
     inv_flag = "inv" in argv
     max_len = 6 if inv_flag else 5
-    if len(argv) > max_len:
+    len_arg = len(argv)
+    if len_arg > max_len:
         if inv_flag:
             print("Incorrect usage. max from rnt 6. provided: ", len(argv) - 1)
         else:
@@ -46,12 +47,14 @@ def main(argv):
         print("Required <USR> <PWD>")
         print("please call from /usr/local/bin/recentchanges")
         return 1
-    if len(argv) < 3:
+    if len_arg < 3:
         print("Incorrect usage. <USR> <PWD>")
         return 1
+    if argv[1] == "reset":
+        return remove_gpg_keys(argv)
 
     USR = argv[1]  # USR = os.getenv("USR")
-    PWD = argv[2]  # os.getcwd()
+    PWD = argv[2]
     args = argv[3:]
 
     arge, argf = filter_invflag(args)  # filter out the invflag set argf to `filtered`. passed from filteredsearch
@@ -62,8 +65,6 @@ def main(argv):
     if argone == "search":  # recentchanges search
         return recentchanges_main(argone, THETIME, USR, PWD, argf, "")
 
-    elif argone == "reset":
-        return query_main(USR, reset=True)
     else:  # recentchanges
         argf = "bnk"
 

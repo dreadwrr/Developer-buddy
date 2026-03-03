@@ -102,7 +102,7 @@ def encr(database, opt, email, no_compression=False, dcr=False):
     return False
 
 
-def decr(src, opt):  # traceback ****
+def decr(src, opt):
     if os.path.isfile(src):
         try:
             cmd = ["gpg", "--yes", "--decrypt", "-o", opt, src]
@@ -242,7 +242,7 @@ def gpg_can_decrypt(usr, dbtarget):
         is_owned_by_root = (st.st_uid == 0)
         if is_owned_by_root:
             print(f"{dbtarget} is owned by root. permission must be owned by {usr}. set permission to continue.")
-            sys.exit(1)
+            return False
     return True
 
     # result = subprocess.run(

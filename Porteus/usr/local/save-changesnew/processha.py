@@ -31,6 +31,8 @@ def isdiff(RECENT, ABSENT, rout, diffnm, difff_file, flsrh, parsed_PRD, fmt):
             parts = line.strip().split(None, 2)
             if not parts:
                 continue
+            if len(parts) < 2:
+                continue
             tsmp = f'{parts[0]} {parts[1]}'
             timestp = parse_datetime(tsmp, fmt)
             if timestp is None:

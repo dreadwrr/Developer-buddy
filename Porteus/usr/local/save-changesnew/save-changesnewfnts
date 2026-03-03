@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# save-changesnew functions to move options further up the script             02/25/2026
+# save-changesnew functions to move options further up the script             03/02/2026
 . /usr/local/save-changesnew/mergemodulesfunctions
 dycmb() {
 TFLD=""
@@ -96,7 +96,9 @@ errmsg() { mount -o remount,udba=none / ; if [ "$1" != "false" ]; then test -d "
 errblk() { [[ "$trlt" -ne 0 ]] && errmsg "$mtmp" "$2" ; }
 # Find out the files that have changed with dry run
 createlog() {
-rsync -an --out-format="%n" "$1/" "$2" --exclude '.wh.*' --exclude-from=$EXFILES > $3 # what changed  # | sed "s|^$1/||"  if using %f remove prefix **
+cmd=(rsync)
+if [ "$checkSUM" == "true" ]; then cmd+=(-anc) ; else cmd+=(-an) ; fi
+"${cmd[@]}" --out-format="%n" "$1/" "$2" --exclude '.wh.*' --exclude-from=$EXFILES > $3 # what changed  # | sed "s|^$1/||"  if using %f remove prefix **
 rsync -anv "$1/" "$2" --exclude '.wh.*' --exclude-from=$EXFILES > $4 # rsync log
 }
 # Labelling before making .xzm from $ch
@@ -115,7 +117,7 @@ local u=0 ; local rlt=0
 local keep=$tmp/outfile  # perishable
 local remove=$tmp/deletre  # ..
 local aend astart firstsv lswitch tfile
-local mt h
+local mt
 local is_merge="true"
 candidates=() ; mdlnames=()
 
@@ -129,7 +131,7 @@ if [[ -f /dev/shm/xsc ]]; then
 	fi
 	if (( u > mdllmt)); then
 		echo "Hit module merge limit merging on write forward"
-		resolve_conflict "_uid_" "*.xzm" ".xzm" ".bak" $is_moved $oMF
+		resolve_conflict "_uid_" "*.xzm" ".xzm" ".bak"
         lswitch="true"
 		is_available "*_uid_*.xzm" $target$em "/tmp" $is_moved $lswitch
 		ret=$?
@@ -190,7 +192,7 @@ if [[ -f /dev/shm/xsc ]]; then
 		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then astart=$(date +%s.%N); fi
 		cd $mtmp || exit
 		tfile=$( cat /dev/shm/xsc)
-		if [ ! -f $tfile ]; then  # use the first since boot failing that use h (newest) from above
+		if [ ! -f "$tfile" ]; then  # use the first since boot failing that use h (newest) from above
 			echo "Couldnt find last save point looking for next closest"
 			goahead="false"		
 			firstsv=""
@@ -207,7 +209,7 @@ if [[ -f /dev/shm/xsc ]]; then
 
 			done < <( find "$target$em" -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' -print0 | sort -z)
 			unset IFS
-			if [ -f "$h" ]; then
+			if [ -f "$tfile" ]; then
 				(( c > 0 && c == t )) && echo Merging single module
 				goahead="true"
 				echo "$tfile" > /dev/shm/xsc
@@ -216,7 +218,7 @@ if [[ -f /dev/shm/xsc ]]; then
 
 		# extract all modules to tmpfs to build what files we have since boot
 		if [[ "$goahead" = "true" ]]; then
-			for mods in "${target}${em}/"*_uid_*.xzm; do
+			for mods in "$target$em/"*_uid_*.xzm; do
 				[[ "$mods" == *_uid_L* || ! -f "$mods" ]] && continue
 			    if (( r == 0 )); then
 			        if [ "$mods" == "$tfile" ]; then
@@ -225,13 +227,21 @@ if [[ -f /dev/shm/xsc ]]; then
 			    fi
 			    if (( r )); then
 					startmnt $is_merge
-					mount -o loop $mods $dest
+					if ! mount -o loop "$mods" "$dest"; then
+						goahead="false"
+						mount -o remount,udba=none / ; clear_mnt
+						echo "Failed to mount module: $mods use umount $dest and remove the folder to continue"
+						return 1
+					fi
+
+                    find "$dest/" -type f -name '.wh.*' -printf '%P\n' > $tmp/whmarkers 
 					rsync -a "$dest/" "$tmp" --exclude '.wh.*'
 					rlt=$?
 					if [ "$rlt" -ne 0 ]; then 
-						mount -o remount,udba=none /
-						test -d "$tmp" && rm -rf ${tmp:?} ; clear_mnt
-						echo "failed to extract in newuid(). if unable resolve remove /dev/shm/xsc" && exit 1
+						goahead="false"
+						mount -o remount,udba=none / ; clear_mnt
+						echo "failed to extract in newuid(). if unable resolve remove /dev/shm/xsc"
+						return 1
 					fi
 					clear_mnt
 			    fi
@@ -252,18 +262,37 @@ if [[ -f /dev/shm/xsc ]]; then
 
         # consistent log depends on version of rsync ** important
 
-        #c="${mtmp#/}"  # --out-format="%f" full path. 
+        # --out-format="%f" full path. see ln 107
+        #c="${mtmp#/}"  
         #sed -i -e "\|$c/\.|d" -e "s|$c/||" -e '/^\./d' $UPDATE
-        #cat $tmp/contents | grep -Fxvf $keep > $remove # total files - what would be transfered = remove
+        #cp $UPDATE $keep  # what needs to be transfered with usable paths
 
-        sed -i -e '/^\./d' -e '/\/$/d' $UPDATE  # --out-format="%n" using relative # remove the unusable first line  . and any ending in /
-
+        # --out-format="%n" using relative
+        sed -i -e '/^\./d' -e '/\/$/d' $UPDATE # remove the unusable first line  . and any ending in /
 		cp $UPDATE $keep  # what needs to be transfered with usable paths
 
-		cat $tmp/contents | grep -Fvf $keep > $remove # the changes folder - what would be transfered = remove
+		cat $tmp/contents | grep -Fxvf $keep > $remove # the changes folder - what would be transfered = remove
 		cat $remove >> $EXFILES
 
 		labelmk $oMF # copy\insert log before .xzm
+
+        # on subsequent runs compare to the most recent extracted the .wh. so not including duplicate .wh.
+        # if whmarkers is unavailable fall back
+        shopt -s nullglob
+        while IFS= read -r -d '' file; do
+            
+            if [[ -e "$tmp"/whmarkers ]]; then
+                grep -Fxq -- "$file" "$tmp"/whmarkers || echo "$file" >> $EXFILES
+            else
+                k="$( echo "$file" | sed -e 's/\.wh\.//g')"  # k=$( echo "$file" | sed -E 's|(.*\/)\.wh\.|\1|') # alternative
+                found="false"
+                items=( "$INAME"/*/"$k" )
+                if ((${#items[@]})); then found="true" ; fi
+                test -e "$tmp/$k" && found="true"
+                [[ "$found" = "true" ]] || echo "$file" >> $EXFILES
+            fi
+        done < <(find "$ch/" -type f -name '.wh.*' -printf '%P\0')
+        shopt -u nullglob
 
         # cp $tmp/contents /home/guest/contents  # debug
         # cp $keep /home/guest/keep  # debug
@@ -304,13 +333,15 @@ all=()
 keep=()
 mkdir $tmp
 mkdir $mtmp
+#
 cp $EXFILES $QEXCL  # Backup EXFILES because we have to manipulate it to work with mksquash. EXFILES has all exclusions from changes-commit and VARS processed at top of script
+#
 # Process wildcards for mksquashfs
 while IFS= read -r l; do [[ -z "$l" ]] && continue ; if [[ "$l" == \** ]]; then echo "$l" ; fi ; done < $EXFILES > $exclfiles  # read patterns from $EXCLUDE ie *share/Trash* 
 # $tryncexl is excld.ini. 
 # $exclfiles our patterns from $EXCLUDE
 # Instead of sed can use  -printf '%P\n'  <--- works
-while IFS= read -r p; do [[ -z "$p" || "$p" =~ ^# ]] && continue ; find "$ch" -path "$ch"/$p \( -type f -o -type d \) -print | sed "s|^$ch/||" ; done < <(cat $trsyncexl $exclfiles ) >> $EXFILES  # search the wildcards for mksquashfs
+while IFS= read -r p; do [[ -z "$p" || "$p" =~ ^# ]] && continue ; find "$ch" -path "$ch/$p" \( -type f -o -type d \) -print | sed "s|^$ch/||" ; done < <(cat $trsyncexl $exclfiles ) >> $EXFILES  # search the wildcards for mksquashfs
 # all base folders in changes
 while IFS= read -r d; do all+=("$(basename "$d")") ; done < <(find "$ch" -maxdepth 1 -mindepth 1 ) # ! -name ".wh.*"  
 unset IFS 
@@ -337,8 +368,8 @@ else
 	    echo "Files changed while saving copying to tmp..."
         cp $QEXCL $EXFILES # reset exclusions for rsync
 		normalop="false"
-        procxzm $normalop  # copy log and exclude with rsync.
-	    base_cmd=(mksquashfs $mtmp "${target}${em}/${rname}" -comp $cmode)  # make the module
+        procxzm $normalop "false"  # copy log and exclude with rsync.
+	    base_cmd=(mksquashfs $mtmp "$target$em/$rname" -comp $cmode)  # make the module
         if [ "$FEEDBACK" != "true" ]; then "${base_cmd[@]}" > /dev/null ; else "${base_cmd[@]}" ; fi
     fi
 fi
@@ -385,7 +416,7 @@ if [[ "$1" = "true" ]]; then
 	shopt -u nullglob
     { test -s "$EXCL" && find $FOLDERS -type d | egrep -vf $EXCL || find $FOLDERS -type d; } > $SFOLDERS
 	for y in $(find $mtmp -name ".wh.*"); do
-        f="$(echo "$y" | sed -e "s^$mtmp^^g" -e 's^\.wh\.^^g')"
+        f="$(echo "$y" | sed -e "s|^$mtmp/||g" -e 's|\.wh\.||g')"
         test -e "$f" && rm "$y";
     done
     unset IFS
@@ -394,22 +425,18 @@ fi
 # _uid_ or _uid_L
 base_cmd=(rsync -aHv "${adtcmd[@]}" --exclude-from=$trsyncexl) && [[ -s "$EXFILES" ]] && base_cmd+=(--exclude-from=$EXFILES)
 run_cmd "${base_cmd[@]}" $FOLDERS "$mtmp/" ; errblk "$mtmp"  # merge
+
 # could be new exclusions
 # -mindepth 1 so doesnt list $mtmp itself
-if [[ "$mrgAEX" = "true" ]]; then
-    cd $mtmp || { mount -o remount,udba=none /; exit; }
-    while IFS= read -r ex; do 
-        [ -n "$ex" ] || continue
+if [[ "$mrgAEX" = "true" && -z "$2" ]]; then
+    cd "$mtmp" || { mount -o remount,udba=none /; exit; }
+    while IFS= read -r ex; do
+        [[ -z "$ex" || "$ex" == \#* ]] && continue
         ex="${ex%/}"
-		# remove dir excludes
-        if [[ "$ex" == */* ]]; then 
-            find "$mtmp" -mindepth 1 -path "$mtmp/$ex" -exec rm -rf -- {} +
-		# pattern glob
-        else 
-            find "$mtmp" -mindepth 1 -name "$ex" -exec rm -rf -- {} + 
-        fi 
-    done < <(cat "$trsyncexl" "$EXFILES") 
+        find "$mtmp" -mindepth 1 -path "$mtmp/$ex" -exec rm -rf -- {} +
+    done < <(cat "$trsyncexl" "$EXFILES")
 fi
+
 brnd $UPDATE
 label
 }
@@ -447,7 +474,7 @@ local xsize c  ; local instm="$1"
     fi
     SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'` ;  rname="${mdlnm}${SERIAL}_uid_L${ssbn}.xzm"
     if [ "$instm" != "nolmdl" ]; then
-		cmd=(mksquashfs $mtmp "${target}${em}/${rname}" -comp $cmode -ef $EXFILES -ef $trsyncexl)
+		cmd=(mksquashfs $mtmp "$target$em/$rname" -comp $cmode -ef $EXFILES -ef $trsyncexl)
         [[ -s "$QEXCL" ]] && cmd+=(-ef "$QEXCL") ; "${cmd[@]}"
         end=$(date +%s.%N)
     else
@@ -463,7 +490,7 @@ local xsize c  ; local instm="$1"
     else
         { echo "bytes:"$xsize ; echo "file name:${fname}" ; echo ; } > $msr
     fi
-    rm -rf ${mtmp:?}
+    test -d "$mtmp" && rm -rf "${mtmp:?}"
 }
 insertmenu() {
 cat > /tmp/block.txt << 'EOF'
@@ -886,7 +913,7 @@ if [ "$rlt" != "" ]; then
             fi
             if [ "$u" == "true" ]; then
 				test -d $part"/archive" && mv $part"/archive" "$target$em" ; test -e $part"/lscheck" && mv $part"/lscheck" "$target$em" ; test -e $part"/mergemodules" && rm $part"/mergemodules"  
-                test -e $part"/mergemodulesod" && rm $part"/mergemodulesod" ; test -e $part"/createlmodule" && rm $part"/createmodule" ; test -e $part"/renameLbak" && rm $part"/renameLbak" 
+                test -e $part"/mergemodulesod" && rm $part"/mergemodulesod" ; test -e $part"/createlmodule" && rm $part"/createlmodule" ; test -e $part"/renameLbak" && rm $part"/renameLbak" 
 				test -e $part"/renamebak" && rm $part"/renamebak"
             fi
             if [ "$u" == "true" ] && [ -d "$part" ] && [ -z "$(ls -A "$part")" ]; then

@@ -3,8 +3,8 @@ import os
 import subprocess
 import tempfile
 import traceback
+from pathlib import Path
 from typing import Any
-from configfunctions import get_user
 from rntchangesfunctions import removefile
 
 
@@ -22,7 +22,7 @@ def iskey(email):
     return False
 
 
-def genkey(email, name, TEMPD, passphrase=None):
+def genkey(user, email, name, dbtarget, CACHE_F, TEMPD, passphrase=None):
 
     if not passphrase:
         p = getpass.getpass("Enter passphrase for new GPG key: ")
@@ -56,25 +56,28 @@ Passphrase: {p}
                 "--passphrase", p,
                 "--generate-key"
             ]
-            # subprocess.run(cmd, check=True)
             # Open the params file and pass it as stdin
             with open(ftarget, "rb") as param_file:
                 subprocess.run(cmd, check=True, stdin=param_file)
+            clear_gpg(user, dbtarget, CACHE_F)
             print(f"GPG key generated for {email}.")
             return True
         except subprocess.CalledProcessError as e:
-            print(f"Failed to generate GPG key: {e} \n {traceback.format_exc()}")
+            print(f"Failed to generate GPG key: {e}")
+            if e.stderr:
+                print(e.stderr.decode(errors="replace"))
+            return False
         except Exception as e:
             print(f'Unable to make GPG key: {type(e).__name__} {e} {traceback.format_exc()}')
+            return False
         finally:
             removefile(ftarget)
-    return False
 
 
 # required for batch deleting keys
-def get_key_fingerprint(email, no_key=False):
+def get_key_fingerprint(email, root_target=None):
     cmd = ["gpg", "--list-keys", "--with-colons", email]
-    if no_key:
+    if root_target:
         cmd = ["sudo"] + cmd
     result = subprocess.run(
         cmd,
@@ -87,9 +90,31 @@ def get_key_fingerprint(email, no_key=False):
     return None
 
 
+def remove_gpg_keys(args):
+    if len(args) < 5:
+        print("Incorrect usage. reset <USR> <email> <app_install>")
+        return 1
+    user = args[2]
+    email = args[3]
+    appdata_local = Path(args[4])
+    dbtarget = appdata_local / "recent.gpg"
+    ctimecache = appdata_local / "ctimecache.gpg"
+    return delete_gpg_keys(user, email, dbtarget, ctimecache)
+
+
+def clear_gpg(usr, dbtarget, CACHE_F):
+    """ delete ctimecache & db .gpg """
+    cmd = []
+    if usr != "root":
+        cmd = ["sudo"]
+    cmd += ["rm", "-f"]
+    for r in (CACHE_F, dbtarget):
+        subprocess.run(cmd + [str(r)], check=False)  # removefile(r)
+
+
 def delete_gpg_keys(usr, email, dbtarget, ctimecache):
 
-    def exec_delete_keys(usr, current_usr, email, fingerprint):
+    def exec_delete_keys(usr, email, fingerprint):
         silent: dict[str, Any] = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
 
         if usr == 'root':
@@ -98,12 +123,9 @@ def delete_gpg_keys(usr, email, dbtarget, ctimecache):
         else:
             subprocess.run(["gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
             subprocess.run(["gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
-            if current_usr == 'root':
-                subprocess.run(["sudo", "-u", usr, "gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
-                subprocess.run(["sudo", "-u", usr, "gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
-            else:
-                subprocess.run(["sudo", "gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
-                subprocess.run(["sudo", "gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
+            subprocess.run(["sudo", "gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
+            subprocess.run(["sudo", "gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
+
         print("Keys cleared for", email, " fingerprint: ", fingerprint)
 
     while True:
@@ -115,28 +137,25 @@ def delete_gpg_keys(usr, email, dbtarget, ctimecache):
 
                 result = False
 
-                current_usr = get_user()
-
-                # look in root for key
-                fingerprint = get_key_fingerprint(email, no_key=True)
+                # look for key in user and or root
+                fingerprint = get_key_fingerprint(email)
                 if fingerprint:
                     result = True
-                    # delete for user and root
-                    exec_delete_keys(usr, current_usr, email, fingerprint)
+                    exec_delete_keys(usr, email, fingerprint)
 
                 # look for key in user
-                fingerprint = get_key_fingerprint(email, no_key=False)
-                if fingerprint:
-                    result = True
-                    exec_delete_keys(usr, current_usr, email, fingerprint)
+                if usr != "root":
+                    fingerprint = get_key_fingerprint(email, root_target=True)
+                    if fingerprint:
+                        result = True
+                        exec_delete_keys(usr, email, fingerprint)
 
-                removefile(ctimecache)
-                removefile(dbtarget)
+                clear_gpg(usr, dbtarget, ctimecache)
 
                 if result:
 
                     # print(f"\nDelete {dbtarget} if it exists as it uses the old key pair.")
-                    return 1
+                    return 0
                 else:
                     print(f"No key found for {email}")
                     return 2
@@ -156,7 +175,7 @@ def delete_gpg_keys(usr, email, dbtarget, ctimecache):
             print("5")
             print("y")
             print("quit")
-            return 0
+            return 1
         else:
             print("Invalid input, please enter 'Y' or 'N'.")
 

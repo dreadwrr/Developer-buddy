@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#inotify db5 					02/25/2026
+#inotify db5 					03/02/2026
 SCRIPT_PATH="$( dirname "$0")"
 . "$SCRIPT_PATH"/rntchangesfunctions
 
@@ -65,7 +65,7 @@ debug_log="true"
 debug_file=/tmp/inotify.log
 pblk_log_file=/tmp/output
 
-:> $CACHE_F ; :> $pblk_log_file
+:> "$CACHE_F" ; :> "$pblk_log_file"
 
 echo "$BRAND inoftiy started" >> $debug_file
 
@@ -148,6 +148,11 @@ timeout "$time" inotifywait -m -r -e create -e moved_to --format '%e|%w%f%0' "${
 
         if (( match_found == 0 )); then
             SECONDS=0
+            prev_size=-1
+            incr=0
+            retried=0
+            sleep_index=0
+
             log_lineout $debug_log $debug_file "$log_date" "notify matched input to pblk waiting for stable size $o"
 			while (( SECONDS < time_out )); do
 				(( incr++ ))

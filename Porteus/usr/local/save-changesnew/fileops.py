@@ -17,17 +17,6 @@ def find_link_target(file_path, logs):
     return target
 
 
-def find_dir_link_target(dirpath, logger):
-    try:
-        target = os.readlink(dirpath)
-        if target and target.endswith(os.sep):
-            base = os.path.dirname(dirpath)
-            return os.path.abspath(os.path.join(base, target))
-    except OSError as e:
-        logger.debug(f"Error checking for broken dir symlinks {dirpath}: {e}")
-    return None
-
-
 def resolve_target(file_path, logs):
     try:
         # absolute = os.path.realpath(file_path)  # 2 method
@@ -38,6 +27,17 @@ def resolve_target(file_path, logs):
     except OSError as e:
         logs.append(("DEBUG", f"Error checking symlink target file: {file_path}: {e}"))
         return None
+
+
+def find_dir_link_target(dirpath, logger):
+    try:
+        target = os.readlink(dirpath)
+        if target and target.endswith(os.sep):
+            base = os.path.dirname(dirpath)
+            return os.path.abspath(os.path.join(base, target))
+    except OSError as e:
+        logger.debug(f"Error checking for broken dir symlinks {dirpath}: {e}")
+    return None
 
 
 def calculate_checksum(file_path, mtime, mod_time, inode, size_int, logs, prev_hash=None, st=None, retry=1, max_retry=1, cacheable=True):
