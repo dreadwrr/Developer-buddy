@@ -1,5 +1,5 @@
 #!/bin/bash
-#                                               Developer Buddy v5.0                Dec 31, 2025
+#                                               Developer Buddy v5.0                Mar 2, 2026
 #   this script works for two modes porteus nemesis graphics and changes.
 # borrowed script items source
 # # Author: fanthom <fanthom@porteus.org>
@@ -138,7 +138,12 @@ keepMRGED="true"       	# default is false so delete the old ones after merging
 # End Non linked state options
 
 
+checkSUM="false"				# for dynamic module saving use checksum instead of relying on modified time. slower but better accuracy in the event
+								# of bad timestamps ect.
 
+override="true"                # default true. *leave set normally*. meaning normal operation if space becomes an issue see in terminal prompt.
+                                            # false will take old modules from drive and move to /tmp to create space if keepMRGED is false
+                                        # feature is designed if porteus is installed on a usb stick and memory is an issue
 
 
 # Terminal output / feedback
@@ -550,7 +555,7 @@ else # Graphics mode
                 fi
                 if [ "$u" == "true" ]; then
 					test -d $part"/archive" && mv $part"/archive" "$target$em" ; test -e $part"/lscheck" && mv $part"/lscheck" "$target$em" ; test -e $part"/mergemodules" && rm $part"/mergemodules"  
-                    test -e $part"/mergemodulesod" && rm $part"/mergemodulesod" ; test -e $part"/createlmodule" && rm $part"/createmodule" ; test -e $part"/renameLbak" && rm $part"/renameLbak" 
+                    test -e $part"/mergemodulesod" && rm $part"/mergemodulesod" ; test -e $part"/createlmodule" && rm $part"/createlmodule" ; test -e $part"/renameLbak" && rm $part"/renameLbak" 
 					test -e $part"/renamebak" && rm $part"/renamebak"
                 fi
                 if [ "$u" == "true" ] && [ -d "$part" ] && [ -z "$(ls -A "$part")" ]; then
