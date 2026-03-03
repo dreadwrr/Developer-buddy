@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 get_vrn(){
 if [ "$1" = "-v" ]; then
-   echo "version 5.0 h&k enterprisez 01/15/2026"
+   echo "version 5.0 h&k enterprisez 03/02/2026"
    echo
    echo "recentchanges aka Developer buddy"
    echo
@@ -12,7 +12,7 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    echo "recentchanges aka Developer buddy"
    echo
    echo "Makes an xzm of all changes 5 minutes or newer. A manifest will be included as well as a pull transfer"
-   echo "log. These will be sent to   /tmp    as   rntchanges.xzm  ect"
+   echo "log. These will be sent to /tmp as rntchanges.xzm ect"
    echo
    echo "Useful if you compiled a program you can ie specify recent changes 5 to pull all new files 5 seconds"
    echo "or newer"
@@ -30,7 +30,7 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    echo
    echo "Search        for just a system search"
    echo
-   printf "recentchanges search \t\t search for files 5 minutes or newer\n"
+   printf "recentchanges search \t search for files 5 minutes or newer\n"
    printf "recentchanges search 30 \t search for files 30 seconds or newer\n"
    echo
    echo "Search for files newer than a file or directory"
@@ -61,17 +61,19 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    echo
    echo "Inverse the search with Symlink"
    echo
-   printf "rnt \t\t shortcut for recentchanges doesnt inverse\n"
-   printf "rnt search \t search for filtered rather than unfiltered files\t output /Downloads\n"
-   printf "rnt search myfile.txt      search for unfiltered rather than filtered files newer than myfile\t . \n"
+   printf "rnt \t\t\t shortcut for recentchanges doesnt inverse\t output /tmp\n"
+   echo "rnt n"
+   printf "rnt search \t\t search for filtered rather than unfiltered files\t output /Downloads\n"
+   printf "rnt search 30 \t\t search for filtered files 30 seconds or newer\n"
+   printf "rnt search myfile.txt \t search for unfiltered rather than filtered files newer than myfile\n"
    echo
    echo
    echo "If having problems with keys."
-   echo "1. Try to delete the all .gpg and to make new ones. 2. Failing that do the same as 1 but change email in config.toml"
+   echo "1. Try to delete the all .gpg to make new ones. 2. Failing that do the same as 1 but change email in config.toml to make a new keypair"
    echo 
    echo "or option 3."
    echo "delete the keys for user and root"
-   echo "gpg --list-keys . grab the key fingerprint the long string for the email in config.toml."
+   echo "gpg --list-keys . grab the key fingerprint for the email in config.toml."
    echo "as user gpg --delete-sercet-keys <fingerprint>"
    echo "gpg --delete-keys <fingerprint>"
    echo "then as root. sudo su"

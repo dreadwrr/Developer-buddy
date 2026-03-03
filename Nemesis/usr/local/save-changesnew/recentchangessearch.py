@@ -339,7 +339,7 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
 
             find_command_cmin = F + PRUNE + cmin + TAIL
             init = True
-            # def find_files(find_command, search_paths, file_type, RECENT, COMPLETE, RECENTNUL, init, cfr, search_start_dt, user_setting, logging_values, end, cstart, logger=None):
+
             tout, COMPLETE_2, RECENTNUL, end, cstart = find_files(
                 find_command_cmin, search_paths, "ctime", tout, COMPLETE_2, RECENTNUL, init, cfr,
                 search_start_dt, user_setting, logging_values, end, cstart, logger=logger

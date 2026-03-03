@@ -8,7 +8,7 @@ from fsearch import process_lines
 from pyfunctions import cprint
 
 
-# 02/26/2026 proteus shield sys profile
+# 03/02/2026 proteus shield sys profile
 
 
 def collect_layer_files(layer, subdirs, is_sym, match_args=None):
@@ -186,7 +186,7 @@ def main(turbo, logging_values):
         return None
 
     categories = {
-        "binary": ["bin", "etc", "sbin", "usr", "opt/porteus-scripts"],
+        "binary": ["bin", "sbin", "usr/bin", "usr/sbin", "usr/libexec", "usr/local/bin", "usr/local/sbin", "opt/porteus-scripts"],
         "sects": ["etc", "home", "root"],
         "library": ["lib", "lib64", "usr/lib", "usr/lib64", "var/lib"]
     }

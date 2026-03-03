@@ -20,7 +20,7 @@ from gpgcrypto import decr
 from gpgcrypto import encr
 from gpgcrypto import gpg_can_decrypt
 from gpgkeymanagement import delete_gpg_keys
-from logs import setup_logger
+from logs import filename_of_handler, setup_logger
 from pyfunctions import get_delete_patterns
 from pyfunctions import is_integer
 from pyfunctions import reset_csvliteral
@@ -30,7 +30,7 @@ from rntchangesfunctions import cprint
 from rntchangesfunctions import name_of
 from rntchangesfunctions import cnc
 
-# 02/26/2026
+# 03/02/2026
 
 # see pyfunctions.py cache clear patterns for db
 
@@ -598,9 +598,11 @@ def main(usr, reset=None):
                         total_filesize = 0
                         valid_entries = 0
                         for filesize in filesizes:
-                            if filesize and is_integer(filesize[0]):  # Check if filesize is valid (not None or blank)
-                                total_filesize += int(filesize[0])
-                                valid_entries += 1
+                            if is_integer(filesize[0]):
+                                sze = int(filesize[0])
+                                if sze > 0:
+                                    total_filesize += sze
+                                    valid_entries += 1
                         if valid_entries > 0:
                             avg_filesize = total_filesize / valid_entries
                             avg_filesize_kb = int(avg_filesize / 1024)
@@ -614,25 +616,36 @@ def main(usr, reset=None):
                         WHERE TRIM(filename) != ''
                         ''')  # Ext
                         filenames = cur.fetchall()
+                        filenames = [row[0] for row in filenames]
                         extensions = []
-                        for entry in filenames:
-                            filepath = Path(entry[0])
+                        directories = []
+                        for filename in filenames:
+                            if not filename:
+                                continue
+                            directories.append(os.path.dirname(filename))  # get the top directories as well
+                            filepath = Path(filename)
                             filename = filepath.name
                             if filename.startswith('.') or '.' not in filename:
                                 ext = '[no extension]'
                             else:
                                 ext = '.' + '.'.join(filename.split('.')[1:])
                             extensions.append(ext)
+                        if extensions:
+                            counter = Counter(extensions)
+                            top_3 = counter.most_common(3)
+                            cprint.cyan("Top extensions")
+                            for ext, count in top_3:
+                                print(f"{ext}")
                         print()
-                        directories = [os.path.dirname(filename[0]) for filename in filenames]  # top directories
                         directory_counts = Counter(directories)
                         top_3_directories = directory_counts.most_common(3)
                         cprint.cyan("Top 3 directories")
                         for directory, count in top_3_directories:
                             print(f'{count}: {directory}')
                         print()
-                        cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''")  # common file 5
-                        filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines
+                        # made on ln 619
+                        # cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''")  # common file 5
+                        # filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines
                         filename_counts = Counter(filenames)
                         top_5_filenames = filename_counts.most_common(5)
                         cprint.cyan("Top 5 created")
@@ -672,9 +685,10 @@ def main(usr, reset=None):
                                 print(f'{count} {filename}')
                         print()
                         cprint.green("Filter hits")
-                        with open(flth, 'r') as file:
-                            for line in file:
-                                print(line, end='')
+                        if os.path.isfile(flth):
+                            with open(flth, 'r') as file:
+                                for line in file:
+                                    print(line, end='')
                         if showdb("display database?"):
                             wish_path = shutil.which("wish")
                             if wish_path:

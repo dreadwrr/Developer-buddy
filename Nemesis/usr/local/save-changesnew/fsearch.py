@@ -16,7 +16,7 @@ from pyfunctions import epoch_to_date
 from pyfunctions import escf_py
 
 
-# Get metadata hash of files and return array 02/25/2026
+# Get metadata hash of files and return array 03/02/2026
 
 fmt = "%Y-%m-%d %H:%M:%S"
 
@@ -83,6 +83,7 @@ def process_line(line, checksum, file_type, search_start_dt, CACHE_F):
                     label = "Cwrite"
                 else:
                     if status == "Nosuchfile":
+                        mt = mtime.replace(microsecond=0)
                         return ("Deleted", mt, mt, escf_path), logs
             else:
                 checks = cached.get("checksum")
@@ -93,6 +94,7 @@ def process_line(line, checksum, file_type, search_start_dt, CACHE_F):
                     mtime, mtime_us, ctime, inode, size, user, group, mode, sym, hardlink = set_stat(line, file_dt, st, file_us, inode, user, group, mode, sym, hardlink, logs)
             else:
                 if status == "Nosuchfile":
+                    mt = mtime.replace(microsecond=0)
                     return ("Deleted", mt, mt, escf_path), logs
     elif sym == "y":
         target = find_link_target(file_path, logs)
@@ -186,6 +188,8 @@ def process_sys_line(line, checksum):
                     return None, logs
         else:
             if status == "Nosuchfile":
+                mt = mtime.replace(microsecond=0)
+                escf_path = escf_py(file_path)
                 return ("Deleted", mt, mt, escf_path), logs
     elif sym == "y":
         target = find_link_target(file_path, logs)
@@ -224,6 +228,7 @@ def process_line_worker(chunk, checksum, file_type, table, search_start_dt, CACH
                 result, log_entries = process_line(line, checksum, file_type, search_start_dt, CACHE_F)
             else:
                 result, log_entries = process_sys_line(line, checksum)
+
             if result is not None:
                 results.append(result)
             if log_entries:

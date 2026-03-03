@@ -37,10 +37,12 @@ cache_clear = [
 
 # filter hits to reset on Cache clear. copy literal items from /usr/local/save-changesnew/filter.py to. resets to 0
 flth_literal_patterns = [
-    r'/home/{user}/\.Xauthority',
+    r'/home/{{user}}/\.config',
+    r'/home/{{user}}/\.Xauthority',
     r'/root/\.Xauthority',
-    r'/home/{user}/\.local/state/wireplumber',
+    r'/home/{{user}}/\.local/state/wireplumber',
     r'/root/\.local/state/wireplumber',
+    r'\.cache',
     r'\.local/share'
 ]
 
