@@ -8,7 +8,7 @@ Qt version for linux https://github.com/dreadwrr/Recentchanges-Linux<br><br>
 
 Version available <br>
 1.2.8 Bash text backend or bash python database backend new release!
-1.2.7-py new release! <br>
+1.2.8-py new release! <br>
 
 all versions are updated with Qt version hybrid analysis and changes <br>
 <br>
