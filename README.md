@@ -5,7 +5,7 @@ New module creation logic for save-changesnew <br>
 Enhanced gpg key creation logic and other fixes to bring py ver up to date <br>
 v1.2.7-py1 <br>
 New symlink target changed detection <br>
-Build system profile in python <br>
+Build system profile in python. updated to ensure profile is built accurately from base xzms <br>
 New updates to save-changesnew <br><br>
 Released v1.2.6-py1 with finalized, inotify wait and other features!<br><br>
 Updated launch script for compatibility with wayland and other distros<br><br> 
