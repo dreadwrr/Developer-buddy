@@ -3,6 +3,8 @@ import os
 from pathlib import Path
 from configfunctions import find_install
 
+WORKER_LOG_Q = None
+
 
 def filename_of_handler():
     for handler in logging.getLogger().handlers:
@@ -87,28 +89,24 @@ def logging_worker(queue, logger=None):
         except Exception:
             log.error(f"Invalid log format detected: {msg}")
             continue
-        lvl = level.upper()
-        log_levels = {
-            'ERROR': log.error,
-            'DEBUG': log.debug,
-            'INFO': log.info,
-            'WARNING': log.warning,
-        }
-        log_func = log_levels.get(lvl)
-        if log_func:
-            log_func(message)
-        elif lvl == 'STOP':
+        if level == 'STOP':
             break
         else:
-            log.error(f"Unknown log level: {message}")
+            write_log(log, level, message)
+
+
+def write_log(log, level, message):
+    method = getattr(log, str(level).lower(), None)
+    if method:
+        method(message)
+    else:
+        log.error(f"Unknown log level: {message}")
 
 
 def write_logs_to_logger(log_list, logger=None):
     log = logger if logger else logging
-
     for level, message in log_list:
-        method = getattr(log, level.lower(), log.error)
-        method(message)
+        write_log(log, level, message)
     # for level, message in log_list:
     #     lvl = level.upper()
     #     if lvl == "DEBUG":
@@ -140,3 +138,15 @@ def check_log_perms(log_path):
                 os.utime(log_path, None)
     except PermissionError:
         pass
+
+
+def init_process_worker(log_q):
+    global WORKER_LOG_Q
+    WORKER_LOG_Q = log_q
+
+
+def emit_log(level, message, log_q=None, logs=None):
+    if log_q is not None:
+        log_q.put((level, message))
+    elif logs is not None:
+        logs.append((level, message))

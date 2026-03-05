@@ -30,7 +30,7 @@ from rntchangesfunctions import cprint
 from rntchangesfunctions import name_of
 from rntchangesfunctions import cnc
 
-# 02/26/2026
+# 03/02/2026
 
 # see pyfunctions.py cache clear patterns for db
 
@@ -104,7 +104,6 @@ def hardlinks(database, target, conn, cur, user, email, compLVL):
             user_input = input("Previous 'hardlinks' data has to be cleared. Continue? (y/n): ").strip().lower()
             if user_input == 'y':
                 cur.execute("UPDATE logs SET hardlinks = NULL WHERE hardlinks IS NOT NULL AND hardlinks != ''")
-                conn.commit()
             else:
                 return 0
 
@@ -195,9 +194,8 @@ def clear_cache(database, target, flth, conn, cur, email, usr, compLVL):
     try:
         for filename_pattern in files_d:
             cur.execute("DELETE FROM logs WHERE filename LIKE ?", (filename_pattern,))
-            conn.commit()
             cur.execute("DELETE FROM stats WHERE filename LIKE ?", (filename_pattern,))
-            conn.commit()
+        conn.commit()
 
         nc = cnc(target, compLVL)
         rlt = encr(database, target, email, no_compression=nc, dcr=True)
@@ -616,25 +614,35 @@ def main(usr, reset=None):
                         WHERE TRIM(filename) != ''
                         ''')  # Ext
                         filenames = cur.fetchall()
+                        filenames = [row[0] for row in filenames]  # replaces ln 646
                         extensions = []
-                        for entry in filenames:
-                            filepath = Path(entry[0])
+                        directories = []
+                        for filename in filenames:
+                            if not filename:
+                                continue
+                            directories.append(os.path.dirname(filename))  # get the top directories as well
+                            filepath = Path(filename)
                             filename = filepath.name
                             if filename.startswith('.') or '.' not in filename:
                                 ext = '[no extension]'
                             else:
                                 ext = '.' + '.'.join(filename.split('.')[1:])
                             extensions.append(ext)
+                        if extensions:
+                            counter = Counter(extensions)
+                            top_3 = counter.most_common(3)
+                            cprint.cyan("Top extensions")
+                            for ext, count in top_3:
+                                print(f"{ext}")
                         print()
-                        directories = [os.path.dirname(filename[0]) for filename in filenames]  # top directories
                         directory_counts = Counter(directories)
                         top_3_directories = directory_counts.most_common(3)
                         cprint.cyan("Top 3 directories")
                         for directory, count in top_3_directories:
                             print(f'{count}: {directory}')
                         print()
-                        cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''")  # common file 5
-                        filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines
+                        # cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''")  # common file 5 # original
+                        # filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines # original
                         filename_counts = Counter(filenames)
                         top_5_filenames = filename_counts.most_common(5)
                         cprint.cyan("Top 5 created")
@@ -674,9 +682,10 @@ def main(usr, reset=None):
                                 print(f'{count} {filename}')
                         print()
                         cprint.green("Filter hits")
-                        with open(flth, 'r') as file:
-                            for line in file:
-                                print(line, end='')
+                        if os.path.isfile(flth):
+                            with open(flth, 'r') as file:
+                                for line in file:
+                                    print(line, end='')
                         if showdb("display database?"):
                             wish_path = shutil.which("wish")
                             if wish_path:
@@ -690,7 +699,6 @@ def main(usr, reset=None):
                 else:
                     # no recent.db file permission error abort so sql doesnt make an empty database
                     print("Unable to locate database: ", dbopt)
-
             # User has no key
             elif result is None:
                 ctime_path = ctimecache.name

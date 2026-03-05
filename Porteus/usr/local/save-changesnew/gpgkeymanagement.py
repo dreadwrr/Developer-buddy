@@ -53,12 +53,19 @@ Passphrase: {p}
                 "gpg",
                 "--batch",
                 "--pinentry-mode", "loopback",
-                "--passphrase", p,
-                "--generate-key"
+                "--passphrase-fd", "0",
+                "--generate-key",
+                ftarget
             ]
+            subprocess.run(
+                cmd,
+                input=(p + "\n").encode(),
+                check=True
+            )
             # Open the params file and pass it as stdin
-            with open(ftarget, "rb") as param_file:
-                subprocess.run(cmd, check=True, stdin=param_file)
+            # with open(ftarget, "rb") as param_file:
+            #     subprocess.run(
+            #         cmd, check=True, stdin=param_file)
             clear_gpg(user, dbtarget, CACHE_F)
             print(f"GPG key generated for {email}.")
             return True
@@ -66,12 +73,11 @@ Passphrase: {p}
             print(f"Failed to generate GPG key: {e}")
             if e.stderr:
                 print(e.stderr.decode(errors="replace"))
-            return False
         except Exception as e:
             print(f'Unable to make GPG key: {type(e).__name__} {e} {traceback.format_exc()}')
-            return False
         finally:
             removefile(ftarget)
+        return False
 
 
 # required for batch deleting keys
@@ -104,12 +110,16 @@ def remove_gpg_keys(args):
 
 def clear_gpg(usr, dbtarget, CACHE_F):
     """ delete ctimecache & db .gpg """
-    cmd = []
-    if usr != "root":
-        cmd = ["sudo"]
-    cmd += ["rm", "-f"]
     for r in (CACHE_F, dbtarget):
-        subprocess.run(cmd + [str(r)], check=False)  # removefile(r)
+        p = Path(r)
+        try:
+            is_root_owned = p.exists() and p.stat().st_uid == 0
+            cmd = (["sudo"] if usr != "root" and is_root_owned else []) + ["/bin/rm", "-f", str(p)]
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error clearing {p}: {e}")
+        except FileNotFoundError:
+            pass
 
 
 def delete_gpg_keys(usr, email, dbtarget, ctimecache):

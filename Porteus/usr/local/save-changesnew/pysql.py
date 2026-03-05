@@ -40,11 +40,13 @@ def create_table(c, table, unique_columns, e_cols=None):
     if table == 'logs':
         c.execute(f'{sql} idx_logs_checksum ON logs (checksum)')
         c.execute(f'{sql} idx_logs_filename ON logs (filename)')
-        c.execute(f'{sql} idx_logs_checksum_filename ON logs (checksum, filename)')  # Composite
+        # c.execute(f'{sql} idx_logs_checksum_filename ON logs (checksum, filename)')  # original
+        c.execute(f'{sql} idx_logs_collision ON logs (checksum, filesize, filename)')
     else:
         c.execute(f'{sql} idx_sys_checksum ON sys (checksum)')
         c.execute(f'{sql} idx_sys_filename ON sys (filename)')
-        c.execute(f'{sql} idx_sys_checksum_filename ON sys (checksum, filename)')
+        # c.execute(f'{sql} idx_sys_checksum_filename ON sys (checksum, filename)')
+        c.execute(f'{sql} idx_sys_collision ON sys (checksum, filesize, filename)')
 
 
 def create_db(database, action=None):
@@ -100,8 +102,6 @@ def insert(log, conn, c, table, add_column=None):  # Log, sys
                 blank_row
         )
 
-    conn.commit()
-
 
 def insert_if_not_exists(action, timestamp, filename, changetime, conn, c):  # Stats
     timestamp = timestamp or None
@@ -109,7 +109,6 @@ def insert_if_not_exists(action, timestamp, filename, changetime, conn, c):  # S
     INSERT OR IGNORE INTO stats (action, timestamp, filename, changetime)
     VALUES (?, ?, ?, ?)
     ''', (action, timestamp, filename, changetime))
-    conn.commit()
 
 
 def get_recent_changes(filename, cursor, table, e_cols=None):
@@ -152,7 +151,91 @@ def table_has_data(conn, table_name):
     return res
 
 
+def collision_check(xdata, cerr, c, ps):
+    reported = set()
+    csum = False
+    if not xdata:
+        return False
+
+    current_rows = set()
+    for record in xdata:
+        if not record or len(record) < 7:
+            continue
+        filename = record[1]
+        file_hash = record[5]
+        file_size = record[6]
+        if not (filename and file_hash and file_size):
+            continue
+
+        current_rows.add((filename, file_hash, file_size))
+
+    if not current_rows:
+        return False
+
+    try:
+        c.execute(
+            """
+            CREATE TEMP TABLE IF NOT EXISTS current_search_collisions (
+                filename TEXT NOT NULL,
+                checksum TEXT NOT NULL,
+                filesize INTEGER NOT NULL
+            )
+            """
+        )
+        c.execute("DELETE FROM current_search_collisions")
+        c.executemany(
+            "INSERT INTO current_search_collisions (filename, checksum, filesize) VALUES (?, ?, ?)",
+            list(current_rows),
+        )
+
+        if ps:
+            db_rows_sql = (
+                "SELECT filename, checksum, filesize FROM logs WHERE checksum IS NOT NULL "
+                "UNION ALL "
+                "SELECT filename, checksum, filesize FROM sys WHERE checksum IS NOT NULL"
+            )
+        else:
+            db_rows_sql = "SELECT filename, checksum, filesize FROM logs WHERE checksum IS NOT NULL"
+
+        c.execute(
+            f"""
+            WITH db_rows AS (
+                {db_rows_sql}
+            )
+            SELECT DISTINCT
+                cur.filename,
+                db.filename,
+                cur.checksum,
+                cur.filesize,
+                db.filesize
+            FROM current_search_collisions cur
+            JOIN db_rows db
+                ON db.checksum = cur.checksum
+            WHERE db.filename != cur.filename
+              AND db.filesize != cur.filesize
+            """
+        )
+        colcheck = c.fetchall()
+    except sqlite3.DatabaseError as e:
+        print(f"Database error in collision detection: {type(e).__name__} : {e}")
+        return False
+
+    if colcheck:
+        try:
+            with open(cerr, "a", encoding="utf-8") as f:
+                for filename, other_file, file_hash, size1, size2 in colcheck:
+                    pair = tuple(sorted([filename, other_file]))
+                    if pair not in reported:
+                        csum = True
+                        print(f"COLLISION: {filename} {size1} vs {other_file} {size2} | Hash: {file_hash}", file=f)
+                        reported.add(pair)
+        except IOError as e:
+            print(f"Failed to write collisions: {e} {type(e).__name__}  \n{traceback.format_exc()}")
+    return csum
+
+
 def collision(cursor, is_sys):
+    """ used for collision function in pyfunctions """
     try:
         if is_sys:
             tables = ['logs', 'sys']
@@ -224,9 +307,6 @@ def detect_copy(filename, inode, checksum, cursor, ps):
 
 def increment_f(conn, c, records, logger=None):
 
-    if not records:
-        return False
-
     inserted_entry = []
 
     try:
@@ -245,11 +325,9 @@ def increment_f(conn, c, records, logger=None):
 
         for filename in inserted_entry:
             c.execute("UPDATE sys SET count = count + 1 WHERE filename = ?", (filename,))
-        conn.commit()
         return True
 
     except sqlite3.OperationalError as e:
-        conn.rollback()
         print(f"Error while insert sys records skipping was unable to complete and then update count. increment_f {type(e).__name__} : {e}  \n{traceback.format_exc()}")
     except Exception as e:
         err = f"Error increment_f table sys {type(e).__name__} {e}"  # \n{traceback.format_exc()}

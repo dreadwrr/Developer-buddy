@@ -27,6 +27,7 @@ def get_exclude_patterns():
         r'/home/{{user}}/\.Xauthority',
         r'/usr/share/glib-2\.0/schemas',
 
+		# porteus exclusions
         r'/usr/lib64/libXc',
         r'/usr/lib64/libudev',
         r'/var/db/sudo/lectured/1000',

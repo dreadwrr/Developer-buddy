@@ -116,7 +116,7 @@ local t=0 ; local c ; local r=0
 local u=0 ; local rlt=0
 local keep=$tmp/outfile  # perishable
 local remove=$tmp/deletre  # ..
-local aend astart firstsv lswitch tfile
+local aend astart lswitch tfile
 local mt
 local is_merge="true"
 candidates=() ; mdlnames=()
@@ -195,7 +195,7 @@ if [[ -f /dev/shm/xsc ]]; then
 		if [ ! -f "$tfile" ]; then  # use the first since boot failing that use h (newest) from above
 			echo "Couldnt find last save point looking for next closest"
 			goahead="false"		
-			firstsv=""
+
 			srt_time_epoch=$(date -d "$(uptime -s)" +%s)
 			while IFS= read -r -d '' file; do
 				(( t++ ))

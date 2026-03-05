@@ -1,4 +1,4 @@
-# manipulate array before database srg and send output to diff file 01/03/2026 01/13/2026
+# manipulate array before database srg and send output to diff file 01/03/2026 03/02/2026
 import logging
 import os
 from datetime import datetime
@@ -7,14 +7,12 @@ from rntchangesfunctions import filter_output
 from rntchangesfunctions import filter_lines_from_list
 
 
-# the time format is different in rout log file use this function
+# return a datetime object for sorting
 def parse_rout(line):
-    parts = line.strip().split(None, 3)
-    if len(parts) > 2:
-        tsmp = f'{parts[1]} {parts[2]}'
-        key_value = parse_datetime(tsmp)
-        if key_value:
-            return key_value
+    tsmp = line[1]
+    key_value = parse_datetime(tsmp)
+    if key_value:
+        return key_value
     logging.debug("Invalid sort key in processha , line: %s", line)
     print("Invalid sort key in processha", line)
     return datetime.min
@@ -100,22 +98,20 @@ def processha(rout, ABSENT, diffnm, cerr, flsrh, argf, parsed_PRD, escaped_user,
                 continue
             action = parts[0]
             ts1 = f'{parts[1]} {parts[2]}'
-            # fpath = ' '.join(parts[5:])  # original
+            # ts2 = f'{parts[3]} {parts[4]}'
             fpath = parts[5]
-            cleaned_line = f'{action} {ts1} {fpath}'
-            cleaned_rout.append(cleaned_line)
+            cleaned_rout.append((action, ts1, fpath))
 
         absent_paths = {get_last_part(line) for line in ABSENT if line.strip()}
-        # absent_paths = {line.strip().split(None, 3)[-1] for line in ABSENT} # orginal
 
         DIFFMATCHED = [
             line for line in cleaned_rout
-            if line.strip().split(None, 3)[-1] not in absent_paths
+            if line[2] and line[2] not in absent_paths
         ]
 
         if flsrh or argf == "filtered":
             if not (flsrh and argf == "filtered"):
-                DIFFMATCHED = filter_lines_from_list(DIFFMATCHED, escaped_user)
+                DIFFMATCHED = filter_lines_from_list(DIFFMATCHED, escaped_user, 2)
 
         if flsrh:
             DIFFMATCHED = [
@@ -126,19 +122,14 @@ def processha(rout, ABSENT, diffnm, cerr, flsrh, argf, parsed_PRD, escaped_user,
         DIFFMATCHED.sort(key=parse_rout)
 
         for line in DIFFMATCHED:
-            fields = line.split()
-            if len(fields) < 4:
-                continue
 
-            status = fields[0]
-            date = fields[1]
-            time = fields[2]
-            path = " ".join(fields[3:])
-
+            status = line[0]
+            timestamp = line[1]
+            fpath = line[2]
             extra_space = " " if status != "Overwrite" else ""
             if status == "Copy":
                 extra_space = extra_space + "\t"
-            formatted_line = f"{status}{extra_space}\t{date} {time} {path}\n"
+            formatted_line = f"{status}{extra_space}\t{timestamp} {fpath}\n"
             outline.append(formatted_line)
 
     if outline:
@@ -147,11 +138,7 @@ def processha(rout, ABSENT, diffnm, cerr, flsrh, argf, parsed_PRD, escaped_user,
             f.writelines(outline)
 
     if os.path.exists(cerr):
-        csum = filter_output(cerr, escaped_user, 'Warning', 'Suspect', 'yellow', 'red', 'elevated', supbrwr, supress)
-
+        filter_output(cerr, escaped_user, 'Warning', 'Suspect', 'yellow', 'red', 'elevated', supbrwr, supress)
         # with open(cerr, 'r') as f: otherwise look for the two csum candidates
         #         contents = f.read()
         # if not ('Suspect' in contents or 'COLLISION' in contents):
-        return csum
-
-    return False

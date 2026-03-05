@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database.     02/26/2026
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database.     03/04/2026
 import os
 import sqlite3
 import sys
 import sysprofile
 import traceback
-from collections import defaultdict
 from gpgcrypto import decr
 from gpgcrypto import encr
 from hanlyparallel import hanly_parallel
@@ -15,46 +14,12 @@ from rntchangesfunctions import removefile
 from pyfunctions import cprint
 from pyfunctions import unescf_py
 from query import blank_count
-from pysql import collision
 from pysql import create_db
 from pysql import create_table
 from pysql import insert
 from pysql import insert_if_not_exists
 from pysql import table_has_data
-
-
-count = 0
-
-
-def collision_check(xdata, cerr, c, ps):
-    reported = set()
-    csum = False
-    colcheck = collision(c, ps)
-
-    if colcheck:
-
-        collision_map = defaultdict(set)
-        for a_filename, b_filename, file_hash, size_a, size_b in colcheck:
-            collision_map[a_filename, file_hash].add((b_filename, file_hash, size_a, size_b))
-            collision_map[b_filename, file_hash].add((a_filename, file_hash, size_b, size_a))
-        try:
-            with open(cerr, "a", encoding="utf-8") as f:
-                for record in xdata:
-                    filename = record[1]
-                    checks = record[5]
-                    size_non_zero = record[6]
-                    if size_non_zero:
-                        key = (filename, checks)
-                        if key in collision_map:
-                            for other_file, file_hash, size1, size2 in collision_map[key]:
-                                pair = tuple(sorted([filename, other_file]))
-                                if pair not in reported:
-                                    csum = True
-                                    print(f"COLLISION: {filename} {size1} vs {other_file} {size2} | Hash: {file_hash}", file=f)
-                                    reported.add(pair)
-        except IOError as e:
-            print(f"Failed to write collisions: {e} {type(e).__name__}  \n{traceback.format_exc()}")
-    return csum
+from pysql import collision_check
 
 
 def main(dbtarget, xdata, COMPLETE, user_setting, logging_values, rout, scr, cerr, dcr=False):
@@ -100,7 +65,7 @@ def main(dbtarget, xdata, COMPLETE, user_setting, logging_values, rout, scr, cer
         if not sts:
             if sts is None:
                 print(f"pstsrg unable to do hybrid analysis No key for {dbtarget} delete it to make a new one.")
-            return 2
+            return 2, csum
     else:
         try:
             conn = create_db(dbopt, True)
@@ -111,9 +76,10 @@ def main(dbtarget, xdata, COMPLETE, user_setting, logging_values, rout, scr, cer
     if not conn:
         if not os.path.isfile(dbopt):
             print("pstsrg.py couldnt locate database: ", dbopt, " quiting.")
-            return 1
+            return 1, csum
         conn = sqlite3.connect(dbopt)
-    with conn:
+
+    try:
         c = conn.cursor()
 
         if table_has_data(conn, sys_table):
@@ -141,7 +107,6 @@ def main(dbtarget, xdata, COMPLETE, user_setting, logging_values, rout, scr, cer
 
                     except Exception as e:
                         print(f'sys db failed insert {e}  {type(e).__name__} \n{traceback.format_exc()}')
-                        db_error = True
 
             elif ps:
                 print('Sys profile requires the setting checksum to index')
@@ -158,11 +123,12 @@ def main(dbtarget, xdata, COMPLETE, user_setting, logging_values, rout, scr, cer
                 except Exception as e:
                     print(f"hanlydb failed to process on mode {mMODE}: {e} {traceback.format_exc()}", file=sys.stderr)
 
-            try:
+            parsed = []
+            for record in xdata:
+                parsed.append(record[:16])  # trim esc_path from end
 
-                parsed = []
-                for record in xdata:
-                    parsed.append(record[:16])  # trim esc_path from end
+        if parsed:
+            try:
 
                 insert(parsed, conn, c, "logs", ['hardlinks', 'mtime_us'])
 
@@ -170,14 +136,14 @@ def main(dbtarget, xdata, COMPLETE, user_setting, logging_values, rout, scr, cer
                 if count % 10 == 0:
                     print(f'{count + 1} searches in gpg database')
 
+                # Check for hash collisions
+                if checksum and cdiag:
+                    if collision_check(xdata, cerr, c, ps):
+                        csum = True
+
             except Exception as e:
                 print(f'log db failed insert err: {e} {type(e).__name__}  \n{traceback.format_exc()}')
                 db_error = True
-
-            # Check for hash collisions
-            if checksum and cdiag:
-                if collision_check(xdata, cerr, c, ps):
-                    csum = True
 
             if mMODE == 'mc':
                 x = os.cpu_count()
@@ -208,30 +174,37 @@ def main(dbtarget, xdata, COMPLETE, user_setting, logging_values, rout, scr, cer
                 print(f'stats db failed to insert err: {e}  \n{traceback.format_exc()}')
                 db_error = True
 
-    if not db_error:  # Encrypt if o.k.
-        try:
+        if not db_error:
+            try:
+                conn.commit()
+                nc = cnc(dbopt, compLVL)
+                sts = encr(dbopt, dbtarget, email, no_compression=nc, dcr=dcr)
+                if not sts:
+                    res = 3  # & 2 gpg problem
+                    print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}  before running again to preserve data.')
 
-            nc = cnc(dbopt, compLVL)
-            sts = encr(dbopt, dbtarget, email, no_compression=nc, dcr=dcr)
-            if not sts:
-                res = 3  # & 2 gpg problem
-                print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}  before running again to preserve data.')
+            except Exception as e:
+                res = 3
+                print(f'Encryption failed: {e}')
 
-        except Exception as e:
-            res = 3
-            print(f'Encryption failed: {e}')
-
-    else:
-        res = 4  # delete any changes made.
-        print('There is a problem with the database.')
+        else:
+            conn.rollback()
+            res = 4  # delete any changes made.
+            print('There is a problem with the database.')
+    finally:
+        if conn:
+            conn.close()
 
     if (dcr and res != 3) or not dcr:
         removefile(dbopt)
+
     if res == 0 and new_profile:
-        return "new_profile"
+        return "new_profile", csum
     elif res == 0:
-        return 0
+        return 0, csum
         # return dbopt
     elif res == 3:
-        return "encr_error"
-    return None
+        return "encr_error", csum
+    elif res == 4:
+        return "db_error", csum
+    return res, csum

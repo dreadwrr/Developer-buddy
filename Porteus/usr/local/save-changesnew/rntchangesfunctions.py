@@ -1,4 +1,4 @@
-# developer buddy v5.0 core                     original 09/26/2025 updated 01/13/2026
+# developer buddy v5.0 core                     original 09/26/2025 updated 03/03/2026
 import glob
 import logging
 import os
@@ -11,12 +11,11 @@ from datetime import datetime
 from pathlib import Path
 from configfunctions import update_config
 from filter import get_exclude_patterns
-from fsearch import process_lines
+from fsearchparallel import process_lines
 from pyfunctions import cprint
 from pyfunctions import suppress_list
 from pyfunctions import unescf_py
 
-# 02/26/2026
 
 # Note: For database cacheclear / terminal supression see pyfunctions.py
 
@@ -72,6 +71,7 @@ def get_runtime_exclude_list(USRDIR, MODULENAME, user, file_out, flth, dbtarget,
         download_results,
         gnupg_one,
         gnupg_two,
+        file_out,
         flth,
         dbtarget,
         CACHE_F,
@@ -219,8 +219,8 @@ def is_excluded(web_list, file_line):
     return any(re.search(pat, file_line) for pat in web_list)
 
 
-def is_supressed(web_list, file_line, flg, suppress_browser, supress):
-    if flg or supress:
+def is_supressed(web_list, file_line, flg, suppress_browser, suppress):
+    if flg or suppress:
         return True
     if suppress_browser and web_list:
         return is_excluded(web_list, file_line)
@@ -228,7 +228,7 @@ def is_supressed(web_list, file_line, flg, suppress_browser, supress):
 
 
 # scr / cerr logic
-def filter_output(filepath, escaped_user, filtername, critical, pricolor, seccolor, typ, suppress_browser=True, supress=False):
+def filter_output(filepath, escaped_user, filtername, critical, pricolor, seccolor, typ, suppress_browser=True, suppress=False):
     web_list = suppress_list(escaped_user)
     flg = False
     with open(filepath, 'r') as f:
@@ -237,7 +237,7 @@ def filter_output(filepath, escaped_user, filtername, critical, pricolor, seccol
             file_line = file_line.strip()
             if file_line.startswith(filtername):
 
-                if not is_supressed(web_list, file_line, flg, suppress_browser, supress):
+                if not is_supressed(web_list, file_line, flg, suppress_browser, suppress):
                     getattr(cprint, pricolor, lambda msg: print(msg))(f"{file_line} {typ}")
             else:
                 if critical != "no":
@@ -245,9 +245,8 @@ def filter_output(filepath, escaped_user, filtername, critical, pricolor, seccol
                         getattr(cprint, seccolor, lambda msg: print(msg))(f'{file_line} {typ} Critical')
                         flg = True
                 else:
-                    if not is_supressed(web_list, file_line, flg, suppress_browser, supress):
+                    if not is_supressed(web_list, file_line, flg, suppress_browser, suppress):
                         getattr(cprint, seccolor, lambda msg: print(msg))(f"{file_line} {typ}")
-    return flg
 
 
 def porteus_linux_check():
