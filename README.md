@@ -1,6 +1,6 @@
 #                               03/04/2026
 Qt version for Windows 10/11. https://github.com/dreadwrr/Recentchanges <br>
-Qt version for linux https://github.com/dreadwrr/Recentchanges-Linux<br><br><br>
+released Qt for linux https://github.com/dreadwrr/Recentchanges-Linux<br><br><br>
 
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
 
