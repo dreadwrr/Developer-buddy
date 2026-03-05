@@ -48,7 +48,7 @@ adds $BASEDIR to /ect/rc.d/rc.local_shutdown and after running on shutdown the s
 <p>&nbsp;</p>
 <br><br>
 
-## Product description
+## Developer buddy aka recentchanges\save-changesnew
 
 Bash with Bash or python backend
 
