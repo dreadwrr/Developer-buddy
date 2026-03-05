@@ -107,7 +107,7 @@ proteusSHIELD = false
 
 [paths]
 # file label prefix for searches output txt file			# default rntfiles
-MODULENAME = "rntfiles" 
+MODULENAME = "rntfiles"
 
 [src]
 
