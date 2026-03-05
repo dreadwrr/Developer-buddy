@@ -1,6 +1,8 @@
 #                               03/04/2026
-Qt version for Windows 10/11. https://github.com/dreadwrr/Recentchanges <br>
+First started a Qt gui for Windows 10/11. https://github.com/dreadwrr/Recentchanges <br>
 released Qt for linux https://github.com/dreadwrr/Recentchanges-Linux<br><br><br>
+
+currently looking at updating windows with the changes from linux<br><br>
 
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
 
