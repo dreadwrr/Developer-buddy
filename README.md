@@ -1,6 +1,10 @@
-#                               03/02/2026
+#                               03/04/2026
 ## Python edition <br>
-v1.2.8-py1 Released! for porteus currently updating nemesis py ver<br>
+v1.2.8-py2 Released!<br>
+Change to logging system and multiprocessing
+changed launch script to offload to python script. updated gpg creation bash script
+New hash collision detection method <br>
+v1.2.8-py1 <br>
 New module creation logic for save-changesnew <br>
 Enhanced gpg key creation logic and other fixes to bring py ver up to date <br>
 v1.2.7-py1 <br>
