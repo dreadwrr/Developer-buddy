@@ -1,10 +1,11 @@
 #                               03/04/2026
+A Qt version for Windows 10/11. https://github.com/dreadwrr/Recentchanges <br>
+Qt version for linux https://github.com/dreadwrr/Recentchanges-Linux<br><br><br>
+
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
 
 for Porteus 5.01, 5.1 and Nemesis 
 
-A Qt version for Windows 10/11. https://github.com/dreadwrr/Recentchanges <br>
-Qt version for linux https://github.com/dreadwrr/Recentchanges-Linux<br><br>
 
 Version available <br>
 1.2.8-py2 <br>
