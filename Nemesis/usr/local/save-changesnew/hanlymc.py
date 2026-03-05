@@ -1,6 +1,8 @@
+import logs
 import os
 import sqlite3
 from datetime import datetime, timedelta
+from logs import emit_log
 from pathlib import Path
 from pyfunctions import is_integer
 from pyfunctions import is_valid_datetime
@@ -10,7 +12,7 @@ from pyfunctions import matches_any_pattern
 from pyfunctions import parse_datetime
 from pyfunctions import sys_record_flds
 from pysql import get_recent_changes
-# hybrid analysis original 11/19/2025 updated 02/26/2026
+# hybrid analysis original 11/19/2025 updated 03/03/2026
 
 
 def stealth(filename, label, entry, current_size, original_size, cdiag):
@@ -36,7 +38,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, logging_values):
 
     results = []
     sys_records = []
-    logs = []
+    log_entries = []
     fmt = "%Y-%m-%d %H:%M:%S"
     csum = False
     time_period = 5  # days for a file that isnt regularly updated. 5 default
@@ -54,14 +56,14 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, logging_values):
             is_sys = False
 
             if len(record) < 17:
-                logs.append(("DEBUG", f"sortcomplete entry malformed.  less than required 17 : {record}"))
+                emit_log("DEBUG", f"sortcomplete entry malformed.  less than required 17 : {record}", logs.WORKER_LOG_Q)
                 continue
 
             entry = {"cerr": [], "flag": [], "scr": [], "sys": [], "dcp": []}
 
             recent_timestamp = parse_datetime(record[0], fmt)
             if not recent_timestamp:
-                logs.append(("DEBUG", f"missing timestamp on parsed entry: {record}"))
+                emit_log("DEBUG", f"missing timestamp on parsed entry: {record}", logs.WORKER_LOG_Q)
                 continue
 
             filename = record[1]
@@ -101,13 +103,13 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, logging_values):
                     prev_count = recent_sys[-1]
                     sys_record_flds(record, sys_records, prev_count)
                 else:
-                    logs.append(("DEBUG", "sys table missing timestamp skipped"))
+                    emit_log("DEBUG", "sys table missing timestamp skipped", logs.WORKER_LOG_Q)
                     continue
             elif ps and recent_sys:
-                logs.append(("DEBUG", f"recent sys entry less than required length 15 : {recent_sys}"))
+                emit_log("DEBUG", f"recent sys entry less than required length 15 : {recent_sys}", logs.WORKER_LOG_Q)
 
             if previous is None or len(previous) < 14:
-                logs.append(("DEBUG", f"previous record less than required length 14. previous: {previous}"))
+                emit_log("DEBUG", f"previous record less than required length 14. previous: {previous}", logs.WORKER_LOG_Q)
                 continue
             if checksum:
                 if not record[5] or not previous[5]:
@@ -257,9 +259,9 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, logging_values):
                                     entry["scr"].append(message)
             else:
                 print("Hanly formatting problem skipped.")
-                logs.append(("DEBUG", f"current inode {record[3]} previous {previous[3]}, current timestamp {recent_timestamp} previous {previous_timestamp} \n original {previous} \n current {record}"))
+                emit_log("DEBUG", f"current inode {record[3]} previous {previous[3]}, current timestamp {recent_timestamp} previous {previous_timestamp} \n original {previous} \n current {record}", logs.WORKER_LOG_Q)
 
             if entry["cerr"] or entry["flag"] or entry["scr"] or entry["sys"]:
                 results.append(entry)
 
-    return results, sys_records, logs, csum
+    return results, sys_records, log_entries, csum

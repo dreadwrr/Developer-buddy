@@ -177,10 +177,11 @@ def decr_ctime(CACHE_F, user):
         except ValueError:
             size = None
         try:
-            modified_ep = float(row['modified_ep']) if row.get('modified_ep') else None
+            modified_ep = int(row['modified_ep']) if row.get('modified_ep') else None
         except ValueError:
             modified_ep = None
-
+        if modified_ep is None:
+            continue
         cfr_src.setdefault(root, {})[modified_ep] = {
             "checksum": row.get('checksum', None),
             "size": size,

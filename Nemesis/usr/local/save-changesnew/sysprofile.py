@@ -4,7 +4,7 @@ import os
 import sys
 import traceback
 from pathlib import Path
-from fsearch import process_lines
+from fsearchparallel import process_lines
 from pyfunctions import cprint
 
 
@@ -226,7 +226,7 @@ def main(turbo, logging_values):
         xdata, COMPLETE_2 = process_lines(xdata_raw, "main", "sys", search_start_dt, "PROCESS_SYS", user_setting, logging_values, CACHE_F)
 
         user_setting['checksum'] = False
-        systemf, COMPLETE_1 = process_lines(list(diff), "main", "sys", search_start_dt, "PROCESS_SYS", user_setting, logging_values, CACHE_F)
+        systemf, COMPLETE_1 = process_lines(diff, "main", "sys", search_start_dt, "PROCESS_SYS", user_setting, logging_values, CACHE_F)
 
         SORTCOMPLETE = xdata + systemf
 

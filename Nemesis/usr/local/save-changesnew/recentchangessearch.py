@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# entry point for recentchanges.                     v5.0                                                       02/26/2026
+# entry point for recentchanges.                     v5.0                                                       03/02/2026
 #
 #   recentchanges. aka Developer buddy      recentchanges / recentchanges search
 #   Provide ease of pattern finding ie what files to block we can do this a number of ways
@@ -364,12 +364,10 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
         # end Main search
 
         check_stop(stopf)
-        if RECENT:
-            if cfr:
+        if cfr and (RECENT or tout):
+            encr_cache(cfr, CACHE_F, USR, uid, gid, email, compLVL)
 
-                encr_cache(cfr, CACHE_F, USR, uid, gid, email, compLVL)
-
-        else:
+        if not RECENT:
             cprint.cyan("No files found or invalid search criteria ")
             return 0
 
@@ -396,11 +394,11 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
         seen = {}
 
         for entry in merged:
-            if len(entry) < 11:
+            if len(entry) < 12:
                 continue
 
             filepath = entry[1]
-            cam_flag = entry[10]
+            cam_flag = entry[11]
 
             key = filepath
 
@@ -408,7 +406,7 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
                 seen[key] = entry
             else:
                 existing_entry = seen[key]
-                existing_cam = existing_entry[10]
+                existing_cam = existing_entry[11]
 
                 if existing_cam == "y" and cam_flag is None:
                     seen[key] = entry
@@ -458,7 +456,7 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
 
         filtered_lines = []
         for entry in SORTCOMPLETE:
-            if len(entry) >= 16:
+            if len(entry) >= 17:
                 ts_str = entry[0]
                 filepath = entry[16]
                 filtered_lines.append((ts_str, filepath))
@@ -579,7 +577,7 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
 
             check_stop(stopf)
             # Backend
-            res = pstsrg.main(dbtarget, SORTCOMPLETE, COMPLETE, user_setting, logging_values, rout, scr, cerr, dcr)
+            res, csum = pstsrg.main(dbtarget, SORTCOMPLETE, COMPLETE, user_setting, logging_values, rout, scr, cerr, dcr)
             #  dbopt = res  # alternatively return dbopt filename if doing something after with .db then remove in cleanup
             if res is not None:
                 if res == 0 or res == "new_profile":
@@ -601,7 +599,7 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
                 print()
 
             # Diff output to user
-            csum = processha.processha(rout, ABSENT, diff_file, cerr, flsrh, argf, SRTTIME, escaped_user, suppress_browser, suppress)
+            processha.processha(rout, ABSENT, diff_file, cerr, flsrh, argf, SRTTIME, escaped_user, suppress_browser, suppress)
 
             # Filter hits
             update_filter_csv(RECENT, USR, flth)

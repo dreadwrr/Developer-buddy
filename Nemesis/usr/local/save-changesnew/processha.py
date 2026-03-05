@@ -1,4 +1,4 @@
-# manipulate array before database srg and send output to diff file 01/03/2026 01/13/2026
+# manipulate array before database srg and send output to diff file 01/03/2026 03/02/2026
 import logging
 import os
 from datetime import datetime
@@ -138,11 +138,7 @@ def processha(rout, ABSENT, diffnm, cerr, flsrh, argf, parsed_PRD, escaped_user,
             f.writelines(outline)
 
     if os.path.exists(cerr):
-        csum = filter_output(cerr, escaped_user, 'Warning', 'Suspect', 'yellow', 'red', 'elevated', supbrwr, supress)
-
+        filter_output(cerr, escaped_user, 'Warning', 'Suspect', 'yellow', 'red', 'elevated', supbrwr, supress)
         # with open(cerr, 'r') as f: otherwise look for the two csum candidates
         #         contents = f.read()
         # if not ('Suspect' in contents or 'COLLISION' in contents):
-        return csum
-
-    return False

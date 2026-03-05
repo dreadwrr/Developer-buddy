@@ -36,19 +36,15 @@ def filter_invflag(argv, pad_length=5):
 
 def main(argv):
 
-    inv_flag = "inv" in argv
-    max_len = 6 if inv_flag else 5
+    max_len = 6
     len_arg = len(argv)
     if len_arg > max_len:
-        if inv_flag:
-            print("Incorrect usage. max from rnt 6. provided: ", len(argv) - 1)
-        else:
-            print("Incorrect usage. max args 5. provided: ", len(argv) - 1)
+        print("Incorrect usage. max from rnt 6. provided: ", len(argv))
         print("Required <USR> <PWD>")
         print("please call from /usr/local/bin/recentchanges")
         return 1
     if len_arg < 3:
-        print("Incorrect usage. <USR> <PWD>")
+        print("Incorrect usage. <USR> <PWD> please call from /usr/local/bin/recentchanges")
         return 1
     if argv[1] == "reset":
         return remove_gpg_keys(argv)

@@ -77,7 +77,7 @@ Passphrase: $p
 %echo done
 EOF
 		if which gpg2 > /dev/null 2>&1; then cmd=(gpg2) ; else cmd=(gpg) ; fi
-		"${cmd[@]}" --batch --pinentry-mode loopback --passphrase "$p" --generate-key $xopt/keyparams.conf
+		printf '%s' "$p" | "${cmd[@]}" --batch --pinentry-mode loopback --passphrase-fd 0 --generate-key  $xopt/keyparams.conf
 		shred -u $xopt/keyparams.conf
 		if [[ "$USR" != "root" ]]; then
             echo "Please enter password for root"
@@ -110,6 +110,7 @@ EOF
 }
 
 setup_exports() {
+	[[ "$1" = "query" ]] && { python3 "$app_install"/query.py $USR ; exit ; }
 	output=$( python3 "$app_install"/get_exports.py $USR) ; res=$?
 	if [[ $res -ne 0 ]]; then echo "Couldnt get config file config.toml" && exit 1 ; fi
 	eval "$output"

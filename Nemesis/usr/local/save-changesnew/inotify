@@ -17,9 +17,8 @@ webb=(
     'mozilla'
 	'\.mozilla'
 	'chromium-ungoogled'
-)
-# '\.local/share/Trash'
 # other
+)
 }
 
 # inclusions from app. also .wh. files that can appear from watching changes. possibly want to filter out other files ie share/Trash

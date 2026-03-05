@@ -3,21 +3,21 @@ import hashlib
 import os
 import pwd
 import stat
+from logs import emit_log
 from pathlib import Path
 from pyfunctions import epoch_to_date
 
 
-def find_link_target(file_path, logs):
-    target = resolve_target(file_path, logs)
+def find_link_target(file_path, logger=None):
+    target = resolve_target(file_path, logger)
     if target and not os.path.exists(target):
         target = f"broken {target}"
     elif not target:
-        logs.append(("DEBUG", f"Symlink target was None : {file_path}"))
-        # logging.debug(f"Symlink target was None : {file_path}")
+        emit_log("DEBUG", f"Symlink target was None : {file_path}", logger)
     return target
 
 
-def resolve_target(file_path, logs):
+def resolve_target(file_path, logger=None):
     try:
         # absolute = os.path.realpath(file_path)  # 2 method
         target = os.readlink(file_path)
@@ -25,22 +25,22 @@ def resolve_target(file_path, logs):
         absolute = os.path.abspath(os.path.join(base, target))
         return absolute
     except OSError as e:
-        logs.append(("DEBUG", f"Error checking symlink target file: {file_path}: {e}"))
+        emit_log("DEBUG", f"Error checking symlink target file: {file_path}: {e}", logger)
         return None
 
 
-def find_dir_link_target(dirpath, logger):
+def find_dir_link_target(dirpath, logger=None):
     try:
         target = os.readlink(dirpath)
         if target and target.endswith(os.sep):
             base = os.path.dirname(dirpath)
             return os.path.abspath(os.path.join(base, target))
     except OSError as e:
-        logger.debug(f"Error checking for broken dir symlinks {dirpath}: {e}")
+        emit_log("DEBUG", f"Error checking for broken dir symlinks {dirpath}: {e}", logger)
     return None
 
 
-def calculate_checksum(file_path, mtime, mod_time, inode, size_int, logs, prev_hash=None, st=None, retry=1, max_retry=1, cacheable=True):
+def calculate_checksum(file_path, mtime, mod_time, inode, size_int, prev_hash=None, st=None, retry=1, max_retry=1, cacheable=True, logger=None):
     total_size = 0
     try:
         hash_func = hashlib.md5()
@@ -58,7 +58,7 @@ def calculate_checksum(file_path, mtime, mod_time, inode, size_int, logs, prev_h
         if retry > 0:
 
             # if not total_size:
-            #     logs.append(("DEBUG", f"calculate_checksum Size was zero: {file_path} checksum {checks} and total_size {total_size}"))
+            #     emit_log("DEBUG", f"calculate_checksum Size was zero: {file_path} checksum {checks} and total_size {total_size}"), logger)
 
             filename = Path(file_path)
             re_st = goahead(filename)
@@ -79,26 +79,26 @@ def calculate_checksum(file_path, mtime, mod_time, inode, size_int, logs, prev_h
                         status = "Retried"
                     return checks, mtime, mod_time, st, status
                 # else:
-                #     logs.append(("DEBUG", f"File changed from first stat. the file is Cacheable: {cacheable} doesnt match: {file_path} the follow characteristics: "))
-                #     logs.append(("DEBUG", f"Retry #{retry} \\ {max_retry}. Entry mtime {mod_time} size {size_int} inode {inode}"))
-                #     logs.append(("DEBUG", f"calculate_checksum checksum size is {total_size} . mtime {a_mod} size {a_size} inode {a_ino}"))
+                #     emit_log("DEBUG", f"File changed from first stat. the file is Cacheable: {cacheable} doesnt match: {file_path} the follow characteristics: "), logger)
+                #     emit_log("DEBUG", f"Retry #{retry} \\ {max_retry}. Entry mtime {mod_time} size {size_int} inode {inode}"), logger)
+                #     emit_log("DEBUG", f"calculate_checksum checksum size is {total_size} . mtime {a_mod} size {a_size} inode {a_ino}"), logger)
                 mtime = epoch_to_date(re_st.st_mtime)
-                return calculate_checksum(file_path, mtime, a_mod, a_ino, a_size, logs, checks, re_st, retry=retry - 1, max_retry=max_retry, cacheable=cacheable)
+                return calculate_checksum(file_path, mtime, a_mod, a_ino, a_size, checks, re_st, retry=retry - 1, max_retry=max_retry, cacheable=cacheable, logger=logger)
 
-        # logs.append(("DEBUG", f"calculate_checksum returning None: {file_path}"))
+        # emit_log("DEBUG", f"calculate_checksum returning None: {file_path}"), logger)
 
         return None, mtime, mod_time, st, "Changed"
 
     except FileNotFoundError:
         return None, mtime, mod_time, st, "Nosuchfile"
     except PermissionError as e:
-        logs.append(("ERROR", f"calculate_checksum Permission denied: {file_path} error: {e}"))
+        emit_log("ERROR", f"calculate_checksum Permission denied: {file_path} error: {e}", logger)
     except Exception as e:
-        logs.append(("ERROR", f"Exception calculating checksum for file: {file_path} total_size {total_size} size_int {size_int} error: {e}"))
+        emit_log("ERROR", f"Exception calculating checksum for file: {file_path} total_size {total_size} size_int {size_int} error: {e}", logger)
     return None, mtime, mod_time, st, "Error"
 
 
-def set_stat(line, file_dt, st, file_us, inode, user, group, mode, symlink, hardlink, logs):
+def set_stat(line, file_dt, st, file_us, inode, user, group, mode, symlink, hardlink, logger=None):
 
     mtime = file_dt
     mtime_us = file_us
@@ -111,12 +111,12 @@ def set_stat(line, file_dt, st, file_us, inode, user, group, mode, symlink, hard
         try:
             user = pwd.getpwuid(st.st_uid).pw_name
         except KeyError:
-            logs.append(("DEBUG", f"set_stat failed to convert uid to user name for user {st.st_uid} line: {line}"))
+            emit_log("DEBUG", f"set_stat failed to convert uid to user name for user {st.st_uid} line: {line}", logger)
             user = str(st.st_uid)
         try:
             group = grp.getgrgid(st.st_gid).gr_name
         except KeyError:
-            logs.append(("DEBUG", f"set_stat failed to convert gid to group name for group {st.st_gid} line: {line}"))
+            emit_log("DEBUG", f"set_stat failed to convert gid to group name for group {st.st_gid} line: {line}", logger)
             group = str(st.st_gid)
         mode = oct(stat.S_IMODE(st.st_mode))[2:]  # '644'
         symlink = "y" if stat.S_ISLNK(st.st_mode) else None

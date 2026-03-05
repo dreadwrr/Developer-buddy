@@ -20,7 +20,7 @@ from gpgcrypto import decr
 from gpgcrypto import encr
 from gpgcrypto import gpg_can_decrypt
 from gpgkeymanagement import delete_gpg_keys
-from logs import filename_of_handler, setup_logger
+from logs import setup_logger
 from pyfunctions import get_delete_patterns
 from pyfunctions import is_integer
 from pyfunctions import reset_csvliteral
@@ -104,7 +104,6 @@ def hardlinks(database, target, conn, cur, user, email, compLVL):
             user_input = input("Previous 'hardlinks' data has to be cleared. Continue? (y/n): ").strip().lower()
             if user_input == 'y':
                 cur.execute("UPDATE logs SET hardlinks = NULL WHERE hardlinks IS NOT NULL AND hardlinks != ''")
-                conn.commit()
             else:
                 return 0
 
@@ -195,9 +194,8 @@ def clear_cache(database, target, flth, conn, cur, email, usr, compLVL):
     try:
         for filename_pattern in files_d:
             cur.execute("DELETE FROM logs WHERE filename LIKE ?", (filename_pattern,))
-            conn.commit()
             cur.execute("DELETE FROM stats WHERE filename LIKE ?", (filename_pattern,))
-            conn.commit()
+        conn.commit()
 
         nc = cnc(target, compLVL)
         rlt = encr(database, target, email, no_compression=nc, dcr=True)
@@ -616,7 +614,7 @@ def main(usr, reset=None):
                         WHERE TRIM(filename) != ''
                         ''')  # Ext
                         filenames = cur.fetchall()
-                        filenames = [row[0] for row in filenames]
+                        filenames = [row[0] for row in filenames]  # replaces ln 646
                         extensions = []
                         directories = []
                         for filename in filenames:
@@ -643,9 +641,8 @@ def main(usr, reset=None):
                         for directory, count in top_3_directories:
                             print(f'{count}: {directory}')
                         print()
-                        # made on ln 619
-                        # cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''")  # common file 5
-                        # filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines
+                        # cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''")  # common file 5 # original
+                        # filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines # original
                         filename_counts = Counter(filenames)
                         top_5_filenames = filename_counts.most_common(5)
                         cprint.cyan("Top 5 created")
@@ -702,7 +699,6 @@ def main(usr, reset=None):
                 else:
                     # no recent.db file permission error abort so sql doesnt make an empty database
                     print("Unable to locate database: ", dbopt)
-
             # User has no key
             elif result is None:
                 ctime_path = ctimecache.name
