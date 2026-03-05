@@ -1,8 +1,8 @@
 #                               03/04/2026
 ## Python edition <br>
 v1.2.8-py2 Released!<br>
-Change to logging system and multiprocessing
-changed launch script to offload to python script. updated gpg creation bash script
+Change to logging system and multiprocessing <br>
+changed launch script to offload to python script. updated gpg creation bash script <br>
 New hash collision detection method <br>
 v1.2.8-py1 <br>
 New module creation logic for save-changesnew <br>
