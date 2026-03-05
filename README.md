@@ -13,7 +13,7 @@ Version available <br>
 1.2.8-py2 <br>
 1.2.8 Bash text backend or bash python database backend new release! <br>
 
-all versions are updated with Qt version hybrid analysis and changes <br>
+all versions updated with Qt version hybrid analysis changes <br>
 <br>
 
 
