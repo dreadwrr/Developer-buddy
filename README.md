@@ -2,7 +2,7 @@
 First started a Qt gui for Windows 10/11. https://github.com/dreadwrr/Recentchanges <br>
 released Qt for linux https://github.com/dreadwrr/Recentchanges-Linux<br><br>
 
-new release for linux Qt! <br>
+new qt release linux! <br>
 released Qt update for windows 10/11<br><br>
 
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
