@@ -1,5 +1,5 @@
 
-# hybrid analysis  03/02/2025
+# hybrid analysis  03/15/2026
 import os
 import sqlite3
 from datetime import datetime, timedelta
@@ -162,11 +162,10 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr):
                         # aperm = stat.filemode(st.st_mode) # '-rw-r--r--'
                         # a_ctime = st.st_ctime
                         # ctime_str = epoch_to_date(a_ctime).replace(microsecond=0)
-
                         if is_valid_datetime(record[4], fmt):  # access time format check
                             previous_mtime_us = previous[13]
                             if isinstance(previous_mtime_us, int) and mtime_usec_zero == previous_mtime_us:
-                                if not cam_file:
+                                if not cam_file and recent_sym != "y":
                                     if record[5] != previous[5]:
                                         csum = True
                                         entry["flag"].append(f'Suspect {record[0]} {record[2]} {label}')

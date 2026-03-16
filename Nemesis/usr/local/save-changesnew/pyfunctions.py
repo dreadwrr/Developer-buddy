@@ -1,12 +1,15 @@
 import fnmatch
 import hashlib
 import os
+import sqlite3
 import subprocess
 import traceback
 from collections import defaultdict
 from datetime import datetime
+# 03/15/2026
 
-# Cache clear patterns to delete from db - see /usr/local/save-changesnew/clearcache to reset filter hits ln33
+
+# Cache clear patterns to delete from db. see /usr/local/save-changesnew/clearcache to reset filter hits to 0 ln33
 
 cache_clear = [
     "%caches%",
@@ -14,7 +17,7 @@ cache_clear = [
     "%Cache2%",
     "%.cache%",
     "%share/Trash%",
-    f"%home/{{user}}/.local/state/wireplumber%",
+    "%home/{{user}}/.local/state/wireplumber%",
     "%usr/share/mime/application%",
     "%usr/share/mime/text%",
     "%usr/share/mime/image%",
@@ -29,46 +32,8 @@ RESET = "\033[0m"
 
 
 def get_delete_patterns(usr):  # db cache clr
-    patterns = [p.replace("{user}", usr) for p in cache_clear]
+    patterns = [p.replace("{{user}}", usr) for p in cache_clear]
     return patterns
-
-
-def collision(cursor, is_sys):
-    try:
-        if is_sys:
-            tables = ['logs', 'sys']
-            union_sql = " UNION ALL ".join([
-                f"SELECT filename, checksum, filesize FROM {t} WHERE checksum IS NOT NULL" for t in tables
-            ])
-            query = f"""
-                WITH combined AS (
-                    {union_sql}
-                )
-                SELECT a.filename, b.filename, a.checksum, a.filesize, b.filesize
-                FROM combined a
-                JOIN combined b
-                ON a.checksum = b.checksum
-                AND a.filename < b.filename
-                AND a.filesize != b.filesize
-                ORDER BY a.checksum, a.filename
-            """
-        else:
-            query = """
-                SELECT a.filename, b.filename, a.checksum, a.filesize, b.filesize
-                FROM logs a
-                JOIN logs b
-                ON a.checksum = b.checksum
-                AND a.filename < b.filename
-                AND a.filesize != b.filesize
-                WHERE a.checksum IS NOT NULL
-                ORDER BY a.checksum, a.filename
-            """
-
-        cursor.execute(query)
-        return cursor.fetchall()
-    except Exception as e:
-        print(f"Database error in collision detection: {type(e).__name__} : {e}")
-        return []
 
 
 # 11/28/2025
@@ -151,8 +116,9 @@ def increment_f(conn, c, records):
 
     inserted_entry = []
 
-    for record in records:
-        try:
+    try:
+        for record in records:
+
             c.execute("""
                 INSERT OR IGNORE INTO sys (
                     timestamp, filename, changetime, inode, accesstime, checksum,
@@ -164,19 +130,20 @@ def increment_f(conn, c, records):
             if c.rowcount > 0:
                 inserted_entry.append(record[1])
 
-        except Exception as e:
-            conn.rollback()
-            print(f"Error while insert sys records skipping was unable to complete and then update count. increment_f {type(e).__name__} : {e}  \n{traceback.format_exc()}")
-            return False
+        for filename in inserted_entry:
+            c.execute("UPDATE sys SET count = count + 1 WHERE filename = ?", (filename,))
+        return True
 
-    for filename in inserted_entry:
-        c.execute("UPDATE sys SET count = count + 1 WHERE filename = ?", (filename,))
-
-    conn.commit()
-    return True
+    except sqlite3.OperationalError as e:
+        print(f"Error while insert sys records skipping was unable to complete and then update count. increment_f {type(e).__name__} : {e}  \n{traceback.format_exc()}")
+    except Exception as e:
+        err = f"Error increment_f table sys {type(e).__name__} {e}"  # \n{traceback.format_exc()}
+        print(err)
+    return False
 
 
 def collision_check(xdata, cerr, c, ps):
+    """ return collisions from the database. not used currently """
     reported = set()
     csum = False
     colcheck = collision(c, ps)
@@ -205,6 +172,45 @@ def collision_check(xdata, cerr, c, ps):
         except IOError as e:
             print(f"Failed to write collisions: {e} {type(e).__name__}  \n{traceback.format_exc()}")
     return csum
+
+
+def collision(cursor, is_sys):
+    " not used currently for above see ln206 pstsrg.py"
+    try:
+        if is_sys:
+            tables = ['logs', 'sys']
+            union_sql = " UNION ALL ".join([
+                f"SELECT filename, checksum, filesize FROM {t} WHERE checksum IS NOT NULL" for t in tables
+            ])
+            query = f"""
+                WITH combined AS (
+                    {union_sql}
+                )
+                SELECT a.filename, b.filename, a.checksum, a.filesize, b.filesize
+                FROM combined a
+                JOIN combined b
+                ON a.checksum = b.checksum
+                AND a.filename < b.filename
+                AND a.filesize != b.filesize
+                ORDER BY a.checksum, a.filename
+            """
+        else:
+            query = """
+                SELECT a.filename, b.filename, a.checksum, a.filesize, b.filesize
+                FROM logs a
+                JOIN logs b
+                ON a.checksum = b.checksum
+                AND a.filename < b.filename
+                AND a.filesize != b.filesize
+                WHERE a.checksum IS NOT NULL
+                ORDER BY a.checksum, a.filename
+            """
+
+        cursor.execute(query)
+        return cursor.fetchall()
+    except Exception as e:
+        print(f"Database error in collision detection: {type(e).__name__} : {e}")
+        return []
 
 
 def matches_any_pattern(s, patterns):

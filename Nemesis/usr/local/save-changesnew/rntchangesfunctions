@@ -8,6 +8,7 @@ webb=(
     'mozilla'
 	'\.mozilla'
 	'chromium-ungoogled'
+	'\.local/share/Trash'
 # other
 )
 }
@@ -152,6 +153,7 @@ remove_gpg() {
 	test -f "$logpst" && rm -f "$logpst"
 	test -f "$statpst" && rm -f "$statpst"
 	test -f "$pydbpst" && rm -f "$pydbpst"
+	test -f "$flth" && rm -f "$flth"
 }
 generatekey() {
     read -sp "Enter passphrase for new GPG key: " p
@@ -165,11 +167,10 @@ Subkey-Length: 4096
 Name-Real: John Doe
 Name-Email: $email
 Expire-Date: 0
-Passphrase: $p
 %commit
 %echo done
 EOF
-    gpg --batch --pinentry-mode loopback  --passphrase "$p" --generate-key /tmp/keyparams.conf
+    printf '%s' "$p" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --generate-key /tmp/keyparams.conf
     shred -u /tmp/keyparams.conf
 	# [[ -n "$home_dir" && "$home_dir" != "/" ]] && test -d "$home_dir" && find "$home_dir" -maxdepth 1 -type f -name '*.gpg' -exec rm -f -- {} +
 	remove_gpg
@@ -924,9 +925,9 @@ local xmode="$1"				;	local file_path="$2"
 local modified_epoch=$3	;	local ino=$4
 local sze=$5	;	local x=$6
 local delay=$7
-# local debug_log=$8
-# local debug_file=$9
-# local log_date=${10}
+local debug_log=$8
+local debug_file=$9
+local log_date=${10}
 # globals are fmt csum mtime itime mt ct fs i sym n onr grp pmr
 local ctime_epoch
 local f1 f2 f3 f4 a_ino a_sym a_nlnk a_sze a_onr a_grp a_prm
@@ -957,12 +958,14 @@ if [ "$ino" -ge 0 ] 2>/dev/null && [ "$sze" -ge 0 ] 2>/dev/null; then
 					fs=$a_sze
 					# the inode changed update all remaining stats
 					if (( ino != a_ino )); then
-						i=$a_ino
-						sym=$a_sym
-						n=$a_nlnk
-						onr=$a_onr
-						grp=$a_grp
-						pmr=$a_prm
+						check_sum="None"
+						log_lineout $debug_log $debug_file "$log_date" "calculate_csum inode changed $a_ino vs $ino discarding checksum for: $file_path"
+						#i=$a_ino
+						#sym=$a_sym
+						#n=$a_nlnk
+						#onr=$a_onr
+						#grp=$a_grp
+						#pmr=$a_prm
 					fi
 					return 0
 				fi
@@ -1008,7 +1011,7 @@ if [ "$ino" -ge 0 ] 2>/dev/null && [ "$sze" -ge 0 ] 2>/dev/null; then
 	    (( x-- ))
 	done
 fi
-# log_lineout $debug_log $debug_file "$log_date" "calculate_csum failed no checksum skipping. retry $(( max_retries - x ))"
+log_lineout $debug_log $debug_file "$log_date" "calculate_csum failed no checksum skipping. retry $(( max_retries - x ))"
 return 1
 }
 # Used for sysprofile as you dont want to cache the checksum

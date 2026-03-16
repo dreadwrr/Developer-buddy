@@ -27,7 +27,7 @@ from pyfunctions import intst
 from pyfunctions import is_integer
 from pyfunctions import to_bool
 from pyfunctions import update_config
-# 03/02/2026
+# 03/15/2026
 
 # see pyfunctions.py cache clear patterns for db
 
@@ -251,6 +251,7 @@ def clear_sys(database, target, conn, cur, config_file, email, compLVL, dcr=True
 def activateps(parsedsys, database, target, conn, cur, email, compLVL):
     try:
         insert(parsedsys, conn, cur, "sys", ['count', 'mtime_us'])
+        conn.commit()
         nc = intst(database, compLVL)
         rlt = encr(database, target, email, no_compression=nc, dcr=True)
         if rlt:
@@ -573,7 +574,7 @@ def main():
     email = sys.argv[4]
     turbo = sys.argv[5]
     compLVL = int(sys.argv[6])
-    checkSUM = to_bool(sys.argv[7])
+    # checkSUM = to_bool(sys.argv[7])
     reset = to_bool(sys.argv[8]) if len(sys.argv) > 8 else False
     logpst = sys.argv[9] if len(sys.argv) > 9 else None
     statpst = sys.argv[10] if len(sys.argv) > 10 else None
@@ -602,8 +603,8 @@ def main():
                             FROM logs
                             WHERE accesstime IS NOT NULL;
                         """)
-                        result = cur.fetchone()
-                        average_accesstime = result[0] if result and result[0] is not None else None
+                        rows = cur.fetchone()
+                        average_accesstime = rows[0] if rows and rows[0] is not None else None
                         if average_accesstime:
                             print(f'Average access time: {average_accesstime}')
                         print(f'Avg hour of activity: {atime}')
@@ -634,13 +635,19 @@ def main():
                         WHERE TRIM(filename) != ''
                         ''')  # Ext
                         filenames = cur.fetchall()
+                        filenames = [row[0] for row in filenames]
                         extensions = []
-                        for entry in filenames:
-                            filepath = entry[0]
-                            if '.' in filepath:
-                                ext = '.' + filepath.split('.')[-1] if '.' in filepath else ''
-                            else:
+                        directories = []
+                        for filename in filenames:
+                            if not filename:
+                                continue
+                            directories.append(os.path.dirname(filename))  # get the top directories as well
+                            filepath = Path(filename)
+                            filename = filepath.name
+                            if filename.startswith('.') or '.' not in filename:
                                 ext = '[no extension]'
+                            else:
+                                ext = '.' + '.'.join(filename.split('.')[1:])
                             extensions.append(ext)
                         if extensions:
                             counter = Counter(extensions)
@@ -649,15 +656,14 @@ def main():
                             for ext, count in top_3:
                                 print(f"{ext}")
                         print()
-                        directories = [os.path.dirname(filename[0]) for filename in filenames]  # top directories
-                        directory_counts = Counter(directories)
+                        directory_counts = Counter(directories)  # top directories ln644
                         top_3_directories = directory_counts.most_common(3)
                         print(f'{CYAN}Top 3 directories {RESET}')
                         for directory, count in top_3_directories:
                             print(f'{count}: {directory}')
                         print()
-                        cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''")  # common file 5
-                        filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines
+                        # cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''")  # common file 5 # original
+                        # filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines # original
                         filename_counts = Counter(filenames)
                         top_5_filenames = filename_counts.most_common(5)
                         print(f'{CYAN}Top 5 created {RESET}')
@@ -697,9 +703,10 @@ def main():
                                 print(f'{count} {filename}')
                         print()
                         print(f"{GREEN}Filter hits{RESET}")
-                        with open('/usr/local/save-changesnew/flth.csv', 'r') as file:
-                            for line in file:
-                                print(line, end='')
+                        if os.path.isfile('/usr/local/save-changesnew/flth.csv'):
+                            with open('/usr/local/save-changesnew/flth.csv', 'r') as file:
+                                for line in file:
+                                    print(line, end='')
                         if showdb("display database?"):
                             if os.environ.get("XDG_SESSION_TYPE") == "wayland":
                                 print('Wayland session switch to root and call query for display.')

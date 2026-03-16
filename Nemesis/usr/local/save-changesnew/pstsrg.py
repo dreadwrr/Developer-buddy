@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       02/25/2026
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       03/15/2026
 import os
 import re
 import shutil
@@ -10,7 +10,6 @@ import traceback
 from hanlyparallel import hanly_parallel
 from pyfunctions import ap_decode
 from pyfunctions import CYAN, GREEN, RESET
-from pyfunctions import collision_check
 from pyfunctions import getcount
 from pyfunctions import getnm
 from pyfunctions import intst
@@ -131,11 +130,13 @@ def create_table(c, table, unique_columns, e_cols=None):
     if table == 'logs':
         c.execute(f'{sql} idx_logs_checksum ON logs (checksum)')
         c.execute(f'{sql} idx_logs_filename ON logs (filename)')
-        c.execute(f'{sql} idx_logs_checksum_filename ON logs (checksum, filename)')  # Composite
+        # c.execute(f'{sql} idx_logs_checksum_filename ON logs (checksum, filename)')  # Composite original
+        c.execute(f'{sql} idx_logs_collision ON logs (checksum, filesize, filename)')
     else:
         c.execute(f'{sql} idx_sys_checksum ON sys (checksum)')
         c.execute(f'{sql} idx_sys_filename ON sys (filename)')
-        c.execute(f'{sql} idx_sys_checksum_filename ON sys (checksum, filename)')
+        # c.execute(f'{sql} idx_sys_checksum_filename ON sys (checksum, filename)')
+        c.execute(f'{sql} idx_sys_collision ON sys (checksum, filesize, filename)')
 
 
 def create_db(database, action=False):
@@ -178,7 +179,7 @@ def insert(log, conn, c, table, add_column=None):  # Log, sys
         if isinstance(add_column, (tuple, list)):
             columns.extend(add_column)
         else:
-            raise TypeError("add_column must be str, tuple, or list")
+            raise TypeError("add_column must be tuple, or list")
     placeholders = ', '.join(['?'] * len(columns))
     col_str = ', '.join(columns)
     c.executemany(
@@ -193,8 +194,6 @@ def insert(log, conn, c, table, add_column=None):  # Log, sys
                 blank_row
         )
 
-    conn.commit()
-
 
 def insert_if_not_exists(action, timestamp, filename, changetime, conn, c):  # Stats
     timestamp = timestamp or None
@@ -202,7 +201,89 @@ def insert_if_not_exists(action, timestamp, filename, changetime, conn, c):  # S
     INSERT OR IGNORE INTO stats (action, timestamp, filename, changetime)
     VALUES (?, ?, ?, ?)
     ''', (action, timestamp, filename, changetime))
-    conn.commit()
+
+
+def collision_check(xdata, cerr, c, ps):
+    reported = set()
+    csum = False
+    if not xdata:
+        return False
+
+    current_rows = set()
+    for record in xdata:
+        if not record or len(record) < 7:
+            continue
+        filename = record[1]
+        file_hash = record[5]
+        file_size = record[6]
+        if not (filename and file_hash and file_size):
+            continue
+
+        current_rows.add((filename, file_hash, file_size))
+
+    if not current_rows:
+        return False
+
+    try:
+        c.execute(
+            """
+            CREATE TEMP TABLE IF NOT EXISTS current_search_collisions (
+                filename TEXT NOT NULL,
+                checksum TEXT NOT NULL,
+                filesize INTEGER NOT NULL
+            )
+            """
+        )
+        c.execute("DELETE FROM current_search_collisions")
+        c.executemany(
+            "INSERT INTO current_search_collisions (filename, checksum, filesize) VALUES (?, ?, ?)",
+            list(current_rows),
+        )
+
+        if ps:
+            db_rows_sql = (
+                "SELECT filename, checksum, filesize FROM logs WHERE checksum IS NOT NULL "
+                "UNION ALL "
+                "SELECT filename, checksum, filesize FROM sys WHERE checksum IS NOT NULL"
+            )
+        else:
+            db_rows_sql = "SELECT filename, checksum, filesize FROM logs WHERE checksum IS NOT NULL"
+
+        c.execute(
+            f"""
+            WITH db_rows AS (
+                {db_rows_sql}
+            )
+            SELECT DISTINCT
+                cur.filename,
+                db.filename,
+                cur.checksum,
+                cur.filesize,
+                db.filesize
+            FROM current_search_collisions cur
+            JOIN db_rows db
+                ON db.checksum = cur.checksum
+            WHERE db.filename != cur.filename
+              AND db.filesize != cur.filesize
+            """
+        )
+        colcheck = c.fetchall()
+    except sqlite3.DatabaseError as e:
+        print(f"Database error in collision detection: {type(e).__name__} : {e}")
+        return False
+
+    if colcheck:
+        try:
+            with open(cerr, "a", encoding="utf-8") as f:
+                for filename, other_file, file_hash, size1, size2 in colcheck:
+                    pair = tuple(sorted([filename, other_file]))
+                    if pair not in reported:
+                        csum = True
+                        print(f"COLLISION: {filename} {size1} vs {other_file} {size2} | Hash: {file_hash}", file=f)
+                        reported.add(pair)
+        except IOError as e:
+            print(f"Failed to write collisions: {e} {type(e).__name__}  \n{traceback.format_exc()}")
+    return csum
 
 
 def parse_line(line):
@@ -303,7 +384,7 @@ def parselog(file, table, checksum):
                         try:
                             target = os.readlink(filename)
                         except OSError:
-                            print("skipped error resolving symlink target, file: %s", filename)
+                            print("skipped error resolving symlink target, file: ", filename)
 
                     results.append((timestamp, filename, changetime, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, cam, target, lastmodified, count, usec))
                 elif table == 'sortcomplete':
@@ -465,7 +546,8 @@ def main():
             print("pstsrg.py couldnt locate database: ", dbopt, " quiting.")
             return 1
         conn = sqlite3.connect(dbopt)
-    with conn:
+    c = None
+    try:
         c = conn.cursor()
 
         parsed = parselog(xdata, 'sortcomplete', checksum)   # SORTCOMPLETE/Log
@@ -487,7 +569,6 @@ def main():
 
                     except Exception as e:
                         print(f'sys db failed insert {e}  {type(e).__name__} \n{traceback.format_exc()}')
-                        db_error = True
 
             elif ps:
                 print('Sys profile requires the setting checksum to index')
@@ -513,14 +594,14 @@ def main():
                 if count % 10 == 0:
                     print(f'{count + 1} searches in gpg database')
 
+                # Check for hash collisions
+                if checksum and cdiag:
+                    if collision_check(parsed, cerr, c, ps):
+                        csum = True
+
             except Exception as e:
                 print(f'log db failed insert err: {e} {type(e).__name__}  \n{traceback.format_exc()}')
                 db_error = True
-
-            # Check for hash collisions
-            if checksum and cdiag:
-                if collision_check(parsed, cerr, c, ps):
-                    csum = True
 
             if turbo == 'mc':
                 x = os.cpu_count()
@@ -556,23 +637,28 @@ def main():
                 print(f'stats db failed to insert err: {e}  \n{traceback.format_exc()}')
                 db_error = True
 
-    if not db_error:  # Encrypt if o.k.
-        try:
+        if not db_error:  # Encrypt if o.k.
+            try:
+                conn.commit()
+                nc = intst(dbopt, compLVL)
+                sts = encr(dbopt, dbtarget, email, no_compression=nc, dcr=True)
+                if not sts:
+                    res = 3  # & 2 gpg problem
+                    print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}   before running again.')
 
-            nc = intst(dbopt, compLVL)
-            sts = encr(dbopt, dbtarget, email, no_compression=nc, dcr=True)
-            if not sts:
-                res = 3  # & 2 gpg problem
-                print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}   before running again.')
+            except Exception as e:
+                res = 3
+                print(f'Encryption failed: {e}')
 
-        except Exception as e:
-            res = 3
-            print(f'Encryption failed: {e}')
-
-    else:
-        res = 4  # delete any changes made.
-        print('There is a problem with the database.')
-
+        else:
+            conn.rollback()
+            res = 4  # delete any changes made.
+            print('There is a problem with the database.')
+    finally:
+        if c:
+            c.close()
+        if conn:
+            conn.close()
     if res != 3:
         removefile(dbopt)
 
