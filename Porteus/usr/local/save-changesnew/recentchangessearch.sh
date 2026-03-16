@@ -2,8 +2,6 @@
 #      recentchanges search             Developer Buddy v5.0     03/02/2026
 . /usr/share/porteus/porteus-functions
 get_colors
-: "${home_dir:=/usr/local/save-changesnew}"
-. "$home_dir/rntchangesfunctions"
 USR=$3
 if [ "$USR" == "" ]; then echo please call from recentchanges; exit; fi
 if [ "$4" == "" ]; then echo "incorrect usage please call from recentchanges"; exit 1; fi
@@ -38,10 +36,10 @@ SORTCOMPLETE=$tmp/list_complete_sorted.txt				;		xdata3=$atmp$workdir/temp_log.l
 TMPOUTPUT=$tmp/list_tmp_sorted.txt							;		tfile=$atmp$xdata
 TMPOPT=$tmp/tmp_holding											;		tfile2=$atmp$xdata2
 COMPLETE=$tmp/list_complete.txt									;		pytmp=$atmp/pytmp.tmp
-COMPLETENUL=$tmp/list_completenul.txt						;		flth="$home_dir/flth.csv"
-TMPCOMPLETE=$tmp/tmp_complete.txt							;		LCLMODULENAME=${chxzm:1:8}
-slog=/tmp/scr																;		USRDIR=/home/$USR/Downloads
-cerr=/tmp/cerr																;		log_file=/tmp/file_creation_log.txt
+COMPLETENUL=$tmp/list_completenul.txt						;		LCLMODULENAME=${chxzm:1:8}
+TMPCOMPLETE=$tmp/tmp_complete.txt							;		USRDIR=/home/$USR/Downloads
+slog=/tmp/scr																;		log_file=/tmp/file_creation_log.txt
+cerr=/tmp/cerr																
 
 cores=0                                                     					;		max_jobs=0
 OLDSORTED=""
