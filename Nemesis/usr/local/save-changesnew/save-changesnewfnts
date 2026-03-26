@@ -1,5 +1,5 @@
 #!/bin/bash
-# save-changesnew functions to move options further up the script             03/02/2026
+# save-changesnew functions to move options further up the script             03/25/2026
 . /usr/local/save-changesnew/mergemodulesfunctions
 dycmb() {
 TFLD=""
@@ -181,7 +181,7 @@ if [[ -f /dev/shm/xsc ]]; then
 			mv $QEXCL $EXFILES # reset exclusions to rsync
 			# mv $SFILES $QEXCL  # uncomment to apply the exclusions again on ln184 in package_xzm
 			procxzm "true"  # copy to $mtmp
-			# still in changes  
+			# still in changes
 			cd $target$em
 			package_xzm $mtmp $keepMRGED $elog $is_routine $is_merge $output
 			is_rollback $mtmp "_uid_" $ROLLBCK $ROLLSUMRY $archLMT $is_routine
@@ -236,7 +236,7 @@ if [[ -f /dev/shm/xsc ]]; then
 						return 1
 					fi
 
-					find "$dest/" -type f -name '.wh.*' -printf '%P\n' > $tmp/whmarkers
+					# # find "$dest/" -type f -name '.wh.*' -printf '%P\n' > $tmp/whmarkers
 					rsync -a "$dest/" "$tmp" --exclude '.wh.*'
 					rlt=$?
 					if [ "$rlt" -ne 0 ]; then 
@@ -264,35 +264,17 @@ if [[ -f /dev/shm/xsc ]]; then
 
 		 # --out-format="%f" consistent log depends on version of rsync ** important
 		c="${mtmp#/}" 
-		sed -i -e "\|$c/\.|d" -e "s|$c/||" -e '/^\./d' $UPDATE  # remove the unusable first line  .
+		sed -i -e "\|$c/\.|d" -e "s|$c/||" -e '/^\./d' $UPDATE  # remove the unusable . or dot in first line
 		cp $UPDATE $keep
 
         # --out-format="%n" using relative
 		#sed -i -e '/^\./d' -e '/\/$/d' $UPDATE # remove the unusable first line  . and any ending in /
 		#cp $UPDATE $keep  # what needs to be transfered with usable paths
 
-		cat $tmp/contents | grep -Fxvf $keep > $remove # the changes folder - what would be transfered = remove
+		cat $tmp/contents | grep -Fxvf $keep > $remove # (changes folder) - (what would be transfered) = remove
 		cat $remove >> $EXFILES # exclude these
 
 		labelmk $oMF # copy\insert log before .xzm
-
-        # on subsequent runs compare to the most recent extracted the .wh. so not including duplicate .wh.
-        # if whmarkers is unavailable fall back
-        shopt -s nullglob
-        while IFS= read -r -d '' file; do
-
-            if [[ -e "$tmp"/whmarkers ]]; then
-                grep -Fxq -- "$file" "$tmp"/whmarkers || echo "$file" >> $EXFILES
-            else
-                k="$( echo "$file" | sed -e 's/\.wh\.//g')"  # k=$( echo "$file" | sed -E 's|(.*\/)\.wh\.|\1|') # alternative
-                found="false"
-                items=( "$INAME"/*/"$k" )
-                if ((${#items[@]})); then found="true" ; fi
-                test -e "$tmp/$k" && found="true"
-                [[ "$found" = "true" ]] || echo "$file" >> $EXFILES
-            fi
-        done < <(find "$ch/" -type f -name '.wh.*' -printf '%P\0')
-        shopt -u nullglob
 
         # cp $tmp/contents /home/guest/contents  # debug
         # cp $keep /home/guest/keep  # debug
@@ -337,7 +319,7 @@ mkdir $tmp
 mkdir $mtmp
 cp $EXFILES $QEXCL  # Backup EXFILES because we have to manipulate it to work with mksquash. EXFILES has all exclusions from changes-commit and VARS processed at top of script
 # Process wildcards for mksquashfs
-while IFS= read -r l; do [[ -z "$l" ]] && continue ; if [[ "$l" == \** ]]; then echo "$l" ; fi ; done < $EXFILES > $exclfiles  # read patterns from $EXCLUDE ie *share/Trash* 
+while IFS= read -r l; do [[ -z "$l" ]] && continue ; if [[ "$l" == \** ]]; then echo "$l" ; fi ; done < $EXFILES > $exclfiles  # read patterns from $EXCLUDE ie *share/Trash*
 # $trsyncexl is excld.ini. 
 # $exclfiles our patterns from $EXCLUDE
 # Instead of sed can use  -printf '%P\n'  <--- works
@@ -381,13 +363,13 @@ mkdir -p "$mtmp$LOGDIR"
 if [ "$mdlLOGPRF" == "full" ]; then
     { echo ; cat $UPDATE ; } >> $LOGDIR/$LOGFILE ; rm $UPDATE ; cp $LOGDIR/$LOGFILE $mtmp$LOGDIR/$LOGFILE
 elif [ "$mdlLOGPRF" == "incr" ]; then
-    test -e $ch$LOGDIR/$LOGFILE && rm $ch$LOGDIR/$LOGFILE ; cp $UPDATE $mtmp$LOGDIR/$LOGFILE && mv $UPDATE $LOGDIR/$LOGFILE    
+    test -e $ch$LOGDIR/$LOGFILE && rm $ch$LOGDIR/$LOGFILE ; cp $UPDATE $mtmp$LOGDIR/$LOGFILE && mv $UPDATE $LOGDIR/$LOGFILE
 fi
 }
-run_cmd() { 
+run_cmd() {
 if [ "$FEEDBACK" != "true" ]; then 
 	"$@" >>"$UPDATE" 2>/dev/null
-	trlt=$? 
+	trlt=$?
 else 
 	"$@" | tee -a "$UPDATE"
 	trlt=${PIPESTATUS[0]}
@@ -421,7 +403,7 @@ if [[ "$1" = "true" ]]; then
     done
     unset IFS
     #find $mtmp -name ".wh.*" -exec rm -r {} \;  # ! -name ".wh..*"  routine to delete all .wh. in $mtmp
-fi  
+fi
 # _uid_ or _uid_L
 base_cmd=(rsync -aHv "${adtcmd[@]}" --exclude-from=$trsyncexl) && [[ -s "$EXFILES" ]] && base_cmd+=(--exclude-from=$EXFILES)
 run_cmd "${base_cmd[@]}" $FOLDERS "$mtmp/" ; errblk "$mtmp"  # merge

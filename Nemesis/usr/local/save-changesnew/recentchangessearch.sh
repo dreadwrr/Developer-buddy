@@ -1,5 +1,5 @@
 #!/bin/bash
-#      recentchanges search             Developer Buddy v5.0    03/02/2026
+#      recentchanges search             Developer Buddy v5.0    03/25/2026
 # If some as root calls the program with 2 arguments thats not intended use so exit
 # we would fail to get our correct username such as they put a second bogus argument
 . /usr/share/porteus/porteus-functions
@@ -34,10 +34,10 @@ SORTCOMPLETE=$tmp/list_complete_sorted.txt				;		xdata3=$atmp$workdir/temp_log.l
 TMPOUTPUT=$tmp/list_tmp_sorted.txt							;		tfile=$atmp$xdata
 TMPOPT=$tmp/tmp_holding											;		tfile2=$atmp$xdata2
 COMPLETE=$tmp/list_complete.txt									;		pytmp=$atmp/pytmp.tmp
-COMPLETENUL=$tmp/list_completenul.txt						;		flth=/usr/local/save-changesnew/flth.csv
-TMPCOMPLETE=$tmp/tmp_complete.txt							;		LCLMODULENAME=${chxzm:1:8}
-slog=/tmp/scr																;		USRDIR=/home/$USR/Downloads
-cerr=/tmp/cerr																;		log_file=/tmp/file_creation_log.txt
+COMPLETENUL=$tmp/list_completenul.txt						;		LCLMODULENAME=${chxzm:1:8}
+TMPCOMPLETE=$tmp/tmp_complete.txt							;		USRDIR=/home/$USR/Downloads
+slog=/tmp/scr																;		log_file=/tmp/file_creation_log.txt
+cerr=/tmp/cerr
 
 cores=0                                                     					;		max_jobs=0
 OLDSORTED=""

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import getpass
 import os
 import shutil
 import sqlite3
@@ -8,14 +7,13 @@ import sys
 import tempfile
 import tkinter as tk
 import traceback
-from pathlib import Path
 from tkinter import ttk
-from typing import Any
 from collections import defaultdict
 from collections import Counter
 from datetime import datetime
 from pstsrg import decr
 from pstsrg import encr
+from pstsrg import delete_gpg_keys
 from pstsrg import hash_system_profile
 from pstsrg import insert
 from pstsrg import table_has_data
@@ -27,7 +25,7 @@ from pyfunctions import intst
 from pyfunctions import is_integer
 from pyfunctions import to_bool
 from pyfunctions import update_config
-# 03/15/2026
+# 03/25/2026
 
 # see pyfunctions.py cache clear patterns for db
 
@@ -251,7 +249,6 @@ def clear_sys(database, target, conn, cur, config_file, email, compLVL, dcr=True
 def activateps(parsedsys, database, target, conn, cur, email, compLVL):
     try:
         insert(parsedsys, conn, cur, "sys", ['count', 'mtime_us'])
-        conn.commit()
         nc = intst(database, compLVL)
         rlt = encr(database, target, email, no_compression=nc, dcr=True)
         if rlt:
@@ -471,101 +468,6 @@ def showdb(question):
             print("Invalid input, please enter 'Y' or 'N'.")
 
 
-def get_user():
-    """ read from environ inaccurate """
-    user = None
-    try:
-        user = getpass.getuser()
-        #  user = pwd.getpwuid(os.geteuid()).pw_name
-    except (KeyError, OSError):
-        print("unable to get username attempting fallback")
-    if not user:
-        try:
-            user = Path.home().parts[-1]
-        except RuntimeError as e:
-            raise RuntimeError("unable to find current user.") from e
-    return user
-
-
-# required for batch deleting keys
-def get_key_fingerprint(email, no_key=False):
-    cmd = ["gpg", "--list-keys", "--with-colons", email]
-    # if no_key:
-    #     cmd = ["sudo"] + cmd
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True
-    )
-    for line in result.stdout.split('\n'):
-        if line.startswith('fpr:'):
-            return line.split(':')[9]
-    return None
-
-
-def delete_gpg_keys(usr, email, dbtarget, logpst, statpst):
-
-    def exec_delete_keys(usr, current_usr, email, fingerprint):
-        silent: dict[str, Any] = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
-
-        if usr == 'root':
-            subprocess.run(["gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
-            subprocess.run(["gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
-        else:
-            subprocess.run(["gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
-            subprocess.run(["gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
-            if current_usr == 'root':
-                subprocess.run(["sudo", "-u", usr, "gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
-                subprocess.run(["sudo", "-u", usr, "gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
-            else:
-                subprocess.run(["sudo", "gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
-                subprocess.run(["sudo", "gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
-        print("Keys cleared for", email, " fingerprint: ", fingerprint)
-
-    while True:
-
-        uinp = input(f"Warning recent.gpg will be cleared. Reset\\delete gpg keys for {email} (Y/N): ").strip().lower()
-        if uinp == 'y':
-            confirm = input("Are you sure? (Y/N): ").strip().lower()
-            if confirm == 'y':
-
-                result = False
-
-                current_usr = get_user()
-
-                # # look in root for key
-                # fingerprint = get_key_fingerprint(email, no_key=True)
-                # if fingerprint:
-                #     result = True
-                #     # delete for user and root
-                #     exec_delete_keys(usr, current_usr, email, fingerprint)
-
-                # look for key in user
-                fingerprint = get_key_fingerprint(email)
-                if fingerprint:
-                    result = True
-                    exec_delete_keys(usr, current_usr, email, fingerprint)
-
-                # removefile(ctimecache)
-                # removefile(dbtarget)
-
-                if result:
-                    # print(f"\nDelete {dbtarget} if it exists as it uses the old key pair.")
-                    return 0
-                else:
-                    print(f"No key found for {email}")
-                    return 2
-
-            else:
-                uinp = 'n'
-
-        if uinp == 'n':
-            print("quit")
-            return 1
-        else:
-            print("Invalid input, please enter 'Y' or 'N'.")
-
-
 def main():
 
     config_path = sys.argv[1]
@@ -574,7 +476,7 @@ def main():
     email = sys.argv[4]
     turbo = sys.argv[5]
     compLVL = int(sys.argv[6])
-    # checkSUM = to_bool(sys.argv[7])
+    checkSUM = to_bool(sys.argv[7])
     reset = to_bool(sys.argv[8]) if len(sys.argv) > 8 else False
     logpst = sys.argv[9] if len(sys.argv) > 9 else None
     statpst = sys.argv[10] if len(sys.argv) > 10 else None
@@ -603,8 +505,8 @@ def main():
                             FROM logs
                             WHERE accesstime IS NOT NULL;
                         """)
-                        rows = cur.fetchone()
-                        average_accesstime = rows[0] if rows and rows[0] is not None else None
+                        result = cur.fetchone()
+                        average_accesstime = result[0] if result and result[0] is not None else None
                         if average_accesstime:
                             print(f'Average access time: {average_accesstime}')
                         print(f'Avg hour of activity: {atime}')
@@ -635,19 +537,13 @@ def main():
                         WHERE TRIM(filename) != ''
                         ''')  # Ext
                         filenames = cur.fetchall()
-                        filenames = [row[0] for row in filenames]
                         extensions = []
-                        directories = []
-                        for filename in filenames:
-                            if not filename:
-                                continue
-                            directories.append(os.path.dirname(filename))  # get the top directories as well
-                            filepath = Path(filename)
-                            filename = filepath.name
-                            if filename.startswith('.') or '.' not in filename:
-                                ext = '[no extension]'
+                        for entry in filenames:
+                            filepath = entry[0]
+                            if '.' in filepath:
+                                ext = '.' + filepath.split('.')[-1] if '.' in filepath else ''
                             else:
-                                ext = '.' + '.'.join(filename.split('.')[1:])
+                                ext = '[no extension]'
                             extensions.append(ext)
                         if extensions:
                             counter = Counter(extensions)
@@ -656,14 +552,15 @@ def main():
                             for ext, count in top_3:
                                 print(f"{ext}")
                         print()
-                        directory_counts = Counter(directories)  # top directories ln644
+                        directories = [os.path.dirname(filename[0]) for filename in filenames]  # top directories
+                        directory_counts = Counter(directories)
                         top_3_directories = directory_counts.most_common(3)
                         print(f'{CYAN}Top 3 directories {RESET}')
                         for directory, count in top_3_directories:
                             print(f'{count}: {directory}')
                         print()
-                        # cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''")  # common file 5 # original
-                        # filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines # original
+                        cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''")  # common file 5
+                        filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines
                         filename_counts = Counter(filenames)
                         top_5_filenames = filename_counts.most_common(5)
                         print(f'{CYAN}Top 5 created {RESET}')
@@ -703,10 +600,9 @@ def main():
                                 print(f'{count} {filename}')
                         print()
                         print(f"{GREEN}Filter hits{RESET}")
-                        if os.path.isfile('/usr/local/save-changesnew/flth.csv'):
-                            with open('/usr/local/save-changesnew/flth.csv', 'r') as file:
-                                for line in file:
-                                    print(line, end='')
+                        with open('/usr/local/save-changesnew/flth.csv', 'r') as file:
+                            for line in file:
+                                print(line, end='')
                         if showdb("display database?"):
                             if os.environ.get("XDG_SESSION_TYPE") == "wayland":
                                 print('Wayland session switch to root and call query for display.')

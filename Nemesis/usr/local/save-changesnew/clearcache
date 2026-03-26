@@ -1,7 +1,7 @@
 #!/bin/bash
-# Clear cache from gpgs                 01/17/2026 
+# Clear cache from gpgs                 03/25/2026
 # usage. None required. $1 username if one isnt provided default is used `guest`. $2 means from database reset literal exit early
-# 08/23/2025 3/15/2026
+# 08/23/2025 12/30/2025
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/save-changesnewfnts
@@ -32,10 +32,7 @@ clear_flth() {
 if [ -z "${patterns+x}" ]; then patterns=() ; fi
 patterns+=("\/home\/'\"\${2}\"'\/Downloads\/rntfiles") 
 patterns+=("\/home\/'\"\${2}\"'\/\.local\/state\/wireplumber")
-patterns+=("\.cache")
-patterns+=("\/home\/'\"\${2}\"'\/\.config")
-patterns+=("\.local\/share")
-# patterns+=("\.bash_history")example as flth.csv is literal.  Note anything after "sed -i '/ and before /d'
+# patterns+=("\.local\/share")  example as flth.csv is literal.  anything after "sed -i '/ and before /d'
 for pat in "${patterns[@]}"; do lno=$(grep -Fn "sed -i '/$pat/d'" "$flth" | cut -d: -f1) ; if [[ -n $lno ]]; then sed -i "${lno}s/,[0-9]\+\$/,0/" $flth ; fi ; done
 }
 
@@ -45,7 +42,7 @@ ctmp() { if [ -d /tmp/rc ]; then for file in /tmp/rc/*; do [[ -s $file ]] && cle
 decrypt(){	if ! gpg --yes -d -o $1 $2; then red "Failed to decrypt  ${2}" && rm $atmp && exit 1; fi; }
 encr() { if ! gpg --yes -e -r $mail -o $2 $1; then red "Rencryption failed. Everything preserved" && rm $atmp && exit 1; fi; }
 atmp=/tmp/atmp$$									;	logpst="/usr/local/save-changesnew/logs.gpg"
-efile="/usr/local/bin/recentchanges"			;	statpst="/usr/local/save-changesnew/stats.gpg"
+efile="/opt/recentchanges/recentchanges"	;	statpst="/usr/local/save-changesnew/stats.gpg"
 email="john.doe@email.com"					;	pydbpst="/usr/local/save-changesnew/recent.gpg"
 flth="/usr/local/save-changesnew/flth.csv"	;	xdata=$atmp/logs_stats.log
 rlt=""														;	mail=""
