@@ -104,15 +104,18 @@ for mods in "$PWD/"*_uid_*.xzm; do
 	((x++))
 	for candidate in "${candidates[@]}"; do
 	    if [ "$candidate" == "$mods" ]; then
+			ret=0
 			startmnt $is_merge
-			mount -o loop $mods $dest
-            #
-			wh_process $dest $2
-			# from above we cant remove the .wh. here as readonly
-			cp -afv $dest/. $1 2> >(tee $4 >&2)
-			ret=$?
+			if ! mount -o loop $mods $dest; then
+				ret=12
+			else
+				wh_process $dest $2
+				cp -afv $dest/. $1 2> >(tee $4 >&2)  # from above we cant remove the .wh. here as readonly
+				ret=$?
+			fi
+
 			if [ "$ret" -ne 0 ]; then
-				if grep -v '\.wh\.' $4 > /dev/null; then
+				if [ "$ret" -eq 12 ] || grep -v '\.wh\.' $4 > /dev/null; then
 					red "Error processing one of the modules ${mods}"
                     echo "dest $dest"
                     echo "output $1"
@@ -153,7 +156,7 @@ local is_merge="$5"  # is from save-changesnew have to unmount on failure
 local output="$6"
 base_cmd=(mksquashfs "$1" "${PWD}/${rname}" -comp $cmode)  # "${adtcmd[@]}"
 [[ -s "$QEXCL" ]] && base_cmd+=(-ef $QEXCL)
-while IFS= read -r ofile; do [[ -z "$ofile" || "$ofile" == \#* ]] && continue ; fname="$( basename "${ofile%.xzm}").bak" ; mv "$ofile" "$output$fname" ; done < "$oMF"  
+while IFS= read -r ofile; do [[ -z "$ofile" || "$ofile" == \#* ]] && continue ; fname="$( basename "${ofile%.xzm}").bak" ; mv "$ofile" "$output$fname" ; done < "$oMF"
 unset IFS
 "${base_cmd[@]}"
 ret=$?

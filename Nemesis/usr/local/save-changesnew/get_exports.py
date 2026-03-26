@@ -23,11 +23,11 @@ def get_exports():
     if user != "root":
         user_log = config.get("logs", {}).get("userLOG")
         log_path = log_dir / user_log
-        check_log_perms(log_path)
+        check_log_perms(log_path, log_dir)
         # ll_level = config['search']['logLEVEL']
         # setup_logger(log_path, ll_level, "EXPORTS")
 
-    # to /usr/local/bin/recentchanges
+    # to /opt/recentchanges/recentchanges
     nested_sections = {
         'email': ['backend'],
         'name': ['backend'],

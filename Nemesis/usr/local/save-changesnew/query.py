@@ -21,16 +21,17 @@ from gpgcrypto import encr
 from gpgcrypto import gpg_can_decrypt
 from gpgkeymanagement import delete_gpg_keys
 from logs import setup_logger
-from pyfunctions import get_delete_patterns
+from pyfunctions import cache_clear_patterns
 from pyfunctions import is_integer
 from pyfunctions import reset_csvliteral
+from pysql import blank_count
 from pysql import insert
 from pysql import table_has_data
 from rntchangesfunctions import cprint
 from rntchangesfunctions import name_of
 from rntchangesfunctions import cnc
 
-# 03/02/2026
+# 03/25/2026
 
 # see pyfunctions.py cache clear patterns for db
 
@@ -188,14 +189,15 @@ def hardlinks(database, target, conn, cur, user, email, compLVL):
         print(f"Error setting hardlinks: {e} {type(e).__name__} \n{traceback.format_exc()}")
 
 
-def clear_cache(database, target, flth, conn, cur, email, usr, compLVL):
-    files_d = get_delete_patterns(usr)
+def clear_cache(database, target, flth, conn, cur, email, compLVL, cachermPATTERNS):
+    files_d = cachermPATTERNS
     filename_pattern = None
     try:
         for filename_pattern in files_d:
             cur.execute("DELETE FROM logs WHERE filename LIKE ?", (filename_pattern,))
             cur.execute("DELETE FROM stats WHERE filename LIKE ?", (filename_pattern,))
-        conn.commit()
+        if filename_pattern is not None:
+            conn.commit()
 
         nc = cnc(target, compLVL)
         rlt = encr(database, target, email, no_compression=nc, dcr=True)
@@ -365,7 +367,7 @@ def sort_column(tree, col, columns):
         tree.move(item, '', index_)
 
 
-def results(database, target, conn, cur, email, user, flth, config_path, turbo, compLVL, logging_values):
+def results(database, target, conn, cur, email, user, flth, config_path, turbo, compLVL, logging_values, cachermPATTERNS):
     root = tk.Tk()
     root.title("Database Viewer")
     toolbar = tk.Frame(root)
@@ -411,7 +413,7 @@ def results(database, target, conn, cur, email, user, flth, config_path, turbo, 
 
     hardlink_button = tk.Button(toolbar, text="Set Hardlinks", command=lambda: hardlinks(database, target, conn, cur, user, email, compLVL))
     hardlink_button.pack(side=tk.RIGHT, padx=10)
-    clear_cache_button = tk.Button(toolbar, text="Clear Cache", command=lambda: clear_cache(database, target, flth, conn, cur, email, user, compLVL))
+    clear_cache_button = tk.Button(toolbar, text="Clear Cache", command=lambda: clear_cache(database, target, flth, conn, cur, email, compLVL, cachermPATTERNS))
     clear_cache_button.pack(side=tk.RIGHT, padx=10)
     new_button = tk.Button(lower_frame, text="Clear sys", command=lambda: clear_sys_and_redraw())
     new_button.pack(side=tk.RIGHT, padx=10)
@@ -472,21 +474,6 @@ def results(database, target, conn, cur, email, user, flth, config_path, turbo, 
     root.mainloop()
 
 
-def blank_count(curs):
-    curs.execute('''
-        SELECT COUNT(*)
-        FROM logs
-        WHERE (timestamp IS NULL OR timestamp = '')
-        AND (filename IS NULL OR filename = '')
-        AND (inode IS NULL OR inode = '')
-        AND (accesstime IS NULL OR accesstime = '')
-        AND (checksum IS NULL OR checksum = '')
-        AND (filesize IS NULL OR filesize = '')
-    ''')
-    count = curs.fetchone()
-    return count[0]
-
-
 def averagetm(conn, cur):
     c = conn.cursor()
     c.execute('''
@@ -526,6 +513,7 @@ def main(usr, reset=None):
     appdata_local = find_install()
     toml_file, _, _, _, _ = get_config(appdata_local, usr)
     config = load_toml(toml_file)
+    cachermPATTERNS = config['backend']['cachermPATTERNS']
     email = config['backend']['email']
     compLVL = config['logs']['compLVL']
     flth = appdata_local / "flth.csv"
@@ -536,6 +524,8 @@ def main(usr, reset=None):
     log_file = config['logs']['userLOG'] if usr != "root" else root_log_file
     turbo = config['search']['mMODE']
     # checksum = config['diagnostics']['checkSUM']
+
+    cachermPATTERNS = cache_clear_patterns(usr, cachermPATTERNS)
 
     log_file = appdata_local / "logs" / log_file
     output = name_of(dbtarget, '.db')
@@ -549,7 +539,7 @@ def main(usr, reset=None):
 
     if reset:
 
-        return delete_gpg_keys(usr, email, dbtarget, ctimecache)
+        return delete_gpg_keys(usr, email, dbtarget, ctimecache, flth)
 
     try:
 
@@ -690,7 +680,7 @@ def main(usr, reset=None):
                             wish_path = shutil.which("wish")
                             if wish_path:
                                 print(f'database in: {tempdir}')
-                                results(dbopt, dbtarget, conn, cur, email, usr, flth, toml_file, turbo, compLVL, logging_values)
+                                results(dbopt, dbtarget, conn, cur, email, usr, flth, toml_file, turbo, compLVL, logging_values, cachermPATTERNS)
                                 return 0
                             else:
                                 print("Install tk to display db.")

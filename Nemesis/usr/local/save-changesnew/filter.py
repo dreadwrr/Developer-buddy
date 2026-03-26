@@ -10,9 +10,8 @@
 # r'/var/run',
 # can be combined as
 # r'^/var/(cache|run)'
-def get_exclude_patterns():
 
-    return [
+_filter = [
 
         # Base var exclusions
         r'/var/cache',
@@ -68,3 +67,16 @@ def get_exclude_patterns():
         #    we dont want  /etc/
         # r'^/etc'  # Uncomment to exclude /etc
     ]
+
+
+# filter hits to reset on Cache clear. copy literal items from /usr/local/save-changesnew/filter.py to. resets to 0
+_filterhitRESET = [
+    r'/home/{{user}}/\.config',
+    r'/home/{{user}}/\.Xauthority',
+    r'/home/{{user}}/\.local/state/wireplumber',
+    r'/root/\.Xauthority',
+    r'/root/\.local/state/wireplumber',
+    r'\.cache',
+    r'\.gnupg',
+    r'\.local/share'
+]

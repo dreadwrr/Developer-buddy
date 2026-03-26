@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#   Developer buddy 5.0 core                                               03/02/2026
+#   Developer buddy 5.0 core                                               03/25/2026
 
 # ascii positional encoding
 # escape input newlines for parsing
@@ -54,7 +54,7 @@ printf '%s' "$k"
 }
 
 remove_gpg() {
-local files=("$app_install/recent.gpg" "$app_install/ctimecache.gpg")
+local files=("$app_install/recent.gpg" "$app_install/ctimecache.gpg" "$app_install/flth.csv")
 if [[ $USR == "root" ]]; then rm -f "${files[@]}" 2> /dev/null; else sudo rm -f "${files[@]}" 2> /dev/null; fi
 }
 generatekey() {
@@ -72,7 +72,6 @@ Subkey-Length: 4096
 Name-Real: John e
 Name-Email: $email
 Expire-Date: 0
-Passphrase: $p
 %commit
 %echo done
 EOF
@@ -200,12 +199,14 @@ if [ "$ino" -ge 0 ] 2>/dev/null && [ "$sze" -ge 0 ] 2>/dev/null; then
 					fs=$a_sze
 					# the inode changed update all remaining stats
 					if (( ino != a_ino )); then
-						i=$a_ino
-						sym=$a_sym
-						n=$a_nlnk
-						onr=$a_onr
-						grp=$a_grp
-						pmr=$a_prm
+						check_sum="None"
+						log_lineout $debug_log $debug_file "$log_date" "calculate_csum inode changed $a_ino vs $ino discarding checksum for: $file_path"
+						#i=$a_ino
+						#sym=$a_sym
+						#n=$a_nlnk
+						#onr=$a_onr
+						#grp=$a_grp
+						#pmr=$a_prm
 					fi
 					return 0
 				fi

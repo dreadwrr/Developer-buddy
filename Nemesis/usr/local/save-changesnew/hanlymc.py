@@ -7,12 +7,11 @@ from pathlib import Path
 from pyfunctions import is_integer
 from pyfunctions import is_valid_datetime
 from pyfunctions import new_meta
-from pyfunctions import get_delete_patterns
 from pyfunctions import matches_any_pattern
 from pyfunctions import parse_datetime
 from pyfunctions import sys_record_flds
 from pysql import get_recent_changes
-# hybrid analysis original 11/19/2025 updated 03/03/2026
+# hybrid analysis original 11/19/2025 updated 03/25/2026
 
 
 def stealth(filename, label, entry, current_size, original_size, cdiag):
@@ -34,14 +33,16 @@ def stealth(filename, label, entry, current_size, original_size, cdiag):
                     entry["scr"].append(message)
 
 
-def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, logging_values):
+def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, logging_values, cachermPATTERNS, logger=None):
 
-    results = []
-    sys_records = []
-    log_entries = []
+    results, sys_records, log_entries = [], [], []
+    if logger:
+        log_entries = None
+
     fmt = "%Y-%m-%d %H:%M:%S"
-    csum = False
     time_period = 5  # days for a file that isnt regularly updated. 5 default
+
+    csum = False
 
     with sqlite3.connect(dbopt) as conn:
         cur = conn.cursor()
@@ -56,14 +57,14 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, logging_values):
             is_sys = False
 
             if len(record) < 17:
-                emit_log("DEBUG", f"sortcomplete entry malformed.  less than required 17 : {record}", logs.WORKER_LOG_Q)
+                emit_log("DEBUG", f"sortcomplete entry malformed.  less than required 17 : {record}", logs.WORKER_LOG_Q, logger=logger)
                 continue
 
             entry = {"cerr": [], "flag": [], "scr": [], "sys": [], "dcp": []}
 
             recent_timestamp = parse_datetime(record[0], fmt)
             if not recent_timestamp:
-                emit_log("DEBUG", f"missing timestamp on parsed entry: {record}", logs.WORKER_LOG_Q)
+                emit_log("DEBUG", f"missing timestamp on parsed entry: {record}", logs.WORKER_LOG_Q, logger=logger)
                 continue
 
             filename = record[1]
@@ -103,13 +104,13 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, logging_values):
                     prev_count = recent_sys[-1]
                     sys_record_flds(record, sys_records, prev_count)
                 else:
-                    emit_log("DEBUG", "sys table missing timestamp skipped", logs.WORKER_LOG_Q)
+                    emit_log("DEBUG", "sys table missing timestamp skipped", logs.WORKER_LOG_Q, logger=logger)
                     continue
             elif ps and recent_sys:
-                emit_log("DEBUG", f"recent sys entry less than required length 15 : {recent_sys}", logs.WORKER_LOG_Q)
+                emit_log("DEBUG", f"recent sys entry less than required length 15 : {recent_sys}", logs.WORKER_LOG_Q, logger=logger)
 
             if previous is None or len(previous) < 14:
-                emit_log("DEBUG", f"previous record less than required length 14. previous: {previous}", logs.WORKER_LOG_Q)
+                emit_log("DEBUG", f"previous record less than required length 14. previous: {previous}", logs.WORKER_LOG_Q, logger=logger)
                 continue
             if checksum:
                 if not record[5] or not previous[5]:
@@ -139,7 +140,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, logging_values):
 
                 if recent_timestamp == previous_timestamp:
                     if checksum:
-                        # st = goahead(file_path)
+                        # st = goahead(file_path, logs.WORKER_LOG_Q, logger=logger)
                         # file_path = Path(filename)
                         # if st == "Nosuchfile":
                         #     entry["flag"].append(f'Deleted {record[0]} {record[0]} {label}')
@@ -254,12 +255,12 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, logging_values):
                             if is_sys:
                                 entry["scr"].append(f'{message} and is a system file.')
                             else:
-                                screen = get_delete_patterns(usr)
+                                screen = cachermPATTERNS
                                 if not matches_any_pattern(label, screen):
                                     entry["scr"].append(message)
             else:
                 print("Hanly formatting problem skipped.")
-                emit_log("DEBUG", f"current inode {record[3]} previous {previous[3]}, current timestamp {recent_timestamp} previous {previous_timestamp} \n original {previous} \n current {record}", logs.WORKER_LOG_Q)
+                emit_log("DEBUG", f"current inode {record[3]} previous {previous[3]}, current timestamp {recent_timestamp} previous {previous_timestamp} \n original {previous} \n current {record}", logs.WORKER_LOG_Q, logger=logger)
 
             if entry["cerr"] or entry["flag"] or entry["scr"] or entry["sys"]:
                 results.append(entry)

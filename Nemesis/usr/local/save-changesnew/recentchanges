@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#	rntfiles.xzm or -SRC application.xzm to /tmp																						01/09/2026
+#	rntfiles.xzm or -SRC application.xzm to /tmp																						03/25/2026
 SCRIPT_PATH="$( dirname "$0")"
 . "$SCRIPT_PATH"/rntchangesfunctions
 . "$SCRIPT_PATH"/validprogram.sh
@@ -156,7 +156,7 @@ if [ "$SRCDIR" == "SRC" ] && [ "$goahead" == "true" ]; then
 		    if [ "$usrslc" != "" ]; then
 		        if [ "$usrslc" -ge 0 ]  2>/dev/null; then
 		            echo selected "$usrslc"
-		            if [ "${#arrfiles[@]}" -ge "$usrslc" ]; then
+		            if [ "${#arrfiles[@]}" -ge "$usrslc" ] && [ "$usrslc" -gt 0 ]; then
 		                filename="${arrfiles[$(( usrslc - 1 ))]}"
 		            else
 		                echo
@@ -199,7 +199,7 @@ if [ -z "$k" ]; then
     mv $LCLMODULENAME"xSystemchanges"* "/tmp"$moduledir 2> /dev/null ; mv $LCLMODULENAME"xSystemDiffFromLastSearch"* "/tmp"$moduledir 2> /dev/null
     h=$( find "/tmp$moduledir" -type f | wc -l) ; [[ "$h" -gt 0 ]] && smsg="true"
     test -e /tmp"$chxzm" && mv /tmp"$chxzm" "/tmp"$moduledir ; test -e "/tmp"$chxzmnm && mv "/tmp"$chxzmnm "/tmp"$moduledir; test -e "/tmp"$MODULENAME"Transferlog" && mv "/tmp"$MODULENAME"Transferlog" "/tmp"$moduledir
-    
+
     test -e  "/tmp"$MODULENAME"ItemsFilteredout" && rm  "/tmp"$MODULENAME"ItemsFilteredout"
 
     if [ "$SRCDIR" != "SRC" ] && [ "$goahead" == "true" ]; then # make rntfiles.xzm from all filtered

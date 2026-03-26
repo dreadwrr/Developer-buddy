@@ -6,74 +6,38 @@ import traceback
 from collections import defaultdict
 from datetime import datetime
 from configfunctions import not_absolute
+from filter import _filterhitRESET
 from pysql import collision
 
-# terminal and hardlink suppression.  regex
 
-suppress_terminal = [
-    r'mozilla',
-    r'\.mozilla',
-    r'chromium-ungoogled',
-    r'/home/{{user}}/\.cache/somefolder',
-    r'\.local/share/Trash'
-    # r'google-chrome'
-    # uncomment if needed
-]
-
-
-# Cache clear patterns to delete from db
-cache_clear = [
-    "%caches%",
-    "%cache2%",
-    "%Cache2%",
-    "%.cache%",
-    "%share/Trash%",
-    "%home/{{user}}/.local/state/wireplumber%",
-    "%root/.local/state/wireplumber%",
-    "%usr/share/mime/application%",
-    "%usr/share/mime/text%",
-    "%usr/share/mime/image%",
-    "%release/cache%",
-]
-
-
-# filter hits to reset on Cache clear. copy literal items from /usr/local/save-changesnew/filter.py to. resets to 0
-flth_literal_patterns = [
-    r'/home/{{user}}/\.config',
-    r'/home/{{user}}/\.Xauthority',
-    r'/home/{{user}}/\.local/state/wireplumber',
-    r'/root/\.Xauthority',
-    r'/root/\.local/state/wireplumber',
-    r'\.cache',
-    r'\.gnupg',
-    r'\.local/share'
-]
-
-
-def suppress_list(escaped_user):
-    suppress_list = [p.replace("{{user}}", escaped_user) for p in suppress_terminal]
-    compiled = [re.compile(p) for p in suppress_list]
+def suppress_list(escaped_user, suppress_list):
+    compiled = [re.compile(re.escape(p)) for p in suppress_list]
     return compiled
 
 
-def get_delete_patterns(usr):
-    patterns = [p.replace("{{user}}", usr) for p in cache_clear]
-    return patterns
+def cache_clear_patterns(usr, cachermPATTERNS):
+    return [
+        p.replace("{{user}}", usr)
+        for p in cachermPATTERNS
+    ]
 
 
 def reset_csvliteral(csv_file):
 
-    patterns_to_reset = flth_literal_patterns
-
-    with open(csv_file, newline='') as f:
-        reader = csv.reader(f)
-        rows = list(reader)
-    for row in rows[1:]:
-        if row[0] in patterns_to_reset:
-            row[1] = '0'
-    with open(csv_file, 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerows(rows)
+    patterns_to_reset = _filterhitRESET
+    try:
+        with open(csv_file, newline='') as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+        for row in rows[1:]:
+            if row[0] in patterns_to_reset:
+                row[1] = '0'
+        with open(csv_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerows(rows)
+    except (FileNotFoundError, PermissionError):
+        print(f"nfs permission error on {csv_file} reset_csvliteral.")
+        pass
 
 
 class cprint:
