@@ -3,6 +3,21 @@
 											# leave set
 backend = "database"
 
+# Cache clear patterns to delete from db
+cachermPATTERNS = [
+    "%caches%",
+    "%cache2%",
+    "%Cache2%",
+    "%.cache%",
+    "%share/Trash%",
+    "%home/{{user}}/.local/state/wireplumber%",
+    "%root/.local/state/wireplumber%",
+    "%usr/share/mime/application%",
+    "%usr/share/mime/text%",
+    "%usr/share/mime/image%",
+    "%release/cache%"
+]
+
 
 # default for asymmetrical gpg auth for STATPST
                                                         # asks for paraphrase and caches for 15 minutes
@@ -88,10 +103,24 @@ checkSUM = true
 									# also check for hash collisions
 cdiag = true
 
+
 # suppress cache warnings on terminal from known browsers? Mozilla... ect list top of inotify script. also see /usr/local/save-changesnew/pyfunctions.py
 supbrw = true
 
-# ..      all cdiag output to terminal except critical events
+
+# terminal and hardlink suppression. note regex
+supbrwLIST = [
+    'mozilla',
+    '\.mozilla',
+    'chromium-ungoogled',
+    '/home/{{user}}/\.cache/somefolder',
+    '\.local/share/Trash'
+    # r'google-chrome'
+    # uncomment if needed
+]
+
+
+#       all cdiag output to terminal except critical events
 suppress = false
 
 
@@ -107,7 +136,7 @@ proteusSHIELD = false
 
 [paths]
 # file label prefix for searches output txt file			# default rntfiles
-MODULENAME = "rntfiles" 
+MODULENAME = "rntfiles"
 
 [src]
 
