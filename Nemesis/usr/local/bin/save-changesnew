@@ -1,5 +1,5 @@
 #!/bin/bash
-#                                               Developer Buddy v5.0                Mar 2, 2026
+#                                               Developer Buddy v5.0                Mar 25, 2026
 #   this script works for two modes porteus nemesis graphics and changes.
 # borrowed script items source
 # # Author: fanthom <fanthom@porteus.org>
@@ -219,7 +219,7 @@ rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
 if [ "$d2drive" == "false" ] || { [ "$d2drive" == "true" ] && [ "$d2dmdl" == "false" ] ; } ; then green "Staging... " ; else green "Direct to drive saving" ; fi
 if [ "$rlt" != "" ]; then
     if [ "$rlt" == "/" ]; then rlt="" ; fi
-	[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt}
+	[[ "$rlt" == *"/dev/"* ]] && { moi="$(findmnt -n -o TARGET "$rlt")" ; [[ -z "$moi" ]] && rlt="/mnt/${rlt##*/}" || rlt=$moi ; }
 	if [[ "$rlt" == *"$target"* ]]; then
 		rlt=${rlt%/}
 		target=""
