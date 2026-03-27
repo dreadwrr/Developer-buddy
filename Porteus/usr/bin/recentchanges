@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# launcher script for recentchanges			recentchanges v5.0		03/25/2026
+# Note comments are for gpg 1.4 left incase trying to use an old version. Having gpg2 is default and recommended.
+app_install="/usr/local/save-changesnew"
+. "$app_install"/versionquery
+. "$app_install"/validprogram.sh
+. "$app_install"/rntchangesfunctions
+res=1	;	USR=$(whoami)
+if [[ "$1" = "-v" ]]; then get_vrn $1 ; elif [[ "$1" = "--help" ]] || [[ "$1" = "-h" ]] || [[ "$1" = "help" ]] || [[ "$1" = "-help" ]]; then get_vrn $1; fi
+if [ $USR != "root" ]; then
+	setup_exports $1
+	#alternative to launch environment for legacy and modifications gpg 1.4 and agent 2.1.11 or if needing display
+	#sudo -k ; exec sudo XDG_CONFIG_HOME="$XDG_CONFIG_HOME" LAUNCHED_NON_ROOT="$LAUNCHED_NON_ROOT" -- "$0" $USR "$PWD" $1 "$2" $3  # change for working with 
+	echo "Please enter your root password below"
+	#su - root -s /bin/bash -c 'export XDG_CONFIG_HOME="$1" ; export LAUNCHED_NON_ROOT="$2" ; exec "$3" "$4" "$5" "$6" "$7" "$8"' _ "$XDG_CONFIG_HOME" "$LAUNCHED_NON_ROOT" "$0" "$USR" "$PWD" "$1" "$2" "$3"
+	su - -c "export LAUNCHED_NON_ROOT='$LAUNCHED_NON_ROOT' ; '$0' $USR '$PWD' $1 '$2' $3"  # env DISPLAY='$DISPLAY' XAUTHORITY='$XAUTHORITY' USR='$USR' 
+	res=$?
+	output_results
+fi
+if [[ -z "$LAUNCHED_NON_ROOT" ]]; then
+	echo query and text editor cant be run as root. comment out this line if always run as root && exit 0
+	setup_exports $1
+	python3 "$app_install"/rntchanges.py $USR "$PWD" "$@"
+	res=$?
+	output_results
+fi
+# export DISPLAY=:0
+# export XAUTHORITY=/home/$1/.Xauthority
+#if [ "$XDG_SESSION_TYPE" = "wayland" ]; then ; fi
+# gpg 1.4.23 and gpg-agent 2.1.11 legacy
+#if ! gpg-connect-agent /bye >/dev/null 2>&1; then ## change for working with gpg 1.4 and agent 2.1.11  uncomment 38 for pid
+#    green "Starting gpg-agent..."
+#    eval "$(gpg-agent --daemon)"
+#    #AGENT_PID=$(pgrep -u root -n gpg-agent)
+#    export GPG_TTY=$(tty)
+#    export GPG_AGENT_INFO=/root/.gnupg/S.gpg-agent:0:1
+#fi
+python3 "$app_install"/rntchanges.py "$@"
+#if [ -n "$AGENT_PID" ]; then kill "$AGENT_PID"; fi
+
