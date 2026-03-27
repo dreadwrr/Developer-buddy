@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#                                               Developer Buddy v5.0  Rsync backup of changes folder  Porteus edition  03/02/2026
+#                                               Developer Buddy v5.0  Rsync backup of changes folder  Porteus edition  Mar 25, 2026
 # rsync backup to /changes.bak minimal writes as the backup would already be in place. Files are logged and its accurate
 # to system specs with --delete. Added drive to drive while this is fast the preferable way is to not use drive to drive
 # as it freezes the file system at that point in time. But on shutdown that wait would be too long. So drive to drive provides

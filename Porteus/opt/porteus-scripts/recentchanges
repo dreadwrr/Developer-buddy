@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# launcher script for recentchanges			recentchanges v5.0		03/03/2026
+# launcher script for recentchanges			recentchanges v5.0		03/25/2026
 # Note comments are for gpg 1.4 left incase trying to use an old version. Having gpg2 is default and recommended.
 app_install="/usr/local/save-changesnew"
 . "$app_install"/versionquery
