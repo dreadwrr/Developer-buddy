@@ -1,5 +1,11 @@
-#                               03/04/2026
+#                               03/25/2026
 ## Python edition <br>
+v1.2.9-py New release<br>
+Move recentchanges to /opt/recentchanges/ <br>
+New logic for save-changesnew <br>
+Added multiprocessing modulization and error handling from qt gui <br>
+Added find command streaming for better response <br>
+Better config setup with cache clear patterns and browser suppression added <br><br>
 v1.2.8-py2 Released!<br>
 Change to logging system in multiprocessing <br>
 changed launch script to offload to python script. updated gpg creation bash script <br>
