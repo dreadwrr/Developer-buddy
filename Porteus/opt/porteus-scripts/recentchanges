@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #   Analytics porteus
-#   recentchanges. Developer buddy      make xzm     03/02/2026  v5.0
+#   recentchanges. Developer buddy      make xzm     03/25/2026  v5.0
 # entry point for recentchanges.
 #
 #   recentchanges. aka Developer buddy      recentchanges / recentchanges search
@@ -126,7 +126,7 @@ export checkSUM="true"	# compare file checksums for slight changes
 										# slower useful if you want to check deeper level of stats
 export cdiag="true"       # add extra detail like filesize in output and critical events. Also check for hash collisions.
 export supbrwr="true"   # supress cache warnings on terminal from known browsers? Mozilla... ect list top of rntfuncions
-export supress="false"  # ..      all cdiag output to terminal except critical events
+export suppress="false"  # ..      all cdiag output to terminal except critical events
 
 
 export POSTOP="false" # Diagnostics. Create file doctrine. Runs post search operation that can only be done at this time as search is relevant
@@ -196,7 +196,8 @@ if [ "${arge[0]}" == "search" ]; then
    	exit
 elif [ "${arge[0]}" == "reset" ]; then
 	if [ "$STATPST" == "true" ]; then
-		python3 /usr/local/save-changesnew/query.py "$0" "$pydbpst" "root" $email $mMODE $compLVL $checkSUM "true" "$logpst" "$statpst"
+		# python3 /usr/local/save-changesnew/query.py "$0" "$pydbpst" "root" $email $mMODE $compLVL $checkSUM "true" "$logpst" "$statpst"  # would require tk dependency to reset so use below
+		python3 /usr/local/save-changesnew/pstsrg.py "$0" "$pydbpst" "root" $email $mMODE $compLVL $checkSUM "true" "$logpst" "$statpst"
 		ret=$?
 		[[ $ret -eq 0 ]] && { remove_gpg ; exit 0 ; }
 		exit 1
@@ -420,7 +421,7 @@ if [ "$SRCDIR" == "SRC" ]; then
 		    if [ "$usrslc" != "" ]; then
 		        if [ "$usrslc" -ge 0 ]  2>/dev/null; then
 		            echo selected "$usrslc"
-		            if [ "${#arrfiles[@]}" -ge "$usrslc" ]; then
+		            if [ "${#arrfiles[@]}" -ge "$usrslc" ] && [ "$usrslc" -gt 0 ]; then
 		                filename="${arrfiles[$(( usrslc - 1 ))]}"
 		            else
 		                echo
