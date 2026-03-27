@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#inotify db5 					03/15/2026
+#inotify db5 					03/25/2026
 #SCRIPT_PATH="$( dirname "$0")"
 #. "$SCRIPT_PATH"/rntchangesfunctions
 . /usr/local/save-changesnew/rntchangesfunctions
@@ -34,7 +34,7 @@ inclusion=(
 ch="/mnt/live/memory/changes"
 fmt="%Y-%m-%d %H:%M:%S"
 BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
-efile="/usr/local/bin/recentchanges"
+efile="/opt/porteus-scripts/recentchanges"
 
 # These can be user set so call get_inclusions and get form recentchanges script. Below default fallbacks in case cant find
 logpst="/usr/local/save-changesnew/logs.gpg"			;	statpst="/usr/local/save-changesnew/stats.gpg"

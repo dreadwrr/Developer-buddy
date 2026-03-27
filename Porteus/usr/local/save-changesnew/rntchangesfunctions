@@ -1,5 +1,5 @@
 #!/bin/bash
-#   Developer buddy 5.0 core                                               03/15/2026
+#   Developer buddy 5.0 core                                               03/25/2026
 
 
 # Filter terminal or suppress browser. common items to exclude from prompt      .  regex  notes: ([^/]*)$  
@@ -38,7 +38,7 @@ if [ "$POSTOP" == "true" ]; then
 		fi
 	fi
     if [ -f $USRDIR/doctrine.tsv ]; then
-        /usr/local/save-changesnew/updateconfig.sh $2 "POSTOP" "true"  # change POSTOP in /usr/local/bin/recentchanges to false. script was added for python tk  # sed -i 's/^export POSTOP="true"/export POSTOP="false"/' $2  original
+        /usr/local/save-changesnew/updateconfig.sh $2 "POSTOP" "true"  # change POSTOP in /opt/porteus-scripts/recentchanges to false. script was added for python tk  # sed -i 's/^export POSTOP="true"/export POSTOP="false"/' $2  original
 
     else
 
@@ -149,10 +149,8 @@ unset IFS
 rm $lt
 }
 remove_gpg() {
-	test -f "$logpst" && rm -f "$logpst"
-	test -f "$statpst" && rm -f "$statpst"
-	test -f "$pydbpst" && rm -f "$pydbpst"
-	test -f "$flth" && rm -f "$flth"
+	local files=("$logpst" "$statpst" "$pydbpst" "$flth")
+	rm -f "${files[@]}" 2> /dev/null
 }
 generatekey() {
 	# 5.1 porteus   GPG 2.x+ generate key but if 5.01 has GPG2 do it too
@@ -846,7 +844,7 @@ if [ "$STATPST" == "true" ]; then
 fi
 [[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && [[ "$ANALYTICSECT" == "true" ]] && [[ "$backend" == "default" ]] && green "Hybrid analysis on"
 
-if [[ "$csum" != "true" && -s $slog && "$supress" == "false" ]]; then
+if [[ "$csum" != "true" && -s $slog && "$suppress" == "false" ]]; then
 	filteroutput $slog "Checksum" "no" "blue" "yellow" "Scr"
 fi
 

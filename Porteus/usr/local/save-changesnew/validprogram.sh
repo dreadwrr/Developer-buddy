@@ -1,5 +1,5 @@
 #!/bin/bash
-#     recentchanges general functions    validprogram       gettime                                                                07/4/2025
+#     recentchanges general functions    validprogram       gettime                                                                03/25/2026
 #This function returns the root directory or null if it is in  /  of system
 validprogram() {
 local LOGFILE=$1	; local FCOUNT=0
@@ -15,7 +15,7 @@ FCOUNT=$( grep -c "${BASEDIR}" $LOGFILE)
 p=0
 z=$( insetdirectory)
 if [ "$z" != "" ]; then
-	if (( z = DEPTH)); then
+	if (( z == DEPTH)); then
     	strt=$z
     else
     	strt=$(( z + 1))

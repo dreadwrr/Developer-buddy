@@ -31,9 +31,9 @@ keepMRGED="false"       # default is normally false but we want to rename all .x
 ## Diagnostics
 override="true"			# Note this only applies when keepMRGED is false. The script wont by default delete the modules first so if something goes wrong theres no change.
 										# The script first renames them to .bak to avoid file name conflicts on the final save.
-									
+
 									# default true. Extract to /tmp as normal leave modules where they are as normal.
-										
+
 									# If set to false. First move the modules to /tmp first to free up space on what oculd be a usb drive. This can be an invaluable feature as if it had low
 										# space can still merge
 ## End Diagnostics

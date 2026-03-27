@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       03/15/2026
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       03/25/2026
+import getpass
 import os
 import re
 import shutil
@@ -7,14 +8,18 @@ import sqlite3
 import subprocess
 import sys
 import traceback
+from pathlib import Path
+from typing import Any
 from hanlyparallel import hanly_parallel
 from pyfunctions import ap_decode
 from pyfunctions import CYAN, GREEN, RESET
+from pyfunctions import collision_check
 from pyfunctions import getcount
 from pyfunctions import getnm
 from pyfunctions import intst
 from pyfunctions import removefile
 from pyfunctions import to_bool
+
 
 # Globals
 count = 0
@@ -130,13 +135,11 @@ def create_table(c, table, unique_columns, e_cols=None):
     if table == 'logs':
         c.execute(f'{sql} idx_logs_checksum ON logs (checksum)')
         c.execute(f'{sql} idx_logs_filename ON logs (filename)')
-        # c.execute(f'{sql} idx_logs_checksum_filename ON logs (checksum, filename)')  # Composite original
-        c.execute(f'{sql} idx_logs_collision ON logs (checksum, filesize, filename)')
+        c.execute(f'{sql} idx_logs_checksum_filename ON logs (checksum, filename)')  # Composite
     else:
         c.execute(f'{sql} idx_sys_checksum ON sys (checksum)')
         c.execute(f'{sql} idx_sys_filename ON sys (filename)')
-        # c.execute(f'{sql} idx_sys_checksum_filename ON sys (checksum, filename)')
-        c.execute(f'{sql} idx_sys_collision ON sys (checksum, filesize, filename)')
+        c.execute(f'{sql} idx_sys_checksum_filename ON sys (checksum, filename)')
 
 
 def create_db(database, action=False):
@@ -179,7 +182,7 @@ def insert(log, conn, c, table, add_column=None):  # Log, sys
         if isinstance(add_column, (tuple, list)):
             columns.extend(add_column)
         else:
-            raise TypeError("add_column must be tuple, or list")
+            raise TypeError("add_column must be str, tuple, or list")
     placeholders = ', '.join(['?'] * len(columns))
     col_str = ', '.join(columns)
     c.executemany(
@@ -194,6 +197,8 @@ def insert(log, conn, c, table, add_column=None):  # Log, sys
                 blank_row
         )
 
+    conn.commit()
+
 
 def insert_if_not_exists(action, timestamp, filename, changetime, conn, c):  # Stats
     timestamp = timestamp or None
@@ -201,89 +206,7 @@ def insert_if_not_exists(action, timestamp, filename, changetime, conn, c):  # S
     INSERT OR IGNORE INTO stats (action, timestamp, filename, changetime)
     VALUES (?, ?, ?, ?)
     ''', (action, timestamp, filename, changetime))
-
-
-def collision_check(xdata, cerr, c, ps):
-    reported = set()
-    csum = False
-    if not xdata:
-        return False
-
-    current_rows = set()
-    for record in xdata:
-        if not record or len(record) < 7:
-            continue
-        filename = record[1]
-        file_hash = record[5]
-        file_size = record[6]
-        if not (filename and file_hash and file_size):
-            continue
-
-        current_rows.add((filename, file_hash, file_size))
-
-    if not current_rows:
-        return False
-
-    try:
-        c.execute(
-            """
-            CREATE TEMP TABLE IF NOT EXISTS current_search_collisions (
-                filename TEXT NOT NULL,
-                checksum TEXT NOT NULL,
-                filesize INTEGER NOT NULL
-            )
-            """
-        )
-        c.execute("DELETE FROM current_search_collisions")
-        c.executemany(
-            "INSERT INTO current_search_collisions (filename, checksum, filesize) VALUES (?, ?, ?)",
-            list(current_rows),
-        )
-
-        if ps:
-            db_rows_sql = (
-                "SELECT filename, checksum, filesize FROM logs WHERE checksum IS NOT NULL "
-                "UNION ALL "
-                "SELECT filename, checksum, filesize FROM sys WHERE checksum IS NOT NULL"
-            )
-        else:
-            db_rows_sql = "SELECT filename, checksum, filesize FROM logs WHERE checksum IS NOT NULL"
-
-        c.execute(
-            f"""
-            WITH db_rows AS (
-                {db_rows_sql}
-            )
-            SELECT DISTINCT
-                cur.filename,
-                db.filename,
-                cur.checksum,
-                cur.filesize,
-                db.filesize
-            FROM current_search_collisions cur
-            JOIN db_rows db
-                ON db.checksum = cur.checksum
-            WHERE db.filename != cur.filename
-              AND db.filesize != cur.filesize
-            """
-        )
-        colcheck = c.fetchall()
-    except sqlite3.DatabaseError as e:
-        print(f"Database error in collision detection: {type(e).__name__} : {e}")
-        return False
-
-    if colcheck:
-        try:
-            with open(cerr, "a", encoding="utf-8") as f:
-                for filename, other_file, file_hash, size1, size2 in colcheck:
-                    pair = tuple(sorted([filename, other_file]))
-                    if pair not in reported:
-                        csum = True
-                        print(f"COLLISION: {filename} {size1} vs {other_file} {size2} | Hash: {file_hash}", file=f)
-                        reported.add(pair)
-        except IOError as e:
-            print(f"Failed to write collisions: {e} {type(e).__name__}  \n{traceback.format_exc()}")
-    return csum
+    conn.commit()
 
 
 def parse_line(line):
@@ -384,7 +307,7 @@ def parselog(file, table, checksum):
                         try:
                             target = os.readlink(filename)
                         except OSError:
-                            print("skipped error resolving symlink target, file: ", filename)
+                            print("skipped error resolving symlink target, file: %s", filename)
 
                     results.append((timestamp, filename, changetime, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, cam, target, lastmodified, count, usec))
                 elif table == 'sortcomplete':
@@ -480,6 +403,101 @@ def hash_system_profile(turbo):
     return None
 
 
+def get_user():
+    """ read from environ inaccurate """
+    user = None
+    try:
+        user = getpass.getuser()
+        #  user = pwd.getpwuid(os.geteuid()).pw_name
+    except (KeyError, OSError):
+        print("unable to get username attempting fallback")
+    if not user:
+        try:
+            user = Path.home().parts[-1]
+        except RuntimeError as e:
+            raise RuntimeError("unable to find current user.") from e
+    return user
+
+
+# required for batch deleting keys
+def get_key_fingerprint(email, no_key=False):
+    cmd = ["gpg", "--list-keys", "--with-colons", email]
+    # if no_key:
+    #     cmd = ["sudo"] + cmd
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True
+    )
+    for line in result.stdout.split('\n'):
+        if line.startswith('fpr:'):
+            return line.split(':')[9]
+    return None
+
+
+def delete_gpg_keys(usr, email, dbtarget, logpst, statpst):
+
+    def exec_delete_keys(usr, current_usr, email, fingerprint):
+        silent: dict[str, Any] = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+
+        if usr == 'root':
+            subprocess.run(["gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
+            subprocess.run(["gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
+        else:
+            subprocess.run(["gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
+            subprocess.run(["gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
+            if current_usr == 'root':
+                subprocess.run(["sudo", "-u", usr, "gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
+                subprocess.run(["sudo", "-u", usr, "gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
+            else:
+                subprocess.run(["sudo", "gpg", "--batch", "--yes", "--delete-secret-keys", fingerprint], **silent)
+                subprocess.run(["sudo", "gpg", "--batch", "--yes", "--delete-keys", fingerprint], **silent)
+        print("Keys cleared for", email, " fingerprint: ", fingerprint)
+
+    while True:
+
+        uinp = input(f"Warning recent.gpg will be cleared. Reset\\delete gpg keys for {email} (Y/N): ").strip().lower()
+        if uinp == 'y':
+            confirm = input("Are you sure? (Y/N): ").strip().lower()
+            if confirm == 'y':
+
+                result = False
+
+                current_usr = get_user()
+
+                # # look in root for key
+                # fingerprint = get_key_fingerprint(email, no_key=True)
+                # if fingerprint:
+                #     result = True
+                #     # delete for user and root
+                #     exec_delete_keys(usr, current_usr, email, fingerprint)
+
+                # look for key in user
+                fingerprint = get_key_fingerprint(email)
+                if fingerprint:
+                    result = True
+                    exec_delete_keys(usr, current_usr, email, fingerprint)
+
+                # removefile(ctimecache)
+                # removefile(dbtarget)
+
+                if result:
+                    # print(f"\nDelete {dbtarget} if it exists as it uses the old key pair.")
+                    return 0
+                else:
+                    print(f"No key found for {email}")
+                    return 2
+
+            else:
+                uinp = 'n'
+
+        if uinp == 'n':
+            print("quit")
+            return 1
+        else:
+            print("Invalid input, please enter 'Y' or 'N'.")
+
+
 # trying to insert data if anything fails dont encrypt it at the end .
 # if hybrid analysis fails it doesnt effect the data
 # if only encryption fails leave the db file so it can be manually encrypted with pasted command.
@@ -546,8 +564,7 @@ def main():
             print("pstsrg.py couldnt locate database: ", dbopt, " quiting.")
             return 1
         conn = sqlite3.connect(dbopt)
-    c = None
-    try:
+    with conn:
         c = conn.cursor()
 
         parsed = parselog(xdata, 'sortcomplete', checksum)   # SORTCOMPLETE/Log
@@ -569,6 +586,7 @@ def main():
 
                     except Exception as e:
                         print(f'sys db failed insert {e}  {type(e).__name__} \n{traceback.format_exc()}')
+                        db_error = True
 
             elif ps:
                 print('Sys profile requires the setting checksum to index')
@@ -594,14 +612,14 @@ def main():
                 if count % 10 == 0:
                     print(f'{count + 1} searches in gpg database')
 
-                # Check for hash collisions
-                if checksum and cdiag:
-                    if collision_check(parsed, cerr, c, ps):
-                        csum = True
-
             except Exception as e:
                 print(f'log db failed insert err: {e} {type(e).__name__}  \n{traceback.format_exc()}')
                 db_error = True
+
+            # Check for hash collisions
+            if checksum and cdiag:
+                if collision_check(parsed, cerr, c, ps):
+                    csum = True
 
             if turbo == 'mc':
                 x = os.cpu_count()
@@ -637,28 +655,23 @@ def main():
                 print(f'stats db failed to insert err: {e}  \n{traceback.format_exc()}')
                 db_error = True
 
-        if not db_error:  # Encrypt if o.k.
-            try:
-                conn.commit()
-                nc = intst(dbopt, compLVL)
-                sts = encr(dbopt, dbtarget, email, no_compression=nc, dcr=True)
-                if not sts:
-                    res = 3  # & 2 gpg problem
-                    print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}   before running again.')
+    if not db_error:  # Encrypt if o.k.
+        try:
 
-            except Exception as e:
-                res = 3
-                print(f'Encryption failed: {e}')
+            nc = intst(dbopt, compLVL)
+            sts = encr(dbopt, dbtarget, email, no_compression=nc, dcr=True)
+            if not sts:
+                res = 3  # & 2 gpg problem
+                print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}   before running again.')
 
-        else:
-            conn.rollback()
-            res = 4  # delete any changes made.
-            print('There is a problem with the database.')
-    finally:
-        if c:
-            c.close()
-        if conn:
-            conn.close()
+        except Exception as e:
+            res = 3
+            print(f'Encryption failed: {e}')
+
+    else:
+        res = 4  # delete any changes made.
+        print('There is a problem with the database.')
+
     if res != 3:
         removefile(dbopt)
 
@@ -666,6 +679,38 @@ def main():
 
 
 if __name__ == "__main__":
+    arg_len = len(sys.argv)
+    if arg_len < 8:
+        print("Error insufficient number of arguments supplied to resest key")
+        sys.exit(1)
+
+    # gpg key reset so tk dependency isnt required
+    if arg_len < 13:
+        config_path = sys.argv[1]
+        dbtarget = sys.argv[2]
+        usr = sys.argv[3]
+        email = sys.argv[4]
+        turbo = sys.argv[5]
+        compLVL = int(sys.argv[6])
+        checkSUM = to_bool(sys.argv[7])
+        reset = to_bool(sys.argv[8]) if len(sys.argv) > 8 else False
+        logpst = sys.argv[9] if len(sys.argv) > 9 else None
+        statpst = sys.argv[10] if len(sys.argv) > 10 else None
+
+        output = getnm(dbtarget, '.db')
+
+        if reset and logpst and statpst:
+
+            sys.exit(delete_gpg_keys(usr, email, dbtarget, logpst, statpst))
+        else:
+            if not reset:
+                print("reset was", reset)
+            if not logpst:
+                print("logpst wasnt specified for logs.gpg ANALYTICS")
+            if not statpst:
+                print("statpst wasnt specified for stats.gpg STATPSTS")
+            sys.exit(1)
+
     if len(sys.argv) < 13:
         print("pstsrg Not enough arguments. quitting")
         sys.exit(1)
