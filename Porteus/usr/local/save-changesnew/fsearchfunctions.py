@@ -16,8 +16,6 @@ def upt_cache(cfr, checks, file_size, time_stamp, modified_ep, file_path):
         "size": file_size,
         "modified_time": time_stamp,
     }
-    # "owner": str(owner) if owner else '',
-    # "group": str(group) if group else ''
 
 
 def get_cached(cfr, file_size, modified_ep, file_path):
@@ -41,8 +39,6 @@ def get_cached(cfr, file_size, modified_ep, file_path):
                     "checksum": row.get("checksum"),
                     "modified_ep": modified_ep
                 }
-            # "user": row.get("owner"),
-            # "group": row.get("group"),
 
     return None
 
@@ -64,6 +60,8 @@ def get_last_mtime(cfr, file_path, latest_ep):
 
 
 def normalize_timestamp(mod_time: str) -> int:
-    sec, frac = mod_time.split(".")
+    sec, dot, frac = mod_time.partition(".")
+    if not dot:
+        frac = "0"
     frac = (frac + "000000")[:6]
     return int(sec) * 1_000_000 + int(frac)

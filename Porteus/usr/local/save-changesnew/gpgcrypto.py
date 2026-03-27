@@ -160,7 +160,7 @@ def decr_ctime(CACHE_F, user):
         if csv_path is None:
             print("Root doesnt have the key.")
             print("if having problems run recentchanges reset to clear .gpg files and keys")
-        print(f"Unable to retrieve cache file {CACHE_F} quitting.")
+        print(f"Unable to retrieve cache file {CACHE_F}. cache file might be corrupt removing the file may resolve issue. quitting.")
         sys.exit(1)
 
     cfr_src = {}

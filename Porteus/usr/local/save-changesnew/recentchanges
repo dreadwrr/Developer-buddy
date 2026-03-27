@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#	rntfiles.xzm or -SRC application.xzm to /tmp																						01/09/2026
+#	rntfiles.xzm or -SRC application.xzm to /tmp																						03/25/2026
 SCRIPT_PATH="$( dirname "$0")"
 . "$SCRIPT_PATH"/rntchangesfunctions
 . "$SCRIPT_PATH"/validprogram.sh
@@ -156,7 +156,7 @@ if [ "$SRCDIR" == "SRC" ] && [ "$goahead" == "true" ]; then
 		    if [ "$usrslc" != "" ]; then
 		        if [ "$usrslc" -ge 0 ]  2>/dev/null; then
 		            echo selected "$usrslc"
-		            if [ "${#arrfiles[@]}" -ge "$usrslc" ]; then
+		            if [ "${#arrfiles[@]}" -ge "$usrslc" ] && [  "$usrslc" -gt 0 ]; then
 		                filename="${arrfiles[$(( usrslc - 1 ))]}"
 		            else
 		                echo

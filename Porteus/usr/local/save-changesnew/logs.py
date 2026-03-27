@@ -1,9 +1,83 @@
 import logging
 import os
 from pathlib import Path
-from configfunctions import find_install
+
 
 WORKER_LOG_Q = None
+
+
+LEVEL_MAP = {
+    "CRITICAL": logging.CRITICAL,
+    "ERROR": logging.ERROR,
+    "WARNING": logging.WARNING,
+    "DEBUG": logging.DEBUG,
+}
+
+
+def init_process_worker(log_q):
+    global WORKER_LOG_Q
+    WORKER_LOG_Q = log_q
+
+
+def write_log(log, level, message):
+    method = getattr(log, str(level).lower(), None)
+    if method:
+        method(message)
+    # 03/25/2026
+    else:
+        log.error(f"Unknown log level: {message}")
+
+
+def write_logs_to_logger(log_list, logger=None):
+    log = logger if logger else logging
+    for level, message in log_list:
+        write_log(log, level, message)
+    # for level, message in log_list:
+    #     lvl = level.upper()
+    #     if lvl == "DEBUG":
+    #         log.debug(message)
+    #     # elif lvl == "INFO":
+    #     #     log.info(message)
+    #     # elif lvl == "WARNING":
+    #     #     log.warning(message)
+    #     elif lvl == "ERROR":
+    #         log.error(message)
+    #     # elif lvl == "CRITICAL":
+    #     #     log.critical(message)
+    #     else:
+    #         log.info(message)
+
+
+def logging_worker(queue, logger=None):
+    log = logger if logger else logging
+    while True:
+        msg = queue.get()
+
+        if msg is None:
+            break
+        try:
+            level, message = msg
+        except Exception:
+            log.error(f"Invalid log format detected: {msg}")
+            continue
+        if level == 'STOP':
+            break
+        else:
+            write_log(log, level, message)
+
+
+def emit_log(level, message, log_q=None, log_entries=None, logger=None):
+    if log_q is not None:
+        log_q.put((level, message))
+    elif log_entries is not None:
+        log_entries.append((level, message))
+    elif logger:
+        write_log(logger, level, message)
+
+
+def logs_to_queue(log_list, queue):
+    for msg in log_list:
+        queue.put(msg)
 
 
 def filename_of_handler():
@@ -27,13 +101,8 @@ def set_logger(root, process_label="MAIN", level=None):
 
 
 def set_log_level(log_file, level):
-    level_map = {
-        "CRITICAL": logging.CRITICAL,
-        "ERROR": logging.ERROR,
-        "WARNING": logging.WARNING,
-        "DEBUG": logging.DEBUG,
-    }
-    log_level = level_map.get(level, logging.ERROR)
+
+    log_level = LEVEL_MAP.get(level, logging.ERROR)
     return log_level
 
 
@@ -61,92 +130,40 @@ def setup_logger(log_file, level="ERROR", process_label="MAIN"):
     return root
 
 
-def change_logger(file_name, level, process_label):
-
+def change_logger(log_file, level, process_label):
+    """ 03/15/2026 for config change in gui to prevent stale handles """
     root = logging.getLogger()
 
-    appdata_local = find_install()
-    log_file = appdata_local / "logs" / file_name
+    log_level = LEVEL_MAP.get(str(level).upper(), logging.ERROR)
+
+    fmt = logging.Formatter(
+        f"%(asctime)s [%(name)s] [{process_label}] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 
     for h in root.handlers[:]:
         if isinstance(h, logging.FileHandler):
             root.removeHandler(h)
+            h.close()
 
-    set_format(log_file, level, process_label)
+    fh = logging.FileHandler(Path(log_file))
+    fh.setLevel(log_level)
+    fh.setFormatter(fmt)
+    root.addHandler(fh)
+
+    root.setLevel(log_level)
 
     return root, log_file
 
 
-def logging_worker(queue, logger=None):
-    log = logger if logger else logging
-    while True:
-        msg = queue.get()
-
-        if msg is None:
-            break
-        try:
-            level, message = msg
-        except Exception:
-            log.error(f"Invalid log format detected: {msg}")
-            continue
-        if level == 'STOP':
-            break
-        else:
-            write_log(log, level, message)
-
-
-def write_log(log, level, message):
-    method = getattr(log, str(level).lower(), None)
-    if method:
-        method(message)
-    else:
-        log.error(f"Unknown log level: {message}")
-
-
-def write_logs_to_logger(log_list, logger=None):
-    log = logger if logger else logging
-    for level, message in log_list:
-        write_log(log, level, message)
-    # for level, message in log_list:
-    #     lvl = level.upper()
-    #     if lvl == "DEBUG":
-    #         log.debug(message)
-    #     # elif lvl == "INFO":
-    #     #     log.info(message)
-    #     # elif lvl == "WARNING":
-    #     #     log.warning(message)
-    #     elif lvl == "ERROR":
-    #         log.error(message)
-    #     # elif lvl == "CRITICAL":
-    #     #     log.critical(message)
-    #     else:
-    #         log.info(message)
-
-
-def logs_to_queue(log_list, queue):
-    for msg in log_list:
-        queue.put(msg)
-
-
-def check_log_perms(log_path):
+def check_log_perms(log_path, log_dir):
     try:
         if log_path.exists():
             if log_path.stat().st_uid == 0:
                 log_path.unlink()
         else:
+            os.makedirs(log_dir, mode=0o755, exist_ok=True)
             with open(log_path, 'a'):
                 os.utime(log_path, None)
     except PermissionError:
         pass
-
-
-def init_process_worker(log_q):
-    global WORKER_LOG_Q
-    WORKER_LOG_Q = log_q
-
-
-def emit_log(level, message, log_q=None, logs=None):
-    if log_q is not None:
-        log_q.put((level, message))
-    elif logs is not None:
-        logs.append((level, message))

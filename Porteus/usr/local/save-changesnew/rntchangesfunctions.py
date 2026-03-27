@@ -1,4 +1,4 @@
-# developer buddy v5.0 core                     original 09/26/2025 updated 03/03/2026
+# developer buddy v5.0 core                     original 09/26/2025 updated 03/25/2026
 import glob
 import logging
 import os
@@ -10,14 +10,13 @@ import time
 from datetime import datetime
 from pathlib import Path
 from configfunctions import update_config
-from filter import get_exclude_patterns
+from filter import _filter
+from fsearch import process_line
 from fsearchparallel import process_lines
 from pyfunctions import cprint
 from pyfunctions import suppress_list
 from pyfunctions import unescf_py
-
-
-# Note: For database cacheclear / terminal supression see pyfunctions.py
+# Note: For database cacheclear / terminal supression see config.toml
 
 
 # Globals
@@ -62,7 +61,11 @@ def removefile(fpath):
 # inclusions from this script
 def get_runtime_exclude_list(USRDIR, MODULENAME, user, file_out, flth, dbtarget, CACHE_F, log_path, dbopt=None, temp_dir=None):
 
-    # tmp_results = os.path.join("/tmp", MODULENAME)
+    # dir_pth = os.path.join("/tmp", f"{MODULENAME}_MDY_*")
+    # folders = glob.glob(dir_pth)
+    # old_searches = [os.path.join(fld, MODULENAME) for fld in folders]
+
+    # ad_results = os.path.join("/tmp", f'{MODULENAME}x')
     download_results = os.path.join(USRDIR, f'{MODULENAME}x')
     gnupg_one = f"/home/{user}/.gnupg/random_seed"
     gnupg_two = "/root/.gnupg/random_seed"
@@ -77,16 +80,16 @@ def get_runtime_exclude_list(USRDIR, MODULENAME, user, file_out, flth, dbtarget,
         CACHE_F,
         log_path
     ]
+
+    # for entry in old_searches:
+    #     excluded_list.append(entry)
+
     if dbopt:
         excluded_list += [dbopt]
     if temp_dir:
         excluded_list += [temp_dir]
-    # dir_pth = os.path.join("/tmp", "MDY_*")
-    # folders = glob.glob(dir_pth)
-    # old_searches = [os.path.join(fld, MODULENAME) for fld in folders]
-    # for entry in old_searches:
-    #     excluded_list.append(entry)
-    return excluded_list
+
+    return [e.lower() for e in excluded_list if e]
 
 
 # Initialize
@@ -147,7 +150,7 @@ def logic(syschg, nodiff, diffrlt, validrlt, THETIME, argone, argf, result_outpu
         cprint.green('Nothing in the sys diff file. That is the results themselves are true.')
 
 
-# dspEDITOR disabled and results opened in bash wrapper /usr/local/bin/recentchanges to not run query or editor as root **
+# dspEDITOR disabled and results opened in bash wrapper /opt/recentchanges/recentchanges to not run query or editor as root **
 # open text editor   # Resource leaks   wait() commun
 def display(dspEDITOR, filepath, syschg, dspPATH):
     if not (dspEDITOR and dspPATH):
@@ -228,8 +231,8 @@ def is_supressed(web_list, file_line, flg, suppress_browser, suppress):
 
 
 # scr / cerr logic
-def filter_output(filepath, escaped_user, filtername, critical, pricolor, seccolor, typ, suppress_browser=True, suppress=False):
-    web_list = suppress_list(escaped_user)
+def filter_output(filepath, escaped_user, filtername, critical, pricolor, seccolor, typ, supbrwLIST, suppress_browser=True, suppress=False):
+    web_list = suppress_list(escaped_user, supbrwLIST)
     flg = False
     with open(filepath, 'r') as f:
         for file_line in f:
@@ -276,9 +279,7 @@ def porteus_linux_check():
 
 # One search ctime > mtime for downloaded, copied or preserved metadata files. cmin. Main search for mtime newer than mmin.
 def find_files(find_command, search_paths, file_type, RECENT, COMPLETE, RECENTNUL, init, cfr, search_start_dt, user_setting, logging_values, end, cstart, logger=None):
-    file_entries = []
-
-    table = "logs"
+    records = []
 
     if search_paths:
         print(search_paths)
@@ -286,13 +287,58 @@ def find_files(find_command, search_paths, file_type, RECENT, COMPLETE, RECENTNU
         print('Running command:', ' '.join(find_command))
 
     try:
-
+        buffer = b''
         proc = subprocess.Popen(find_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)  # stderr=subprocess.DEVNULL
-        output, err = proc.communicate()
+        # output, err = proc.communicate()
+
+        # if proc.returncode not in (0, 1):
+        #     stderr_str = err.decode("utf-8")
+        #     print(stderr_str)
+        #     print("Find command failed, unable to continue. Quitting.")
+        #     sys.exit(1)
+        while True:
+            if proc.stdout is None:
+                break
+            chunk = proc.stdout.read(8192)
+            if not chunk:
+                break
+            buffer += chunk
+            while b'\0' in buffer:
+                part, buffer = buffer.split(b'\0', 1)
+                if part.strip():
+
+                    line = part.decode("utf-8", errors="replace")
+                    fields = line.split(maxsplit=10)
+                    if len(fields) >= 11:
+                        if file_type == "main":
+                            file_path = fields[10]
+                            RECENTNUL += (file_path.encode() + b'\0')  # copy file list `recentchanges` null byte
+                            if user_setting['FEEDBACK']:  # scrolling terminal look       alternative output
+                                print(fields[10], flush=True)
+                        # escaped_entry = " ".join(fields)
+                        records.append(fields)
+        if buffer.strip():
+            try:
+                line = buffer.decode('utf-8', errors='replace')
+                fields = line.split(maxsplit=10)
+                if len(fields) >= 11:
+                    records.append(fields)
+
+            except Exception as e:
+                print(f"fault in trailing buffer ignored. {type(e).__name__} {e}")
+                pass
+
+        if proc.stdout is not None:
+            proc.stdout.close()
+        proc.wait()
 
         if proc.returncode not in (0, 1):
-            stderr_str = err.decode("utf-8")
-            print(stderr_str)
+            if proc.stderr is not None:
+
+                for raw in iter(proc.stderr.readline, b''):
+                    text = raw.decode("utf-8", errors="replace").strip()
+                    if text:
+                        print(text)
             print("Find command failed, unable to continue. Quitting.")
             sys.exit(1)
 
@@ -306,7 +352,7 @@ def find_files(find_command, search_paths, file_type, RECENT, COMPLETE, RECENTNU
     if file_type == "main":
         end = time.time()
 
-    file_entries = [entry.decode('utf-8', errors='backslashreplace') for entry in output.split(b'\0') if entry]
+    # file_entries = [entry.decode('utf-8', errors='backslashreplace') for entry in output.split(b'\0') if entry]
 
     # using escf_py and unesc_py for bash support otherwise can use: filename.encode('unicode_escape').decode('ascii') , codecs.decode(escaped, 'unicode_escape')
     # using escf_py and unesc_py for bash
@@ -315,18 +361,20 @@ def find_files(find_command, search_paths, file_type, RECENT, COMPLETE, RECENTNU
     # json.dumps(filename)    " -> \"   \n -> \\n   \ -> \\   \t -> \\t  \r \\r
     # json.loads(line)
 
-    records = []
-    for entry in file_entries:
-        fields = entry.split(maxsplit=10)
-        if len(fields) >= 11:
-            if file_type == "main":
-                file_path = fields[10]
-                RECENTNUL += (file_path.encode() + b'\0')  # copy file list `recentchanges` null byte
-                if user_setting['FEEDBACK']:  # scrolling terminal look       alternative output
-                    print(fields[10])
+    # original if buffering
+    # records = []
+    # for entry in file_entries:
+    #     fields = entry.split(maxsplit=10)
+    #     if len(fields) >= 11:
+    #         if file_type == "main":
+    #             file_path = fields[10]
+    #             RECENTNUL += (file_path.encode() + b'\0')  # copy file list `recentchanges` null byte
+    #             if user_setting['FEEDBACK']:  # scrolling terminal look       alternative output
+    #                 print(fields[10])
 
-            # escaped_entry = " ".join(fields)
-            records.append(fields)
+    #         # escaped_entry = " ".join(fields)
+    #         records.append(fields)
+    # end original
 
     if file_type not in ("ctime", "main"):
         raise ValueError(f"Invalid search type: {file_type}")
@@ -334,8 +382,7 @@ def find_files(find_command, search_paths, file_type, RECENT, COMPLETE, RECENTNU
     if init and user_setting['checksum']:
         cstart = time.time()
         cprint.cyan("Running checksum")
-    RECENT, COMPLETE = process_lines(records, file_type, table, search_start_dt, 'FSEARCH', user_setting, logging_values, cfr)
-
+    RECENT, COMPLETE = process_lines(process_line, records, file_type, search_start_dt, 'FSEARCH', user_setting, logging_values, cfr)
     return RECENT, COMPLETE, RECENTNUL, end, cstart
 
 
@@ -396,25 +443,23 @@ def clear_logs(USRDIR, DIRSRC, method, appdata_local, MODULENAME, archivesrh):
             "xDiffFromLast"
         ]
 
-        base_name = MODULENAME.lstrip("/")
-
         for suffix in suffixes:
-            # Build a glob pattern that matches files starting with base_name + suffix, plus anything after
-            pattern = os.path.join(USRDIR, f"{base_name}{suffix}*")
 
-            # Use glob to get all matching files
+            pattern = os.path.join(USRDIR, f"{MODULENAME}{suffix}*")
+
             for filepath in glob.glob(pattern):
                 try:
                     os.remove(filepath)
-                    # Optional: print(f"Removed {filepath}")
+
                 except FileNotFoundError:
-                    pass  # File already gone, continue
+                    pass
     return validrlt
 
 
 def filter_lines_from_list(lines, escaped_user, idx=1):
 
-    regexes = [re.compile(p.replace("{{user}}", escaped_user)) for p in get_exclude_patterns()]
+    regexes = [re.compile(p.replace("{{user}}", escaped_user)) for p in _filter]
+
     # filtered = [
     #     line for line in lines
     #     if line and len(line) > idx and line[idx] and not any(r.search(line[idx]) for r in regexes)

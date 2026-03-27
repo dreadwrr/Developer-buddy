@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# entry point for recentchanges.                     v5.0                                                       03/02/2026
+# entry point for recentchanges.                     v5.0                                                       03/25/2026
 #
 #   recentchanges. aka Developer buddy      recentchanges / recentchanges search
 #   Provide ease of pattern finding ie what files to block we can do this a number of ways
@@ -97,12 +97,12 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
     if method != "rnt" and argone.lower() != "search":
         print("exiting not a search")
         sys.exit(1)
-    # If not started from /usr/local/bin/recentchanges it can mess up the .gpg ownership.
+    # If not started from /opt/recentchanges/recentchanges it can mess up the .gpg ownership.
     # as query is run non-root and this script is run as root. abort  <---
     caller_script = Path(sys.argv[0]).resolve()
     launcher = os.path.basename(caller_script)
     if str(launcher) != "rntchanges.py":
-        print("please call from recentchanges in /usr/local/bin")
+        print("please call from recentchanges in /opt/recentchanges")
         sys.exit(1)
 
     global is_mcore
@@ -125,9 +125,11 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
     ANALYTICS = config['analytics']['ANALYTICS']
     ANALYTICSECT = config['analytics']['ANALYTICSECT']
     email = config['backend']['email']
+    cachermPATTERNS = config['backend']['cachermPATTERNS']
     checksum = config['diagnostics']['checkSUM']
     cdiag = config['diagnostics']['cdiag']
     suppress_browser = config['diagnostics']['supbrw']
+    supbrwLIST = config['diagnostics']['supbrwLIST']
     suppress = config['diagnostics']['suppress']
     POSTOP = config['diagnostics']['POSTOP']
     ps = config['diagnostics']['proteusSHIELD']  # proteus shield
@@ -146,6 +148,21 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
     if mMODE == "mc":
         is_mcore = True
 
+    escaped_user = re.escape(USR)
+
+    # db cache patterns in config
+    cachermPATTERNS = config['backend']['cachermPATTERNS']
+    cachermPATTERNS = [
+        p.replace("{{user}}", USR)
+        for p in cachermPATTERNS
+    ]
+
+    # suppress browser list in config. regex
+    supbrwLIST = [
+        p.replace("{{user}}", escaped_user)
+        for p in supbrwLIST
+    ]
+
     # make a named tuple or dict for args and to pass less args for clarity
     user_setting = {
         'USR': USR,
@@ -162,7 +179,6 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
 
     # VARS
     log_file = log_dir / log_file
-    escaped_user = re.escape(USR)
 
     TMPOUTPUT = []  # holding
     # Searches
@@ -252,16 +268,26 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
         scr = os.path.join(tempwork, "scr")  # feedback
         cerr = os.path.join(tempwork, "cerr")  # priority
 
+        #     is_key, err = iskey(email)
+        #     if is_key is False:
+        #         if not genkey(appdata_local, USR, email, email_name, dbtarget, CACHE_F, CACHE_S, flth, tempwork):
+        #             print("Failed to generate a gpg key. quitting")
+        #             return 1
+        #     elif is_key is None:
+        #         print(err)
+        #         return 1
+
+        start = time.time()
+
+        cfr = decr_ctime(CACHE_F, USR)
+
         logging_values = (log_file, ll_level, appdata_local, tempwork)
+
         setup_logger(log_file, logging_values[1], "MAIN")
         change_perm(log_file, uid, gid)
 
         if ll_level == "DEBUG":
             cprint.cyan(f"Debug logging to log_file: {str(logging_values[0])}")
-
-        start = time.time()
-
-        cfr = decr_ctime(CACHE_F, USR)
 
         # initialize
 
@@ -361,15 +387,26 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
             )
 
         cend = time.time()
+
         # end Main search
+
+        if RECENT is None or tout is None:
+            return 1
 
         check_stop(stopf)
         if cfr and (RECENT or tout):
             encr_cache(cfr, CACHE_F, USR, uid, gid, email, compLVL)
 
         if not RECENT:
-            cprint.cyan("No files found or invalid search criteria ")
-            return 0
+            if not tout:
+                cprint.cyan("No new files found or invalid search criteria")
+                return 0
+            # for entry in tout:
+            #     tss = entry[0].strftime(fmt)
+            #     fp = entry[1]
+            #     print(f'{tss} {fp}')
+            RECENT = tout[:]
+            tout = []
 
         COMPLETE = COMPLETE_1 + COMPLETE_2  # nsf append to rout in pstsrg before stat insert
 
@@ -414,9 +451,7 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
         deduped = list(seen.values())
 
         # inclusions from this script. sort -u
-        patts = get_runtime_exclude_list(USRDIR, MODULENAME, USR, str(file_out), flth, dbtarget, CACHE_F, str(log_file))
-
-        exclude_patterns = [p for p in patts if p]
+        exclude_patterns = get_runtime_exclude_list(USRDIR, MODULENAME, USR, str(file_out), flth, dbtarget, CACHE_F, str(log_file))
 
         def filepath_included(filepath, exclude_patterns):
             filepath = filepath.lower()
@@ -484,6 +519,7 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
             # still moves the old files
             if method == 'rnt':
                 check_stop(stopf)
+
                 res = porteus_linux_check()
                 if res:
                     validrlt = copy_files(RECENT, RECENTNUL, TMPOPT, argone, THETIME, argtwo, USR, tempwork, archivesrh, autooutput, xzmname, cmode, fmt, appdata_local)
@@ -491,8 +527,6 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
                     is_porteus = False
                 else:
                     validrlt = copy_files(RECENT, RECENTNUL, TMPOPT, argone, THETIME, argtwo, USR, tempwork, archivesrh, autooutput, xzmname, cmode, fmt, appdata_local)
-
-            syschg = True
 
             OLDSORT = []
             if flsrh:
@@ -507,7 +541,8 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
 
             if method == "rnt":
                 DIRSRC = "/tmp"  # 'recentchanges'
-                if not is_porteus:
+
+                if not is_porteus:  # if it wasnt porteus from above move old searches.
                     validrlt = clear_logs(USRDIR, DIRSRC, 'rnt', '/tmp', MODULENAME, archivesrh)
             else:
                 DIRSRC = USRDIR  # 'recentchanges search'
@@ -577,7 +612,7 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
 
             check_stop(stopf)
             # Backend
-            res, csum = pstsrg.main(dbtarget, SORTCOMPLETE, COMPLETE, user_setting, logging_values, rout, scr, cerr, dcr)
+            res, csum = pstsrg.main(dbtarget, SORTCOMPLETE, COMPLETE, user_setting, logging_values, rout, scr, cerr, cachermPATTERNS, dcr)
             #  dbopt = res  # alternatively return dbopt filename if doing something after with .db then remove in cleanup
             if res is not None:
                 if res == 0 or res == "new_profile":
@@ -599,12 +634,12 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
                 print()
 
             # Diff output to user
-            processha.processha(rout, ABSENT, diff_file, cerr, flsrh, argf, SRTTIME, escaped_user, suppress_browser, suppress)
+            processha.processha(rout, ABSENT, diff_file, cerr, flsrh, argf, SRTTIME, escaped_user, supbrwLIST, suppress_browser, suppress)
 
             # Filter hits
-            update_filter_csv(RECENT, USR, flth)
+            update_filter_csv(RECENT, flth, escaped_user)
 
-            # Post ops
+            # file doctrine
             if POSTOP:
 
                 try:
@@ -626,7 +661,7 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
             # Terminal output process scr/cer
             if not csum and not suppress:
                 if os.path.exists(scr):
-                    filter_output(scr, escaped_user, 'Checksum', 'no', 'blue', 'yellow', 'scr', suppress_browser)
+                    filter_output(scr, escaped_user, 'Checksum', 'no', 'blue', 'yellow', 'scr', supbrwLIST, suppress_browser)
 
             if csum:
                 if os.path.isfile(cerr):
@@ -637,6 +672,7 @@ def main(argone, argtwo, USR, pwrd, argf="bnk", method=""):
                                 continue
                             dst.write(line)
                     removefile(cerr)
+            # end Terminal output
 
             # write search file location to open as non root
             if os.path.isfile(result_output) and os.path.getsize(result_output) != 0:

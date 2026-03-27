@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database.     03/04/2026
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database.     03/25/2026
 import os
 import sqlite3
 import sys
@@ -13,7 +13,7 @@ from rntchangesfunctions import name_of
 from rntchangesfunctions import removefile
 from pyfunctions import cprint
 from pyfunctions import unescf_py
-from query import blank_count
+from pysql import blank_count
 from pysql import create_db
 from pysql import create_table
 from pysql import insert
@@ -22,7 +22,7 @@ from pysql import table_has_data
 from pysql import collision_check
 
 
-def main(dbtarget, xdata, COMPLETE, user_setting, logging_values, rout, scr, cerr, dcr=False):
+def main(dbtarget, xdata, COMPLETE, user_setting, logging_values, rout, scr, cerr, cachermPATTERNS, dcr=False):
 
     user = user_setting['USR']
     email = user_setting['email']
@@ -104,7 +104,7 @@ def main(dbtarget, xdata, COMPLETE, user_setting, logging_values, rout, scr, cer
                     try:
 
                         insert(parsedsys, conn, c, sys_table, ['count', 'mtime_us'])
-
+                        conn.commit()
                     except Exception as e:
                         print(f'sys db failed insert {e}  {type(e).__name__} \n{traceback.format_exc()}')
 
@@ -118,7 +118,7 @@ def main(dbtarget, xdata, COMPLETE, user_setting, logging_values, rout, scr, cer
 
                 try:
 
-                    csum = hanly_parallel(rout, scr, cerr, mMODE, xdata, ANALYTICSECT, checksum, cdiag, dbopt, is_ps, user, logging_values)
+                    csum = hanly_parallel(rout, scr, cerr, mMODE, xdata, cachermPATTERNS, ANALYTICSECT, checksum, cdiag, dbopt, is_ps, user, logging_values)
 
                 except Exception as e:
                     print(f"hanlydb failed to process on mode {mMODE}: {e} {traceback.format_exc()}", file=sys.stderr)

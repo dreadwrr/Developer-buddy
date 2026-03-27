@@ -5,10 +5,11 @@ import sys
 import traceback
 from pathlib import Path
 from fsearchparallel import process_lines
+from fsearchsys import process_sys_line
 from pyfunctions import cprint
 
 
-# 03/02/2026 proteus shield sys profile
+# 03/25/2026 proteus shield sys profile
 
 
 def collect_layer_files(layer, subdirs, is_sym, match_args=None):
@@ -223,10 +224,10 @@ def main(turbo, logging_values):
         }
         search_start_dt = None
 
-        xdata, COMPLETE_2 = process_lines(xdata_raw, "main", "sys", search_start_dt, "PROCESS_SYS", user_setting, logging_values, CACHE_F)
+        xdata, COMPLETE_2 = process_lines(process_sys_line, xdata_raw, "main", search_start_dt, "PROCESS_SYS", user_setting, logging_values, CACHE_F)
 
         user_setting['checksum'] = False
-        systemf, COMPLETE_1 = process_lines(diff, "main", "sys", search_start_dt, "PROCESS_SYS", user_setting, logging_values, CACHE_F)
+        systemf, COMPLETE_1 = process_lines(process_sys_line, diff, "main", search_start_dt, "PROCESS_SYS", user_setting, logging_values, CACHE_F)
 
         SORTCOMPLETE = xdata + systemf
 

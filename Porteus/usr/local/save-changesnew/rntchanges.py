@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# v5.0                                                       03/02/2026
-# This script is the entry point for recentchanges. The inv flag is passed in from from /usr/local/save-changesnew/filteredsearch script from /usr/local/bin/rnt symlink
+# v5.0                                                       03/25/2026
+# This script is the entry point for recentchanges. The inv flag is passed in from from /usr/local/save-changesnew/filteredsearch script from /usr/bin/rnt symlink
 #
 # There are 2 positional arguments. a third is the inv flag and is filtered out before executing script.
 # the filtered arg just changes a regular search to the inverse for `recentchanges search`, `recentchanges search n`, `recentchanges search myfile`
@@ -41,10 +41,10 @@ def main(argv):
     if len_arg > max_len:
         print("Incorrect usage. max from rnt 6. provided: ", len(argv))
         print("Required <USR> <PWD>")
-        print("please call from /usr/local/bin/recentchanges")
+        print("please call from /opt/recentchanges/recentchanges")
         return 1
     if len_arg < 3:
-        print("Incorrect usage. <USR> <PWD> please call from /usr/local/bin/recentchanges")
+        print("Incorrect usage. <USR> <PWD> please call from /opt/recentchanges/recentchanges")
         return 1
     if argv[1] == "reset":
         return remove_gpg_keys(argv)

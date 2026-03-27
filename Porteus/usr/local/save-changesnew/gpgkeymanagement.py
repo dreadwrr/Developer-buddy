@@ -22,27 +22,33 @@ def iskey(email):
     return False
 
 
-def genkey(user, email, name, dbtarget, CACHE_F, TEMPD, passphrase=None):
+def genkey(user, email, name, dbtarget, CACHE_F, flth, TEMPD, passphrase=None):
 
     if not passphrase:
         p = getpass.getpass("Enter passphrase for new GPG key: ")
     else:
         p = passphrase
-    params = f"""%echo Generating a GPG key
-Key-Type: RSA
-Key-Length: 4096
-Subkey-Type: RSA
-Subkey-Length: 4096
-Name-Real: {name}
-Name-Email: {email}
-Expire-Date: 0
-Passphrase: {p}
-%commit
-%echo done
-"""
+    if not p:
+        return False
+
+    param_lines = [
+        "%echo Generating a GPG key",
+        "Key-Type: RSA",
+        "Key-Length: 4096",
+        "Subkey-Type: RSA",
+        "Subkey-Length: 4096",
+        f"Name-Real: {name}",
+        f"Name-Email: {email}",
+        "Expire-Date: 0",
+        # Passphrase: {p},
+        "%commit",
+        "%echo done",
+    ]
+    params = "\n".join(param_lines) + "\n"
     with tempfile.TemporaryDirectory(dir=TEMPD) as kp:
 
         ftarget = os.path.join(kp, 'keyparams.conf')
+
         try:
 
             with open(ftarget, "w", encoding="utf-8") as f:
@@ -66,7 +72,8 @@ Passphrase: {p}
             # with open(ftarget, "rb") as param_file:
             #     subprocess.run(
             #         cmd, check=True, stdin=param_file)
-            clear_gpg(user, dbtarget, CACHE_F)
+
+            clear_gpg(user, dbtarget, CACHE_F, flth)
             print(f"GPG key generated for {email}.")
             return True
         except subprocess.CalledProcessError as e:
@@ -105,12 +112,13 @@ def remove_gpg_keys(args):
     appdata_local = Path(args[4])
     dbtarget = appdata_local / "recent.gpg"
     ctimecache = appdata_local / "ctimecache.gpg"
-    return delete_gpg_keys(user, email, dbtarget, ctimecache)
+    flth = appdata_local / "flth.csv"
+    return delete_gpg_keys(user, email, dbtarget, ctimecache, flth)
 
 
-def clear_gpg(usr, dbtarget, CACHE_F):
-    """ delete ctimecache & db .gpg """
-    for r in (CACHE_F, dbtarget):
+def clear_gpg(usr, dbtarget, CACHE_F, flth):
+    """ delete ctimecache & db .gpg & filter hits """
+    for r in (CACHE_F, dbtarget, flth):
         p = Path(r)
         try:
             is_root_owned = p.exists() and p.stat().st_uid == 0
@@ -122,7 +130,7 @@ def clear_gpg(usr, dbtarget, CACHE_F):
             pass
 
 
-def delete_gpg_keys(usr, email, dbtarget, ctimecache):
+def delete_gpg_keys(usr, email, dbtarget, ctimecache, flth):
 
     def exec_delete_keys(usr, email, fingerprint):
         silent: dict[str, Any] = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
@@ -160,7 +168,7 @@ def delete_gpg_keys(usr, email, dbtarget, ctimecache):
                         result = True
                         exec_delete_keys(usr, email, fingerprint)
 
-                clear_gpg(usr, dbtarget, ctimecache)
+                clear_gpg(usr, dbtarget, ctimecache, flth)
 
                 if result:
 

@@ -10,9 +10,8 @@
 # r'/var/run',
 # can be combined as
 # r'^/var/(cache|run)'
-def get_exclude_patterns():
 
-    return [
+_filter = [
 
         # Base var exclusions
         r'/var/cache',
@@ -27,7 +26,6 @@ def get_exclude_patterns():
         r'/home/{{user}}/\.Xauthority',
         r'/usr/share/glib-2\.0/schemas',
 
-		# porteus exclusions
         r'/usr/lib64/libXc',
         r'/usr/lib64/libudev',
         r'/var/db/sudo/lectured/1000',
@@ -77,3 +75,18 @@ def get_exclude_patterns():
         #    we dont want  /etc/
         # r'^/etc'  # Uncomment to exclude /etc
     ]
+
+
+# filter hits to reset on Cache clear. copy literal items from /usr/local/save-changesnew/filter.py to. resets to 0
+_filterhitRESET = [
+    r'\.cache',
+    r'/home/{{user}}/\.Xauthority',
+    r'\.local/share',
+    r'/root/xauth',
+    r'/var/cache',
+    r'/var/log',
+    r'/var/run',
+    r'/usr/share/mime',
+    r'\.gnupg',
+    r'/root/\.xauth'
+]

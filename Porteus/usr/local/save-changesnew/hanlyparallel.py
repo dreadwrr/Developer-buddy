@@ -3,12 +3,12 @@ import logging
 import traceback
 import multiprocessing as mp
 import os
-import queue
 import sqlite3
 import threading
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from concurrent.futures.process import BrokenProcessPool
 from hanlymc import hanly
+from logs import emit_log
 from logs import init_process_worker
 from logs import logs_to_queue
 from logs import logging_worker
@@ -16,7 +16,7 @@ from pyfunctions import cprint
 from pyfunctions import escf_py
 from pysql import detect_copy
 from pysql import increment_f
-# 03/03/2026
+# 03/25/2026
 
 
 # tfile
@@ -106,7 +106,7 @@ def logger_process(results, sys_records, rout, scr, cerr, dbopt, ps, logger=None
                     log.error(em, exc_info=True)
 
 
-def hanly_parallel(rout, scr, cerr, mMODE, parsed, ANALYTICSECT, checksum, cdiag, dbopt, ps, user, logging_values):
+def hanly_parallel(rout, scr, cerr, mMODE, parsed, cachermPATTERNS, ANALYTICSECT, checksum, cdiag, dbopt, ps, user, logging_values):
 
     all_results = []
     batch_incr = []
@@ -125,23 +125,24 @@ def hanly_parallel(rout, scr, cerr, mMODE, parsed, ANALYTICSECT, checksum, cdiag
 
     if len_parsed < 80 or mMODE == "default":
 
-        log_q = queue.SimpleQueue()
-        init_process_worker(log_q)
+        # also move off thread for single core and directly log
+        # log_q = queue.SimpleQueue()
+        # init_process_worker(log_q)
 
-        try:
+        # try:
+        #     tlog = threading.Thread(target=logging_worker, args=(log_q, logger), daemon=True)
+        #     tlog.start()
+        init_process_worker(None)
+        all_results, batch_incr, log_entries, csum = hanly(parsed, checksum, cdiag, dbopt, ps, user, logging_values, cachermPATTERNS, logger)
+        #     if log_entries:
+        #         logs_to_queue(log_entries, log_q)
 
-            tlog = threading.Thread(target=logging_worker, args=(log_q, logger), daemon=True)
-            tlog.start()
-
-            all_results, batch_incr, log_entries, csum = hanly(parsed, checksum, cdiag, dbopt, ps, user, logging_values)
-            if log_entries:
-                logs_to_queue(log_entries, log_q)
-
-        finally:
-            log_q.put(None)
-            tlog.join()
+        # finally:
+        #     log_q.put(None)
+        #     tlog.join()
 
     else:
+
         max_workers = min(8, os.cpu_count() or 1, len_parsed)
         chunk_size = max(1, (len_parsed + max_workers - 1) // max_workers)
         chunks = [parsed[i:i + chunk_size] for i in range(0, len_parsed, chunk_size)]
@@ -150,7 +151,6 @@ def hanly_parallel(rout, scr, cerr, mMODE, parsed, ANALYTICSECT, checksum, cdiag
         log_q = ctx.Queue(maxsize=4096)
         log_t = threading.Thread(target=logging_worker, args=(log_q, logger), daemon=True)
         log_t.start()
-
         try:
             with ProcessPoolExecutor(
                 max_workers=max_workers,
@@ -160,7 +160,7 @@ def hanly_parallel(rout, scr, cerr, mMODE, parsed, ANALYTICSECT, checksum, cdiag
             ) as executor:
                 futures = [
                     executor.submit(
-                        hanly, chunk, checksum, cdiag, dbopt, ps, user, logging_values
+                        hanly, chunk, checksum, cdiag, dbopt, ps, user, logging_values, cachermPATTERNS
                     )
                     for chunk in chunks
                 ]
@@ -179,14 +179,13 @@ def hanly_parallel(rout, scr, cerr, mMODE, parsed, ANALYTICSECT, checksum, cdiag
 
                     except BrokenProcessPool as e:
                         print("hanly encountered an error")
-                        logger.error(f"unable to run hanly an error occured {e} \n{traceback.format_exc()}")
-                        for f in futures:
-                            f.cancel()
+                        emit_log("ERROR", f"unable to run hanly an error occured {e} \n{traceback.format_exc()}", log_q)
                         break
                     except Exception as e:
                         em = f"Worker error from hanly multiprocessing: {type(e).__name__} {e} \n {traceback.format_exc()}"
                         print(em)
-                        logger.error(em)
+                        emit_log("ERROR", f"{em} \n {traceback.format_exc()}", log_q)
+                        break
         finally:
             log_q.put(None)
             log_t.join()
@@ -194,6 +193,7 @@ def hanly_parallel(rout, scr, cerr, mMODE, parsed, ANALYTICSECT, checksum, cdiag
             log_q.join_thread()
 
     print("processing results")
+    logger = logging.getLogger("HANLYLOGGER")
     logger_process(all_results, batch_incr, rout, scr, cerr, dbopt, ps, logger)
     gc.collect()
     return csum

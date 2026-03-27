@@ -151,6 +151,21 @@ def table_has_data(conn, table_name):
     return res
 
 
+def blank_count(curs):
+    curs.execute('''
+        SELECT COUNT(*)
+        FROM logs
+        WHERE (timestamp IS NULL OR timestamp = '')
+        AND (filename IS NULL OR filename = '')
+        AND (inode IS NULL OR inode = '')
+        AND (accesstime IS NULL OR accesstime = '')
+        AND (checksum IS NULL OR checksum = '')
+        AND (filesize IS NULL OR filesize = '')
+    ''')
+    count = curs.fetchone()
+    return count[0]
+
+
 def collision_check(xdata, cerr, c, ps):
     reported = set()
     csum = False

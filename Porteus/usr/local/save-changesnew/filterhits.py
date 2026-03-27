@@ -1,14 +1,13 @@
 import re
 import csv
 from collections import defaultdict
-from filter import get_exclude_patterns
+from filter import _filter
 
 
-def update_filter_csv(TMPOPT, user, csv_file):
+def update_filter_csv(RECENT, csv_file, escaped_user):
 
     hits_dict = defaultdict(int)
 
-    # load csv
     try:
         with open(csv_file, newline='') as f:
             reader = csv.reader(f)
@@ -17,16 +16,16 @@ def update_filter_csv(TMPOPT, user, csv_file):
                 pattern, count = row
                 hits_dict[pattern] = int(count)
     except FileNotFoundError:
-        pass  # or create csv
+        pass
 
-    patterns = get_exclude_patterns()
+    patterns = _filter
 
     for pattern_literal in patterns:
-        escaped_user = re.escape(user)
+
         pattern = pattern_literal.replace("{{user}}", escaped_user)
         regex = re.compile(pattern)
 
-        count = sum(1 for line in TMPOPT if len(line) >= 2 and regex.search(line[1]))
+        count = sum(1 for line in RECENT if len(line) >= 2 and regex.search(line[1]))
         hits_dict[pattern_literal] += count
 
     # add patterns not matched to csv
@@ -38,6 +37,3 @@ def update_filter_csv(TMPOPT, user, csv_file):
         writer.writerow(["Entry", "Hits"])
         for pattern_literal in patterns:
             writer.writerow([pattern_literal, hits_dict.get(pattern_literal, 0)])
-        # original doesnt add new items to flth.csv
-        # for pattern, count in hits_dict.items():
-        #     writer.writerow([pattern, count])

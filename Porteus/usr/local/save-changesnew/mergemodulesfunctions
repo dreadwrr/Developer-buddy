@@ -11,7 +11,7 @@ fi
 startmnt() {
 local rlt=0 ; local is_merge="$1"
 dest="/mnt/loop-$(basename "$mods" .xzm)"
-[[ -d "$dest" ]] && { echo "Error: $dest mount dir already exists. remove and try again." && rlt=1; } || mkdir $dest
+[[ -d $dest ]] && { echo "Error: $dest mount dir already exists. remove and try again." && rlt=1; } || mkdir $dest
 if mountpoint -q $dest; then echo "Error: $dest already mounted. Everything preserved."; rlt=1; fi
 if [ ! -f "$mods" ]; then echo "Error: In wrong directory. '$dest' not found."; rlt=1; fi
 if (( rlt != 0 )); then [[ "$1" = "true" ]] && mount -o remount,udba=none / ; exit $rlt ; fi
@@ -104,15 +104,18 @@ for mods in "$PWD/"*_uid_*.xzm; do
 	((x++))
 	for candidate in "${candidates[@]}"; do
 	    if [ "$candidate" == "$mods" ]; then
+			ret=0
 			startmnt $is_merge
-			mount -o loop $mods $dest
-            #
-			wh_process $dest $2
-			# from above we cant remove the .wh. here as readonly
-			cp -afv $dest/. $1 2> >(tee $4 >&2)
-			ret=$?
+			if ! mount -o loop $mods $dest; then
+				ret=12
+			else
+				wh_process $dest $2
+				cp -afv $dest/. $1 2> >(tee $4 >&2)  # from above we cant remove the .wh. here as readonly
+				ret=$?
+			fi
+
 			if [ "$ret" -ne 0 ]; then
-				if grep -v '\.wh\.' $4 > /dev/null; then
+				if [ "$ret" -eq 12 ] || grep -v '\.wh\.' $4 > /dev/null; then
 					red "Error processing one of the modules ${mods}"
                     echo "dest $dest"
                     echo "output $1"
@@ -141,7 +144,7 @@ if [ -s $2 ]; then
 	rm $2
 fi
 #find . -name ".wh.*" -exec rm -r {} \;  # alternatively delete all .wh. files in .xzm as changes exit isnt implemented in Nemesis yet.
-wh_conflicts $ch $1 
+wh_conflicts $ch $1
 }
 # First rename to .bak prevent naming conflicts.
 package_xzm() {
@@ -153,7 +156,7 @@ local is_merge="$5"  # is from save-changesnew have to unmount on failure
 local output="$6"
 base_cmd=(mksquashfs "$1" "${PWD}/${rname}" -comp $cmode)  # "${adtcmd[@]}"
 [[ -s "$QEXCL" ]] && base_cmd+=(-ef $QEXCL)
-while IFS= read -r ofile; do [[ -z "$ofile" || "$ofile" == \#* ]] && continue ; fname="$( basename "${ofile%.xzm}").bak" ; mv "$ofile" "$output$fname" ; done < "$oMF"  
+while IFS= read -r ofile; do [[ -z "$ofile" || "$ofile" == \#* ]] && continue ; fname="$( basename "${ofile%.xzm}").bak" ; mv "$ofile" "$output$fname" ; done < "$oMF"
 unset IFS
 "${base_cmd[@]}"
 ret=$?

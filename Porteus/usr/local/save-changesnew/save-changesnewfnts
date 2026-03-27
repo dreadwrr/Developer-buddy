@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# save-changesnew functions to move options further up the script             03/02/2026
+# save-changesnew functions to move options further up the script             03/25/2026
 . /usr/local/save-changesnew/mergemodulesfunctions
 dycmb() {
 TFLD=""
@@ -116,8 +116,8 @@ local t=0 ; local c ; local r=0
 local u=0 ; local rlt=0
 local keep=$tmp/outfile  # perishable
 local remove=$tmp/deletre  # ..
-local aend astart lswitch tfile
-local mt
+local aend astart firstsv lswitch tfile
+local mt h
 local is_merge="true"
 candidates=() ; mdlnames=()
 
@@ -195,7 +195,7 @@ if [[ -f /dev/shm/xsc ]]; then
 		if [ ! -f "$tfile" ]; then  # use the first since boot failing that use h (newest) from above
 			echo "Couldnt find last save point looking for next closest"
 			goahead="false"		
-
+			firstsv=""
 			srt_time_epoch=$(date -d "$(uptime -s)" +%s)
 			while IFS= read -r -d '' file; do
 				(( t++ ))
@@ -234,7 +234,7 @@ if [[ -f /dev/shm/xsc ]]; then
 						return 1
 					fi
 
-                    find "$dest/" -type f -name '.wh.*' -printf '%P\n' > $tmp/whmarkers 
+                    # # find "$dest/" -type f -name '.wh.*' -printf '%P\n' > $tmp/whmarkers 
 					rsync -a "$dest/" "$tmp" --exclude '.wh.*'
 					rlt=$?
 					if [ "$rlt" -ne 0 ]; then 
@@ -250,7 +250,7 @@ if [[ -f /dev/shm/xsc ]]; then
 
 		aend=$(date +%s.%N)
 		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then elapse=$( awk "BEGIN {print $aend - $astart}"); fi
-
+		# save changes into seperate directory
 		rsync -a "$ch/" "$mtmp" --exclude '.wh.*' --exclude-from=$EXFILES  # total current files
 		trlt=$?
 		errblk "$mtmp"
@@ -268,31 +268,13 @@ if [[ -f /dev/shm/xsc ]]; then
         #cp $UPDATE $keep  # what needs to be transfered with usable paths
 
         # --out-format="%n" using relative
-        sed -i -e '/^\./d' -e '/\/$/d' $UPDATE # remove the unusable first line  . and any ending in /
+        sed -i -e '/^\./d' -e '/\/$/d' $UPDATE  # remove the unusable . or dot in first line and any ending in /
 		cp $UPDATE $keep  # what needs to be transfered with usable paths
 
-		cat $tmp/contents | grep -Fxvf $keep > $remove # the changes folder - what would be transfered = remove
+		cat $tmp/contents | grep -Fxvf $keep > $remove # (changes folder) - (what would be transfered) = remove
 		cat $remove >> $EXFILES
 
 		labelmk $oMF # copy\insert log before .xzm
-
-        # on subsequent runs compare to the most recent extracted the .wh. so not including duplicate .wh.
-        # if whmarkers is unavailable fall back
-        shopt -s nullglob
-        while IFS= read -r -d '' file; do
-            
-            if [[ -e "$tmp"/whmarkers ]]; then
-                grep -Fxq -- "$file" "$tmp"/whmarkers || echo "$file" >> $EXFILES
-            else
-                k="$( echo "$file" | sed -e 's/\.wh\.//g')"  # k=$( echo "$file" | sed -E 's|(.*\/)\.wh\.|\1|') # alternative
-                found="false"
-                items=( "$INAME"/*/"$k" )
-                if ((${#items[@]})); then found="true" ; fi
-                test -e "$tmp/$k" && found="true"
-                [[ "$found" = "true" ]] || echo "$file" >> $EXFILES
-            fi
-        done < <(find "$ch/" -type f -name '.wh.*' -printf '%P\0')
-        shopt -u nullglob
 
         # cp $tmp/contents /home/guest/contents  # debug
         # cp $keep /home/guest/keep  # debug
@@ -490,7 +472,7 @@ local xsize c  ; local instm="$1"
     else
         { echo "bytes:"$xsize ; echo "file name:${fname}" ; echo ; } > $msr
     fi
-    test -d "$mtmp" && rm -rf "${mtmp:?}"
+    rm -rf ${mtmp:?}
 }
 insertmenu() {
 cat > /tmp/block.txt << 'EOF'
@@ -519,7 +501,7 @@ backup() {
 if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
 if [ ! -e $target ]; then echo "Target does not exist" && exit 0 ; fi
 [[ "$1" != "c" ]] && rlt=$(cat /proc/cmdline | sed -n 's/.*changes=EXIT:\([^ ]*\).*/\1/p')
-[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt}
+[[ "$rlt" == *"/dev/"* ]] && { moi="$(findmnt -n -o TARGET "$rlt")" ; [[ -z "$moi" ]] && rlt="/mnt/${rlt##*/}" || rlt=$moi ; }
 [[ "$rlt" == *"$target"* ]] && { rlt=${rlt%/} && target=""; }
 test -e $target$rlt && osize=$( du -sb "${target}${rlt}${MODULENM}/" | tail -n1 | awk '{print $1}')
 mkdir $tmp ; : > /tmp/incfilter.log
