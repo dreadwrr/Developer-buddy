@@ -1,5 +1,5 @@
 #!/bin/bash
-#                                               Developer Buddy v5.0                Mar 2, 2026
+#                                               Developer Buddy v5.0                Mar 30, 2026
 #   this script works for two modes porteus nemesis graphics and changes.
 # borrowed script items source
 # # Author: fanthom <fanthom@porteus.org>
@@ -19,7 +19,7 @@ autobackup="true"           # Graphics changes only /etc/rc.d/rc.local_shutdown 
 										# so there is no accidental saving if forgetting to turn off. Useful if doing something important. save-changesnew y  or save-changesnew yes   to enable
 
 
-d2drive="true"                 # default is true   also for systems with low memory save directly to drive
+d2drive="false"                 # default is true   also for systems with low memory save directly to drive
                                           # false. save to memory for staging purposes and convenience of modifying the script ect
                                            # more versatle to do any work or processing exclusions before saving. Also freezes
 											# the filesystem so can ensure better safety. d2drive has been stable so far
@@ -192,14 +192,19 @@ USR=$theUSER													;			LOGDIR=/home/$USR/Downloads
 SFILES=/tmp/save.sfiles.tmp								;			elog=/tmp/error.log
 LOGFILE=save.sfiles.tmp									;			SVFILES=$tmp/save.rncfilesmanifest.tmp  # spare tmp file
 elog=/tmp/error.log  #debug file \ errors
-elapse=0
+
 mbyte=1048576												;			osize=0
+elapse=0
+
 IFOLDERS=""														;			rname=""
 adtCMD=""														;			MODULENM=""
 sentinal=""														;			rlt=""
+mods=""															;			ret=""
+dest=""																;			nLOG=""
 
 is_routine="true"												;			goahead="true"
 dirtybit="false"													;			is_moved="false"
+dat="false"														;			new_dat="false"
 
 autosave $3
 [[ "$mdllmt" -eq 0 ]] && echo "mdllmt > 0 current value $mdllmt" && exit 0
@@ -207,7 +212,7 @@ if [ "$mdlMRGPRF" != "forward" ] && [ "$mdlMRGPRF" != "back" ]; then echo "inval
 if [ "$namingPRF" != "alpha" ] && [ "$namingPRF" != "numeric" ]; then echo "invalid setting namingPRF: $namingPRF" && exit 0 ; fi
 if [ "$LOGGING" == "false" ] && [ "$ANALYTICS" == "true" ]; then echo analystics requires logging to be true. && exit 0 ; fi
 if [ ! -e $target ]; then echo "Target does not exist" && exit 0 ; fi
-msr=${target}${em}"/lscheck"
+msr=$target$em"/lscheck"
 
 IFOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e $ch/"$x" && echo "$x"; done)"
 
@@ -216,42 +221,146 @@ if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then start=$(dat
 mount -o remount,udba=notify /
 MODULENM="${chxzm%.xzm}" ; mdlnm="${MODULENM#/}" ; bootdvc="${bootdvc%/}" ; mdldvc="${mdldvc%/}"  #normalize
 rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
+rlt=${rlt#EXIT:}
+
 if [ "$d2drive" == "false" ] || { [ "$d2drive" == "true" ] && [ "$d2dmdl" == "false" ] ; } ; then green "Staging... " ; else green "Direct to drive saving" ; fi
 if [ "$rlt" != "" ]; then
-    if [ "$rlt" == "/" ]; then rlt="" ; fi
-	[[ "$rlt" == *"/dev/"* ]] && rlt=${rlt//dev/mnt}
-	if [[ "$rlt" == *"$target"* ]]; then
-		rlt=${rlt%/}
-		target=""
+    if [ "$rlt" == "/" ]; then rlt="" ; fi  # changes=/
+
+	# resolve any mount point
+	#
+    ret=$rlt
+    IFS=: read r rlt <<< "$ret"
+	if [[ "$r" = "UUID" ]]; then
+        rest="${rlt#*/}"  
+		uid="${rlt%%/*}"  
+		dev=$( blkid -U $uid)
+		passdir=$( findmnt -n -o TARGET --source $dev | head -n1)
+		passdir="$passdir/$rest"
+	elif [[ "$r" = "LABEL" ]]; then
+        rest="${rlt#*/}"  
+		lbl="${rlt%%/*}"  
+		dev=$( blkid -L "$lbl")
+		passdir=$( findmnt -n -o TARGET --source $dev | head -n1)
+		passdir="$passdir/$rest"
+	elif [[ "$ret" == /dev/* ]]; then
+
+		dev=""
+		path=$ret
+		while [[ "$path" != "/" ]]; do
+			if [[ "$path" != "/dev" ]]; then
+				dev=$path
+			fi
+			passdir=$( findmnt -n -o TARGET --source $path | head -n1)
+			[[ -n "$passdir" ]] && break
+			path=${path%/*}
+		done
+		[[ -n "$passdir" ]] && passdir="$passdir${ret#$dev}" || passdir=/mnt/"${ret#/dev/}"  # passdir=${rlt//dev/mnt} does match expected input just less correct
+
+	elif  [[ "$ret" != /mnt/* ]]; then
+		passdir=$target$ret  # relative ie changes=/porteus or changes=/
+
 	else
-		target=$rlt
+		passdir=$ret  # regular ie /mnt/sdx/porteus
+
 	fi
-	osize=$( du -sb "${target}${rlt}${MODULENM}/" | cut -f1)
+
+	dirSRC=$ch
+
+	#  dat file xfs or ext4
+	#
+	if [[ "$passdir" == *.dat ]]; then
+        [[ ! -f "$passdir" ]] && { echo "logic error couldnt set dirSRC: $passdir for .dat file" ; exit 1 ; }  # dirSRC which is /mnt/live/memory/changes that passdir /mnt/sdx/porteussave.dat is mounted at was resolved incorrectly
+
+		dat="true"
+
+		TARGET=${passdir%.dat}.bak
+		label=$( basename $TARGET)
+        backup_path=$( dirname $TARGET)
+		logfile="$backup_path$MODULENM".bak.log
+        backup_path=$passdir
+		osize=$( du -sb "$passdir" | cut -f1)
+
+		if [[ ! -f "$TARGET" ]]; then
+			new_dat="true"
+
+			# make the backup in the same place the file is
+			#
+			tsize=$( df --output=avail "$passdir" | tail -1)  # size of disk
+			if (( (tsize * 1024) < osize )); then
+				echo "not enough space on device. $osize required and $tsize available. quitting"
+				exit 1
+			fi
+
+			# make a duplicate .dat
+			#
+			size_=$(( osize / mbyte ))
+			fs_type=$( findmnt -n -o FSTYPE $ch)
+			[[ -z "$fs_type" ]] && echo "couldnt get FSTYPE for current .dat file to make backup .dat" && exit 1
+			if [[ "$fs_type" != xfs && "$fs_type" != ext2 && "$fs_type" != ext4 ]]; then echo ".dat logic error unknown fs of current .dat quitting fs: $fs_type" && exit 1 ; fi
+
+			dd if=/dev/zero of="$TARGET" bs=1M count=$size_
+			# format xfs or ext4
+			mkfs."$fs_type" -f "$TARGET" || {
+				rm -f "$TARGET"
+				echo "mkfs failed couldnt format .dat copy"
+				exit 1
+			}
+		fi
+
+		# if a new .dat was made it would fail here. also if we cant mount the existing backup .dat fail here
+		mods=$TARGET
+		startmnt
+		if ! mount -o loop "$mods" "$dest"; then
+			mount -o remount,udba=none /
+			check_dat
+			echo "Failed to mount .dat: $mods use umount $dest and remove the folder to continue"
+			return 1
+		fi
+		TARGET=$dest
+
+	# regular changes folder
+	#
+	else
+		[[ ! -d "$passdir" ]] && { echo "logic error couldnt set dirSRC: $passdir" ; exit 1 ; }  # dirSRC /mnt/sdx/changes was resolved incorrectly
+		# dirSRC="${passdir}/changes"  # original using $ch above ln266
+
+		TARGET="$passdir$MODULENM".bak/
+		label="$( basename $TARGET)"/
+        backup_path=$TARGET
+		logfile="$passdir$MODULENM".bak.log
+		osize=$( du -sb "$dirSRC" | cut -f1)
+	fi
+
     : > /tmp/incfilter.log
     if [ "$d2drive" == "true" ]; then
-        dirSRC="$target$rlt/changes"
 		for folder in $FOLDERS; do echo "+ /$folder/" >> /tmp/incfilter.log ; done
 		for fld in $EXCLUDE; do if [[ "${fld:0:1}" == "/" ]]; then fld="${fld#/}" ; else fld="*${fld}*" ; fi ; echo "- /$fld/" >> /tmp/incfilter.log ; done
 		echo "- /*" >> /tmp/incfilter.log
     else
 		mkdir $tmp ; dirSRC=$tmp
 		for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
+		#
+        cd $ch
+		find $FOLDERS -name ".wh.*" > $SFILES
+        while IFS= read -r y || [ -n "$y" ]; do cp -uaf --parents "$y" $TARGET ; done < $SFILES  # > $oMF  # use oMF for debugging # cp -uafv --parents $(cat $SFILES) $TARGET > $oMF
+
     fi
 	pst=$PWD ; cd $dirSRC
 
-    if [ -d "${target}${rlt}${MODULENM}.bak/" ]; then
+    if [ -e "$TARGET" ] && [ "$new_dat" == "false" ]; then
         green "Updating existing backup..."
         if [ "$LOGGING" == "true" ]; then
-            if [ -s "${target}${rlt}${MODULENM}.bak.log" ]; then
-                m=$(head -n 1 "${target}${rlt}${MODULENM}.bak.log" | grep -c "STOP")
+            if [ -s "$logfile" ]; then
+                m=$(head -n 1 "$logfile" | grep -c "STOP")
                 if (( m == 0 )); then
-                    adtCMD="--log-file=${target}${rlt}${MODULENM}.bak.log"
-                    if grep -B 1 'END ORIGINAL FILES' "${target}${rlt}${MODULENM}.bak.log" | tail -2 | head -1 | grep -q '^PAUSED$'; then
-                        glog
+                    adtCMD="--log-file=$logfile"
+                    if grep -B 1 'END ORIGINAL FILES' "$logfile" | tail -2 | head -1 | grep -q '^PAUSED$'; then
+                        glog "false" "$logfile"
                     else
 
-                        l=$(head -n 1 "${target}${rlt}${MODULENM}.bak.log" | grep -c "PAUSED")
-                        size=$( stat -c %s "${target}${rlt}${MODULENM}.bak.log")
+                        l=$(head -n 1 "$logfile" | grep -c "PAUSED")
+                        size=$( stat -c %s "$logfile")
 
                         if [ "$size" -gt $((logSIZE * mbyte)) ]; then
                             if [ "$ANALYTICS" == "true" ]; then
@@ -260,53 +369,53 @@ if [ "$rlt" != "" ]; then
 
                             if [ "$logSPRF" == "delete" ]; then
 
-                                if grep -q "END ORIGINAL FILES" "${target}${rlt}${MODULENM}.bak.log"; then
-                                    glog "true"
+                                if grep -q "END ORIGINAL FILES" "$logfile"; then
+                                    glog "true" "$logfile"
                                 else
-                                    : > "${target}${rlt}${MODULENM}.bak.log"
+                                    : > "$logfile"
 								fi
 
                             elif [ "$logSPRF" == "psv" ]; then
 
-                                c=$( wc -l < "${target}${rlt}${MODULENM}.bak.log") # total count
+                                c=$( wc -l < "$logfile") # total count
                                 q=$(awk "BEGIN {print $c * 0.85}")
                                 if (( l == 1 )); then
-                                    sed -n "${q}, \$p" "${target}${rlt}${MODULENM}.bak.log" > $UPDATE
+                                    sed -n "${q}, \$p" "$logfile" > $UPDATE
 
                                 else
 
-                                    h=$( grep -m 1 -n "END ORIGINAL FILES" "${target}${rlt}${MODULENM}.bak.log" | awk -F: '{print $1}') # what line is it on
+                                    h=$( grep -m 1 -n "END ORIGINAL FILES" "$logfile" | awk -F: '{print $1}') # what line is it on
                                     b=$(( h + 16 ))
 
                                     if [ "$h" !=  "" ]; then
 
                                         if [[ $b -le $c ]]; then
 
-                                            if sed -n "$(( h + 16))p" "${target}${rlt}${MODULENM}.bak.log" | grep -q "total size is"; then
-                                                sed "${b}q" "${target}${rlt}${MODULENM}.bak.log" > $UPDATE
+                                            if sed -n "$(( h + 16))p" "$logfile" | grep -q "total size is"; then
+                                                sed "${b}q" "$logfile" > $UPDATE
                                             else
-                                                 sed '/END ORIGINAL FILES/q' "${target}${rlt}${MODULENM}.bak.log" > $UPDATE
+                                                 sed '/END ORIGINAL FILES/q' "$logfile" > $UPDATE
                                             fi
 
                                         else
-                                            sed '/END ORIGINAL FILES/q' "${target}${rlt}${MODULENM}.bak.log" > $UPDATE
+                                            sed '/END ORIGINAL FILES/q' "$logfile" > $UPDATE
                                         fi
 
-                                        sed -n "${q}, \$p" "${target}${rlt}${MODULENM}.bak.log" >> $UPDATE
+                                        sed -n "${q}, \$p" "$logfile" >> $UPDATE
 
                                     else
-                                        sed -n "${q}, \$p" "${target}${rlt}${MODULENM}.bak.log" > $UPDATE
+                                        sed -n "${q}, \$p" "$logfile" > $UPDATE
                                     fi
                                 fi
                                 if [ "$ANALYTICS" == "true" ]; then
-                                    size=$( stat -c %s "${target}${rlt}${MODULENM}.bak.log")
+                                    size=$( stat -c %s "$logfile")
                                     if (( size > logSIZE * mbyte )); then
                                         cyan "Log size limit reached on preserve mode. Please adjust max limit or logging preference."
                                         cyan "This means the file list is greater than the limit or the limit is too small."
                                     fi
                                 fi
 
-                                mv $UPDATE "${target}${rlt}${MODULENM}.bak.log"
+                                mv $UPDATE "$logfile"
 
                             elif [ "$logSPRF" == "stop" ]; then
                                 adtCMD=""
@@ -314,39 +423,39 @@ if [ "$rlt" != "" ]; then
                                     cyan "Log file hit max limit not logging..."
                                 fi
                                 if (( l >= 1 )); then
-                                    sed -i '1s/PAUSED/PAUSEDSTOP/g' "${target}${rlt}${MODULENM}.bak.log"
+                                    sed -i '1s/PAUSED/PAUSEDSTOP/g' "$logfile"
                                 else
-                                    sed -i '1i STOP' "${target}${rlt}${MODULENM}.bak.log"
+                                    sed -i '1i STOP' "$logfile"
                                 fi
                             fi
                         fi
                     fi
-                    if (( l >= 1 )); then sed -i '0,/PAUSE/ { /PAUSE/ d }' "${target}${rlt}${MODULENM}.bak.log"; fi
+                    if (( l >= 1 )); then sed -i '0,/PAUSE/ { /PAUSE/ d }' "$logfile"; fi
                 fi
             else
                 nsize=$osize
-                green "There was no logfile generating..." ; > "${target}${rlt}${MODULENM}.bak.log" ; dlog
-                { echo ;  echo "original size(source)=Unkown" ; echo "new size(source)=$nsize" ; echo  "END ORIGINAL FILES $(date +"%m-%d-%y_%R")"; } >> "${target}${rlt}${MODULENM}.bak.log"
+                green "There was no logfile generating..." ; > "$logfile" ; dlog "$logfile"
+                { echo ;  echo "original size(source)=Unkown" ; echo "new size(source)=$nsize" ; echo  "END ORIGINAL FILES $(date +"%m-%d-%y_%R")"; } >> "$logfile"
 		        nLOG="true"
 			fi
 
         else
 
-            if [ -f "${target}${rlt}${MODULENM}.bak.log" ]; then
+            if [ -f "$logfile" ]; then
 
-                if ! grep -B 1 'END ORIGINAL FILES' "${target}${rlt}${MODULENM}.bak.log" | tail -2 | head -1 | grep -q '^PAUSED$'; then
+                if ! grep -B 1 'END ORIGINAL FILES' "$logfile" | tail -2 | head -1 | grep -q '^PAUSED$'; then
 
-                    if grep -q "END ORIGINAL FILES" "${target}${rlt}${MODULENM}.bak.log"; then
+                    if grep -q "END ORIGINAL FILES" "$logfile"; then
 
-                        sed -i "/END ORIGINAL FILES/ i\PAUSED" "${target}${rlt}${MODULENM}.bak.log" # Put PAUSED above END OF ORIGINAL FILES
+                        sed -i "/END ORIGINAL FILES/ i\PAUSED" "$logfile" # Put PAUSED above END OF ORIGINAL FILES
 
                     else
 
-                        if ! head -n 1 "${target}${rlt}${MODULENM&> /dev/null}.bak.log" | grep -q 'PAUSED'; then
-                            if head -n 1 "${target}${rlt}${MODULENM}.bak.log" | grep -q 'STOP'; then
-                                sed -i '1{/STOP/ s/^/PAUSED/}' "${target}${rlt}${MODULENM}.bak.log"
+                        if ! head -n 1 "$logfile" 2> /dev/null | grep -q 'PAUSED'; then
+                            if head -n 1 "$logfile" | grep -q 'STOP'; then
+                                sed -i '1{/STOP/ s/^/PAUSED/}' "$logfile"
                             else
-                                  sed -i '1i PAUSED' "${target}${rlt}${MODULENM}.bak.log"
+                                  sed -i '1i PAUSED' "$logfile"
                             fi
                         fi
                     fi
@@ -355,115 +464,126 @@ if [ "$rlt" != "" ]; then
         fi
 
         if [ "$adtCMD" != "" ]; then
+			# adt options --exclude '.wh.*'  
+			#
             if [ "$FEEDBACK" != "true" ]; then
-                rsync -aH --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" $adtCMD
+                rsync -aH --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "$TARGET" $adtCMD
             else
-				rsync -aHv --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
+				rsync -aHv --delete --filter="merge /tmp/incfilter.log" --delete-excluded --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "$TARGET" | tee -a "$logfile"
             fi
 			exc=$?
             if [ $exc -eq 1 ]; then
 		        mount -o remount,udba=none /
-		        red "rsync failed — check log at ${target}${rlt}${MODULENM}.bak.log"
-		        if [ "$d2drive" == "false" ]; then
-		        	cyan "Files left in memory. Copy and paste the following to rsync again:"
-		        	echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/ --log-file=${target}${rlt}${MODULENM}.bak.log"
-		        	if [ "$ANALYTICS" == "true" ]; then
-		        		echo "Then check the logfile for any errors.Then take the last two bytes sent and add it to total count=  at the top of the file if you want to keep exact track."
-		        		echo "Or"
-		        		printf 'rsync -aHv "%s" newdirectory/\tto make a new backup\n' "${target}${rlt}${MODULENM}/"
-		        	fi
-		        else
-		  		    if [ "$ANALYTICS" == "true" ]; then
-		        		echo "Add up the last bytes sent values and add to total count=  at the top of the file before END ORIGINAL FILES.  if you want to keep exact track."
-		        	fi
-		        fi
+		        red "rsync failed — check log at $logfile"
+				if [[ "$dat" = "false" ]]; then
+				    if [ "$d2drive" == "false" ]; then
+				    	cyan "Files left in memory. Copy and paste the following to rsync again:"
+				    	echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ $TARGET --log-file=$logfile"
+				    	if [ "$ANALYTICS" == "true" ]; then
+				    		echo "Then check the logfile for any errors.Then take the last two bytes sent and add it to total count=  at the top of the file if you want to keep exact track."
+				    		echo "Or"
+				    		printf 'rsync -aHv "%s" newdirectory/\tto make a new backup\n' "${passdir}${MODULENM}/"
+				    	fi
+				    else
+			  		    if [ "$ANALYTICS" == "true" ]; then
+				    		echo "Add up the last bytes sent values and add to total count=  at the top of the file before END ORIGINAL FILES.  if you want to keep exact track."
+				    	fi
+				    fi
+				else
+					check_dat
+				fi
 		        exit 1
 			elif [ $exc -eq 24 ]; then
 				cyan "Some files have vanished. Check for excluding cache files"
-				sed -i '/some files vanished/d' "${target}${rlt}${MODULENM}.bak.log"
+				sed -i '/some files vanished/d' "$logfile"
 			fi
         else
             if [ "$nLOG" != "" ]; then
                 if [ "$FEEDBACK" != "true" ]; then
-                   rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > $UPDATE 2>&1
+                   rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "$TARGET" > $UPDATE 2>&1
 
                 else
-                    rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" 2>&1 | tee $UPDATE
+                    rsync -aH --stats --delete --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "$TARGET" 2>&1 | tee $UPDATE
                 fi
             else
                 if [ "$FEEDBACK" != "true" ]; then
-                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" > /dev/null
+                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "$TARGET" > /dev/null
                 else
-                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/"
+                    rsync -aH --delete --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "$TARGET"
                 fi
             fi
 			exc=$?
-            if [ $exc -eq 1 ]; then if [ "$ANALYTICS" == "true" ]; then end=$(date +%s.%N) ; el=$(awk "BEGIN {print $end - $start}") ; fi
+            if [ $exc -eq 1 ]; then
 		        mount -o remount,udba=none /
-		        red "rsync failed — check log at ${target}${rlt}${MODULENM}.bak.log"
-		        if [ "$nLOG" != "" ]; then
-		        	if [ "$d2drive" == "false" ]; then
-		        		cyan "Files left in memory. Copy and paste the following to rsync again:"
-		            	echo "rsync -aH --stats --delete --filter=merge /tmp/incfilter.log --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/ --log-file=${target}${rlt}${MODULENM}.bak.log"
-		        	fi
-		        	if [ "$ANALYTICS" == "true" ]; then
-		               echo "Then check the logfile for any errors. Add up all the bytes sent values and put total count=  at the top of the file before END ORIGINAL FILES.  if you want to keep exact track."
-		            fi
-		        else
-		        	echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ ${target}${rlt}${MODULENM}.bak/"
-		        fi
-		        echo
-		        echo "Or failing that"
-		        printf 'rsync -aHv "%s" newdirectory/\tto make a new backup\n' "${target}${rlt}${MODULENM}/"
+		        red "rsync failed — check log at $logfile"
+				if [[ "$dat" = "false" ]]; then
+				    if [ "$nLOG" != "" ]; then
+				    	if [ "$d2drive" == "false" ]; then
+				    		cyan "Files left in memory. Copy and paste the following to rsync again:"
+				        	echo "rsync -aH --stats --delete --filter=merge /tmp/incfilter.log --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ $TARGET --log-file=$logfile"
+				    	fi
+				    	if [ "$ANALYTICS" == "true" ]; then
+				           echo "Then check the logfile for any errors. Add up all the bytes sent values and put total count=  at the top of the file before END ORIGINAL FILES.  if you want to keep exact track."
+				        fi
+				    else
+				    	echo "rsync -aH --delete --filter=merge /tmp/incfilter.log --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ $TARGET"
+				    fi
+				    echo
+				    echo "Or failing that"
+				    printf 'rsync -aHv "%s" newdirectory/\tto make a new backup\n' "${passdir}${MODULENM}/"
+				else
+					check_dat
+				fi
 		        exit 1
             elif [ $exc -eq 24 ]; then
 				cyan "Some files have vanished. Check for excluding cache files"
-				sed -i '/some files vanished/d' "${target}${rlt}${MODULENM}.bak.log"
+				sed -i '/some files vanished/d' "$logfile"
 			fi
             if [ -s $UPDATE ]; then
                 c=$( wc -l < "$UPDATE") # total count
                 if (( c > 17)); then sentinal="true"; cp $UPDATE /tmp/parity.txt; fi
-                sed -n '/Number of files/,$p' $UPDATE >> "${target}${rlt}${MODULENM}.bak.log"
+                sed -n '/Number of files/,$p' $UPDATE >> "$logfile"
             fi
         fi
 		end=$(date +%s.%N)
         cyan "Changes backup has been updated."
 
         if [ "$ANALYTICS" == "true" ]; then
-			ossize=$( sed -nE 's/.*original size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n 1)
-            if [ "$ossize" == "" ]; then oput="Unkown" ; else oput="$(( ossize / mbyte )) MB" ; fi
+			# original size backup was made 
+			os=$( sed -nE 's/.*original size\(source\)=([0-9.]+).*/\1/p' $logfile | head -n 1)
+            if [ "$os" == "" ]; then os="Unkown" ; else os="$(( os / mbyte )) MB" ; fi
 
-            csize=$(du -sb "${target}${rlt}${MODULENM}.bak/" | cut -f1)
+            csize=$(du -sb "$TARGET" | cut -f1)
             nsize=$osize
-            c=$( sed -nE 's/.*total count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n 1)
+            c=$( sed -nE 's/.*total count=([0-9.]+).*/\1/p' $logfile | head -n 1)
             c="${c:-0}"
 
             if [ "$adtCMD" != "" ]; then
-                z=$( tail -n1 ${target}${rlt}${MODULENM}.bak.log | grep -oP '(?<=sent\s)\d+(?=\s+bytes)' | head -n1)
-				if (( z == 0 )); then z=$(tail -n 20 ${target}${rlt}${MODULENM}.bak.log | grep -oP '(?<=sent\s)[\d,]+' | tail -n 1 | sed 's/,//g'); fi
+                z=$( tail -n1 $logfile | grep -oP '(?<=sent\s)\d+(?=\s+bytes)' | head -n1)
+				if (( z == 0 )); then z=$(tail -n 20 $logfile | grep -oP '(?<=sent\s)[\d,]+' | tail -n 1 | sed 's/,//g'); fi
             elif [ "$adtCMD" == "" ] && [ "$nLOG" == "true" ]; then
                 if [ "$ANALYTICS" ==  "true" ]; then
                     green "A new log file has been made."
                 fi
-                z=$( tail -n2 ${target}${rlt}${MODULENM}.bak.log | head -n1 | grep -oP '(?<=sent\s)[\d,]+' | tr -d ',' )
+                z=$( tail -n2 $logfile | head -n1 | grep -oP '(?<=sent\s)[\d,]+' | tr -d ',' )
             fi
 
             r=$(( c + z ))  # our new count
-            grep -q "total count=" "${target}${rlt}${MODULENM}.bak.log" && sed -i "s/total count=[0-9]\+/total count=$r/" ${target}${rlt}${MODULENM}.bak.log || sed -i "/END ORIGINAL FILES/ i\total count=$r" "${target}${rlt}${MODULENM}.bak.log"
+            grep -q "total count=" "$logfile" && sed -i "s/total count=[0-9]\+/total count=$r/" $logfile || sed -i "/END ORIGINAL FILES/ i\total count=$r" "$logfile"
 
-            c=$( sed -nE 's/.*original count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log | head -n 1)
+            c=$( sed -nE 's/.*original count=([0-9.]+).*/\1/p' $logfile | head -n 1)
             c="${c:-0}"
             if (( c != 0 )); then cyan " Since the original backup was first made sent" $(( ( c + z ) / mbyte )) "MB worth of data" ; fi
 
             if [ "$logSPRF" != "stop" ] && [ "$nLOG" == "true" ]; then
-                size=$( stat -c %s "${target}${sfilesrlt}${MODULENM}.bak.log")
+                size=$( stat -c %s "$logfile")  # "${target}${sfilesrlt}${MODULENM}.bak.log")
                 if (( size > logSIZE * mbyte )); then
                 red "New log file made is greater than the limit. adjust if needed to keep log data on next backup."
                 fi
             fi
-            cyan "You have sent $(( r / mbyte )) MB worth of data to the ${target}${rlt}${MODULENM}.bak/ backup"
+            cyan "You have sent $(( r / mbyte )) MB worth of data to the $backup_path backup $label"
             green "Sent $(( z / mbyte )) MB to backup. " ; echo
-            if  [ "$adtCMD" != "" ] && [ "$nLOG" == "true" ]; then cyan "Size of source when backup first made: $oput" ; green "Current size of source: $(( osize / mbyte ))" ; fi
+            if  [ "$adtCMD" != "" ] && [ "$nLOG" == "true" ]; then cyan "Size of source when backup first made: $os" ; green "Current size of source: $(( osize / mbyte ))" ; fi
             green "Current size of backup: $(( csize / mbyte )) MB"         #actual size of backup
 
             if [ "$nLOG" == "true" ]; then echo ; cyan "You saved $(( (nsize - csize) / mbyte )) MB by generating this backup." ; fi
@@ -477,52 +597,61 @@ if [ "$rlt" != "" ]; then
             fi
         fi
     else
+
+        # changes folder or .dat
+        [[ "$dat" = "false" ]] && mkdir "$TARGET"
+
 		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
-		mkdir ${target}${rlt}${MODULENM}.bak
-		if [ -f "${target}${rlt}${MODULENM}.bak.log" ]; then
-			glog "true"
+
+		if [ -f "$logfile" ]; then
+			glog "true" "$logfile"
 		else
-			dlog
+			dlog "$logfile"
 			if [ "$LOGGING" == "true" ]; then
-					echo "original size(source)=$osize" >> "${target}${rlt}${MODULENM}.bak.log"
-					echo "END ORIGINAL FILES" >> "${target}${rlt}${MODULENM}.bak.log"
+					echo "original size(source)=$osize" >> "$logfile"
+					echo "END ORIGINAL FILES" >> "$logfile"
         	fi
 		fi
-		if [ "$LOGGING" == "false" ]; then test -f "${target}${rlt}${MODULENM}.bak.log" && rm "${target}${rlt}${MODULENM}.bak.log" ; fi
+		if [ "$LOGGING" == "false" ]; then test -f "$logfile" && rm "$logfile" ; fi
         cyan "Creating new backup this may take a few minutes."
 
         if [ "$FEEDBACK" != "true" ]; then
-            rsync -aH --stats --filter="merge /tmp/incfilter.log" --exclude '.wh.*' --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" >> "${target}${rlt}${MODULENM}.bak.log" 2>&1
+            rsync -aH --stats --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "$TARGET" >> "$logfile" 2>&1
         else
-			rsync -aHv --stats --delete --filter="merge /tmp/incfilter.log" --exclude '.wh.*' --delete-excluded --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "${target}${rlt}${MODULENM}.bak/" | tee -a "${target}${rlt}${MODULENM}.bak.log"
+			rsync -aHv --stats --filter="merge /tmp/incfilter.log" --exclude-from=$EXFILES --exclude-from=$trsyncexl $dirSRC/ "$TARGET" | tee -a "$logfile"
         fi
 		exc=$?
         if [ $exc -eq 1 ]; then
             mount -o remount,udba=none /
-            red "rsync failed — check log at ${target}${rlt}${MODULENM}.bak.log"
+            red "rsync failed — check log at $logfile"
+			check_dat
             cyan "Please check the logfile if its a valid backup or try again."
             cyan "failing that delete the backup and try again."
             rm -rf $tmp       #delete temporary files
             exit 1
         elif [ $exc -eq 24 ]; then
 			cyan "Some files have vanished. Check for excluding cache files"
-			sed -i '/some files vanished/d' "${target}${rlt}${MODULENM}.bak.log"
+			sed -i '/some files vanished/d' "$logfile"
 		fi
 		end=$(date +%s.%N)
-        cyan "Your changes backup has been created! in ${target}${rlt}/" ; cyan "${MODULENM}.bak/"
+        cyan "Your changes backup has been created! in $backup_path" ; cyan $label
 
         if [ "$ANALYTICS" == "true" ]; then
 			if [ "$ANALYTICSECT" == "true" ] ; then el=$(awk "BEGIN {print $end - $start}") ; printf "Saving took %.3f seconds.\n" "$el" ; echo ; fi
-            csize=$( du -sb "${target}${rlt}${MODULENM}.bak/" | cut -f1)
+            csize=$( du -sb "$TARGET" | cut -f1)
             tsize=$(( osize - csize ))
-            z=$( grep "Total bytes sent:" "${target}${rlt}${MODULENM}.bak.log" | tail -n 1 | sed -E 's/[^0-9]*([0-9,]+).*/\1/' | tr -d ',')
-            sed -i "/END ORIGINAL FILES/ i\total count=$z" "${target}${rlt}${MODULENM}.bak.log" #insert the total byte count
-            green "You have sent $(( z / mbyte )) MB worth of data so far to the ${target}${rlt}${MODULENM}.bak/ backup"
+            z=$( grep "Total bytes sent:" "$logfile" | tail -n 1 | sed -E 's/[^0-9]*([0-9,]+).*/\1/' | tr -d ',')
+            sed -i "/END ORIGINAL FILES/ i\total count=$z" "$logfile" #insert the total byte count
+            green "You have sent $(( z / mbyte )) MB worth of data so far to the $backup_path backup"
             cyan "You saved $(( tsize / mbyte )) MB by creating this backup"
         fi
         echo
     fi
 	cd $pst
+    # cleanup
+	[[ "$dat" = "true" ]] && check_dat
+	[[ "$d2drive" = "false" ]] && { test -e $SFILES && rm $SFILES ; rm -f "$UPDATE" ; }  # rm -rf -- "${mtmp:?}" && rm -f "$UPDATE" 
+
 else # Graphics mode
 	if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
     if [ "$d2drive" == "true" ] && [ "$d2dmdl" == "true" ]; then
@@ -692,7 +821,6 @@ test -e $QEXCL && rm $QEXCL
 test -e $UPDATE && rm $UPDATE
 #test -e $SFOLDERS && rm $SFOLDERS
 test -e /tmp/incfilter.log && rm /tmp/incfilter.log
-test -e $tmp && rm -rf ${tmp:?} 
-test -e $mtmp && rm -rf ${mtmp:?}
+for dir in "$tmp" "$mtmp"; do [ -d "$dir" ] && rm -rf -- "${dir:?}" ; done
 sleep 5 && exit
 
