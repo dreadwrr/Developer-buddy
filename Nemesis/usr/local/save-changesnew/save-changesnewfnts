@@ -1,5 +1,5 @@
 #!/bin/bash
-# save-changesnew functions to move options further up the script             03/30/2026
+# save-changesnew functions to move options further up the script             03/31/2026
 . /usr/local/save-changesnew/mergemodulesfunctions
 dycmb() {
 TFLD=""
@@ -475,18 +475,21 @@ local xsize c  ; local instm="$1"
     else
         { echo "bytes:"$xsize ; echo "file name:${fname}" ; echo ; } > $msr
     fi
-    test -d "$mtmp" && rm -rf "${mtmp:?}"
+    test -d "$mtmp" && rm -rf -- "${mtmp:?}"
 }
 check_dat() {
-if [[ "$d2drive" = "false" ]]; then
-    if [[ -f "$SFILES" ]]; then
-        # remove .wh that were copied first when direct 2 drive is false
-        while IFS= read -r y || [ -n "$y" ]; do fname="$TARGET/$y" ; test -f "$fname" && rm -f "$fname" ; done < "$SFILES"
-    fi
+if [[ "$dat" = "true" ]]; then
+	if [[ "$d2drive" = "false" ]]; then
+		if [[ -f "$SFILES" ]]; then
+		    # remove .wh that were copied first when direct 2 drive is false
+		    while IFS= read -r y || [ -n "$y" ]; do fname="$TARGET/$y" ; test -f "$fname" && rm -f "$fname" ; done < "$SFILES"
+		fi
+	fi
+	clear_mnt
+	rlt=$?
+	[[ "$new_dat" = "true" ]] && (( rlt == 0 )) && test -f "$TARGET" && rm -f "$TARGET"
 fi
-clear_mnt
-rlt=$?
-[[ "$new_dat" = "true" ]] && (( rlt == 0 )) && test -f "$TARGET" && rm -f "$TARGET"
+[[ "$d2drive" = "false" ]] && test -d "$tmp" && rm -rf -- "${tmp:?}"       #delete temporary files
 }
 rand_alpha() { letters=( {A..Z} {a..z} ); echo -n "${letters[RANDOM % 52]}${letters[RANDOM % 52]}" ; }
 rand_alphauid() { 
