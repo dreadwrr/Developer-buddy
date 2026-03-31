@@ -1,6 +1,9 @@
-#                               03/25/2026
+#                               03/30/2026
 ## Python edition <br>
-v1.2.9-py New release<br>
+v1.3.0-py New release for pyver <br>
+added .dat support for backup on changes= and changes=EXIT <br>
+changed the way .wh. are handled with rsync<br>
+v1.2.9-py release changes<br>
 Move recentchanges to /opt/recentchanges/ <br>
 New logic for save-changesnew <br>
 Added multiprocessing modulization and error handling from qt gui <br>
