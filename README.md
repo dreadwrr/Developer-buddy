@@ -39,7 +39,7 @@ https://forum.porteus.org/  <br><br>
 ## Porteus:
 To save to the backup in changes= type <br>save-changesnew <br>
 This is straightforward where it gets a little confusing is next <br><br>
-To save to backup in changes=EXIT:/ <br> first turn isolateBACK to true. then 'save-changesnew backup' and a backup will be made in /changes.bak beside /changes
+To save to backup in changes=EXIT:/ <br> first turn isolateBACK is by default true. so 'save-changesnew backup' will write to the backup. this is in /changes.bak beside /changes
 
 With isolateBACK false changes are saved to /changes with rsync. This is the samething as changes-commit but uses rsync. Then after it saves to the backup.<br> You can also autosave to true which will add your $BASEDIR to changes commit and set it executable. this will save changes and
 the backup on shutdown. backup to false and changes commit will save changes regularly but when it calls the backup part inside save-changesnew it wont do anything. autosave to false and changes commit is set to non-executable.
