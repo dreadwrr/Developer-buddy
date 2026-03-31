@@ -1,5 +1,5 @@
 #!/bin/bash
-#                                               Developer Buddy v5.0                Mar 30, 2026
+#                                               Developer Buddy v5.0                Mar 31, 2026
 #   this script works for two modes porteus nemesis graphics and changes.
 # borrowed script items source
 # # Author: fanthom <fanthom@porteus.org>
@@ -92,7 +92,7 @@ mdlMRGPRF="forward"		# forward   dynamic merging first on mdllmt to save a write
 										# 			to do everything in one step.
 										# back    merge the modules afterwards if exceeding mdlmt. original with no extra logic
 
-mdllmt=12                           # Auto Graphics mode module merging default 7
+mdllmt=8                           # Auto Graphics mode module merging default 7
                                                 # when reached will automatically merge if mrgMODULES is set to true below
                                                 # see mrgMODULES boolean
 
@@ -342,8 +342,8 @@ if [ "$rlt" != "" ]; then
 		for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
 		#
         cd $ch
-		find $IFOLDERS -name ".wh.*" > $SFILES
-        while IFS= read -r y || [ -n "$y" ]; do cp -uafv --parents "$y" $TARGET ; done < $SFILES  # > $oMF  # use oMF for debugging # cp -uafv --parents $(cat $SFILES) $TARGET > $oMF
+		find $FOLDERS -name ".wh.*" > $SFILES
+        while IFS= read -r y || [ -n "$y" ]; do cp -uaf --parents "$y" $TARGET ; done < $SFILES  # > $oMF  # use oMF for debugging # cp -uafv --parents $(cat $SFILES) $TARGET > $oMF
 
     fi
 	pst=$PWD ; cd $dirSRC
@@ -531,9 +531,8 @@ if [ "$rlt" != "" ]; then
 				    echo
 				    echo "Or failing that"
 				    printf 'rsync -aHv "%s" newdirectory/\tto make a new backup\n' "${passdir}${MODULENM}/"
-				else
-					check_dat
 				fi
+				check_dat
 		        exit 1
             elif [ $exc -eq 24 ]; then
 				cyan "Some files have vanished. Check for excluding cache files"
@@ -627,14 +626,13 @@ if [ "$rlt" != "" ]; then
 			check_dat
             cyan "Please check the logfile if its a valid backup or try again."
             cyan "failing that delete the backup and try again."
-            rm -rf $tmp       #delete temporary files
             exit 1
         elif [ $exc -eq 24 ]; then
 			cyan "Some files have vanished. Check for excluding cache files"
 			sed -i '/some files vanished/d' "$logfile"
 		fi
 		end=$(date +%s.%N)
-        cyan "Your changes backup has been created! in $TARGET" ; cyan $label
+        cyan "Your changes backup has been created! in $backup_path" ; cyan $label
 
         if [ "$ANALYTICS" == "true" ]; then
 			if [ "$ANALYTICSECT" == "true" ] ; then el=$(awk "BEGIN {print $end - $start}") ; printf "Saving took %.3f seconds.\n" "$el" ; echo ; fi
@@ -649,7 +647,7 @@ if [ "$rlt" != "" ]; then
     fi
 	cd $pst
     # cleanup
-	[[ "$dat" = "true" ]] && check_dat
+	check_dat
 	[[ "$d2drive" = "false" ]] && { test -e $SFILES && rm $SFILES ; rm -f "$UPDATE" ; }  # rm -rf -- "${mtmp:?}" && rm -f "$UPDATE" 
 
 else # Graphics mode
@@ -821,6 +819,8 @@ test -e $QEXCL && rm $QEXCL
 test -e $UPDATE && rm $UPDATE
 #test -e $SFOLDERS && rm $SFOLDERS
 test -e /tmp/incfilter.log && rm /tmp/incfilter.log
-for dir in "$tmp" "$mtmp"; do [ -d "$dir" ] && rm -rf -- "${dir:?}" ; done
+if [ "$dat" == "false" ]; then
+	for dir in "$tmp" "$mtmp"; do [ -d "$dir" ] && rm -rf -- "${dir:?}" ; done
+fi
 sleep 5 && exit
 
