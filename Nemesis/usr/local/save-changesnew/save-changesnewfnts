@@ -1,5 +1,5 @@
 #!/bin/bash
-# save-changesnew functions to move options further up the script             03/25/2026
+# save-changesnew functions to move options further up the script             03/30/2026
 . /usr/local/save-changesnew/mergemodulesfunctions
 dycmb() {
 TFLD=""
@@ -32,55 +32,58 @@ grep -Fvxf $trsyncexl $EXCLUDED > $UPDATE; test -s $UPDATE && cat $UPDATE >> $1 
 }
 #generate log file
 dlog() {
-	if [ "$d2drive" == "true" ]; then
-       for fld in $FOLDERS; do
-            fp="$dirSRC/$fld"
-            if [ -d "$fp" ]; then
-                find "$fp" -type f -printf '%P\n' | sed "s|^|/$fld/|" >> "${target}${rlt}${MODULENM}.bak.log"
-            fi
-        done
-        for fld in $EXCLUDE; do
-            fp="$dirSRC/$fld"
-			if [[ "${fp:0:1}" == "/" ]]; then
-			  	e=$(sed 's/[\/&\\]/\\&/g' <<< "$fp")
-				p="^"
-			else
-			  e="$fp" ; p=""
-			fi
-			sed -i "/$p$e/d" "${target}${rlt}${MODULENM}.bak.log"
-		done
-    else
-        find "$dirSRC" -type f -printf '%P\n' >> "${target}${rlt}${MODULENM}.bak.log"
-    fi
-    echo >> "${target}${rlt}${MODULENM}.bak.log"
+local logfile="$1"
+local p
+if [ "$d2drive" == "true" ]; then
+   for fld in $FOLDERS; do
+        fp="$dirSRC/$fld"
+        if [ -d "$fp" ]; then
+            find "$fp" -type f -printf '%P\n' | sed "s|^|/$fld/|" >> "$1"
+        fi
+    done
+    for fld in $EXCLUDE; do
+        fp="$dirSRC/$fld"
+		if [[ "${fp:0:1}" == "/" ]]; then
+		  	e=$(sed 's/[\/&\\]/\\&/g' <<< "$fp")
+			p="^"
+		else
+		  e="$fp" ; p=""
+		fi
+		sed -i "/$p$e/d" "$1"
+	done
+else
+    find "$dirSRC" -type f -printf '%P\n' >> "$1"
+fi
+echo >> "$1"
 }
 glog() {
+local logfile="$2"
 local k
 local p
-if [ -f ${target}${rlt}${MODULENM}.bak.log ]; then
-	b=$( sed -nE 's/.*original count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
-	c=$( sed -nE 's/.*total count=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
-	k=$( sed -nE 's/.*original size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
+if [ -f "$2" ]; then
+	b=$( sed -nE 's/.*original count=([0-9.]+).*/\1/p' "$2")
+	c=$( sed -nE 's/.*total count=([0-9.]+).*/\1/p' "$2")
+	k=$( sed -nE 's/.*original size\(source\)=([0-9.]+).*/\1/p' "$2")
 fi
 : "${b:-0}"
 : "${c:-0}"
 c=$(( c + b ))
 : "${k:=Unkown}"
 #if [ "$k" == "Unkown" ]; then
-#    p=$( sed -nE 's/.*new size\(source\)=([0-9.]+).*/\1/p' ${target}${rlt}${MODULENM}.bak.log)
+#    p=$( sed -nE 's/.*new size\(source\)=([0-9.]+).*/\1/p' "$2")
 #fi
 #: "${p:=Unkown}"
 #if [ "$p" == "Unkown" ]; then
 # do we go back and check the actual changes for size??
 p=$osize
-if [ "$1" == "true" ]; then > "${target}${rlt}${MODULENM}.bak.log" ; fi
-dlog
-echo "original size(source)=$k" >> "${target}${rlt}${MODULENM}.bak.log"
-echo "new size(source)=$p" >> "${target}${rlt}${MODULENM}.bak.log"
+if [ "$1" == "true" ]; then > "$2" ; fi
+dlog "$2"
+echo "original size(source)=$k" >> "$2"
+echo "new size(source)=$p" >> "$2"
 if (( c != 0 )); then
-    echo "original count=$c" >> "${target}${rlt}${MODULENM}.bak.log"
+    echo "original count=$c" >> "$2"
 fi
-echo  "END ORIGINAL FILES $(date +"%m-%d-%y_%R")" >> "${target}${rlt}${MODULENM}.bak.log"
+echo  "END ORIGINAL FILES $(date +"%m-%d-%y_%R")" >> "$2"
 nLOG="true"
 }
 autosave() { if [[ "$autobackup" == "true" ]] && { [[ "$bck" == "yes" ]] || [[ "$bck" == "y" ]] ; } ; then z=$( grep -Fm 1 "USR" $chc | awk -F'"' '{print $2}') ; [[ -z "$z" ]] && sed -i "s/USR=.*/USR=\"$USR\"/g" $chc ; zz=$( grep -Fm 1 "target" $chc | awk -F'"' '{print $2}') ; [[ -z "${zz}" ]] && sed -i "s|target=.*|target=\"$target\"|g" $chc ; [[ ! -x $chc ]] && chmod +x $chc ; else [[ -x $chc ]] && chmod -x $chc ; fi ; }
@@ -472,7 +475,20 @@ local xsize c  ; local instm="$1"
     else
         { echo "bytes:"$xsize ; echo "file name:${fname}" ; echo ; } > $msr
     fi
-    test -d "$mtmp" && rm -rf "${mtmp:?}"
+    test -d "$mtmp" && rm -rf -- "${mtmp:?}"
+}
+check_dat() {
+if [[ "$dat" = "true" ]]; then
+	if [[ "$d2drive" = "false" ]]; then
+		if [[ -f "$SFILES" ]]; then
+		    # remove .wh that were copied first when direct 2 drive is false
+		    while IFS= read -r y || [ -n "$y" ]; do fname="$TARGET/$y" ; test -f "$fname" && rm -f "$fname" ; done < "$SFILES"
+		fi
+	fi
+	clear_mnt
+	rlt=$?
+	[[ "$new_dat" = "true" ]] && (( rlt == 0 )) && test -f "$TARGET" && rm -f "$TARGET"
+fi
 }
 rand_alpha() { letters=( {A..Z} {a..z} ); echo -n "${letters[RANDOM % 52]}${letters[RANDOM % 52]}" ; }
 rand_alphauid() { 
