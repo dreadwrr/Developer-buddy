@@ -1,5 +1,5 @@
 #!/bin/bash
-#                                               Developer Buddy v5.0                Mar 30, 2026
+#                                               Developer Buddy v5.0                Mar 31, 2026
 #   this script works for two modes porteus nemesis graphics and changes.
 # borrowed script items source
 # # Author: fanthom <fanthom@porteus.org>
@@ -19,7 +19,7 @@ autobackup="true"           # Graphics changes only /etc/rc.d/rc.local_shutdown 
 										# so there is no accidental saving if forgetting to turn off. Useful if doing something important. save-changesnew y  or save-changesnew yes   to enable
 
 
-d2drive="false"                 # default is true   also for systems with low memory save directly to drive
+d2drive="true"                 # default is true   also for systems with low memory save directly to drive
                                           # false. save to memory for staging purposes and convenience of modifying the script ect
                                            # more versatle to do any work or processing exclusions before saving. Also freezes
 											# the filesystem so can ensure better safety. d2drive has been stable so far
@@ -92,7 +92,7 @@ mdlMRGPRF="forward"		# forward   dynamic merging first on mdllmt to save a write
 										# 			to do everything in one step.
 										# back    merge the modules afterwards if exceeding mdlmt. original with no extra logic
 
-mdllmt=12                           # Auto Graphics mode module merging default 7
+mdllmt=8                           # Auto Graphics mode module merging default 7
                                                 # when reached will automatically merge if mrgMODULES is set to true below
                                                 # see mrgMODULES boolean
 
@@ -531,9 +531,8 @@ if [ "$rlt" != "" ]; then
 				    echo
 				    echo "Or failing that"
 				    printf 'rsync -aHv "%s" newdirectory/\tto make a new backup\n' "${passdir}${MODULENM}/"
-				else
-					check_dat
 				fi
+				check_dat
 		        exit 1
             elif [ $exc -eq 24 ]; then
 				cyan "Some files have vanished. Check for excluding cache files"
@@ -627,7 +626,6 @@ if [ "$rlt" != "" ]; then
 			check_dat
             cyan "Please check the logfile if its a valid backup or try again."
             cyan "failing that delete the backup and try again."
-            rm -rf $tmp       #delete temporary files
             exit 1
         elif [ $exc -eq 24 ]; then
 			cyan "Some files have vanished. Check for excluding cache files"
@@ -649,7 +647,7 @@ if [ "$rlt" != "" ]; then
     fi
 	cd $pst
     # cleanup
-	[[ "$dat" = "true" ]] && check_dat
+	check_dat
 	[[ "$d2drive" = "false" ]] && { test -e $SFILES && rm $SFILES ; rm -f "$UPDATE" ; }  # rm -rf -- "${mtmp:?}" && rm -f "$UPDATE" 
 
 else # Graphics mode
@@ -821,6 +819,8 @@ test -e $QEXCL && rm $QEXCL
 test -e $UPDATE && rm $UPDATE
 #test -e $SFOLDERS && rm $SFOLDERS
 test -e /tmp/incfilter.log && rm /tmp/incfilter.log
-for dir in "$tmp" "$mtmp"; do [ -d "$dir" ] && rm -rf -- "${dir:?}" ; done
+if [ "$dat" == "false" ]; then
+	for dir in "$tmp" "$mtmp"; do [ -d "$dir" ] && rm -rf -- "${dir:?}" ; done
+fi
 sleep 5 && exit
 
