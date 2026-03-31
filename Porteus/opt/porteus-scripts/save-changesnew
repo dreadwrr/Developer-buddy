@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#                                               Developer Buddy v5.0  Rsync backup of changes folder  Porteus edition  Mar 25, 2026
+#                                               Developer Buddy v5.0  Rsync backup of changes folder  Porteus edition  Mar 30, 2026
 # rsync backup to /changes.bak minimal writes as the backup would already be in place. Files are logged and its accurate
 # to system specs with --delete. Added drive to drive while this is fast the preferable way is to not use drive to drive
 # as it freezes the file system at that point in time. But on shutdown that wait would be too long. So drive to drive provides
@@ -229,12 +229,14 @@ mbyte=1048576																;	osize=0
 elapse=0
 
 rname=""																			;	adtCMD=""	
-sentinal=""																		;	MODULENM=""  
-rlt=""
+sentinal=""																		;	nLOG=""
+mods=""															                ;	dest=""
+rlt=""																				;	MODULENM=""
+ret=""
 
 is_routine="true"																;	dirtybit="false"
 is_moved="false"																;	goahead="true"
-
+dat="false"														                ;	new_dat="false"
 
 
 ## changes commit
@@ -374,7 +376,7 @@ if [[ "$1" != "6" ]]; then
 		#Reject old log file in session
 		test -e $ch$LOGDIR/$LOGFILE && rm $ch$LOGDIR/$LOGFILE
         >$UPDATE 
-		adtcmd=(--exclude '.wh.*')
+		# adtcmd=(--exclude '.wh.*')  # adt options
 		base_cmd=(rsync -aHv "${adtcmd[@]}")
 		[[ -s "$EXFILES" ]] && base_cmd+=(--exclude-from=$EXFILES) ; [[ -s "$trsyncexl" ]] && base_cmd+=(--exclude-from=$trsyncexl)
 		run_cmd "${base_cmd[@]}" $FOLDERS "$MNAME/" ; errblk "false"
