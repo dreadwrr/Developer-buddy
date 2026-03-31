@@ -7,6 +7,7 @@ if mountpoint -q "$dest"; then
 	fi
 fi
 [[ -d "$dest" ]] && rm -rf "$dest"
+return 0
 }
 startmnt() {
 local rlt=0 ; local is_merge="$1"

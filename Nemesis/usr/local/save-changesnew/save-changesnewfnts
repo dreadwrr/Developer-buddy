@@ -1,5 +1,5 @@
 #!/bin/bash
-# save-changesnew functions to move options further up the script             03/30/2026
+# save-changesnew functions to move options further up the script             03/31/2026
 . /usr/local/save-changesnew/mergemodulesfunctions
 dycmb() {
 TFLD=""
@@ -489,6 +489,7 @@ if [[ "$dat" = "true" ]]; then
 	rlt=$?
 	[[ "$new_dat" = "true" ]] && (( rlt == 0 )) && test -f "$TARGET" && rm -f "$TARGET"
 fi
+[[ "$d2drive" = "false" ]] && test -d "$tmp" && rm -rf -- "${tmp:?}"       #delete temporary files
 }
 rand_alpha() { letters=( {A..Z} {a..z} ); echo -n "${letters[RANDOM % 52]}${letters[RANDOM % 52]}" ; }
 rand_alphauid() { 
