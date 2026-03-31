@@ -11,7 +11,7 @@ for Porteus 5.01, 5.1 and Nemesis
 
 
 Version available <br>
-1.2.9-py python edition<br>
+1.3.0-py python edition<br>
 1.3.0 Bash text backend or bash python database backend new release! with changes to save-changesnew <br>
 
 all versions updated with Qt version hybrid analysis changes <br>
