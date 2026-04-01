@@ -499,16 +499,19 @@ EOF
 sed -i "38r /tmp/block.txt" $1
 rm /tmp/block.txt
 } #symlink 
-check_dat() { 
-if [[ "$d2drive" = "false" ]]; then
-    if [[ -f "$SFILES" ]]; then
-        # remove .wh that were copied first when direct 2 drive is false
-        while IFS= read -r y || [ -n "$y" ]; do fname="$TARGET/$y" ; test -f "$fname" && rm -f "$fname" ; done < "$SFILES"
+check_dat() {
+if [[ "$dat" = "true" ]]; then 
+    if [[ "$d2drive" = "false" ]]; then
+        if [[ -f "$SFILES" ]]; then
+            # remove .wh that were copied first when direct 2 drive is false
+            while IFS= read -r y || [ -n "$y" ]; do fname="$TARGET/$y" ; test -f "$fname" && rm -f "$fname" ; done < "$SFILES"
+        fi
     fi
+    clear_mnt
+    rlt=$?
+    [[ "$new_dat" = "true" ]] && (( rlt == 0 )) && test -f "$TARGET" && rm -f "$TARGET"
 fi
-clear_mnt
-rlt=$?
-[[ "$new_dat" = "true" ]] && (( rlt == 0 )) && test -f "$TARGET" && rm -f "$TARGET"
+[[ "$d2drive" = "false" ]] && test -d "$tmp" && rm -rf -- "${tmp:?}"       #delete temporary files
 }
 backup() {
 #rm $EXCL egrep and rsync exclude rm $exclfiles spare tmp rm $UPDATE This is available as a tmp file rm $EXFILES  # We need to reuse this as its already done
@@ -921,7 +924,6 @@ if [ "$rlt" != "" ]; then
 			check_dat
 		    cyan "Please check the logfile if its a valid backup or try again."
 		    cyan "failing that delete the backup and try again."
-		    rm -rf $tmp
 		    exit 1
 		elif [ $exc -eq 24 ]; then
 			cyan "Some files have vanished. Check for excluding cache files"
@@ -943,7 +945,7 @@ if [ "$rlt" != "" ]; then
     fi
 	cd $pst
     # cleanup
-	[[ "$dat" = "true" ]] && check_dat
+	[[ "$dat" = "true" ]] && clear_mnt
 	[[ "$d2drive" = "false" ]] && rm -f "$UPDATE"  # rm -rf -- "${mtmp:?}" && rm -f "$UPDATE" 
 fi
 test -e $EXCLUDED && rm $EXCLUDED ; rm -rf -- "${tmp:?}" 
