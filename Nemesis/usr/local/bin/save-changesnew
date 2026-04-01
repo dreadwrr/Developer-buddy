@@ -647,8 +647,8 @@ if [ "$rlt" != "" ]; then
     fi
 	cd $pst
     # cleanup
-	check_dat
-	[[ "$d2drive" = "false" ]] && { test -e $SFILES && rm $SFILES ; rm -f "$UPDATE" ; }  # rm -rf -- "${mtmp:?}" && rm -f "$UPDATE" 
+	[[ "$dat" = "true" ]] && clear_mnt
+	[[ "$d2drive" = "false" ]] && { test -e $SFILES && rm $SFILES ; rm -f "$UPDATE" ; test -d "$tmp" && rm -rf -- "${tmp:?}" ; }  # rm -rf -- "${mtmp:?}"
 
 else # Graphics mode
 	if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
