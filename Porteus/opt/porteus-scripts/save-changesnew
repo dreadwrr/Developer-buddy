@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#                                               Developer Buddy v5.0  Rsync backup of changes folder  Porteus edition  Mar 30, 2026
+#                                               Developer Buddy v5.0  Rsync backup of changes folder  Porteus edition  Apr 5, 2026
 # rsync backup to /changes.bak minimal writes as the backup would already be in place. Files are logged and its accurate
 # to system specs with --delete. Added drive to drive while this is fast the preferable way is to not use drive to drive
 # as it freezes the file system at that point in time. But on shutdown that wait would be too long. So drive to drive provides
@@ -21,22 +21,27 @@ get_colors
 . /usr/local/save-changesnew/save-changesnewfnts
 # Check if 'changes=EXIT' cheatcode is active and not run from rc.6:
 [[ "$1" != "6" ]] && if [[ $(whoami) != "root" ]]; then yellow "Please enter root's password below:" ; su - -c "/opt/porteus-scripts/save-changesnew $USER $1" ; exit ; fi
-[[ "$1" == "6" ]] && theUSER="$2" && thetgt="$4" || { theUSER="$1" ; bck="$2" ; } # Handle actual root call   
-[[ -z "$2" ]] && bck=$1 && theUSER="guest"
-[[ -z "$thetgt" ]] && thetgt=$BASEDIR     # <----- ie   /mnt/sda3   some root environments are null
-[[ -z "$thetgt" ]] && "\$BASEDIR not set and is null. please set thetgt\target in $0" && exit 0
-if ! id $theUSER >/dev/null 2>&1; then echo "user:" ${2} "not found"; exit 0 ; fi # quick user check                     #we test the target directory $1 after VARS
+if [[ "$1" == "6" ]]; then
+    theUSER="$2" && tgt="$4"
+else
+    theUSER="$1" ; bck="$2"  # Handle actual root call
+    if ! id "$1" >/dev/null 2>&1; then bck=$1 ; theUSER="guest" ; fi # quick user check                     #we test the target directory $1 after VARS
+fi
+
+[[ -z "$tgt" && -z "$BASEDIR" ]] && { echo "\$BASEDIR not set and is null. please set tgt\target in $0" ; exit 0 ; }
+tgt=$BASEDIR     # <----- ie   /mnt/sda3   some root environments are null
+
 
 # Notes
-# Changes commit vars   line 230          this is the main script
-# developer buddy  vars         209         this runs after changes commit if BACKUP  true
+# Changes commit vars   line 248          this is the main script
+# developer buddy  vars         225         this runs after changes commit if BACKUP  true
 #
 
 
 #CHANGABLE					# As changes exit uses changes-commit turn backup on to save a backup /changes.bak/
 
 BACKUP="true"				# Turn on backup feature of Developer buddy 5.0 to hdd on/off           
-										# How does it works       1. changes commit --> 2. hard disk (normal changes-commit) --> 3 changes.bak (BACKUP)       . 
+										# How does it works       1. changes commit --> 2. hard disk (normal changes-commit) --> 3 changes.bak (BACKUP)
 										# if true run this backup script after changes-commit.
 										# changes=EXIT:      to backup call `save-changesnew backup`
 										# changes=     `save-changesnew`    is the backup
@@ -63,8 +68,8 @@ d2drive="true"                	# default is true   also for systems with low mem
 		                                   # but systems with low memory may want to use d2drive to avoid any potential
 		                                   # exceedence
 
-d2dmdl="false"					# default false  use $target or $thetgt the harddrive for temp files/work.  if not enough memory use this
-mdldvc=""                        # default null. This device rather than porteus install drive for temp files/work.      ie /mnt/sda3
+d2dmdl="false"					# default false  use $target or $tgt the harddrive for temp files/work.  if not enough memory use this
+mdldvc=""                        # default null. This device rather than live tmpfs for temp files/work.      ie /mnt/sda3
 										# avoid trailing /
 
 grubln=""                                     # default null.  Point to Line number ie  linux /boot/syslinux/vmlinuz from=/dev/nvme0n1p4 root= ...   to automatically update grub for graphics extramod to boot with changes
@@ -80,7 +85,7 @@ bootdvc=""		                       # default null. where the syslinux folder is 
                                                 # example from current system     usb stick         /mnt/sdc2 porteus install    /mnt/sdc1 has boot and EFI so would set bootdvc to "/mnt/sdc1"												
                                                 # avoid trailing /
 
-target=$thetgt                         # change this to specify the location of porteus install this is passed from root call where porteus is installed via $BASEDIR
+target=$tgt                         # change this to specify the location of porteus install this is passed from root call where porteus is installed via $BASEDIR
 													# in some root environments $BASEDIR is null so set either here or at the top of script ln11 if having problems
                                                 # examples      "/mnt/sda1"
                                                 #                   "/dev/sda1"
@@ -128,7 +133,7 @@ mdlMRGPRF="forward"		# forward   dynamic merging first on mdllmt to save a write
 										# 			to do everything in one step.
 										# back    merge the modules afterwards if exceeding mdlmt. original with no extra logic
 
-mdllmt=12                            # Auto Graphics mode module merging default 5
+mdllmt=8                            # Auto Graphics mode module merging default 5
                                                 # when reached will automatically merge if mrgMODULES is set to true below
                                                 # see mrgMODULES boolean
 
@@ -152,7 +157,7 @@ mrgAEX="true"				# the changes are copied to the merge with the exclusions. Then
 linkedSTATE="false"             #This is precendence for changes:EXIT only on graphics mode. Default false
                                             # This implies that you want changes made INCLUDING deletes to the module.
 										    # If you dont do frequent saving this mode is useful as all deletions are applied
-                                            # and there will be only one changes module if a _uid_L prefix
+                                            # and there will be only one changes module if a L_uid_ prefix
                                             # linked state needs all changes modules to be created together thus you should
                                             # start with one that has linkedSTATE made. A byte count of this .xzm is made
                                             # and logged into a txt file by the modules. see extramod/ folder for createlmodule script
@@ -173,7 +178,7 @@ keepMRGED="true"       # default is false so delete the old ones after merging
                                             # true leave the modules after merging which will be .bak
                                         # Note the merging is done where by no deletions are done unless successfully saved
 
-checkSUM="false"				# for dynamic module saving use checksum instead of relying on modified time. slower but better accuracy in the event
+checkSUM="true"				# for dynamic module saving use checksum instead of relying on modified time. slower but better accuracy in the event
 								# of bad timestamps ect.
 
 override="true"                # default true. *leave set normally*. meaning normal operation if space becomes an issue see in terminal prompt.
@@ -210,7 +215,7 @@ ROLLBCK="false"                       # backup module after merged to be able to
  			 							# A module that has been merged is saved and moved to /archive/
 										# takes up more space
 ROLLSUMRY="false"           # default false    Include file manifest for archives
-archLMT=4                        # how many unique roll backs to keep  both _uid_ and _uid_L seperately
+archLMT=4                        # how many unique roll backs to keep  both _uid_ and L_uid_ seperately
 # End Backup mode
 # END CHANGABLE BOOLEANS
 # END CHANGABLE
@@ -237,7 +242,7 @@ ret=""
 is_routine="true"																;	dirtybit="false"
 is_moved="false"																;	goahead="true"
 dat="false"														                ;	new_dat="false"
-
+grub_loader="false"															;	encrypted_dat="false"
 
 ## changes commit
 DEST=""																			; 	NAME=""
@@ -254,13 +259,18 @@ if [ "$LOGGING" == "false" ] && [ "$ANALYTICS" == "true" ]; then echo analystics
 MODULENM="${chxzm%.xzm}" ; mdlnm="${MODULENM#/}" ; bootdvc="${bootdvc%/}" ; mdldvc="${mdldvc%/}"  #normalize
 autosave
 rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
-# Graphics Not changes=EXIT:/ mode  <---
-[[ -z "$rlt" ]] && initf && savex
-[[ -n "$rlt" ]] && [[ ! -f /mnt/live/tmp/changes-exit ]] && [[ "$isolateBACK" == "true" ]] && initf && backup "c" && cleanup "$1" "c"
+
+# Graphics
+[[ -z "$rlt" ]] && { initf ; graphics ; cleanup "$1" "true" ; }  # read change exit conf. read from this script setup excludes and save exit
+
+# Graphics changes not changes=EXIT:/
+[[ -n "$rlt" ]] && [[ ! -f /mnt/live/tmp/changes-exit ]] && [[ "$isolateBACK" == "true" ]] && { initf ; graphics_changes ; cleanup "$1" "true" ; }
+
 test -f /mnt/live/tmp/changes-exit || { echo "'changes=EXIT:' cheatcode is not active - exiting..."; exit; }
 initf
 rlt=$(sed -n 's/.*changes=EXIT:\([^ ]*\).*/\1/p' /proc/cmdline)
-[[ -n "$rlt" ]] && [[ "$bck" == "backup" ]] && backup && cleanup "$1"
+[[ -n "$rlt" ]] && [[ "$bck" == "backup" ]] && { graphics_changes ; cleanup "$1" ; }
+
 DEST="$(cat /mnt/live/tmp/changes-exit)"	; 	NAME="$(basename "${DEST:-}")"
 
 if [[ "$1" != "6" ]]; then
@@ -386,10 +396,11 @@ if [[ "$1" != "6" ]]; then
 		BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
 		echo $BRAND >> $UPDATE
 
-        cp $UPDATE $LOGDIR/$LOGFILE
-		#Do include a log file in case still in session
-		mv $UPDATE $MNAME$LOGDIR/$LOGFILE
-
+        if [ -e $UPDATE ]; then
+            cp $UPDATE $LOGDIR/$LOGFILE
+		    #Do include a log file in case still in session
+		    mv $UPDATE $MNAME$LOGDIR/$LOGFILE
+        fi
 
 		# subroutine clean out any deleted files   a ..wh..  is a file you deleted and no longer exists
 		#
@@ -422,6 +433,7 @@ if [[ "$1" != "6" ]]; then
         test -e $EXCLUDED && rm $EXCLUDED
         if [[ "$BACKUP" != "true" ]]; then 
             test -e $EXCL && rm $EXCL
+            # leave for verifying
             #test -e $EXFILES && rm $EXFILES
             #test -e $SFOLDERS && rm $SFOLDERS
         fi
@@ -434,6 +446,7 @@ if [[ "$1" != "6" ]]; then
 		## End Changes commit
     else
 		yellow "Skipping."
+        exit
 	fi
 fi
 ## Developer buddy 3 rsync backup on  changes=EXIT:/porteus    save-changesnew
@@ -442,10 +455,10 @@ if [[ "$ans" = "" ]]; then
 	if [[ "$BACKUP" == "true" && "$isolateBACK" = "false" ]]; then
 		if [[ "$1" == "6" ]]; then # regen so independant
 			cyan "Backing up on shutdown..." ; target=$4
-			initf ; backup ; exit
+			initf ; graphics_changes ; exit
 		#else # normal execution of this script
 		fi
-		backup
+		graphics_changes
 	fi
-	cleanup "$1" # Remove not shuttingdown
+	cleanup "$1" "true" # Remove not shuttingdown
 fi
