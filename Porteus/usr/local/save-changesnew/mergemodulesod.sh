@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Merge on drive. custom method for merging with xzm2dir. od stands for on drive or overdrive.       02/25/2026
+# Merge on drive. custom method for merging with xzm2dir. od stands for on drive or overdrive.       01/09/2026
 # Merges 2 or more modules on the drive to handle .wh. files after merging. Doesnt use /tmp because .wh. cant be copied or stated unless mounted. 
 #
 # How it works. Merge the modules in a /tmp folder in PWD or extramod. Afterwards stat the .wh. files and if the .wh. file is newer
@@ -45,7 +45,7 @@ override="true"			# Note this only applies when keepMRGED is false.
 									# default false. Move the modules first to tmp to free up space on the drive.
 
 									# true. You dont want them sent to /tmp first and the feature is overridden.
-	
+
 									# this script implements logic to ensure there is free space when merging modules on the drive because porteus could be installed on a usb. 
 
 
@@ -61,10 +61,10 @@ d2dmdl="true"				# use the harddrive or usb for temp all files/work. if having a
 #VARS
 workdir=/work$$						;	xopt=/mnt/live/tmp/atmp$$	# spare tmp fld
 tmp=$PWD$workdir					;	INAME=/mnt/live/memory/images
-elog=/tmp/error.log					;	oMF=/tmp/flog.log	
+elog=/tmp/error.log					;	oMF=/tmp/flog.log
 QEXCL=/tmp/squashexfiles.log	;	passdir=$PWD  # passdir is aka PWD
 mdlnames=()							;	pst=$PWD
-candidates=()							;	targetem=$PWD							
+candidates=()							;	targetem=$PWD
 ng_state=$(shopt -p nullglob) 	;	shopt -s nullglob
 
 output=""									;	is_moved="false"
@@ -92,7 +92,7 @@ if [ "$r" -gt 1 ]; then
 		        if ! unsquashfs -no-exit -f -dest $tmp "$mods"; then
 		            [[ -f "$oMF" ]] && rm $oMF
 		            test -d "$tmp" && rm -rf "$tmp"
-		            red "Error failure to extract in ${PWD}: ${fname} to target $tmp" >&2
+		            red "Error failure to extract in $PWD: $fname to target $tmp" >&2
 		            cyan "Everything preserved. Check the script"
 		            exit 1
 		        fi
