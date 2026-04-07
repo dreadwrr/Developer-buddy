@@ -1,18 +1,23 @@
 #!/bin/bash
-#                                               Developer Buddy v5.0                Mar 31, 2026
+#                                               Developer Buddy v5.0                Apr 05, 2026
 #   this script works for two modes porteus nemesis graphics and changes.
 # borrowed script items source
 # # Author: fanthom <fanthom@porteus.org>
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/save-changesnewfnts
-if [ `whoami` != "root" ]; then echo "Please enter your root password below" ; su - -c "/usr/local/bin/save-changesnew '${BASEDIR}' '${USER}' $1 " ; exit ; else [[ -z "$2" ]] && theUSER="guest" || { theUSER=$2 ; thetgt=$1 ; } ; fi
-[[ -n "$3" ]] && bck=$3 && thetgt=$1 # <----- for autosaving change to "/mnt/sda"  ie   /mnt/sda3          /etc/rc.d/rc.local_shutdown
-[[ -z "$2" ]] && bck=$1 
-[[ -z "$thetgt" ]] && thetgt=$BASEDIR 
-[[ -z "$thetgt" ]] && "\$BASEDIR not set and is null. please set thetgt\target in $0" && exit 0
+if [ `whoami` != "root" ]; then echo "Please enter your root password below" ; su - -c "/usr/local/bin/save-changesnew '$BASEDIR' '$USER' $1 " ; exit ; fi
 
-if ! id $2 >/dev/null 2>&1; then echo "user:" ${2} "not found"; exit 0 ; fi # quick user check we test the target directory $1 after VARS
+if ! id "$2" >/dev/null 2>&1; then 
+    bck=$1 ; theUSER="guest"  # set default user for root
+else
+    tgt=$1 ; bck=$3 ; theUSER="$2"  # tgt=$1  # <----- for autosaving change to "/mnt/sda"  ie   /mnt/sda3          /etc/rc.d/rc.local_shutdown
+fi
+
+[[ -z "$tgt" && -z "$BASEDIR" ]] && { echo "\$BASEDIR not set and is null. please set tgt\target in $0" ; exit 0 ; }
+[[ -z "$tgt" ]] && tgt=$BASEDIR
+
+
 if ! grep -iq "Artix" /etc/os-release; then echo "Wrong version of developer buddy. Please use porteus version." && exit 0 ; fi
 # CHANGABLE
 autobackup="true"           # Graphics changes only /etc/rc.d/rc.local_shutdown will be called to sync the backup on shutdown. Once run it will set itself to -x
@@ -26,8 +31,8 @@ d2drive="true"                 # default is true   also for systems with low mem
                                            # but systems with low memory may want to use d2drive to avoid any potential
                                            # exceedence
 
-d2dmdl="false"					# default false  use $target or $thetgt the harddrive for temp files/work.  if not enough memory use this
-mdldvc=""                        # default null. This device rather than porteus install drive for temp files/work.      ie /mnt/sda3
+d2dmdl="false"					# default false  use $target or $tgt the harddrive for temp files/work.  if not enough memory use this
+mdldvc=""                        # default null. This device rather than live tmpfs for temp files/work.      ie /mnt/sda3
 										# avoid trailing /
 
 grubln=""								# default null.  Point to Line number ie  linux /boot/syslinux/vmlinuz from=/dev/nvme0n1p4 root= ...   to automatically update grub for graphics extramod to boot with changes
@@ -42,7 +47,7 @@ bootdvc=""		                     # default null. required for above device where
 												# avoid trailing /
 
 
-target=$thetgt                               # change this to specify the location of porteus install this is passed from root call where porteus is installed via $BASEDIR
+target=$tgt                               # change this to specify the location of porteus install this is passed from root call where porteus is installed via $BASEDIR
 													# in some root environments $BASEDIR is null so set either here or at the top of script ln11 if having problems
                                                 # examples      "/mnt/sdx"   ie /mnt/sda3
                                                 #                   "/dev/sdx"
@@ -118,7 +123,7 @@ mrgAEX="true"				# the changes are copied to the merge with the exclusions. Then
 linkedSTATE="false"             #This is precendence for changes:EXIT only on graphics mode. Default false
                                            # This implies that you want changes made INCLUDING deletes to the module.
 											# If you dont do frequent saving this mode is useful as all deletions are applied
-                                           # and there will be only one changes module if a _uid_L prefix
+                                           # and there will be only one changes module if a L_uid_ prefix
                                            # linked state needs all changes modules to be created together thus you should
                                            # start with one that has linkedSTATE made. A byte count of this .xzm is made
                                            # and logged into a txt file by the modules. see extramod/ folder for createlmodule script
@@ -138,7 +143,7 @@ keepMRGED="true"       	# default is false so delete the old ones after merging
 # End Non linked state options
 
 
-checkSUM="false"				# for dynamic module saving use checksum instead of relying on modified time. slower but better accuracy in the event
+checkSUM="true"				# for dynamic module saving use checksum instead of relying on modified time. slower but better accuracy in the event
 								# of bad timestamps ect.
 
 override="true"                # default true. *leave set normally*. meaning normal operation if space becomes an issue see in terminal prompt.
@@ -174,7 +179,7 @@ ROLLBCK="false"				# backup module after merged to be able to "rollback" by load
 
 ROLLSUMRY="false"            # default false    Include file manifest for archives
 
-archLMT=4						# how many unique roll backs to keep  both _uid_ and _uid_L seperately
+archLMT=4						# how many unique roll backs to keep  both _uid_ and L_uid_ seperately
 # End Backup mode
 # END CHANGABLE BOOLEANS
 # END CHANGABLE
@@ -205,6 +210,8 @@ dest=""																;			nLOG=""
 is_routine="true"												;			goahead="true"
 dirtybit="false"													;			is_moved="false"
 dat="false"														;			new_dat="false"
+grub_loader="false"											;			encrypted_dat="false"
+
 
 autosave $3
 [[ "$mdllmt" -eq 0 ]] && echo "mdllmt > 0 current value $mdllmt" && exit 0
@@ -212,17 +219,21 @@ if [ "$mdlMRGPRF" != "forward" ] && [ "$mdlMRGPRF" != "back" ]; then echo "inval
 if [ "$namingPRF" != "alpha" ] && [ "$namingPRF" != "numeric" ]; then echo "invalid setting namingPRF: $namingPRF" && exit 0 ; fi
 if [ "$LOGGING" == "false" ] && [ "$ANALYTICS" == "true" ]; then echo analystics requires logging to be true. && exit 0 ; fi
 if [ ! -e $target ]; then echo "Target does not exist" && exit 0 ; fi
-msr=$target$em"/lscheck"
-
+msr="$target$em"/lscheck
+#filename=$( lscheck $msr)  # alternative to sed below ln 835 to get filename
 IFOLDERS="$(for x in $(grep ^/ $CHNEXIT_CONF | sed s/.//); do test -e $ch/"$x" && echo "$x"; done)"
 
 dycmb ; exldir $EXFILES ; cyan "Syncing what's left in buffers" && sync
 if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
 mount -o remount,udba=notify /
 MODULENM="${chxzm%.xzm}" ; mdlnm="${MODULENM#/}" ; bootdvc="${bootdvc%/}" ; mdldvc="${mdldvc%/}"  #normalize
-rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
-rlt=${rlt#EXIT:}
 
+rlt=$(sed -n 's/.*changes=EXIT:\([^ ]*\).*/\1/p' /proc/cmdline)
+[[ -n "$rlt" ]] && { echo "changes=EXIT:/ not supported. exitting" ; exit 1 ; }
+rlt=$(sed -n 's/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
+
+# $exclfiles spare tmp file
+# $UPDATE used as tmp file
 if [ "$d2drive" == "false" ] || { [ "$d2drive" == "true" ] && [ "$d2dmdl" == "false" ] ; } ; then green "Staging... " ; else green "Direct to drive saving" ; fi
 if [ "$rlt" != "" ]; then
     if [ "$rlt" == "/" ]; then rlt="" ; fi  # changes=/
@@ -274,14 +285,15 @@ if [ "$rlt" != "" ]; then
 
 		dat="true"
 
-		TARGET=${passdir%.dat}.bak
-		label=$( basename $TARGET)
-        backup_path=$( dirname $TARGET)
+		dat_file=${passdir%.dat}.bak
+
+		label=$( basename $dat_file)
+        backup_path=$( dirname $dat_file)
 		logfile="$backup_path$MODULENM".bak.log
         backup_path=$passdir
 		osize=$( du -sb "$passdir" | cut -f1)
 
-		if [[ ! -f "$TARGET" ]]; then
+		if [[ ! -f "$dat_file" ]]; then
 			new_dat="true"
 
 			# make the backup in the same place the file is
@@ -297,33 +309,81 @@ if [ "$rlt" != "" ]; then
 			size_=$(( osize / mbyte ))
 			fs_type=$( findmnt -n -o FSTYPE $ch)
 			[[ -z "$fs_type" ]] && echo "couldnt get FSTYPE for current .dat file to make backup .dat" && exit 1
-			if [[ "$fs_type" != xfs && "$fs_type" != ext2 && "$fs_type" != ext4 ]]; then echo ".dat logic error unknown fs of current .dat quitting fs: $fs_type" && exit 1 ; fi
+			if [[ "$fs_type" != xfs && "$fs_type" != ext2 && "$fs_type" != ext4 ]]; then echo ".dat logic error unknown fs of current .dat quitting fs: $fs_type" ; exit 1 ; fi
 
-			dd if=/dev/zero of="$TARGET" bs=1M count=$size_
-			# format xfs or ext4
-			mkfs."$fs_type" -f "$TARGET" || {
-				rm -f "$TARGET"
-				echo "mkfs failed couldnt format .dat copy"
+			dd if=/dev/zero of="$dat_file" bs=1M count=$size_
+
+			encrypted="false"
+
+			cryptsetup luksDump $passdir 2&>/dev/null
+			ret=$?
+
+			if (( ret == 0 )); then
+				cryptsetup luksFormat --batch-mode "$dat_file"
+				cryptsetup luksOpen "$dat_file" backup_secure
+				ret=$?
+				if (( ret == 2 )); then 
+					echo "bad password. quitting." ; exit 2
+				elif (( ret != 0 )); then
+					echo "unknown error opening encrypted .dat file $dat_file" ; exit $ret
+				fi
+
+				mkfs."$fs_type" /dev/mapper/backup_secure || {
+					rm -f "$dat_file"
+					echo "mkfs failed couldnt format encrypted .dat copy"
+					exit 1
+				}
+
+			else
+				# format xfs or ext4
+				mkfs."$fs_type" -f "$dat_file" || {
+					rm -f "$dat_file"
+					echo "mkfs failed couldnt format .dat copy"
+					exit 1
+				}
+			fi
+		fi
+
+		# the source file to mount
+		mods=$dat_file
+
+		is_merge="false"
+
+		cryptsetup luksDump $dat_file 2&>/dev/null
+		ret=$?
+
+		# encrypted?
+		#
+		if (( ret == 0 )); then
+			encrypted_dat="true"
+			[[ "$new_dat" = "false" ]] && cryptsetup luksOpen $dat_file backup_secure
+			startmnt $is_merge $dat $encrypted_dat
+			if ! mount /dev/mapper/backup_secure $dest; then
+				check_dat
+				echo "Failed to mount encrypted .dat: /dev/mapper/backup_secure from dat: $dat_file. use umount $dest and remove the folder $dest to continue"
 				exit 1
-			}
+			fi
+
+		# regular .dat
+		#
+		else
+			startmnt $is_merge $dat
+			if ! mount -o loop "$mods" "$dest"; then
+				check_dat
+				echo "Failed to mount .dat: $mods use umount $dest and remove the folder $dest to continue"
+				exit 1
+			fi
 		fi
 
-		# if a new .dat was made it would fail here. also if we cant mount the existing backup .dat fail here
-		mods=$TARGET
-		startmnt
-		if ! mount -o loop "$mods" "$dest"; then
-			mount -o remount,udba=none /
-			check_dat
-			echo "Failed to mount .dat: $mods use umount $dest and remove the folder to continue"
-			return 1
-		fi
+		# if a new .dat was made it would fail above. also if we cant mount the existing backup .dat fail above
+
 		TARGET=$dest
 
 	# regular changes folder
 	#
 	else
 		[[ ! -d "$passdir" ]] && { echo "logic error couldnt set dirSRC: $passdir" ; exit 1 ; }  # dirSRC /mnt/sdx/changes was resolved incorrectly
-		# dirSRC="${passdir}/changes"  # original using $ch above ln266
+		# dirSRC="${passdir}/changes"  # original using $ch above ln270
 
 		TARGET="$passdir$MODULENM".bak/
 		label="$( basename $TARGET)"/
@@ -473,7 +533,6 @@ if [ "$rlt" != "" ]; then
             fi
 			exc=$?
             if [ $exc -eq 1 ]; then
-		        mount -o remount,udba=none /
 		        red "rsync failed — check log at $logfile"
 				if [[ "$dat" = "false" ]]; then
 				    if [ "$d2drive" == "false" ]; then
@@ -482,16 +541,15 @@ if [ "$rlt" != "" ]; then
 				    	if [ "$ANALYTICS" == "true" ]; then
 				    		echo "Then check the logfile for any errors.Then take the last two bytes sent and add it to total count=  at the top of the file if you want to keep exact track."
 				    		echo "Or"
-				    		printf 'rsync -aHv "%s" newdirectory/\tto make a new backup\n' "${passdir}${MODULENM}/"
+				    		printf 'rsync -aHv "%s" newdirectory/\tto make a new backup\n' "$passdir$MODULENM/"
 				    	fi
 				    else
 			  		    if [ "$ANALYTICS" == "true" ]; then
 				    		echo "Add up the last bytes sent values and add to total count=  at the top of the file before END ORIGINAL FILES.  if you want to keep exact track."
 				    	fi
 				    fi
-				else
-					check_dat
 				fi
+				check_dat
 		        exit 1
 			elif [ $exc -eq 24 ]; then
 				cyan "Some files have vanished. Check for excluding cache files"
@@ -514,7 +572,6 @@ if [ "$rlt" != "" ]; then
             fi
 			exc=$?
             if [ $exc -eq 1 ]; then
-		        mount -o remount,udba=none /
 		        red "rsync failed — check log at $logfile"
 				if [[ "$dat" = "false" ]]; then
 				    if [ "$nLOG" != "" ]; then
@@ -530,7 +587,7 @@ if [ "$rlt" != "" ]; then
 				    fi
 				    echo
 				    echo "Or failing that"
-				    printf 'rsync -aHv "%s" newdirectory/\tto make a new backup\n' "${passdir}${MODULENM}/"
+				    printf 'rsync -aHv "%s" newdirectory/\tto make a new backup\n' "$passdir$MODULENM/"
 				fi
 				check_dat
 		        exit 1
@@ -621,7 +678,6 @@ if [ "$rlt" != "" ]; then
         fi
 		exc=$?
         if [ $exc -eq 1 ]; then
-            mount -o remount,udba=none /
             red "rsync failed — check log at $logfile"
 			check_dat
             cyan "Please check the logfile if its a valid backup or try again."
@@ -647,60 +703,110 @@ if [ "$rlt" != "" ]; then
     fi
 	cd $pst
     # cleanup
-	[[ "$dat" = "true" ]] && clear_mnt
-	[[ "$d2drive" = "false" ]] && { test -e $SFILES && rm $SFILES ; rm -f "$UPDATE" ; test -d "$tmp" && rm -rf -- "${tmp:?}" ; }  # rm -rf -- "${mtmp:?}"
+	if [ "$dat" == "true" ]; then
+		if clear_mnt; then
+			if [ "$encrypted_dat" == "true" ]; then
+				cryptsetup luksClose backup_secure
+			fi
+		fi
+	fi
 
 else # Graphics mode
 	if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
     if [ "$d2drive" == "true" ] && [ "$d2dmdl" == "true" ]; then
-		if [ -z "$mdldvc" ]; then xtgt="$thetgt" ; else xtgt="$mdldvc" ; fi
+		if [ -z "$mdldvc" ]; then xtgt="$tgt" ; else xtgt="$mdldvc" ; fi
 		test -d $xtgt/mtmp && mtmp=$xtgt/mtmp$$ || mtmp=$xtgt/mtmp
 		green "Staging xzm to local hdd on d2dmdl..."
     fi
     SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'`
 	line=43 #Bootloader
+	parts_kept=()
+	epath=$(printf '%s' $target$em | sed 's/[&|]/\\&/g')  #escape | and also & which may appear in a directory so doesnt break sed
 	pth="/boot/syslinux/porteus.cfg"
-    [[ -n "$bootdvc" ]] && thetgt=$bootdvc && [[ -n "$grubln" ]] && { line=$grubln ; pth="/boot/grub/grub.cfg"; }  
-    test -e "$thetgt$pth" && fnd=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*')
-    epath=$(printf '%s' $target$em | sed 's/[&|]/\\&/g')  #escape | and also & which may appear in a directory so doesnt break sed
-    if [ "$fnd" != "" ]; then  
-        if [[ ! "$fnd" == *$target${em%/}* ]]; then
+	[[ -n "$bootdvc" ]] && tgt=$bootdvc && [[ -n "$grubln" ]] && { grub_loader="true" ; line=$grubln ; pth="/boot/grub/grub.cfg"; }
+	config=$tgt$pth
+
+    test -e $config && rlt=$( sed -n "${line}p" $config | grep -oP 'extramod=\K[^ ]*')
+
+	#Bootloader
+    if [ "$rlt" != "" ]; then
+
+		# extramod path was changed
+		#
+        if [[ ! "$rlt" == *$target${em%/}* ]]; then
+
             test -d $target$em || mkdir -p $target$em
-			[[ -n "$grubln" ]] && test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak
-            sed -i "${line}s|\(extramod=\)\([^ ]*\)|\1${epath};\2|" "$thetgt$pth"
-            loadermsg
-            IFS=';' read -ra parts <<< "${fnd}"
-            unset IFS ; u=""
-            for part in "${parts[@]}"; do
-                erlt=$( sed -n "${line}p" "$thetgt$pth" | grep -oP 'extramod=\K[^ ]*')
-                testfile="${part}/.writetest_$$"
-                if touch "$testfile" 2>/dev/null; then
-                    rm -f "$testfile"
-                    for file in "${part}"/*_uid_*; do [ -e "$file" ] || continue ; mv "$file" "${target}${em}" ; u="true" ; done
-                else
-                    echo "$part was not writable some previous changes modules with _uid_ could not be moved"
-                fi
-                if [ "$u" == "true" ]; then
-					test -d $part"/archive" && mv $part"/archive" "$target$em" ; test -e $part"/lscheck" && mv $part"/lscheck" "$target$em" ; test -e $part"/mergemodules" && rm $part"/mergemodules"  
-                    test -e $part"/mergemodulesod" && rm $part"/mergemodulesod" ; test -e $part"/createlmodule" && rm $part"/createlmodule" ; test -e $part"/renameLbak" && rm $part"/renameLbak" 
-					test -e $part"/renamebak" && rm $part"/renamebak"
-                fi
-                if [ "$u" == "true" ] && [ -d "$part" ] && [ -z "$(ls -A "$part")" ]; then
-                    erlt="${erlt//;$part/}"
-                    erlt="${erlt//$part;/}"
-                    erlt="${erlt//$part/}"
-                    erlt=$(printf '%s' "$erlt" | sed 's/[&|]/\\&/g')   
-                    sed -i "s|\(extramod=\)[^ ]*|\1${erlt}|" "$thetgt$pth"
-                    cyan "bootloader updated"
-                fi
-            done
-            if [ "$u" != "" ]; then green "all previous changes modules in other extramod directories moved to new extramod dir" ; fi
+			[[ "$grub_loader" = "true" ]] && cp $config $config$$.bak
+
+            # sed -i "${line}s|\(extramod=\)\([^ ]*\)|\1${epath};\2|" "$config"  # inserts the new extramod dir with ; after extramod=
+            loadermsg $grub_loader
+
+			tfile=$( cat /dev/shm/xsc)  # is there a session save?
+
+		    IFS=';' read -ra parts <<< "$rlt"
+
+		    for part in "${parts[@]}"; do
+
+				# only match the format used by this script for the old name
+		        if [[ "$part" == /mnt/* ]]; then
+		            u=""
+
+		            testfile="${part}/.writetest_$$"
+		            if touch "$testfile" 2>/dev/null; then
+		                rm -f "$testfile"
+
+		                for file in "${part}"/*_uid_*; do
+							[ -e "$file" ] || continue
+							u="true"
+
+							mv "$file" "$target$em"
+							if [ "$file" == "$tfile" ]; then
+								y="$( basename $tfile)"
+								echo $target$em/$y > /dev/shm/xsc
+							fi
+
+						done
+
+		            else
+		                echo "$part was not writable some previous changes modules with _uid_ could not be moved"
+		            fi
+
+		            if [ "$u" == "true" ]; then
+
+						f="${part%/}"
+
+						# move rollback directory
+						test -d "$f"/archive && mv "$f"/archive "$target$em"
+
+						# move symlinks
+						files=(lscheck mergemodules mergemodulesod createlmodule renameLbak renamebak)
+						for suffix in "${files[@]}"; do test -e $f/$suffix && mv -f $f/$suffix $target$em ; done
+
+		            fi
+
+					# if saves were moved and that dir is empty it will be removed from extramod
+		            if ! { [ "$u" == "true" ] && [ -d "$part" ] && [ -z "$(ls -A "$part")" ]; }; then
+		                parts_kept+=("$part")
+		            fi
+
+		        else
+		            parts_kept+=("$part")
+		        fi
+		    done
+		    rlt=$(IFS=";"; echo "${parts_kept[*]}")
+			rlt="$epath;$rlt"
+		    erlt=$(printf '%s' "$rlt" | sed 's/[&|]/\\&/g')
+		    sed -i "${line}s|\(extramod=\)[^ ]*|\1${erlt}|" $config
+		    cyan "bootloader updated"
+		    if [ "$u" != "" ]; then green "all previous changes modules in other extramod directories moved to new extramod dir" ; fi
         fi
     else
-		cmd="sed -i \"0,/APPEND/ s|\\(APPEND\\)|\\1 extramod=${epath}|\" \"$thetgt$pth\""  # first occurence of APPEND in syslinux bootloader for nemesis
-		if [ -n "$grubln" ]; then test -e $thetgt$pth && cp $thetgt$pth $thetgt$pth$$.bak ; cmd="sed -i \"${line}s|\\\$| extramod=$epath/|\" \"$thetgt$pth\"" ; fi  # append to end of line.
-		test -e "$thetgt$pth" && bash -c "$cmd" || echo "Using other bootloader append ${target}${em} to it with extramod="
-    fi # END Bootloader
+		cmd="sed -i \"0,/APPEND/ s|\\(APPEND\\)|\\1 extramod=${epath}|\" \"$config\""  # first occurence of APPEND in syslinux bootloader for nemesis
+		[[ "$grub_loader" = "true" ]] && { test -e $config && cp $config $config$$.bak ; cmd="sed -i \"${line}s|\\\$| extramod=$epath/|\" \"$config\"" ; }  # append to end of line.
+		test -e "$config" && bash -c "$cmd" || echo "Using other bootloader append $target$em to it with extramod="
+    fi 
+	# END Bootloader
+
     if [ -s "${target}${em}${MODULENM}${SERIAL}_uid_$$.xzm" ]; then
 		echo ; echo A changes .xzm was detected but nothing was done. ; cyan "${MODULENM}${SERIAL}_uid_$$.xzm already exists" && { sleep 5; exit 0; }
     else
@@ -725,21 +831,21 @@ else # Graphics mode
         fi
         pst=$PWD
         if [ "$linkedSTATE" == "true" ]; then
-            f=$(find "$target$em" -maxdepth 1 -type f -name '*_uid_L*.xzm' | wc -l)
+            f=$(find "$target$em" -maxdepth 1 -type f -name '*L_uid_*.xzm' | wc -l)
             if [ "$f" -gt 1 ]; then
-                echo "Cannot have more than one _uid_L\.\*\.xzm file" && exit 0
+                echo "Cannot have more than one L_uid_.*\.xzm file" && exit 0
             elif [ "$f" -eq 1 ]; then  # Good to go
                 rlt=""
                 if [ -e $msr ]; then
-                    content=$(awk -v RS= '{gsub(/\n+$/, "", $0); print $0}' "$msr")
+                    content=$(awk -v RS= '{gsub(/\n+$/, "", $0); print $0}' $msr)
                     k=$( echo "$content" | sed -n 's/.*bytes:[[:space:]]*\([0-9]\+\).*/\1/p')
                     if [ "$k" != "" ]; then
                         p=$( echo "$content" | sed -n 's/^file name:[[:space:]]*\(.*\)/\1/p')
                         if [ "$p" != "" ]; then
                             if [ -f $target$em"/"$p ]; then
-                                c=$( du -sb "${target}${em}/${p}" | cut -f1)
+                                c=$( du -sb "$target$em/$p" | cut -f1)
                                 if [ "$c" -eq "$k" ]; then
-                                    ssbn=$( echo $p | sed -n 's/.*_uid_L\(.*\)\.xzm$/\1/p')
+                                    ssbn=$( echo $p | sed -n 's/.*L_uid_\(.*\)\.xzm$/\1/p')
                                     if [ "$ssbn" == "" ]; then cyan "failed to parse ssbn in msr"; fi
                                 else
                                     validrlt="false"
@@ -766,8 +872,8 @@ else # Graphics mode
 			newxzm "uid"
         fi
 		if [ "$goahead" == "true" ]; then  # dont display the time if error
-            if [ -s "${target}${em}/${rname}" ]; then
-                chown $USR "${target}${em}/${rname}"
+            if [ -s "$target$em/$rname" ]; then
+                chown $USR "$target$em/$rname"
 	     		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then 
 				    el=$(awk "BEGIN {print $end - $start}")
 				    tt=$el
@@ -789,9 +895,9 @@ else # Graphics mode
                         printf "Total save time %.3f seconds.\n" "$el"
                     fi
 			    fi
-			    cyan "Your changes have been saved. in ${target}${em}/" && cyan $rname
+			    cyan "Your changes have been saved. in $target$em/" && cyan $rname
 		        if [ "$mdlMRGPRF" = "back" ] && [ "$mrgMODULES" == "true" ] && [ "$linkedSTATE" == "false" ]; then
-		        	cd $target$em ; r=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' | wc -l)
+		        	cd $target$em ; r=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*L_uid_*' | wc -l)
 		            if (( r > mdllmt)); then
 		                green "Merging changes modules..." ; sleep 5
 		                /usr/local/save-changesnew/mergemodules.sh $keepMRGED $ROLLBCK $ROLLSUMRY $archLMT
@@ -813,14 +919,16 @@ else # Graphics mode
     fi
 fi
 mount -o remount,udba=none /
-test -e $oMF && rm $oMF
-test -e $EXCL && rm $EXCL
-test -e $QEXCL && rm $QEXCL
-test -e $UPDATE && rm $UPDATE
-#test -e $SFOLDERS && rm $SFOLDERS
+
+test -e $oMF && rm $oMF  # used as tmp file
+test -e $SFILES && rm $SFILES  # .
+test -e $QEXCL && rm $QEXCL  # .
+test -e $UPDATE && rm $UPDATE  # .
+test -e $EXCL && rm $EXCL  # .wh exclude file
+test -e $EXCLUDED && rm $EXCLUDED  # tmp file
+#test -e $SFOLDERS && rm $SFOLDERS  # leave for verification
 test -e /tmp/incfilter.log && rm /tmp/incfilter.log
-if [ "$dat" == "false" ]; then
-	for dir in "$tmp" "$mtmp"; do [ -d "$dir" ] && rm -rf -- "${dir:?}" ; done
-fi
+for dir in "$tmp" "$mtmp"; do [ -d "$dir" ] && rm -rf -- "${dir:?}" ; done
+
 sleep 5 && exit
 
