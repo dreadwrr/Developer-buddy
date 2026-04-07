@@ -1,6 +1,12 @@
-#                               03/30/2026
+#                               04/06/2026
 ## Python edition <br>
-v1.3.0-py New release for pyver <br>
+v1.3.1-py <br>
+support for encrypted .dat backups <br>
+new merge logic for if it was a file but now a directory and vice versa. take action and remove it and also log it <br>
+ensured mounts are handled properly with proper error handling <br>
+general cleanup and organization of function names <br><br>
+
+v1.3.0-py <br>
 added .dat support for backup on changes= and changes=EXIT <br>
 changed the way .wh. are handled with rsync<br>
 v1.2.9-py release changes<br>
