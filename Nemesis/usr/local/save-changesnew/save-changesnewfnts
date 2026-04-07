@@ -1,5 +1,5 @@
 #!/bin/bash
-# save-changesnew functions to move options further up the script             03/31/2026
+# save-changesnew functions to move options further up the script             04/05/2026
 . /usr/local/save-changesnew/mergemodulesfunctions
 dycmb() {
 TFLD=""
@@ -110,7 +110,7 @@ brnd $1
 if [ "$mdlLOGPRF" == "full" ]; then
     { echo ; cat $1; } >> $LOGDIR/$LOGFILE
 elif [ "$mdlLOGPRF" == "incr" ]; then
-    cp $1 $LOGDIR/$LOGFILE    
+    cp $1 $LOGDIR/$LOGFILE
 fi
 }
 # Make a new .xzm take into account previous changes so we have a small .xzm if still in session. for _uid_. if we are at the module archLMT merge first
@@ -127,10 +127,10 @@ candidates=() ; mdlnames=()
 output=""
 # starting in $target$em saved to $pst
 # Apply write forward merging (guardian) to save writes. More can go wrong implemented guardian for logic
-# h=$(find $target$em -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' -exec ls -t {} + | head -n 1)  # newest.  ls -tr oldest # -print0 | xargs -0 -r ls -t | head -n 1
+# h=$(find $target$em -type f -name '*_uid_*.xzm' ! -name '*L_uid_*' -exec ls -t {} + | head -n 1)  # newest.  ls -tr oldest # -print0 | xargs -0 -r ls -t | head -n 1
 if [[ -f /dev/shm/xsc ]]; then
 	if [[ "$mdlMRGPRF" = "forward" ]]; then
-		u=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' | wc -l)
+		u=$(find . -maxdepth 1 -type f -name '*_uid_*.xzm' ! -name '*L_uid_*' | wc -l)
 	fi
 	if (( u > mdllmt)); then
 		echo "Hit module merge limit merging on write forward"
@@ -143,7 +143,7 @@ if [[ -f /dev/shm/xsc ]]; then
 			if [ "$ret" -eq 1 ]; then
 				end=$(date +%s.%N)
 				while true; do
-                    echo "pwd is ${PWD}"
+                    echo "pwd is $PWD"
 					read -p "Not enough space in /tmp. just save changes to a new module?  (y/n): " yn
 					case $yn in
 						[Yy]* ) 
@@ -153,7 +153,7 @@ if [[ -f /dev/shm/xsc ]]; then
 							else
 								aend=$(date +%s.%N)
 								if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then el=$(awk -v end="$end" -v start="$start" -v aend="$aend" -v astart="$astart" 'BEGIN {print (end - start) + (aend - astart)}') ; printf "Saving took %.3f seconds.\n" "$el" ; fi
-								test -e "${target}${em}/${rname}" && cyan "Your changes have been saved. in ${target}${em}/" && cyan $rname
+								test -e "$target$em/$rname" && cyan "Your changes have been saved. in $target$em/" && cyan $rname
 							fi
 							break
 							;;
@@ -176,7 +176,7 @@ if [[ -f /dev/shm/xsc ]]; then
 			dirtybit="true"
 			if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then astart=$(date +%s.%N); fi
 			# cds to $mtmp then changes\$ch
-			unpack $mtmp $SFILES $oMF $elog $is_routine $is_merge  # apply .wh. deletions 
+			unpack $mtmp $SFILES $oMF $UPDATE $elog $is_merge  # apply .wh. deletions 
 			aend=$(date +%s.%N)
 			if [ "$ANALYTICS" == "true" ]; then [[ "$ANALYTICSECT" = "true" ]] && elapse=$(awk "BEGIN {print $aend - $astart}") && cyan "Modules merged. Applying changes" ; fi
 			# in changes
@@ -189,7 +189,7 @@ if [[ -f /dev/shm/xsc ]]; then
 			package_xzm $mtmp $keepMRGED $elog $is_routine $is_merge $output
 			is_rollback $mtmp "_uid_" $ROLLBCK $ROLLSUMRY $archLMT $is_routine
 			test -e $SFILES && rm $SFILES
-			echo "${target}${em}/${rname}" > /dev/shm/xsc
+			echo "$target$em/$rname" > /dev/shm/xsc
 		fi
     # normal saving
 	else
@@ -211,9 +211,8 @@ if [[ -f /dev/shm/xsc ]]; then
                     fi
                 fi
 
-			done < <( find "$target$em" -type f -name '*_uid_*.xzm' ! -name '*_uid_L*' -print0 | sort -z)
+			done < <( find "$target$em" -type f -name '*_uid_*.xzm' ! -name '*L_uid_*' -print0 | sort -z)
 			unset IFS
-			if [ -n "$firstsv" ]; then h=$firstsv ; fi
 			if [ -f "$tfile" ]; then
 				(( c > 0 && c == t )) && echo Merging single module
 				goahead="true"
@@ -223,8 +222,8 @@ if [[ -f /dev/shm/xsc ]]; then
 
 		# extract all modules to tmpfs to build what files we have since boot
 		if [[ "$goahead" = "true" ]]; then
-			for mods in "${target}${em}/"*_uid_*.xzm; do 
-				[[ "$mods" == *_uid_L* || ! -f "$mods" ]] && continue
+			for mods in "$target$em/"*_uid_*.xzm; do 
+				[[ "$mods" == *L_uid_* || ! -f "$mods" ]] && continue
 			    if (( r == 0 )); then
 			        if [ "$mods" == "$tfile" ]; then
 			            r=1
@@ -266,7 +265,7 @@ if [[ -f /dev/shm/xsc ]]; then
 		createlog $mtmp $tmp $UPDATE $oMF 
 
 		 # --out-format="%f" consistent log depends on version of rsync ** important
-		c="${mtmp#/}" 
+		c="${mtmp#/}"
 		sed -i -e "\|$c/\.|d" -e "s|$c/||" -e '/^\./d' $UPDATE  # remove the unusable . or dot in first line
 		cp $UPDATE $keep
 
@@ -296,7 +295,7 @@ else
     if ! createxzm; then
         echo "Changes not saved either a file changed while saving or something went wrong."
 	else
-		echo "${target}${em}/${rname}" > /dev/shm/xsc
+		echo "$target$em/$rname" > /dev/shm/xsc
     fi
 fi 
 }
@@ -304,15 +303,15 @@ createxzm() {
 local cpt ; local cm
 createlog $ch $tmp $UPDATE $oMF  # make log
 labelmk $oMF  # insert log before .xzm
-cm=(mksquashfs $ch "${target}${em}/${rname}" -comp $cmode -ef $EXFILES)
+cm=(mksquashfs $ch "$target$em/$rname" -comp $cmode -ef $EXFILES)
 cpt=$( "${cm[@]}" 2>&1 | grep "changed size while reading" )
 if [[ -n "$cpt" ]]; then 
     echo "$cpt"
-    test -e "${target}${em}/${rname}" && rm "${target}${em}/${rname}"
+    test -e "$target$em/$rname" && rm "$target$em/$rname"
     return 1
 fi 
 }
-# mksquash cant use -ef and -wildcards together. Below get around this. Then branch to either making a uid or uid_L try the fast way in both cases. If file changes during _uid_L go the slow way copy to mtmp to freeze fs
+# mksquash cant use -ef and -wildcards together. Below get around this. Then branch to either making a uid or L_uid_ try the fast way in both cases. If file changes during L_uid_ go the slow way copy to mtmp to freeze fs
 newxzm() { 
 local p l d f fd
 local normalop
@@ -340,11 +339,11 @@ test -e $exclfiles && rm $exclfiles  # remove tmp files.
 if [ "$1" == "uid" ]; then
     if [ "$d2dmdl" == "true" ]; then
         tmp=$(mktemp -d "$xtgt/tmp.XXXXXX")  # using hdd for tmp files
-		#test -d $thetgt/tmp && { mkdir $thetgt/tmp$$; tmp=$thetgt/tmp$$; } || { mkdir $thetgt/tmp; tmp=$thetgt/tmp; }  d2dmdl logic original from save-changesnew storage
+		#test -d $tgt/tmp && { mkdir $tgt/tmp$$; tmp=$tgt/tmp$$; } || { mkdir $tgt/tmp; tmp=$tgt/tmp; }  d2dmdl logic original from save-changesnew storage
     	#for x in $FOLDERS; do cp -arv $ch/"$x" $tmp &> /dev/null ; done
     fi
     newuid  # uid ^
-# for uid_L
+# for L_uid_
 else 
     createxzm # try changes  ^ if fails try below
     trlt=$?
@@ -354,7 +353,7 @@ else
         cp $QEXCL $EXFILES # reset exclusions for rsync
 		normalop="false"
         procxzm $normalop "false" # copy log and exclude with rsync.
-	    base_cmd=(mksquashfs $mtmp "${target}${em}/${rname}" -comp $cmode)  # make the module
+	    base_cmd=(mksquashfs $mtmp "$target$em/$rname" -comp $cmode)  # make the module
         if [ "$FEEDBACK" != "true" ]; then "${base_cmd[@]}" > /dev/null ; else "${base_cmd[@]}" ; fi
     fi
 fi
@@ -407,7 +406,7 @@ if [[ "$1" = "true" ]]; then
     unset IFS
     #find $mtmp -name ".wh.*" -exec rm -r {} \;  # ! -name ".wh..*"  routine to delete all .wh. in $mtmp
 fi
-# _uid_ or _uid_L
+# _uid_ or L_uid_
 base_cmd=(rsync -aHv "${adtcmd[@]}" --exclude-from=$trsyncexl) && [[ -s "$EXFILES" ]] && base_cmd+=(--exclude-from=$EXFILES)
 run_cmd "${base_cmd[@]}" $FOLDERS "$mtmp/" ; errblk "$mtmp"  # merge
 
@@ -430,7 +429,7 @@ local xsize c  ; local instm="$1"
     if [ "$instm" != "nolmdl" ]; then
         mkdir $mtmp
         if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then astart=$(date +%s.%N); fi
-        for mods in "$target$em/"*_uid_L*.xzm; do [[ "$fname" == "" ]] && fname="$mods" ; if ! xzm2dir $mods $mtmp; then errmsg $mtmp "$fname" "$instm" ; fi ; done  # if ! unsquashfs -no-exit -f -dest $mtmp $mods; then errmsg $mtmp "$fname" "$instm" ; fi ; done
+        for mods in "$target$em/"*L_uid_*.xzm; do [[ "$fname" == "" ]] && fname="$mods" ; if ! xzm2dir $mods $mtmp; then errmsg $mtmp "$fname" "$instm" ; fi ; done  # if ! unsquashfs -no-exit -f -dest $mtmp $mods; then errmsg $mtmp "$fname" "$instm" ; fi ; done
 		aend=$(date +%s.%N)
 		if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then elapse=$( awk "BEGIN {print $aend - $astart}"); fi
 	    procxzm "true"
@@ -457,49 +456,56 @@ local xsize c  ; local instm="$1"
         c=${fname%.xzm}".bak"
         mv "$fname" $c
     fi
-    SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'` ;  rname="${mdlnm}${SERIAL}_uid_L${ssbn}.xzm"
+    SERIAL=`date +"%m-%d-%y_%R"|tr ':' '_'` ;  rname="${mdlnm}${SERIAL}L_uid_${ssbn}.xzm"
     if [ "$instm" != "nolmdl" ]; then
-		cmd=(mksquashfs $mtmp "${target}${em}/${rname}" -comp $cmode -ef $EXFILES -ef $trsyncexl)
+		cmd=(mksquashfs $mtmp "$target$em/$rname" -comp $cmode -ef $EXFILES -ef $trsyncexl)
         [[ -s "$QEXCL" ]] && cmd+=(-ef "$QEXCL") ; "${cmd[@]}"
         end=$(date +%s.%N)
     else
-        newxzm "_uid_L"
+        newxzm "L_uid_"
     fi
 	cd $target$em
-    is_rollback $mtmp "_uid_L" $ROLLBCK $ROLLSUMRY $archLMT $is_routine
-    xsize=$( du -sb "${target}${em}/${rname}" | cut -f1)
-    fname="${mdlnm}${SERIAL}_uid_L${ssbn}.xzm"
+    is_rollback $mtmp "L_uid_" $ROLLBCK $ROLLSUMRY $archLMT $is_routine
+    xsize=$( du -sb "$target$em/$rname" | cut -f1)
+    fname="${mdlnm}${SERIAL}L_uid_${ssbn}.xzm"
     if [ "$rlt" == "true" ]; then
         sed -i "s/bytes:.*/bytes:${xsize}/" $msr
         sed -i "s/file name:.*/file name:${fname}/" $msr
     else
         { echo "bytes:"$xsize ; echo "file name:${fname}" ; echo ; } > $msr
     fi
-    test -d "$mtmp" && rm -rf -- "${mtmp:?}"
 }
 check_dat() {
-if [[ "$dat" = "true" ]]; then
-	if [[ "$d2drive" = "false" ]]; then
-		if [[ -f "$SFILES" ]]; then
-		    # remove .wh that were copied first when direct 2 drive is false
-		    while IFS= read -r y || [ -n "$y" ]; do fname="$TARGET/$y" ; test -f "$fname" && rm -f "$fname" ; done < "$SFILES"
-		fi
+mount -o remount,udba=none /
+if [[ "$dat" = "true" ]]; then 
+    if [[ "$d2drive" = "false" ]]; then
+        if [[ -f "$SFILES" ]]; then
+            # remove .wh that were copied first when direct 2 drive is false
+            while IFS= read -r y || [ -n "$y" ]; do fname="$TARGET/$y" ; test -f "$fname" && rm -f "$fname" ; done < "$SFILES"
+			rm $SFILES
+        fi
+    fi
+    clear_mnt
+    rlt=$?
+    [[ "$new_dat" = "true" ]] && (( rlt == 0 )) && test -f "$dat_file" && rm -f "$dat_file"
+
+	if [[ "$encrypted_dat" = "true" ]]; then
+		cryptsetup luksClose backup_secure
 	fi
-	clear_mnt
-	rlt=$?
-	[[ "$new_dat" = "true" ]] && (( rlt == 0 )) && test -f "$TARGET" && rm -f "$TARGET"
 fi
 [[ "$d2drive" = "false" ]] && test -d "$tmp" && rm -rf -- "${tmp:?}"       #delete temporary files
 }
 rand_alpha() { letters=( {A..Z} {a..z} ); echo -n "${letters[RANDOM % 52]}${letters[RANDOM % 52]}" ; }
-rand_alphauid() { 
+rand_alphauid() {
 letters=( {A..Z} {a..z} ) ; u=( {A..Z} ) ; t=( {a..z} ) 
-while :; do v1=${letters[RANDOM % 52]} ; [[ "$v1" != "L" ]] && break ; done
+v1=${letters[RANDOM % 52]}
+# while :; do v1=${letters[RANDOM % 52]} ; [[ "$v1" != "L" ]] && break ; done  # original optionally exclude if L so do doesnt conflict with L module when naming L_uid_  # change made so _uid_ can have all ranges after uid_
 v2=${letters[RANDOM % 52]} ; (( RANDOM % 2 )) && v3=${u[RANDOM % 26]} || v3=${t[RANDOM % 26]} ; echo -n "$v1$v2$v3"
 }
+lscheck() { [[ ! -f "$1" ]] && echo "null" || awk -F: '$1=="file name" {print $2}' "$1" ; }
 rand_num() { printf "%02d" $((RANDOM % 100)) ; }
 # rand_numuid() { echo -n $((RANDOM % 10)) ; }
-loadermsg() { green "Updated bootloader in /syslinux/"; cyan "if you use a different loader use cheatcode extramod=${target}${em} include changes modules" ; }
+loadermsg() { [[ "$1" = "false" ]] && green "Updated bootloader in /syslinux/" || green "Updated grub bootloader in $( basename $config)"; cyan "if you use a different loader use cheatcode extramod=$target$em include changes modules" ; }
 fixdir() { sed -e 's_\._\\._g' -e 's_?_._g' -e 's_*_.*_g' -e 's@..@^@'; }
 fixsqh() {  sed -e 's|^/||' -e 's/^\^//' ; }
 fixwh() { sed -e '/^\^/!s@^@^@' -e 's_\._\\._g' -e 's_?_\\?_g' -e 's_+_\\+_g' -e 's_*_\\*_g' -e 's_\$_\\$_g' -e 's_\[_\\[_g' -e 's_(_\\(_g' -e 's_\&_\\&_g' -e 's_\(^.\)\^\(.*\)_\1\\^\2_'; } # Translating
