@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Merge modules                                                                                 01/09/2026
-# only merges  *_uid_*.xzm  in $PWD extramod/ and only deletes the old on successful completion. skips _uid_L # also used for auto merging in /usr/local/bin/save-changesnew 
+# Merge modules                                                                                 04/06/2026
+# only merges  *_uid_*.xzm  in $PWD extramod/ and only deletes the old on successful completion. skips L_uid_ # also used for auto merging in /usr/local/bin/save-changesnew 
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/save-changesnewfnts
@@ -24,7 +24,7 @@ ANALYTICS="true"			# display more verbose output
 ANALYTICSECT="true"	# # disable metric saving time. ect. for ANALYTICS
 
 
-keepMRGED="false"       # default is normally false but we want to rename all .xzms to .bak anyway
+keepMRGED="true"       # default is normally false but we want to rename all .xzms to .bak anyway
 										# in this script regardless of preference
 
 
@@ -43,24 +43,26 @@ override="true"			# Note this only applies when keepMRGED is false. The script w
 tmp=/mnt/live/tmp/atmp$$		;	ch=/mnt/live/memory/changes
 elog=/tmp/error.log					;	INAME=/mnt/live/memory/images
 oMF=/tmp/flog.log						;	QEXCL=/tmp/squashexfiles.log
-mdlnames=()							;	candidates=()	
+UPDATE=/tmp/save.update.tmp
+mdlnames=()							;	candidates=()
 pst=$PWD			                        ;   output=""
 targetem=$PWD
 is_routine="false"						;	is_moved="false"
+is_merged="false"
 
 [[ -n "$1" ]] && [[ "$1" != "true" && "$1" != "false" ]] && echo "invalid argument function takes no arguments. one argument keepMRGED is only passed from /usr/local/bin/save-changesnew true false" && exit 1
 [[ "$namingPRF" != "alpha" ]] && [[ "$namingPRF" != "numeric" ]] && echo "invalid setting namingPRF: $namingPRF" && exit 0
-[[ "$1" != "" ]] && keepMRGED="$1" && is_routine="true"
+[[ "$1" != "" ]] && keepMRGED="$1" && is_routine="true" && $is_merged="true"
 ROLLBCK="$2"
 ROLLSUMRY="$3"
 archLMT="$4"
-r=$( ls | grep '_uid_' | grep -v '_uid_L' | wc -l)  # ls -l | grep -c '_uid_[^L]' original  grep -c '.*_uid_.*.xzm',  original
+r=$( ls | grep '_uid_' | grep -v 'L_uid_' | wc -l)  # ls -l | grep -c '_uid_[^L]' original  grep -c '.*_uid_.*.xzm',  original
 if [ "$r" -gt 1 ]; then
 	resolve_conflict "_uid_" "*.xzm" ".xzm" ".bak" $is_moved $oMF  # cds into /tmp or $output if moved
 	if ! is_available "*_uid_*.xzm" $targetem "/mnt/live/tmp" $is_moved "true"; then exit 1 ; fi
     mkdir $tmp
 	if [ "$ANALYTICS" == "true" ] && [ "$ANALYTICSECT" == "true" ]; then astart=$(date +%s.%N); fi
-    unpack $tmp $QEXCL $oMF $elog $is_routine
+    unpack $tmp $QEXCL $oMF $UPDATE $elog
 	aend=$(date +%s.%N)
 	if [ "$ANALYTICS" == "true" ]; then cyan "Modules merged. Packaging.." ; fi
 	# in changes $ch
@@ -69,15 +71,15 @@ if [ "$r" -gt 1 ]; then
 	[[ "$namingPRF" = "numeric" ]] && rand2d=$(rand_num)
 	[[ "$namingPRF" = "alpha" ]] && rand2d=$(rand_alphauid)
 	rname="${MODULENM}${SERIAL}_uid_${rand2d}$$.xzm"
-	package_xzm $tmp $keepMRGED $elog $is_routine "false" $output
+	package_xzm $tmp $keepMRGED $elog $is_routine $is_merged $output
 	is_rollback $tmp "_uid_" $ROLLBCK $ROLLSUMRY $archLMT $is_routine
 	# General output. But not if called from save-changesnew
 	if [[ "$is_routine" = "false" && "$ANALYTICS" = "true" ]]; then  [[ "$ANALYTICSECT" = "true" ]] && el=$(awk "BEGIN {print $aend - $astart}") && printf "Merge took %.3f seconds.\n" "$el" ; test -e $rname && { cyan "Moduled saved. in ${PWD}/" ; cyan $rname; } ; fi
-    [[ "$is_routine" = "true" ]] && echo "${targetem}/${rname}" > /dev/shm/xsc
+    [[ "$is_routine" = "true" ]] && echo "$target$em/$rname" > /dev/shm/xsc
 elif [ "$r" -eq 0 ]; then
 	cyan "No modules detected or could be in the wrong working directory." && exit 0
 else
 	cyan "Only 1 module. exiting" && exit 0
 fi
-test -f $QEXCL && rm -f $QEXCL ; test -f $elog && rm -f $elog ; test -d "$tmp" && rm -rf "${tmp:?}"
+test -f $QEXCL && rm -f $QEXCL ; test -f $elog && rm -f $elog ; test -d "$tmp" && rm -rf -- "${tmp:?}"
 

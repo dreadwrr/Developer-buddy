@@ -11,7 +11,14 @@ return 0
 }
 startmnt() {
 local rlt=0 ; local is_merge="$1"
+local dat_file="$2"
+local is_encrypted="$3"
 dest="/mnt/loop-$(basename "$mods" .xzm)"
+if [[ "$2" = "true" && "$3" = "false" ]]; then
+	dest="/mnt/loop-$(basename "$mods" .bak)"
+elif [[ "$3" = "true" ]]; then
+	dest="/mnt/backup-$(basename "$mods" .bak)"
+fi
 [[ -d $dest ]] && { echo "Error: $dest mount dir already exists. remove and try again." && rlt=1; } || mkdir $dest
 if mountpoint -q $dest; then echo "Error: $dest already mounted. Everything preserved."; rlt=1; fi
 if [ ! -f "$mods" ]; then echo "Error: In wrong directory. '$dest' not found."; rlt=1; fi
@@ -29,7 +36,7 @@ local ms="Not enough space in"
 local msg=""
 [[ "$input" != "*.xzm" ]] && msg="If space is limited try mergemodulesod and keepMRGED false manually"
 p=$(df --output=avail $passdir | tail -1)
-for mods in "$passdir/"$1 ; do [[  ! -f "$mods" ]] && continue ; [[ -n "$lswitch" && "$mods" == *_uid_L* ]] && continue ; sz=$(du -sk "$mods" | cut -f1) ; u=$(( u + sz )) ; done
+for mods in "$passdir/"$1 ; do [[  ! -f "$mods" ]] && continue ; [[ -n "$lswitch" && "$mods" == *L_uid_* ]] && continue ; sz=$(du -sk "$mods" | cut -f1) ; u=$(( u + sz )) ; done
 [[ "$4" = "true" ]] && p=$(( p + u ))
 w=$p
 if [ "$output" != "$passdir" ]; then
@@ -54,7 +61,7 @@ rlt=$(sed -n '/changes=EXIT:/! s/.*changes=\([^ ]*\).*/\1/p' /proc/cmdline)
 if [[ "$override" = "false" && "$keepMRGED" = "false" ]]; then [[ -z "$rlt" ]] && is_moved="true" && output="/tmp/" || echo "Changes cheatcode active not first moving to /tmp as not tmpfs. continue as normal" ; fi
 
 for mods in "$PWD/"$2; do 
-    [[ "$1" = "_uid_" ]] && [[ "$mods" = *"_uid_L"* ]] && continue
+    [[ "$1" = "_uid_" ]] && [[ "$mods" = *"L_uid_"* ]] && continue
     candidates+=("$mods") ; 
     fname="$( basename "$mods")"
     [[ "$is_moved" = "false" ]] && fname="${fname%"$3"}$4" && echo "$mods" >> $oMF
@@ -95,11 +102,11 @@ unpack() {
 local output="$1"
 local QEXCL="$2"
 local oMF="$3"
-local elog="$4"
-local is_routine="$5"
+local UPDATE="$4"
+local elog="$5"
 local is_merge="$6"
 local dest ; local x=0
-:> $2
+:> $2 ; :> $5
 for mods in "$PWD/"*_uid_*.xzm; do
 	if (( x == 0 )); then cd "$1" || { [[ -n "$is_merge" ]] && mount -o remount,udba=none / ; exit 1 ; } ; fi
 	((x++))
@@ -111,24 +118,46 @@ for mods in "$PWD/"*_uid_*.xzm; do
 				ret=12
 			else
 				wh_process $dest $2
-				cp -afv $dest/. $1 2> >(tee $4 >&2)  # from above we cant remove the .wh. here as readonly
+
+				# check if there are any type conflicts to avoid directory cannot overwrite file and opposite error
+
+				find "$dest" -mindepth 1 -printf "%P\0" | while IFS= read -r -d '' p ; do
+					# file now dir
+					#
+					if [ -d "$dest/$p" ]; then
+						if [ ! -d "$p" ]; then
+							echo "file or symlink $p changed to dir $dest/$p removed continuing" >> $5
+							rm -f "$p"
+						fi
+					# dir now file
+					#
+					else
+						if [ -d "$p" ]; then
+							echo "dir $p changed to file or symlink $dest/$p removed continuing" >> $5
+							rm -rf -- "$p"
+						fi
+					fi
+				done
+
+				# test -e var/slapt-mod && rm -f var/slapt-mod  # left in place incase there is a dir and file conflict or oppose. substitute file here to remove said file.
+				cp -afv $dest/. $1 2> >(tee $4>&2)  # from above we cant remove the .wh. here as readonly
 				ret=$?
 			fi
 
 			if [ "$ret" -ne 0 ]; then
 				if [ "$ret" -eq 12 ] || grep -v '\.wh\.' $4 > /dev/null; then
-					red "Error processing one of the modules ${mods}"
-                    echo "dest $dest"
-                    echo "output $1"
-					cyan "Everything preserved. Check the script and try again. check $4"
+					red "Error processing one of the modules $mods"
+                    echo "from $dest"
+                    echo "merging to $1"
+					cyan "Everything preserved. Check the script and try again. check $5"
+					echo "if it is a dir cannot overwrite file or opposite see ln 140 mergemodulesfunctions to remove it."
 					clear_mnt
 					test -e $3 && rm $3
-				    test -d "$1" && rm -rf "${1:?}"
-					if [[ "$is_routine" = "true" ]]; then
-						echo "Error in unpack function from: $dest to $1. count $x Module $mods . error_code $ret" >> $4
-					fi
+				    test -d "$1" && rm -rf -- "${1:?}"
+					{ echo ; echo "cp error" ; cat $4 ; } >> $5
+					echo "Error in unpack function from: $dest to $1. count $x Module $mods . error_code $ret" >> $5
 					if [[ -n "$is_merge" ]]; then mount -o remount,udba=none / ; fi
-					exit 1
+					exit $ret
 				else
 					cyan "White out file detected and processed"  >&2
 				fi
@@ -155,14 +184,14 @@ local elog="$3"
 local is_routine="$4"  # its called by main script
 local is_merge="$5"  # is from save-changesnew have to unmount on failure
 local output="$6"
-base_cmd=(mksquashfs "$1" "${PWD}/${rname}" -comp $cmode)  # "${adtcmd[@]}"
+base_cmd=(mksquashfs "$1" "$PWD/$rname" -comp $cmode)  # "${adtcmd[@]}"
 [[ -s "$QEXCL" ]] && base_cmd+=(-ef $QEXCL)
 while IFS= read -r ofile; do [[ -z "$ofile" || "$ofile" == \#* ]] && continue ; fname="$( basename "${ofile%.xzm}").bak" ; mv "$ofile" "$output$fname" ; done < "$oMF"
 unset IFS
 "${base_cmd[@]}"
 ret=$?
 if [ "$ret" -ne 0 ]; then
-    red "Error making the new module: ${rname}" >&2
+    red "Error making the new module: $rname" >&2
 	if [ -n "$output" ]; then
     	cyan "Modules are renamed .bak in $output"
 	fi
@@ -199,7 +228,7 @@ if [ "$3" == "true" ] && [ "$6" == "true" ]; then
 			for mods in archive/$2/*$2*.bak; do
 				[[ -f "$mods" ]] || continue
 				rm -f "$mods"
-				test -f "${mods}.txt" && rm "${mods}.txt"
+				test -f "$mods".txt && rm "$mods".txt
 				break
 			done
 		fi
@@ -207,8 +236,8 @@ if [ "$3" == "true" ] && [ "$6" == "true" ]; then
 		mkdir -p archive/$2
 	fi
 	file_out="archive/${2}/${rname%.xzm}.bak" ; cp "$rname" "$file_out"
-	[[ "$4" = "true" ]] && admsg="with filemanifest rollsumry" && BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'` && { find $1 -type f -printf '%P\n' ; echo ; echo $BRAND ; } >> "${file_out}.txt"
-	[[ "$ANALYTICS" = "true" ]] && echo "Module backed up ${PWD}/archive/_uid_/ ${admsg}"
+	[[ "$4" = "true" ]] && admsg="with filemanifest rollsumry" && BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'` && { find $1 -type f -printf '%P\n' ; echo ; echo $BRAND ; } >> "$file_out".txt
+	[[ "$ANALYTICS" = "true" ]] && echo "Module backed up $PWD/archive/_uid_/ $admsg"
 fi
 }
 renmmdl() {
@@ -223,7 +252,7 @@ if [ "$r" -gt 0 ]; then
     while IFS= read -r ofile; do  [[ -z "$ofile" || "$ofile" == \#* ]] && continue ; fname="${ofile%"$src"}$dst" ; mv "$ofile" "$fname" ; done < $oMF
     rm $oMF
 else
-    cyan "no ${src} $1 did you mean ${dst} use -r flag to reverse"
+    cyan "no $src $1 did you mean $dst use -r flag to reverse"
 fi
 }
 
