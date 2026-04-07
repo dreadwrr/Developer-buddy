@@ -2,7 +2,7 @@
 ## Python edition <br>
 v1.3.1-py <br>
 support for encrypted .dat backups <br>
-new merge logic for if it was a file but now a directory and vice versa. take action and remove it and also log it <br>
+new merge logic in case a file changed to directory and vice versa to avoid file cannot overwrite directory error while merging.<br>
 ensured mounts are handled properly with proper error handling <br>
 general cleanup and organization of function names <br><br>
 
