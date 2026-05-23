@@ -1,6 +1,7 @@
 #!/bin/bash
-#   Developer buddy 5.0 core                                               03/25/2026
+#   Developer buddy 5.0 core                                               05/22/2026
 
+fmt="%Y-%m-%d %H:%M:%S"
 
 # Filter terminal or suppress browser. common items to exclude from prompt      .  regex  notes: ([^/]*)$  
 sbwr() {
@@ -12,8 +13,6 @@ webb=(
 # other
 )
 }
-
-
 get_colors(){
 txtyellow=${txtbld}$(tput setaf 3)
 txtblue=${txtbld}$(tput setaf 4)
@@ -149,7 +148,7 @@ unset IFS
 rm $lt
 }
 remove_gpg() {
-	local files=("$logpst" "$statpst" "$pydbpst" "$flth")
+	local files=("$logpst" "$statpst" "$pydbpst" "$ctimecache" "$flth")
 	rm -f "${files[@]}" 2> /dev/null
 }
 generatekey() {
@@ -638,17 +637,15 @@ if [ -s $rout ]; then
 	if [ -n "$cores" ] && [ "$csum" == "false" ]; then echo "Detected $cores CPU cores."; fi
 fi
 }
+#        "xFltTmp"
+#        "xSystemTmp"
 suffix() {
-    suffixes=(
-        "xSystemDiffFromLastSearch"
-        "xFltDiffFromLastSearch"
-        "xFltchanges"
-        "xFltTmp"
-        "xSystemchanges"
-        "xSystemTmp"
-        "xNewerThan"
-        "xDiffFromLast"
-    )
+suffixes=(
+    "xFltDiffFromLastSearch"
+    "xFltchanges"
+    "xSystemDiffFromLastSearch"
+    "xSystemchanges"
+)
 }
 # inotify, clearcache
 get_inclusion() {
@@ -662,16 +659,69 @@ inclusions() {
 local c=$1
 sed -i '/\/usr\/local\/save-changesnew\/flth\.csv/d' $c  # sed -i '/\/tmp/\/rnt/d' $2
 sed -i '/\/home\/'"${USR}"'\/Downloads\/'"${LCLMODULENAME}x"'/d' $c
-for var in logpst statpst pydbpst; do gp="${!var}" ; sed -i "\|$gp|d" $c ; done
+for var in logpst statpst pydbpst ctimecache; do gp="${!var}" ; sed -i "\|$gp|d" $c ; done
 }
 clearlogs() {
+
+r=$(find /tmp -maxdepth 1 -type d -name '*rntfiles_MDY*' | wc -l)
+if (( r == archivesrh )); then for folder in /tmp"$MODULENAME"_MDY* ; do rm -r $folder ; break ; done ; fi
+mkdir /tmp$moduledir && chown $USR /tmp$moduledir
+
+files=(xSystemchanges xSystemDiffFromLastSearch xFltDiffFromLastSearch xFltchanges)  
+
+for file in "${files[@]}"; do
+    mv $dirSRC$MODULENAME$file* /tmp$moduledir 2> /dev/null 
+done
+
 suffix
-for suffix in "${suffixes[@]}"; do rm -f "${MODULENAME/#\//}$suffix"* 2>/dev/null ; done
+
+if [ "$search" == "false" ]; then
+
+    suffixes+=("xNewerThan")
+    suffixes+=("xDiffFromLast")
+
+    test -e /tmp"$chxzm" && mv /tmp"$chxzm" /tmp$moduledir  # module
+    test -e /tmp$chxzmnm && mv /tmp$chxzmnm /tmp$moduledir  # manifest
+    test -e /tmp${MODULENAME}Transferlog && mv /tmp${MODULENAME}Transferlog /tmp$moduledir  # log
+    
+    test -e /tmp${MODULENAME}ItemsFilteredout && rm /tmp${MODULENAME}ItemsFilteredout  
+
+else
+    suffixes+=("xSystemTmp")
+fi
+
+cd $dirSRC || exit
+for suffix in "${suffixes[@]}"; do rm -f "${MODULENAME#/}$suffix"* 2>/dev/null ; done
+
 }
 logic() {
-if [ "$syschg" == "false" ]; then  cyan "No sys files to report." ; fi
+if [ "$search" == "false" ]; then
+    if [ "$validrlt" == "true" ]; then
+      	
+        if [ "$SRCDIR" == "SRC" ]; then
+            cyan "Your module has been created. in /tmp" ; echo
+      	    cyan "$filename".xzm ; echo
+        fi
+    elif [ "$SRCDIR" == "SRC" ]; then
+       	cyan "There were no files to grab." ; echo
+    fi
+fi
+if [ "$syschg" == "true" ]; then
+    if [ "$flsrh" = "true" ]; then
+        cyan "All files newer than $filename in $dirSRC"
+
+    elif [ "$5" = "filtered" ]; then
+        cyan "All new filtered files are listed in $dirSRC"
+    else
+      	cyan "All new system files are listed in $dirSRC"
+    fi
+    echo
+    cyan "$MODULENAME$flnm"
+else
+    cyan "No sys files to report."
+fi
 if [ "$samerlt" == "true" ] && [ "$syschg" == "true" ] && [ "$nodiff" == "true" ]; then cyan "The sys search was the same as before." ; fi
-if [ "$diffrlt" == "false" ] && [ "$nodiff" == "true" ];then green " Nothing in the sys diff file. That is the results themselves are true" ; [[ -n "$1" ]] && cyan "$1" ; fi
+if [ "$diffrlt" == "false" ] && [ "$nodiff" == "true" ]; then green " Nothing in the sys diff file. That is the results themselves are true" ; fi
 }
 display() {
 local locale=$1
@@ -696,15 +746,19 @@ fi
 }
 # find old search for convenience
 hsearch() {
-r=$(find . -type f -path "*${MODULENAME}_MDY*/*" | wc -l)
-if (( r >= 1 )); then
-	for folder in $(ls -d /tmp"${MODULENAME}"_MDY* | sort -r); do # most recent folder
-		for file in $folder$MODULENAME"xSystemchanges${argone}"*; do
-		    test -f $file && { OLDSORTED=$file ; nodiff="true"; break; }
-		done
-		[[ -n "$OLDSORTED" ]] && break
-	done
-fi
+    local folder file
+	local nm
+    while IFS= read -r folder; do
+        for file in "$folder$MODULENAME$flnm"*; do
+            if [[ -f "$file" ]]; then
+                cp "$file" $tmp
+                OLDSORTED="$tmp/$( basename "$file")"
+                return 0
+            fi
+        done
+    done < <(find /tmp -maxdepth 1 -type d -path "*${MODULENAME}_MDY*")
+
+    return 1
 }
 # ascii positional encoding
 ap_safeline() {
@@ -842,6 +896,7 @@ if [ "$STATPST" == "true" ]; then
 		fi
 	fi
 fi
+[[ -f "$CACHE_F" ]] && { gpg --yes -e -r $email -o $ctimecache $CACHE_F ; rm $CACHE_F ; }
 [[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && [[ "$ANALYTICSECT" == "true" ]] && [[ "$backend" == "default" ]] && green "Hybrid analysis on"
 
 if [[ "$csum" != "true" && -s $slog && "$suppress" == "false" ]]; then
@@ -1168,7 +1223,7 @@ if { [[ "$5" = "ctime" ]] && [[ -n "$ct" ]] && [[ "$itime" > "$mtime" ]]; } || [
 				if [ -n "$link" ]; then  # "$sym" == l*
 					sl="y" && check_sum="None"
 					hashed=$(printf '%s' "$link" | md5sum)
-					hashed=${hashed%% *}
+					hashed=" ${hashed%% *}"
 				fi
 
 				if [[ -z "$sl" ]]; then
@@ -1204,7 +1259,7 @@ if { [[ "$5" = "ctime" ]] && [[ -n "$ct" ]] && [[ "$itime" > "$mtime" ]]; } || [
 				mtime_us=$(( mtime_sec * 1000000 + (mtime_oct) ))
 
 				[[ -z "$adtcmd" ]] && adt_flds=$cam || adt_flds="$adtcmd $cam"
-				output="$mt \"$y\" $ct $i $ats $adt_flds $lmt $nlinks $mtime_us $hashed"
+				output="$mt \"$y\" $ct $i $ats $adt_flds $lmt $nlinks $mtime_us$hashed"
 				if [[ "$cache_flg" = "true" ]] && (( fs > 1000000 )); then upt_cache "$i" "$fs" "$mtime_us" "$check_sum" "$y" "$6" ; fi
 				printf '%s\n' "$output" >> $2
 			fi
@@ -1266,7 +1321,7 @@ if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 			if [ -n "$link" ]; then  # "$sym" == l*
 				sl="y" && check_sum="None"
 				hashed=$(printf '%s' "$link" | md5sum)
-				hashed=${hashed%% *}
+				hashed=" ${hashed%% *}"
 			fi
 			if [[ -z "$sl" ]]; then
 				[[ -e "$CACHE_F" ]] && mtime_us=$(( mtime_sec * 1000000 + (10#$mtime_frac) )) && r=$(get_cached $i $fs $mtime_us)
@@ -1308,7 +1363,7 @@ if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 
                         cam="y" ; lmt=$mt ; mt=$ct
 
-                        output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $nlinks $mtime_us $hashed"
+                        output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $nlinks $mtime_us$hashed"
 
                         if [[ "$cache_flg" = "true" ]] && (( fs > 1000000 )); then [[ -d $cdir ]] || mkdir -p $cdir ; upt_cache "$i" "$fs" "$mtime_us" "$check_sum" "$y" "$6" ; fi
 
@@ -1337,36 +1392,221 @@ else
     log_lineout $7 $8 "$log_date" "change time: $itime and mtime: $mtime , sblk Nosuchfile line $cur_line"
 fi
 }
+findrootfolder() {
+# Build copy list to tmp file
+while IFS= read -r -d '' y; do 
+    IFS='|' read -r left _ <<< "$y"
+    read -r _ _ _ _ _ _ _ _ _ _ x <<< "$left"
+    x="$(escf "$x")"
+    printf '%s\n' "$x"
+done < $RECENTNUL > $TMPCOMPLETE
+            
+inclusions $TMPCOMPLETE
+sed -i '/ \/tmp/d' $TMPCOMPLETE
+
+# Copy files
+while IFS= read -r x; do 
+    y="$( unescf "$x")"
+    if ! cp -a --parents "$y" "$tmp$workdir" > /dev/null 2>> $tfile; then 
+        echo "Failed to copy: $x" >&2
+    fi
+done < $TMPCOMPLETE
+unset IFS
+
+if [ -s $tfile ]; then echo >> $UPDATE ; cat $tfile >> $UPDATE; fi
+test -e $tfile && rm $tfile
+echo $BRAND >> $UPDATE
+
+find $tmp$workdir -not -type d -print0 > $SVFILES
+
+:> $tout
+while IFS= read -r -d '' x; do x="$( escf "$x")"; echo "$x" ; done < $SVFILES >> $tout
+mv $tout $SVFILES
+
+sed -i -e "s|$tmp$workdir||g" $SVFILES
+cat $SVFILES | sed -e 's![^/]*$!!g' > $SVFOLDERS
+
+appname=$xzmname
+FLTOUT="/tmp/${appname}ItemsFilteredout"
+
+test -e "/tmp/${appname}.xzm" && rm "/tmp/${appname}.xzm"
+rm "/tmp/"*"_xdata" 2> /dev/null
+
+rlt=$( validprogram $SVFOLDERS)
+if [ "$rlt" == "/" ]; then echo Fatal error. exiting. && exit 1 ; fi
+if [ "$rlt" != "" ]; then
+    cat $SVFILES | grep "$rlt" > $RECENTAPP  # files after finding root
+    cat $SVFILES | grep -v "$rlt" > $RSYNCEXCL  # every other file but our files
+
+    echo $BRAND >> $SVFILES
+
+    k=$( head -n1 $SVFILES | grep "MDY")
+
+    # Are there files
+    if [ -z "$k" ]; then
+        validrlt="true"
+    fi
+
+    find $tmp$workdir -type d -empty -delete
+    
+    # can create an exclude file for mksquashfs
+    # leave any file that has new line in the name by not unescaping it
+    # while IFS= read -r p || [ -n "$p" ]; do p="${p#/}" ; p="${p//\\ap22/\"}" ; p="${p//\\ap5c/\\}" ; echo "$p" >> $tfile ; done < $RSYNCEXCL
+
+    cd $tmp$workdir || exit
+    srcpath="${rlt#/}"
+    mksquashfs $srcpath "/tmp/${appname}.xzm" -comp $cmode -no-strip
+
+    cp $RECENTAPP "/tmp/${appname}_xdata" ; echo $BRAND >> "/tmp/${appname}_xdata"
+
+    sort -o $RECENTAPP $RECENTAPP
+    cat $SORTCOMPLETE | grep -Ff $RECENTAPP | tee $TMPCOMPLETE > /dev/null
+
+    endtm=$( gettime "$TMPCOMPLETE" "/tmp/${appname}_xdata")
+
+    printf "\n\n" >> "/tmp/${appname}_xdata"
+    cat $TMPOPT  | grep -Fvf $RECENTAPP > $TMPCOMPLETE
+    
+    r=$( find "$rlt" -not -type d | wc -l)  # system
+
+    # alternative from batch and stat file
+    # s=$(grep -n 'MDY' "/tmp/${appname}_xdata" | head -n 1 | cut -d: -f1)
+    # [[ -n "$s" ]] && s=$(( s - 1 )) || s=0
+
+    y=$( wc -l < $RECENTAPP) # copied
+
+    { echo Root:"$rlt" ; echo "File count: $y" ; echo "System count: "$r ; echo ; echo ; } >> "/tmp/${appname}_xdata"
+
+    (( r > y )) && echo "Status: Possibly missed base directory. Confirm files or use recentchanges for rntfiles.xzm." >> "/tmp/${appname}_xdata"
+
+    if [ -s $TMPCOMPLETE ]; then { echo ; echo "Items filterout from filtered files."; echo ; cat $TMPCOMPLETE; } >> "/tmp/${appname}_xdata" ; else echo "No items filtered out from filter." >>"/tmp/${appname}_xdata" ; fi
+    
+    # save overhead by reading off $RECENTAPP for the names
+    while IFS= read -r f; do arrfiles=("${arrfiles[@]}" "${f##*/}"); done < $RECENTAPP
+    echo $BRAND >> $RECENTAPP
+    if [ "$autooutput" == "false" ]; then
+        x=${#arrfiles[@]}
+        y=0
+        echo
+        for i in "${arrfiles[@]}" ; do
+            p=$(( y + 1 ))
+            printf "%2d %-40s\t\t" "$p" "${i}"
+            (( y++ ))
+            if  [ $(( y % 2 )) -eq 0 ]; then
+                echo -en "\n"
+            else
+                if (( y == x )); then
+                    echo -en "\n"
+                fi
+            fi
+            if (( y > 70 )); then
+                break
+            fi
+        done
+        echo "Root folder" "${rlt##*/}"
+        echo  "Press enter for default filename"
+        read  -p 'Filename or Selection: ' usrslc
+        if [ "$usrslc" != "" ]; then
+            if [ "$usrslc" -ge 0 ]  2>/dev/null; then
+                echo selected "$usrslc"
+                if [ "${#arrfiles[@]}" -ge "$usrslc" ] && [ "$usrslc" -gt 0 ]; then
+                    filename="${arrfiles[$(( usrslc - 1 ))]}"
+                else
+                    echo
+                    echo "Using default filename."
+                    filename="$appname"
+                fi
+            else
+                filename="$usrslc"  # User
+            fi
+        else
+            filename="$appname"  # Default
+        fi
+    else
+        filename="$appname"
+    fi
+    fn=$(printf '%b' "$filename") ; fn=$(basename "$fn") ; fn=$(sed -E 's/(.*)\.[^./]{3,4}$/\1/' <<< "$fn") ; fn="${fn// /_}"  # fn=$( echo "$fn" | sed -e 's/\...$//' -e 's/\....$//' -e 's/ /_/g')
+    if [ "$fn" != "$appname" ]; then mv "/tmp/${appname}.xzm" "/tmp/${fn}.xzm" ; mv "/tmp/${appname}_xdata" "/tmp/${fn}_xdata" ; fi
+    chown $USR "/tmp/${fn}.xzm"
+    chown $USR "/tmp/${fn}_xdata"
+fi
+}
 # load balance for if there is over 1000 files
 search() {
-local x p y
-x=$(tr -cd '\0' < "$1" | wc -c)
-if [[ "$mMODE" = "default" ]] || (( x < 100 )); then
+# take the input and output to $2 and $3.
+fmt="%Y-%m-%d %H:%M:%S"
+local x y
+
+local RECENTNUL=$1 
+local SORTCOMPLETE=$2   
+local COMPLETE=$3
+local checkSUM=$4
+local xmode=$5
+local prefix=$6
+
+x=$(tr -cd '\0' < "$RECENTNUL" | wc -c)
+
+if [ "$mMODE" == "default" ] || (( x < 100 )); then
+
     while IFS= read -r -d '' p ; do 
         [[ -z "$p" ]] && continue
-        sblk "$p" $2 $3 $4 $5 $CACHE_F
-    done < $1
+        sblk "$p" $SORTCOMPLETE $COMPLETE $checkSUM $xmode $CACHE_F
+
+    done < $RECENTNUL
 	unset IFS
 else
     y=$(( (x + max_jobs - 1) / max_jobs ))
-    #y=200
-    xargs -0 -n "$y" -P "$max_jobs" /usr/local/save-changesnew/mainloop $atmp$workfld $4 $5 $6 $CACHE_F < $1
+
+    xargs -0 -n "$y" -P "$max_jobs" /usr/local/save-changesnew/mainloop $atmp$workfld $checkSUM $xmode $prefix $CACHE_F < $RECENTNUL
     if [[ "$5" = "main" ]]; then
-        isoutput mainloop1* mainloop2* $2 $3
+        isoutput mainloop1* mainloop2* $SORTCOMPLETE $COMPLETE
         isoutput cache1* $CACHE_F
     else
-        isoutput mainloop3* mainloop4* $2 $3
+        isoutput mainloop3* mainloop4* $SORTCOMPLETE $COMPLETE
         isoutput cache2* $CACHE_F
     fi
 fi
 }
-ctimeloop() {
-# what is not in the main search 
-sort -z -o $2 $1
-sort -z -o $tout $toutnul
-comm -z -23 $tout $2 > $TMPCOMPLETE
-if [ -s $TMPCOMPLETE ]; then	
-	search $TMPCOMPLETE $tout $COMPLETE $checkSUM "ctime" batch2
+findfiles() {
+[[ ! -d "$cached" ]] && mkdir $cached && chmod 700 $cached
+
+if [[ ! -f $CACHE_F && -f $ctimecache ]]; then
+    if ! decrypt $CACHE_F $ctimecache; then
+        echo "Failed to decrypt  $ctimecache"
+        return 1
+    fi
 fi
+
+[[ "$checkSUM" = "true" ]] && [[ "$ANALYTICS" = "true" || "$STATPST" = "true" ]] && cyan "Running checksum." || checkSUM="false"
+if [ ! -s "$tout" ]; then
+	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$RECENTNUL" > /dev/null 2>&1
+	find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$toutnul" > /dev/null 2>&1
+	end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && [[ "$ANALYTICSECT" ]] && cstart=$(date +%s.%N)
+
+    # pacman slackpkg downloads ctime > mtime
+
+    # filter to what is not in the main search
+    sort -z -o $RECENT $RECENTNUL
+    sort -z -o $tout $toutnul
+    comm -z -23 $tout $RECENT > $TMPCOMPLETE  # sorted input file. these are the ctime files
+
+    if [ -s $TMPCOMPLETE ]; then	
+	    search $TMPCOMPLETE $tout $COMPLETE $checkSUM "ctime" batch2  # append ctimeloop in range later
+    fi
+
+else
+	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$RECENTNUL" > /dev/null 2>&1
+	end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && [[ "$ANALYTICSECT" ]] && cstart=$(date +%s.%N)
+fi
+#scrolling look
+if [ "$FEEDBACK" == "true" ]; then tr '\0' '\n' < "$RECENTNUL" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); sub(/\|$/, "") ;print }' ; fi 
+#tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); print }'
+#while IFS= read -r -d '' y; do y="$( ap_enc "$y")" ; printf '%s\n' "$y"; done < $RECENTNUL > $xdata
+
+search $RECENTNUL $SORTCOMPLETE $COMPLETE $checkSUM "main" batch1  # mtime loop
+cend=$(date +%s.%N)
+# encrypt and remove
+[[ -f "$CACHE_F" ]] && chmod 600 "$CACHE_F"
 }
+
 

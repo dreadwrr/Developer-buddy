@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#inotify db5 					03/25/2026
+#inotify db5 					05/22/2026
 #SCRIPT_PATH="$( dirname "$0")"
 #. "$SCRIPT_PATH"/rntchangesfunctions
 . /usr/local/save-changesnew/rntchangesfunctions
@@ -38,7 +38,8 @@ efile="/opt/porteus-scripts/recentchanges"
 
 # These can be user set so call get_inclusions and get form recentchanges script. Below default fallbacks in case cant find
 logpst="/usr/local/save-changesnew/logs.gpg"			;	statpst="/usr/local/save-changesnew/stats.gpg"
-pydbpst="/usr/local/save-changesnew/recent.gpg"		;	email="john.doe@email.com"
+pydbpst="/usr/local/save-changesnew/recent.gpg"		;	ctimecache="/usr/local/save-changesnew/ctimecache.gpg"  # search cache
+email="john.doe@email.com"
 rlt=""
 rltt=""
 rlttt=""
@@ -101,7 +102,7 @@ done
 
 sbwr
 inotifyexl
-inclusion+=("$rlt") ; inclusion+=("$rltt") ; inclusion+=("$rlttt")
+inclusion+=("$rlt") ; inclusion+=("$rltt") ; inclusion+=("$rlttt") ; inclusion+=("$ctimecache")
 
 timeout "$time" inotifywait -m -r -e create -e moved_to --format '%e|%w%f%0' "${dpaths[@]}" | while read -r -d '' o; do
 

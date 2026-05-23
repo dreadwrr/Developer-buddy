@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       03/25/2026
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       05/22/2026
 import getpass
 import os
 import re
@@ -435,7 +435,7 @@ def get_key_fingerprint(email, no_key=False):
     return None
 
 
-def delete_gpg_keys(usr, email, dbtarget, logpst, statpst):
+def delete_gpg_keys(usr, email, dbtarget, logpst, statpst, ctimecache):
 
     def exec_delete_keys(usr, current_usr, email, fingerprint):
         silent: dict[str, Any] = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
@@ -696,12 +696,13 @@ if __name__ == "__main__":
         reset = to_bool(sys.argv[8]) if len(sys.argv) > 8 else False
         logpst = sys.argv[9] if len(sys.argv) > 9 else None
         statpst = sys.argv[10] if len(sys.argv) > 10 else None
+        ctimecache = sys.argv[11] if len(sys.argv) > 11 else None
 
         output = getnm(dbtarget, '.db')
 
-        if reset and logpst and statpst:
+        if reset and (logpst and statpst and ctimecache):
 
-            sys.exit(delete_gpg_keys(usr, email, dbtarget, logpst, statpst))
+            sys.exit(delete_gpg_keys(usr, email, dbtarget, logpst, statpst, ctimecache))
         else:
             if not reset:
                 print("reset was", reset)
