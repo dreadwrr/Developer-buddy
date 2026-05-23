@@ -1,4 +1,4 @@
-#                               04/06/2026
+#                               05/22/2026
 First started a Qt gui for Windows 10/11. https://github.com/dreadwrr/Recentchanges <br>
 Qt for linux https://github.com/dreadwrr/Recentchanges-Linux<br><br>
 
@@ -12,7 +12,7 @@ for Porteus 5.01, 5.1 and Nemesis
 
 Version available <br>
 1.3.1-py python edition<br>
-1.3.1 Bash text backend or bash python database backend new release! with changes to save-changesnew <br>
+1.3.2 Bash text backend or bash python database backend new release! with changes to save-changesnew <br>
 
 all versions updated with Qt version hybrid analysis changes <br>
 <br>
