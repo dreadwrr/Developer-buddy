@@ -1160,7 +1160,7 @@ if { [[ "$5" = "ctime" ]] && [[ -n "$ct" ]] && [[ "$itime" > "$mtime" ]]; } || [
 				if [ -n "$link" ]; then  # "$sym" == l*
 					sl="y" && check_sum="None"
 					hashed=$(printf '%s' "$link" | md5sum)
-					hashed=${hashed%% *}
+					hashed=" ${hashed%% *}"
 				fi
 
 				if [[ -z "$sl" ]]; then
@@ -1196,7 +1196,7 @@ if { [[ "$5" = "ctime" ]] && [[ -n "$ct" ]] && [[ "$itime" > "$mtime" ]]; } || [
 			    mtime_us=$(( mtime_sec * 1000000 + (mtime_oct) ))
 
 			    [[ -z "$adtcmd" ]] && adt_flds=$cam || adt_flds="$adtcmd $cam"
-			    output="$mt \"$y\" $ct $i $ats $adt_flds $lmt $nlinks $mtime_us $hashed"
+			    output="$mt \"$y\" $ct $i $ats $adt_flds $lmt $nlinks $mtime_us$hashed"
 
 			    if [[ "$cache_flg" = "true" ]] && (( fs > 1000000 )); then upt_cache "$i" "$fs" "$mtime_us" "$check_sum" "$y" "$6" ; fi
 			    printf '%s\n' "$output" >> $2
