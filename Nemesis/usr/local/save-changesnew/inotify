@@ -24,6 +24,7 @@ inclusion=(
 	"/usr/local/save-changesnew/logs.gpg"
 	"/usr/local/save-changesnew/recent.gpg"
 	"/usr/local/save-changesnew/stats.gpg"
+    "/usr/local/save-changesnew/ctimecache.gpg"
 	"$log_file"
 )
 }
@@ -36,9 +37,10 @@ fmt="%Y-%m-%d %H:%M:%S"
 BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
 efile="/opt/recentchanges/recentchanges"
 
-# These can be user set so call get_inclusions and get form recentchanges script. Below default fallbacks in case cant find
+# These can be user set so call get_inclusions and get form recentchanges script. Below are default fallbacks in case cant find
 logpst="/usr/local/save-changesnew/logs.gpg"			;	statpst="/usr/local/save-changesnew/stats.gpg"
-pydbpst="/usr/local/save-changesnew/recent.gpg"		;	email="john.doe@email.com"
+pydbpst="/usr/local/save-changesnew/recent.gpg"		;	ctimecache="/usr/local/save-changesnew/ctimecache.gpg"  # search cache
+email="john.doe@email.com"
 rlt=""
 rltt=""
 rlttt=""
@@ -70,7 +72,7 @@ get_inclusion "$efile"
 
 :> $CACHE_F ; :> $pblk_log_file
 
-echo "$BRAND inoftiy started" >> $debug_file
+echo "$BRAND inotify started" >> $debug_file
 
 
 F=(
@@ -101,7 +103,7 @@ done
 
 sbwr
 inotifyexl
-inclusion+=("$rlt") ; inclusion+=("$rltt") ; inclusion+=("$rlttt")
+inclusion+=("$rlt") ; inclusion+=("$rltt") ; inclusion+=("$rlttt") ; inclusion+=("/usr/local/save-changesnew/ctimecache.gpg")
 
 timeout "$time" inotifywait -m -r -e create -e moved_to --format '%e|%w%f%0' "${dpaths[@]}" | while read -r -d '' o; do
 

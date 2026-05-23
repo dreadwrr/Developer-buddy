@@ -107,7 +107,7 @@ ST=$( head -n1 $1 | awk '{print $2}') ; sSRC=$( date -d "$ST" "+%s")
 eSRC=$(( f - sSRC ))
 srcE=$(date -d "@$eSRC" -u +'%H:%M:%S')
 if [ "$DIFFTIME" == "0" ]; then ENDTM=$ENDTM" file(s) created at: "$SRTTIME ; fi
-{ echo ; echo ; }>> $2
+{ echo ; echo ; } >> $2
 if [ "$THETIME" == "noarguser" ]; then echo "Specified: "$argone "minutes" >> $2 ; else echo "Specified: "$argone "seconds" >> $2 ; fi
 { echo ; echo "Batch analysis and stats:"; } >> $2
 echo -e $ST" Start" >> $2

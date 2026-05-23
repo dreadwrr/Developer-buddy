@@ -1,21 +1,21 @@
 #!/bin/bash
-#   recentchanges query                recentchanges v3.0                                                                               9/6/2025 12/31/2025
+#   recentchanges query                recentchanges v5.0                                                                               05/22/2026
 #   retrieval of data  from  /tmp  or  logpst and statpst
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/heuristics
 # CHANGABLE
 # CHANGABLE booleans
-outputTFILE="false"            # show the report in /tmp?
+outputTFILE="false" # show the report in /tmp
 
-outputPSTFILE="false"       # .   .               /home/guest/Downloads
-genPSTTFILE="false"           # Run heuristics on PST and include in the report?
+outputPSTFILE="false" # show the report in /home/$USR/Downloads
+genPSTTFILE="false" # Run heuristics on PST and include in the report?
 # End CHANGABLE
-rtmp=/tmp/rtmp$$						;	trc=/tmp/rc
-xdata=$rtmp/logs_decrypted.log			;	report=/query_$timestamp
+rtmp=/tmp/rtmp$$	                            ;	trc=/tmp/rc
+xdata=$rtmp/logs_decrypted.log        ;	report=/query_$timestamp
 dr=/usr/local/save-changesnew			;	TOPT=$rtmp/tmpfile.log
-logpst=$dr/logs.gpg						;	output_file=$rtmp/output.log
-statpst=$dr/stats.gpg					;	flth=$dr/flth.csv
+logpst=$dr/logs.gpg						    ;	output_file=$rtmp/output.log
+statpst=$dr/stats.gpg					    ;	flth=$dr/flth.csv
 timestamp=$(date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_')
 mkdir $rtmp
 if [ "$STATPST" == "true" ]; then
@@ -24,7 +24,7 @@ if [ "$STATPST" == "true" ]; then
         if gpg -d -o $xdata $logpst; then #decrypt
 			# debug decrypt logs.gpg
             # cp $xdata /tmp/logdebug
-			sed -i '/NOTA-FI-LE 77:77:77/d' $xdata
+			# sed -i '/NOTA-FI-LE 77:77:77/d' $xdata
 			cd /home/$2/Downloads || exit
 			rm query_MDY* > /dev/null 2>&1
 			srhc=$(grep -c '^[[:space:]]*$' $xdata) ; (( srhc++ )) ; echo "Searches: $srhc"
