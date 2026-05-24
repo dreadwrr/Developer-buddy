@@ -1,5 +1,13 @@
-#                               04/06/2026
+#                               05/24/2026
 ## Python edition <br>
+New update in preparation for the qt change to only need user gpg pinentry<br>
+
+v1.3.2-py <br>
+Available on the documents page and will post here once porteus is done
+Added only user pinentry needed instead of shared keys between root and user
+Moved .gpg or persistent data directory to /home/guest/.local/save-changesnew
+recentchanges now outputs tmp files in /tmp and uses filter with rnt command
+
 v1.3.1-py <br>
 support for encrypted .dat backups <br>
 new merge logic in case a file changed to directory and vice versa to avoid file cannot overwrite directory error while merging.<br>
