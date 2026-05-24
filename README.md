@@ -56,9 +56,9 @@ Find new files, save changes in porteus/nemesis and RSync backup in changes=EXIT
 Find files with new itime (change time) such as downloads from slackpkg and pacman. The modified time is preserved and only change time and accesss time are shown. These might not show up
 in file searches and those are targeted and merged into the search.
 
-Pull an .xzm with only the new files you want and also include all system new files in a seperate results .txt. 
+include all system new files in a seperate results .txt. 
 
-This program has a filter that you can edit in /usr/local/save-changesnew/filter that can filter files from the search so only files you want to see are in the .xzm.
+This program has a filter that you can edit in /usr/local/save-changesnew/filter that can filter files from the search so there are only files you want to see
 
 Uses two .gpgs for STATPST or persistent storage. logs.gpg and stats.gpg. stats.gpg contains actions Overwrite, Modified, Deleted, Replaced, Touched, Checksum, Metadata and Copy.
 
@@ -88,13 +88,8 @@ for porteus a new entry Graphics changes in the syslinux bootloader  so one can 
    2) Is a system file inherent to the specifc platform
    3) intangibles ie trashed items that may pop up infrequently and are not known about
 
-  The purpose of this script is to save files ideally less than 5 minutes old. So when compiling or you dont know where some files are
-or what changed on your system. So if you compiled something you call this script to build a module of it for distribution.
-  If not using for developing call it a file change snapshot
 
-We use the find command to list all files 5 minutes or newer. Filter it and then get to copying the files in a temporary staging directory in /tmp.
-Then take those files and make an .xzm along with a transfer log to staging directory and file manifest of the xzm. A system search of all files for the specified time
-is included less /tmp as that it confusing and too much info. <br><br>
+A system search of all files for the specified time is included less /tmp as that it confusing and too much info. <br><br>
 
 <p> 'recentchanges' default search time of 5 minutes.</p>
 <p> 'recentchanges n' where the time to search is specified in seconds.</p>
