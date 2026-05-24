@@ -1,4 +1,4 @@
-# developer buddy v5.0 core                     original 09/26/2025 updated 03/25/2026
+# developer buddy v5.0 core                     05/22/2026
 import glob
 import logging
 import os
@@ -59,14 +59,14 @@ def removefile(fpath):
 
 
 # inclusions from this script
-def get_runtime_exclude_list(USRDIR, MODULENAME, user, file_out, flth, dbtarget, CACHE_F, log_path, dbopt=None, temp_dir=None):
+def get_runtime_exclude_list(usrDIR, moduleNAME, user, file_out, flth, dbtarget, cache_f, log_path, dbopt=None, temp_dir=None):
 
-    # dir_pth = os.path.join("/tmp", f"{MODULENAME}_MDY_*")
+    # dir_pth = os.path.join("/tmp", f"{moduleNAME}_MDY_*")
     # folders = glob.glob(dir_pth)
-    # old_searches = [os.path.join(fld, MODULENAME) for fld in folders]
+    # old_searches = [os.path.join(fld, moduleNAME) for fld in folders]
 
-    # ad_results = os.path.join("/tmp", f'{MODULENAME}x')
-    download_results = os.path.join(USRDIR, f'{MODULENAME}x')
+    # ad_results = os.path.join("/tmp", f'{moduleNAME}x')
+    download_results = os.path.join(usrDIR, f'{moduleNAME}x')
     gnupg_one = f"/home/{user}/.gnupg/random_seed"
     gnupg_two = "/root/.gnupg/random_seed"
 
@@ -77,7 +77,7 @@ def get_runtime_exclude_list(USRDIR, MODULENAME, user, file_out, flth, dbtarget,
         file_out,
         flth,
         dbtarget,
-        CACHE_F,
+        cache_f,
         log_path
     ]
 
@@ -116,7 +116,7 @@ def check_stop(stopf):
 
 
 # term output
-def logic(syschg, nodiff, diffrlt, validrlt, THETIME, argone, argf, result_output, filename, flsrh, method):
+def logic(syschg, nodiff, diffrlt, validrlt, thetime, argone, argf, result_output, filename, flsrh, method):
 
     if syschg:
         # if validrlt == "prev":
@@ -128,7 +128,7 @@ def logic(syschg, nodiff, diffrlt, validrlt, THETIME, argone, argf, result_outpu
                 cprint.cyan('There were no files to grab.')
                 print()
 
-            if THETIME != "noarguser":
+            if thetime != "noarguser":
                 cprint.cyan(f'All system files in the last {argone} seconds are included')
 
             else:
@@ -278,7 +278,7 @@ def porteus_linux_check():
 
 
 # One search ctime > mtime for downloaded, copied or preserved metadata files. cmin. Main search for mtime newer than mmin.
-def find_files(find_command, search_paths, file_type, RECENT, COMPLETE, RECENTNUL, init, cfr, search_start_dt, user_setting, logging_values, end, cstart, logger=None):
+def find_files(find_command, search_paths, file_type, recent, complete, recentnul, init, cfr, search_start_dt, user_setting, logging_values, end, cstart, logger=None):
     records = []
 
     if search_paths:
@@ -312,8 +312,8 @@ def find_files(find_command, search_paths, file_type, RECENT, COMPLETE, RECENTNU
                     if len(fields) >= 11:
                         if file_type == "main":
                             file_path = fields[10]
-                            RECENTNUL += (file_path.encode() + b'\0')  # copy file list `recentchanges` null byte
-                            if user_setting['FEEDBACK']:  # scrolling terminal look       alternative output
+                            recentnul += (file_path.encode() + b'\0')  # copy file list `recentchanges` null byte
+                            if user_setting['feedback']:  # scrolling terminal look       alternative output
                                 print(fields[10], flush=True)
                         # escaped_entry = " ".join(fields)
                         records.append(fields)
@@ -368,8 +368,8 @@ def find_files(find_command, search_paths, file_type, RECENT, COMPLETE, RECENTNU
     #     if len(fields) >= 11:
     #         if file_type == "main":
     #             file_path = fields[10]
-    #             RECENTNUL += (file_path.encode() + b'\0')  # copy file list `recentchanges` null byte
-    #             if user_setting['FEEDBACK']:  # scrolling terminal look       alternative output
+    #             recentnul += (file_path.encode() + b'\0')  # copy file list `recentchanges` null byte
+    #             if user_setting['feedback']:  # scrolling terminal look       alternative output
     #                 print(fields[10])
 
     #         # escaped_entry = " ".join(fields)
@@ -382,15 +382,15 @@ def find_files(find_command, search_paths, file_type, RECENT, COMPLETE, RECENTNU
     if init and user_setting['checksum']:
         cstart = time.time()
         cprint.cyan("Running checksum")
-    RECENT, COMPLETE = process_lines(process_line, records, file_type, search_start_dt, 'FSEARCH', user_setting, logging_values, cfr)
-    return RECENT, COMPLETE, RECENTNUL, end, cstart
+    recent, complete = process_lines(process_line, records, file_type, search_start_dt, 'FSEARCH', user_setting, logging_values, cfr)
+    return recent, complete, recentnul, end, cstart
 
 
 # recentchanges search
 # after checking for a previous search it is required to remove all old searches to prevent write problems of the results
 # also keeping the workspace clean as its important to have the exact number of files. This will erase all types and
 # achieve this result. Also copy the old search to the MDY folder in app install for later diff retention
-def clear_logs(USRDIR, DIRSRC, method, appdata_local, MODULENAME, archivesrh):
+def clear_logs(dirSRC, method, appdata_local, moduleNAME, archivesrh):
 
     FLBRAND = datetime.now().strftime("MDY_%m-%d-%y-TIME_%H_%M_%S")  # %y-%m-%d better sorting?
     validrlt = ""
@@ -403,12 +403,12 @@ def clear_logs(USRDIR, DIRSRC, method, appdata_local, MODULENAME, archivesrh):
 
     new_folder = None
     for suffix in keep:
-        pattern = os.path.join(DIRSRC, f"{MODULENAME}{suffix}*")
+        pattern = os.path.join(dirSRC, f"{moduleNAME}{suffix}*")
         matches = glob.glob(pattern)
         for fp in matches:
             if not new_folder:
                 validrlt = "prev"  # mark as not first time search
-                new_folder = os.path.join(appdata_local, f"{MODULENAME}_{FLBRAND}")
+                new_folder = os.path.join(appdata_local, f"{moduleNAME}_{FLBRAND}")
                 Path(new_folder).mkdir(parents=True, exist_ok=True)
             try:
                 shutil.move(fp, new_folder)
@@ -417,7 +417,7 @@ def clear_logs(USRDIR, DIRSRC, method, appdata_local, MODULENAME, archivesrh):
 
     if validrlt == "prev":
         # Delete oldest dir
-        pattern = os.path.join(appdata_local, f"{MODULENAME}_MDY_*")
+        pattern = os.path.join(appdata_local, f"{moduleNAME}_MDY_*")
 
         dirs = glob.glob(pattern)
         dirs = [d for d in dirs if os.path.isdir(d)]
@@ -431,28 +431,31 @@ def clear_logs(USRDIR, DIRSRC, method, appdata_local, MODULENAME, archivesrh):
                 print(f"Error deleting {oldest}: {e}")
         # End Delete
 
+    suffixes = [
+        "xSystemDiffFromLastSearch",
+        "xFltDiffFromLastSearch",
+        "xFltchanges",
+        "xFltTmp",
+        "xSystemchanges",
+        "xSystemTmp",
+    ]
+
     if method != 'rnt':
-        suffixes = [
-            "xSystemDiffFromLastSearch",
-            "xFltDiffFromLastSearch",
-            "xFltchanges",
-            "xFltTmp",
-            "xSystemchanges",
-            "xSystemTmp",
+        suffixes += [
             "xNewerThan",
             "xDiffFromLast"
         ]
 
-        for suffix in suffixes:
+    for suffix in suffixes:
 
-            pattern = os.path.join(USRDIR, f"{MODULENAME}{suffix}*")
+        pattern = os.path.join(dirSRC, f"{moduleNAME}{suffix}*")
 
-            for filepath in glob.glob(pattern):
-                try:
-                    os.remove(filepath)
+        for filepath in glob.glob(pattern):
+            try:
+                os.remove(filepath)
 
-                except FileNotFoundError:
-                    pass
+            except FileNotFoundError:
+                pass
     return validrlt
 
 
@@ -508,49 +511,40 @@ def line_included(line, patterns):
 
 
 # prev search?
-def hsearch(OLDSORT, MODULENAME, argone):
+def hsearch(oldsort, moduleNAME, argone):
 
-    folders = sorted(glob.glob(f'/tmp/{MODULENAME}_MDY_*'), reverse=True)
+    folders = sorted(glob.glob(f'/tmp/{moduleNAME}_MDY_*'), reverse=True)
 
     for folder in folders:
-        pattern = os.path.join(folder, f"{MODULENAME}xSystemchanges{argone}*")
+        pattern = os.path.join(folder, f"{moduleNAME}xSystemchanges{argone}*")
         matching_files = sorted(glob.glob(pattern), reverse=True)
 
         for file in matching_files:
             if os.path.isfile(file):
                 with open(file, 'r') as f:
-                    OLDSORT.clear()
-                    OLDSORT.extend(f.readlines())
+                    oldsort.clear()
+                    oldsort.extend(f.readlines())
                 break
 
-        if OLDSORT:
+        if oldsort:
             break
 
 
 # recentchanges
-def copy_files(RECENT, RECENTNUL, TMPOPT, argone, THETIME, argtwo, USR, TEMPDIR, archivesrh, autooutput, xzmname, cmode, fmt, lclhome=None):
+def copy_files(recent, recentnul, tmpopt, argone, thetime, argtwo, usr, tempdir, archivesrh, autooutput, xzmname, cmode, fmt, lclhome=None):
 
-    # RECENTNUL isnt used holds all filepaths from main search in \0 delimited for file transfers
+    # recentnul isnt used holds all filepaths from main search in \0 delimited for file transfers
     # appname = ''
     tmpopt_out = 'tmp_holding'                           # filtered list
-    # tout_out = 'toutput.tmp'                                 # tout temp file would hold the \0 delimited file names from RECENTNUL
+    # tout_out = 'toutput.tmp'                                 # tout temp file would hold the \0 delimited file names from recentnul
     sortcomplete_out = 'list_complete_sorted.txt'  # unfiltered used for times only
 
     if not xzmname:
         xzmname = f"Application{os.getpid()}"
 
-    # if not autooutput and argtwo == "SRC":
-    #     while True:
-    #         uinpt = input("Press enter for default filename: ").strip()
-    #         if uinpt:
-    #             appname = uinpt
-    #             break
-    #         else:
-    #             break
-
     with open('/tmp/' + tmpopt_out, 'w') as f1:  # open('/tmp/' + tout_out, 'wb') as f2:
 
-        for record in TMPOPT:
+        for record in tmpopt:
             if len(record) >= 2:
 
                 date = record[0].strftime(fmt)
@@ -558,11 +552,11 @@ def copy_files(RECENT, RECENTNUL, TMPOPT, argone, THETIME, argtwo, USR, TEMPDIR,
                 f1.write(date + " " + field + '\n')
 
         # \0 delim filenames
-        # f2.write(RECENTNUL)
+        # f2.write(recentnul)
 
     # for times only
     with open('/tmp/' + sortcomplete_out, 'w') as f3:
-        for record in RECENT:
+        for record in recent:
 
             date = record[0].strftime(fmt)
             field = record[1]
@@ -580,11 +574,11 @@ def copy_files(RECENT, RECENTNUL, TMPOPT, argone, THETIME, argtwo, USR, TEMPDIR,
                 [
                     script_path,
                     str(argone),
-                    str(THETIME),
+                    str(thetime),
                     str(argtwo),
-                    USR,
+                    usr,
                     xzmname,
-                    TEMPDIR,
+                    tempdir,
                     tmpopt_out,
                     sortcomplete_out,
                     str(archivesrh),
@@ -627,7 +621,6 @@ def copy_files(RECENT, RECENTNUL, TMPOPT, argone, THETIME, argtwo, USR, TEMPDIR,
             output = ''.join(all_output)
 
             if return_code != 0:
-                print(f'/rntfiles.xzm failed unable to make xzm. errcode:{return_code}')
                 print("ERROR:", output)
                 return
 
@@ -636,7 +629,7 @@ def copy_files(RECENT, RECENTNUL, TMPOPT, argone, THETIME, argtwo, USR, TEMPDIR,
             else:
                 result = last_line
 
-            if "prev" not in last_line and "nofiles" not in last_line:
+            if "nofiles" not in last_line:
                 print(last_line)
 
             return result
@@ -646,7 +639,7 @@ def copy_files(RECENT, RECENTNUL, TMPOPT, argone, THETIME, argtwo, USR, TEMPDIR,
             logging.error(msg, exc_info=True)
 
 
-def postop(all_data, USRDIR, toml, lclhome=None):
+def postop(all_data, usrDIR, toml, lclhome=None):
 
     log = '/tmp/log.log'
 
@@ -663,7 +656,7 @@ def postop(all_data, USRDIR, toml, lclhome=None):
     cmd = [
         script_path,
         log,
-        USRDIR,
+        usrDIR,
         str(toml)
     ]
     script_dir = os.path.dirname(script_path)
@@ -675,11 +668,11 @@ def postop(all_data, USRDIR, toml, lclhome=None):
         return 1
 
 
-def run_doctrine(appdata_local, USRDIR, SORTCOMPLETE, TMPOPT, logf, rout, toml_file, escaped_user, method, fmt):
+def run_doctrine(appdata_local, usrDIR, sortcomplete, tmpopt, logf, rout, toml_file, escaped_user, method, fmt):
 
     if method != "rnt":
-        if logf is TMPOPT:
-            SORTCOMPLETE = filter_lines_from_list(SORTCOMPLETE, escaped_user)
+        if logf is tmpopt:
+            sortcomplete = filter_lines_from_list(sortcomplete, escaped_user)
 
     # Check if it was a copy
     copy_paths = set()
@@ -696,10 +689,10 @@ def run_doctrine(appdata_local, USRDIR, SORTCOMPLETE, TMPOPT, logf, rout, toml_f
                 copy_paths.add(full_path)
 
     all_data = []
-    for record in SORTCOMPLETE:
+    for record in sortcomplete:
 
         if len(record) < 17:
-            logging.debug("An entry for POSTOP was short less than 16. record: %s", record)
+            logging.debug("An entry for postop was short less than 16. record: %s", record)
             continue
 
         mtime = record[0].strftime(fmt)  # 1 2
@@ -720,4 +713,4 @@ def run_doctrine(appdata_local, USRDIR, SORTCOMPLETE, TMPOPT, logf, rout, toml_f
         # usec_zero = record[15]
         all_data.append((mtime, changetime, atime, filesize, sym, user, group, cam, lastmodified, is_copy, file_path))
 
-    postop(all_data, USRDIR, toml_file, appdata_local)
+    postop(all_data, usrDIR, toml_file, appdata_local)

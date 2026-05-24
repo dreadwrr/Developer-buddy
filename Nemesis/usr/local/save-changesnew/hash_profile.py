@@ -10,7 +10,7 @@ from logs import setup_logger
 from query import activateps
 
 
-def main(appdata_local, tempdir, database, target, config_file, log_file, email, ll_level, turbo, compLVL):
+def main(appdata_local, tempdir, database, target, config_file, log_file, email, user, ll_level, turbo, compLVL):
 
     parsed_sys = []
     compLVL = int(compLVL)
@@ -32,7 +32,7 @@ def main(appdata_local, tempdir, database, target, config_file, log_file, email,
                 # process results
                 if parsed_sys:
 
-                    if activateps(parsed_sys, database, target, conn, cur, email, compLVL):
+                    if activateps(parsed_sys, database, target, conn, cur, email, user, compLVL):
                         update_toml_setting('shield', 'proteusSHIELD', True, config_file)  # update_config(config_file, "proteusSHIELD", "false") # sed # avoid spawning process
                         return 0
                     else:
@@ -54,8 +54,8 @@ def main(appdata_local, tempdir, database, target, config_file, log_file, email,
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 11:
-        print("Usage: hash_profile.py <ppdata_local> <tempdir> <database> <target> <config_file> <logfile> <email> <ll_level> <turbo> <compLVL>")
+    if len(sys.argv) < 12:
+        print("Usage: hash_profile.py <ppdata_local> <tempdir> <database> <target> <config_file> <logfile> <email> <user> <ll_level> <turbo> <compLVL>")
         sys.exit(0)
 
-    sys.exit(main(*sys.argv[1:11]))
+    sys.exit(main(*sys.argv[1:12]))

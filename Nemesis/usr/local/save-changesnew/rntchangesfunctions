@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#   Developer buddy 5.0 core                                               03/25/2026
+#   Developer buddy 5.0 core                                               05/22/2026
 
 # ascii positional encoding
 # escape input newlines for parsing
@@ -54,15 +54,17 @@ printf '%s' "$k"
 }
 
 remove_gpg() {
-local files=("$app_install/recent.gpg" "$app_install/ctimecache.gpg" "$app_install/flth.csv")
-if [[ $USR == "root" ]]; then rm -f "${files[@]}" 2> /dev/null; else sudo rm -f "${files[@]}" 2> /dev/null; fi
+# local files=("$app_install/recent.gpg" "$app_install/ctimecache.gpg" "$app_install/flth.csv")
+# if [[ $USR == "root" ]]; then rm -f "${files[@]}" 2> /dev/null; else sudo rm -f "${files[@]}" 2> /dev/null; fi
+local files=("$home_dir/.local/share/save-changesnew/recent.gpg" "$home_dir/.local/share/save-changesnew/ctimecache.gpg" "$home_dir/.local/share/save-changesnew/flth.csv")
+rm -f "${files[@]}" 2> /dev/null
 }
 generatekey() {
-	# 5.1 porteus   GPG 2.x+ generate key but if 5.01 has GPG2 do it too
+    # 5.1 porteus   GPG 2.x+ generate key but if 5.01 has GPG2 do it too
 
-	xopt=$(mktemp -d /tmp/tmpda.XXXXXX)
-	if which gpg2 > /dev/null 2>&1 || gpg --version | grep -qiE "gnupg.*2|\(GnuPG\) 2" ; then
-		read -sp "Enter passphrase for new GPG key: " p
+    xopt=$(mktemp -d /tmp/tmpda.XXXXXX)
+    if which gpg2 > /dev/null 2>&1 || gpg --version | grep -qiE "gnupg.*2|\(GnuPG\) 2" ; then
+        read -sp "Enter passphrase for new GPG key: " p
 cat > $xopt/keyparams.conf <<EOF
 %echo Generating a GPG key
 Key-Type: RSA
@@ -75,67 +77,77 @@ Expire-Date: 0
 %commit
 %echo done
 EOF
-		if which gpg2 > /dev/null 2>&1; then cmd=(gpg2) ; else cmd=(gpg) ; fi
-		printf '%s' "$p" | "${cmd[@]}" --batch --pinentry-mode loopback --passphrase-fd 0 --generate-key  $xopt/keyparams.conf
-		shred -u $xopt/keyparams.conf
-		if [[ "$USR" != "root" ]]; then
-            echo "Please enter password for root"
-			printf '%s' "$p" | "${cmd[@]}"  --batch --yes --pinentry-mode loopback --passphrase-fd 0 --export-secret-keys --armor $email > $xopt/key.asc
-			printf '%s' "$p" | sudo "${cmd[@]}"  --batch --yes --pinentry-mode loopback --passphrase-fd 0 --import $xopt/key.asc
-			shred -u $xopt/key.asc
-			printf "trust\n5\ny\nquit\n" | sudo "${cmd[@]}"  --command-fd 0 --edit-key $email
-		fi
-		test -d "$xopt" && rm -rf "$xopt"
-		remove_gpg
-		echo "GPG key generated for ${email}."
-	else
-		if ! gpg --with-keygrip --list-secret-keys >/dev/null 2>&1; then
-			echo "Gpg 1.4 or outdated version installed please install gpg2. recommended."
-			if which expect > /dev/null 2>&1; then # is expect installed?
-				echo "Use expect. And run the keygen file for 5.01. Remember to remove passphrase after from file."
-			else
-				echo "Expect not installed."
-			fi
-			echo
-			echo "If using gpg 1.4 a key can be made by installing expect and running the keygen file. Then erase the passphrase you entered in the file from the file."
-			echo "In order for it to work with this script the keypair then has to be exported to root with:"
-			echo "gpg --export-secret-keys --armor email > key.asc"
-			echo "then sudo su and  as root"
-			echo  "gpg --import key.asc"
-			echo " gpg --edit-key email  . then set  True, 5, y, quit to trust the key"
-		fi
-		exit 1
-	fi
+        if which gpg2 > /dev/null 2>&1; then cmd=(gpg2) ; else cmd=(gpg) ; fi
+        printf '%s' "$p" | "${cmd[@]}" --batch --pinentry-mode loopback --passphrase-fd 0 --generate-key  $xopt/keyparams.conf
+        shred -u $xopt/keyparams.conf
+        # for shared keys for user and root
+        #if [[ "$USR" != "root" ]]; then
+        #    echo "Please enter password for root"
+        #    printf '%s' "$p" | "${cmd[@]}"  --batch --yes --pinentry-mode loopback --passphrase-fd 0 --export-secret-keys --armor $email > $xopt/key.asc
+        #    printf '%s' "$p" | sudo "${cmd[@]}"  --batch --yes --pinentry-mode loopback --passphrase-fd 0 --import $xopt/key.asc
+        #    shred -u $xopt/key.asc
+        #    printf "trust\n5\ny\nquit\n" | sudo "${cmd[@]}"  --command-fd 0 --edit-key $email
+        #fi
+        test -d "$xopt" && rm -rf "$xopt"
+        remove_gpg
+        echo "GPG key generated for $email."
+    else
+        if ! gpg --with-keygrip --list-secret-keys >/dev/null 2>&1; then
+            echo "Gpg 1.4 or outdated version installed please install gpg2. recommended."
+            if which expect > /dev/null 2>&1; then # is expect installed?
+                echo "Use expect. And run the keygen file for 5.01. Remember to remove passphrase after from file."
+            else
+                echo "Expect not installed."
+            fi
+            echo
+            echo "If using gpg 1.4 a key can be made by installing expect and running the keygen file. Then erase the passphrase you entered in the file from the file."
+            echo "In order for it to work with this script the keypair then has to be exported to root with:"
+            echo "gpg --export-secret-keys --armor email > key.asc"
+            echo "then sudo su and  as root"
+            echo  "gpg --import key.asc"
+            echo " gpg --edit-key email  . then set  True, 5, y, quit to trust the key"
+        fi
+        exit 1
+    fi
 }
 
 setup_exports() {
-	[[ "$1" = "query" ]] && { python3 "$app_install"/query.py $USR ; exit ; }
-	output=$( python3 "$app_install"/get_exports.py $USR) ; res=$?
-	if [[ $res -ne 0 ]]; then echo "Couldnt get config file config.toml" && exit 1 ; fi
-	eval "$output"
-	[[ "$1" = "reset" ]] && { python3 "$app_install"/rntchanges.py reset "$USR" "$email" "$app_install" ; exit ; }
-	if ! gpg --list-keys | grep -q $email; then generatekey ; fi  # setup key pair for both user and root
+    [[ "$1" = "query" ]] && { python3 "$app_install"/query.py $USR ; exit ; }
+    output=$( python3 "$app_install"/get_exports.py $USR) ; res=$?
+    # 
+    if [[ $res -ne 0 ]]; then
+        if [[ $res -eq 7 ]]; then 
+            echo "bad passphrase" && exit 7
+        elif [[ $res -eq 4 ]]; then 
+            echo "inappropriate ioctl or no pinentry." ; echo "if having problems run recentchanges reset" && exit 4
+        else
+            echo "couldnt start user gpg agent before root" && exit $res
+        fi
+    fi
+    eval "$output"
+    [[ "$1" = "reset" ]] && { python3 "$app_install"/rntchanges.py reset "$USR" "$email" "$app_install" "$home_dir"; exit ; }
+    if ! gpg --list-keys | grep -q $email; then generatekey ; fi  # setup key for user
 }
 
 display() {
 local locale=$1
 if [[ -n "$locale" && "$dspEDITOR" != "false" ]]; then
     if [[ -n "$dspPATH" ]]; then [[ ! -e "$dspPATH" ]] && { echo "dspPATH setting invalid - ${dspPATH} not found" >&2 ; return 1 ; } ; "$dspPATH" "$locale" && return ; echo "Error: Failed to open ${locale} with ${dspPATH}" >&2 ; return 1 ; fi
-	[[ -n "$dspEDITOR" && "$dspEDITOR" != "xed" && "$dspEDITOR" != "featherpad" ]] && echo "$dspEDITOR chosen if using other editor please specify dspPATH" && return 1 || { [[ -z "$dspEDITOR" ]] && return 1 ; }
-	editor_path=$( which "$dspEDITOR" 2> /dev/null)
-	if [[ -n "$editor_path" ]]; then
-		test -e "$editor_path" && "$editor_path" "$locale" && return || { ! test -e "$editor_path" && echo couldnt launch $dspEDITOR at "$editor_path" ; }
-	else
-		test -e /usr/bin/$dspEDITOR && /usr/bin/$dspEDITOR "$locale" && return  || { ! test -e /usr/bin/$dspEDITOR && echo couldnt find $dspEDITOR in path or in default /usr/bin please specify dspPATH: "$tomlf" ; }
-	fi
-	return 1
+    [[ -n "$dspEDITOR" && "$dspEDITOR" != "xed" && "$dspEDITOR" != "featherpad" ]] && echo "$dspEDITOR chosen if using other editor please specify dspPATH" && return 1 || { [[ -z "$dspEDITOR" ]] && return 1 ; }
+    editor_path=$( which "$dspEDITOR" 2> /dev/null)
+    if [[ -n "$editor_path" ]]; then
+        test -e "$editor_path" && "$editor_path" "$locale" && return || { ! test -e "$editor_path" && echo couldnt launch $dspEDITOR at "$editor_path" ; }
+    else
+        test -e /usr/bin/$dspEDITOR && /usr/bin/$dspEDITOR "$locale" && return  || { ! test -e /usr/bin/$dspEDITOR && echo couldnt find $dspEDITOR in path or in default /usr/bin please specify dspPATH: "$tomlf" ; }
+    fi
+    return 1
 fi
 }
 
 # load text editor if user want to display as non root
 output_results() {
-	local file_out="$lclhome"/file_output
-	if [[ $res -eq 0 ]]; then test -f $file_out && var=$( cat "$lclhome"/file_output) && display "$var" ; fi  #  test -f $file_out && rm $file_out
+	local file_out="$XDG_RUNTIME_DIR"/file_output
+	if [[ $res -eq 0 ]]; then test -f $file_out && var=$( cat $file_out) && display "$var" ; fi  # test -f $file_out && rm $file_out
 	exit $res
 }
 
@@ -160,8 +172,8 @@ grep -m1 "^${key}	" "$CACHE_F" | awk -F $'\t' '{print $2}'
 normalize_ts() { printf "%.6f\n" "$1" ; }
 
 calculate_csum() {
-local xmode="$1"				;	local file_path="$2"
-local modified_epoch=$3	;	local ino=$4
+local xmode="$1"                ;    local file_path="$2"
+local modified_epoch=$3    ;    local ino=$4
 local sze=$5
 local x=$6
 local delay=$7
@@ -178,79 +190,79 @@ local prev_hash=""
 local max_retries=$x
 
 if [ "$ino" -ge 0 ] 2>/dev/null && [ "$sze" -ge 0 ] 2>/dev/null; then
-	while (( x >= 0 )); do
-		r=""
-	    checks=$( md5sum "$file_path" 2>/dev/null)
-		if [[ -n "$checks" ]]; then
-			checks=${checks%% *}
-			# on second or later iteration and not ctime as ctime could no longer be > mtime now
-			if [[ -n "$prev_hash" &&"$checks" = "$prev_hash" ]]; then
+    while (( x >= 0 )); do
+        r=""
+        checks=$( md5sum "$file_path" 2>/dev/null)
+        if [[ -n "$checks" ]]; then
+            checks=${checks%% *}
+            # on second or later iteration and not ctime as ctime could no longer be > mtime now
+            if [[ -n "$prev_hash" &&"$checks" = "$prev_hash" ]]; then
 
-				if [ "$a_ino" -ge 0 ] 2>/dev/null; then
-					# update only needed stats
-					check_sum=$checks
-					mtime=$modified_epoch
+                if [ "$a_ino" -ge 0 ] 2>/dev/null; then
+                    # update only needed stats
+                    check_sum=$checks
+                    mtime=$modified_epoch
                     itime=$ctime_epoch
                     mtime_sec=${mtime%%.*}
                     itime_sec=${itime%%.*}
-					mtime_frac=${mtime#*.}
-					mt=$(date -d "@$mtime_sec" +"$fmt")
+                    mtime_frac=${mtime#*.}
+                    mt=$(date -d "@$mtime_sec" +"$fmt")
                     ct=$(date -d "@$itime_sec" +"$fmt" 2> /dev/null)
-					fs=$a_sze
-					# the inode changed update all remaining stats
-					if (( ino != a_ino )); then
-						check_sum="None"
-						log_lineout $debug_log $debug_file "$log_date" "calculate_csum inode changed $a_ino vs $ino discarding checksum for: $file_path"
-						#i=$a_ino
-						#sym=$a_sym
-						#n=$a_nlnk
-						#onr=$a_onr
-						#grp=$a_grp
-						#pmr=$a_prm
-					fi
-					return 0
-				fi
+                    fs=$a_sze
+                    # the inode changed update all remaining stats
+                    if (( ino != a_ino )); then
+                        check_sum="None"
+                        log_lineout $debug_log $debug_file "$log_date" "calculate_csum inode changed $a_ino vs $ino discarding checksum for: $file_path"
+                        #i=$a_ino
+                        #sym=$a_sym
+                        #n=$a_nlnk
+                        #onr=$a_onr
+                        #grp=$a_grp
+                        #pmr=$a_prm
+                    fi
+                    return 0
+                fi
 
-			fi
-			if (( x > 0 )); then
-				read -r f1 f2 _ f3 f4 _ a_ino a_sym a_nlnk a_sze a_onr a_grp a_prm < <( stat --format="%y %z %i %A %h %s %U %G %a" "$file_path" 2>/dev/null)  # %A
-				[[ -z "$a_prm" ]] && break
-				mod_time="$f1 $f2"
-				c=$( date -d "$mod_time" +%s.%N 2>/dev/null)  # %6N
-				[[ -z "$c" ]] && log_lineout $debug_log $debug_file "$log_date" "calculate checksum failed to convert timestamp retry $(( max_retries - x ))" && return 1  # mtime required
+            fi
+            if (( x > 0 )); then
+                read -r f1 f2 _ f3 f4 _ a_ino a_sym a_nlnk a_sze a_onr a_grp a_prm < <( stat --format="%y %z %i %A %h %s %U %G %a" "$file_path" 2>/dev/null)  # %A
+                [[ -z "$a_prm" ]] && break
+                mod_time="$f1 $f2"
+                c=$( date -d "$mod_time" +%s.%N 2>/dev/null)  # %6N
+                [[ -z "$c" ]] && log_lineout $debug_log $debug_file "$log_date" "calculate checksum failed to convert timestamp retry $(( max_retries - x ))" && return 1  # mtime required
                 c=$(normalize_ts "$c")
 
-				# if it matches the find command or if two stats match return the checksum
-				if [[ "$c" == "$modified_epoch" && -n "$a_ino" && -n "$a_sze" ]] && (( ino == a_ino )) && (( sze == a_sze )); then
-					check_sum=$checks
-					if [[ -z "$prev_hash" ]]; then
-						return 0
-					else
-						mtime=$modified_epoch
-		                itime=$ctime_epoch
-			            mtime_sec=${mtime%%.*}
-			            itime_sec=${itime%%.*}
-						mtime_frac=${mtime#*.}
-						mt=$(date -d "@$mtime_sec" +"$fmt")
-		                ct=$(date -d "@$itime_sec" +"$fmt" 2> /dev/null)
-						return 0
-					fi
-				fi
+                # if it matches the find command or if two stats match return the checksum
+                if [[ "$c" == "$modified_epoch" && -n "$a_ino" && -n "$a_sze" ]] && (( ino == a_ino )) && (( sze == a_sze )); then
+                    check_sum=$checks
+                    if [[ -z "$prev_hash" ]]; then
+                        return 0
+                    else
+                        mtime=$modified_epoch
+                        itime=$ctime_epoch
+                        mtime_sec=${mtime%%.*}
+                        itime_sec=${itime%%.*}
+                        mtime_frac=${mtime#*.}
+                        mt=$(date -d "@$mtime_sec" +"$fmt")
+                        ct=$(date -d "@$itime_sec" +"$fmt" 2> /dev/null)
+                        return 0
+                    fi
+                fi
 
-	    		# else retry
-				modified_epoch=$c
-				change_time="$f3 $f4"
+                # else retry
+                modified_epoch=$c
+                change_time="$f3 $f4"
                 r=$( date -d "$change_time" +%s.%N 2>/dev/null)
-				[[ -n "$r" ]] && r=$(normalize_ts "$r") || log_lineout $debug_log $debug_file "$log_date" "calculate_csum Warning ct is null on retried. retry $(( max_retries - x ))" && return 1
-				ctime_epoch=$r
-				prev_hash="$checks"
+                [[ -n "$r" ]] && r=$(normalize_ts "$r") || log_lineout $debug_log $debug_file "$log_date" "calculate_csum Warning ct is null on retried. retry $(( max_retries - x ))" && return 1
+                ctime_epoch=$r
+                prev_hash="$checks"
                 sleep $delay
-			fi
-		else
-			break
-		fi
-	    (( x-- ))
-	done
+            fi
+        else
+            break
+        fi
+        (( x-- ))
+    done
 fi
 log_lineout $debug_log $debug_file "$log_date" "calculate_csum failed no checksum skipping. retry $(( max_retries - x ))"
 return 1
@@ -273,8 +285,8 @@ local log_date
 local cache_flg="false"
 local cdir="/tmp/dbctimecache/"
 
-r=""				;	sl=""
-lmt=""			;	nlinks=""
+r=""                ;    sl=""
+lmt=""            ;    nlinks=""
 cam="None"
 check_sum=""
 
@@ -294,24 +306,24 @@ mt=$(date -d "@$mtime_sec" +"$fmt")
 ct=$(date -d "@$itime_sec" +"$fmt")
 if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
     if [ -n "$mt" ]; then
-		[[ -z "$ct" ]] && log_lineout $7 $8 "$log_date" "Warning ct is null on input to pblk $1" && return 1
-		mtime=$( normalize_ts "$mtime")
-		itime=$(normalize_ts "$itime")
-		mtime_frac=${mtime#*.}
+        [[ -z "$ct" ]] && log_lineout $7 $8 "$log_date" "Warning ct is null on input to pblk $1" && return 1
+        mtime=$( normalize_ts "$mtime")
+        itime=$(normalize_ts "$itime")
+        mtime_frac=${mtime#*.}
 
-	    if [ "$4" == "true" ]; then
-			[[ "$sym" == l* ]] && sl="y" && check_sum="None"
-			if [[ -z "$sl" ]]; then
-				[[ -e "$CACHE_F" ]] && mtime_us=$(( $mtime_sec * 1000000 + (10#$mtime_frac) )) && r=$(get_cached $i $fs $mtime_us)
-		        if [[ -n "$r" ]]; then
-		            check_sum="$r"
-		        else
-					calculate_csum "main" "$cFILE" $mtime $i $fs 2 0 $debug_log $debug_file $log_date
-					csum_rlt=$?
-					(( csum_rlt == 0 )) || return 1
-		            cache_flg="true"
-		        fi
-			fi
+        if [ "$4" == "true" ]; then
+            [[ "$sym" == l* ]] && sl="y" && check_sum="None"
+            if [[ -z "$sl" ]]; then
+                [[ -e "$CACHE_F" ]] && mtime_us=$(( $mtime_sec * 1000000 + (10#$mtime_frac) )) && r=$(get_cached $i $fs $mtime_us)
+                if [[ -n "$r" ]]; then
+                    check_sum="$r"
+                else
+                    calculate_csum "main" "$cFILE" $mtime $i $fs 2 0 $debug_log $debug_file $log_date
+                    csum_rlt=$?
+                    (( csum_rlt == 0 )) || return 1
+                    cache_flg="true"
+                fi
+            fi
             if [[ -n "$check_sum" ]]; then
 
                 fs=${fs:-None} ; sl=${sl:-None}
@@ -320,7 +332,7 @@ if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
                 nlinks=$n
                 ats=$(date -d "@${atime%%.*}" +"$fmt")
 
-				ct=${ct:-None None}
+                ct=${ct:-None None}
                 ats=${ats:-None None}
                 lmt=${lmt:-None None}
 
@@ -331,9 +343,9 @@ if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
                     # change_t=$(echo "scale=0; $itime * 100000000 / 1" | bc)
                     # itime_frac=$(( change_t % 100000000 ))
                     itime_frac=${itime#*.}
-					itime_oct=$(( 10#$itime_frac ))
-					mtime_oct=$(( 10#$mtime_frac ))
-					mtime_us=$(( mtime_sec * 1000000 + mtime_oct))
+                    itime_oct=$(( 10#$itime_frac ))
+                    mtime_oct=$(( 10#$mtime_frac ))
+                    mtime_us=$(( mtime_sec * 1000000 + mtime_oct))
 
                     if (( itime_sec == mtime_sec && itime_oct > mtime_oct )) || (( itime_sec > mtime_sec )); then   # awk -v it="$itime" -v mt="$mtime" 'BEGIN {exit !(it > mt)}'; then
 
@@ -362,7 +374,7 @@ if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
             fi
         else
             log_lineout $7 $8 "$log_date" "pblk checksum is false skipping $1"
-	    fi
+        fi
     else
         log_lineout $7 $8 "$log_date" "Warning mt is null on input to pblk skipped $1"
     fi
@@ -370,3 +382,110 @@ else
     log_lineout $7 $8 "$log_date" "change time: $itime and mtime: $mtime , sblk Nosuchfile line $cur_line"
 fi
 }
+findrootfolder() {
+appname=$xzmname
+FLTOUT="/tmp/${appname}ItemsFilteredout"
+
+test -e "/tmp/${appname}.xzm" && rm "/tmp/${appname}.xzm"
+rm "/tmp/"*"_xdata" 2> /dev/null
+
+rlt=$( validprogram $SVFOLDERS)
+if [ "$rlt" == "/" ]; then echo Fatal error. exiting. && exit 1 ; fi
+if [ "$rlt" != "" ]; then
+    cat $SVFILES | grep "$rlt" > $RECENTAPP  # files after finding root
+    cat $SVFILES | grep -v "$rlt" > $RSYNCEXCL  # every other file but our files
+
+    echo $BRAND >> $SVFILES
+
+    k=$( head -n1 $SVFILES | grep "MDY")
+
+    # Are there files
+    if [ -z "$k" ]; then
+        validrlt="true"
+    fi
+
+    find $tmp$workdir -type d -empty -delete
+    
+    # can create an exclude file for mksquashfs
+    # leave any file that has new line in the name by not unescaping it
+    # while IFS= read -r p || [ -n "$p" ]; do p="${p#/}" ; p="${p//\\ap22/\"}" ; p="${p//\\ap5c/\\}" ; echo "$p" >> $tfile ; done < $RSYNCEXCL
+
+    cd $tmp$workdir || exit
+    srcpath="${rlt#/}"
+    mksquashfs $srcpath "/tmp/${appname}.xzm" -comp $cmode -no-strip
+
+    cp $RECENTAPP "/tmp/${appname}_xdata" ; echo $BRAND >> "/tmp/${appname}_xdata"
+
+    sort -o $RECENTAPP $RECENTAPP
+    cat $SORTCOMPLETE | grep -Ff $RECENTAPP | tee $TMPCOMPLETE > /dev/null
+
+    endtm=$( gettime "$TMPCOMPLETE" "/tmp/${appname}_xdata")
+
+    printf "\n\n" >> "/tmp/${appname}_xdata"
+    cat $TMPOPT  | grep -Fvf $RECENTAPP > $TMPCOMPLETE
+    
+    r=$( find "$rlt" -not -type d | wc -l)  # system
+
+    # alternative from batch and stat file
+    # s=$(grep -n 'MDY' "/tmp/${appname}_xdata" | head -n 1 | cut -d: -f1)
+    # [[ -n "$s" ]] && s=$(( s - 1 )) || s=0
+
+    y=$( wc -l < $RECENTAPP) # copied
+
+    { echo Root:"$rlt" ; echo "File count: $y" ; echo "System count: "$r ; echo ; echo ; } >> "/tmp/${appname}_xdata"
+
+    (( r > y )) && echo "Status: Possibly missed base directory. Confirm files or package from root folder" >> "/tmp/${appname}_xdata"
+
+    if [ -s $TMPCOMPLETE ]; then { echo ; echo "Items filterout from filtered files."; echo ; cat $TMPCOMPLETE; } >> "/tmp/${appname}_xdata" ; else echo "No items filtered out from filter." >>"/tmp/${appname}_xdata" ; fi
+    
+    # save overhead by reading off $RECENTAPP for the names
+    while IFS= read -r f; do arrfiles=("${arrfiles[@]}" "${f##*/}"); done < $RECENTAPP
+    echo $BRAND >> $RECENTAPP
+    if [ "$autooutput" == "false" ]; then
+        x=${#arrfiles[@]}
+        y=0
+        echo
+        for i in "${arrfiles[@]}" ; do
+            p=$(( y + 1 ))
+            printf "%2d %-40s\t\t" "$p" "${i}"
+            (( y++ ))
+            if  [ $(( y % 2 )) -eq 0 ]; then
+                echo -en "\n"
+            else
+                if (( y == x )); then
+                    echo -en "\n"
+                fi
+            fi
+            if (( y > 70 )); then
+                break
+            fi
+        done
+        echo "Root folder" "${rlt##*/}"
+        echo  "Filename or Selection"
+        read -p $'\n ' usrslc
+        if [ "$usrslc" != "" ]; then
+            if [ "$usrslc" -ge 0 ]  2>/dev/null; then
+                echo selected "$usrslc"
+                if [ "${#arrfiles[@]}" -ge "$usrslc" ] && [ "$usrslc" -gt 0 ]; then
+                    filename="${arrfiles[$(( usrslc - 1 ))]}"
+                else
+                    echo
+                    echo "Using default filename."
+                    filename="$appname"
+                fi
+            else
+                filename="$usrslc"  # User
+            fi
+        else
+            filename="$appname"  # Default
+        fi
+    else
+        filename="$appname"
+    fi
+    fn=$(printf '%b' "$filename") ; fn=$(basename "$fn") ; fn=$(sed -E 's/(.*)\.[^./]{3,4}$/\1/' <<< "$fn") ; fn="${fn// /_}"  # fn=$( echo "$fn" | sed -e 's/\...$//' -e 's/\....$//' -e 's/ /_/g')
+    if [ "$fn" != "$appname" ]; then mv "/tmp/${appname}.xzm" "/tmp/${fn}.xzm" ; mv "/tmp/${appname}_xdata" "/tmp/${fn}_xdata" ; fi
+    chown $USR "/tmp/${fn}.xzm"
+    chown $USR "/tmp/${fn}_xdata"
+fi
+}
+

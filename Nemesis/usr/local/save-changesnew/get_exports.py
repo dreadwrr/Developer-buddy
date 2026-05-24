@@ -4,6 +4,9 @@ import shlex
 import sys
 from configfunctions import find_install
 from configfunctions import get_config
+# from gpgcrypto import start_user_agent
+from gpgcrypto import start_gpg_agent
+from gpgkeymanagement import iskey
 from logs import check_log_perms
 
 
@@ -16,7 +19,7 @@ def get_exports():
     appdata_local = find_install()  # software install aka workdir
     log_dir = appdata_local / "logs"
 
-    toml_file, _, xdg_config, _, _ = get_config(appdata_local, user)
+    toml_file, home_dir, xdg_config, xdg_runtime, _, _ = get_config(appdata_local, user)
     with open(toml_file, "rb") as f:
         config = tomllib.load(f)
 
@@ -52,14 +55,44 @@ def get_exports():
     #        print(f'export {k}={shlex.quote(val)}')
 
     export_a = {
+        "home_dir": home_dir,
         "lclhome": str(appdata_local),
         "tomlf": str(toml_file),
         "LAUNCHED_NON_ROOT": user,
-        "XDG_CONFIG_HOME": xdg_config
+        "XDG_CONFIG_HOME": xdg_config,
+        "XDG_RUNTIME_DIR": xdg_runtime
     }
     for name, value in export_a.items():
         if value:
             print(f"export {name}={shlex.quote(str(value))}")
+
+    # Warm the user gpg agent for root
+    email = config['backend']['email']
+    is_key = iskey(email)
+    if is_key:
+        # from pathlib import Path
+        # pst_data = Path(home_dir) / ".local" / "share" / "save-changesnew"
+        # cache_f_frm = pst_data / "ctimecache.gpg"
+        # dbtarget = pst_data / "recent.gpg"
+        # if cache_f_frm.is_file():
+        #     cache_f = str(cache_f_frm)
+        # elif dbtarget.is_file():
+        #     cache_f = str(dbtarget)
+        #
+        # instead of above feed the config as input to sign to start agent
+
+        cache_f = str(toml_file)
+        if cache_f:
+            # res = start_user_agent(cache_f, user)  # a .gpg file might no exist to use as input
+
+            res = start_gpg_agent(cache_f, email)  # pass the config as a temp file as input
+            if res is False:
+                # Bad  passphrase
+                sys.exit(7)
+            if res is None:
+                # inappropriate ioctl or no pinentry
+                # print(f"there may be no key for {cache_f} delete the file to reset")
+                sys.exit(4)
 
 
 if __name__ == "__main__":

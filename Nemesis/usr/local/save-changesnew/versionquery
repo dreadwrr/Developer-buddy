@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 get_vrn(){
 if [ "$1" = "-v" ]; then
-   echo "version 5.0 h&k enterprisez 03/02/2026"
+   echo "version 5.0"
    echo
    echo "recentchanges aka Developer buddy"
    echo
@@ -11,76 +11,61 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    echo
    echo "recentchanges aka Developer buddy"
    echo
-   echo "Makes an xzm of all changes 5 minutes or newer. A manifest will be included as well as a pull transfer"
-   echo "log. These will be sent to /tmp as rntchanges.xzm ect"
-   echo
-   echo "Useful if you compiled a program you can ie specify recent changes 5 to pull all new files 5 seconds"
-   echo "or newer"
-   echo
-   echo "Modes available Search or SRC or Query See bottom after usage how to use modes"
+   echo "Modes available"
    echo
    echo
-   echo "recentchanges s         where s is time in seconds"
+   printf "\t\t\toutput /tmp\n"
    echo
-   echo -e "usage:    recentchanges \t\t grab all files 5 minutes or new		these will include system search as well"
-   echo -e "usage:    recentchanges 30	\t grab all files 30 seconds or newer"
+   printf "recentchanges\t\tsearch for files 5 minutes or newer\n"
+   printf "recentchanges s\t\twhere s is time in seconds\n"
    echo
    echo
    echo "Modes"
    echo
-   echo "Search        for just a system search"
+   printf "Search\t\t\toutput /Downloads\n"
    echo
-   printf "recentchanges search \t search for files 5 minutes or newer\n"
-   printf "recentchanges search 30 \t search for files 30 seconds or newer\n"
+   printf "recentchanges search\tsearch for files 5 minutes or newer\n"
+   printf "recentchanges search s\twhere s is time in seconds\n"
    echo
    echo "Search for files newer than a file or directory"
    echo
-   echo "recentchanges search /home/guest/myfile.txt    search for files newer than myfile"
-   echo "recentchanges search myfile.txt"
-   echo "recentchanges search /home/guest/My\ Directory\ two/with\ spaces/   ... newer than directory"
+   printf "recentchanges search /home/guest/myfile.txt\t\t\t\tsearch for files newer than myfile\n"
+   printf "recentchanges search myfile.txt\n"
+   printf "recentchanges search /home/guest/My\ Directory\ two/with\ spaces/\t... newer than directory\n"
    echo
    echo
    echo "SRC"
    echo
-   printf "recentchanges SRC \t\t  Target a root directory. Useful if you compiled an application.\n\n"
-   echo     " examples:"
-   echo     " recentchanges SRC, recentchanges 60 SRC or recentchanges SRC 180"
+   printf "recentchanges SRC \tTarget a root directory. Useful if you compiled an application.\n\n"
+   echo
+   echo     "recentchanges SRC, recentchanges 60 SRC or recentchanges SRC 180"
    echo
    echo
-   echo " This feature will package an application with a customized name into an .xzm"
-   echo " It allows to focus the search and exclude even files that made it past the filter."
-   echo " This was the main intent of the concept of recentchanges and everything is fully automatic"
+   echo "This feature will package a recently compiled application with a customized name into an .xzm"
+   echo "It allows to focus on one directory and exclude even files that made it past the filter."
+   echo "This was the main intent of the concept of recentchanges and everything is fully automatic"
    echo
-   echo " Note: when using this feature ensure that you know there is a parent directory with files in it"
-   echo " as well its most useful within a definite period of time. The fact that a large amount of files went"
-   echo " to one directory allows this to be possible. If for some reason it doesnt work use recentchanges to make rntfiles.xzm"
+   echo "The fact that a large amount of files went"
+   echo "to one directory allows this to be possible."
    echo
    echo "Query"
    echo
    echo "Find out information about files from searches."
    echo
-   echo "Inverse the search with Symlink"
+   echo "Inverse the search"
    echo
-   printf "rnt \t\t\t shortcut for recentchanges doesnt inverse\t output /tmp\n"
-   echo "rnt n"
-   printf "rnt search \t\t search for filtered rather than unfiltered files\t output /Downloads\n"
-   printf "rnt search 30 \t\t search for filtered files 30 seconds or newer\n"
-   printf "rnt search myfile.txt \t search for unfiltered rather than filtered files newer than myfile\n"
+   printf "rnt \t\t\tsearch for filtered rather than unfiltered files\t\t\t output /tmp\n"
+   printf "rnt search \t\tsearch for filtered rather than unfiltered files\t\t\t output /Downloads\n"
+   printf "rnt search myfile.txt\tsearch for unfiltered rather than filtered files\t\t\t . \n"
    echo
    echo
-   echo "If having problems with keys."
-   echo "1. Try to delete the all .gpg to make new ones. 2. Failing that do the same as 1 but change email in config.toml to make a new keypair"
-   echo 
-   echo "or option 3."
-   echo "delete the keys for user and root"
+   echo "If having problem with gpg key"
+   echo "delete the keys for user"
    echo "gpg --list-keys . grab the key fingerprint for the email in config.toml."
    echo "as user gpg --delete-sercet-keys <fingerprint>"
    echo "gpg --delete-keys <fingerprint>"
-   echo "then as root. sudo su"
-   echo "gpg --delete-sercret-keys <fingerprint>"
-   echo "gpg --delete-keys <fingerprint>"
    echo
-   echo "failing that use \`recentchanges reset\` for instructions and or to delete the key pair and reset"
+   echo "failing that use recentchanges reset to delete the key"
    exit
 fi
 exit 1

@@ -9,7 +9,7 @@ from fsearchsys import process_sys_line
 from pyfunctions import cprint
 
 
-# 03/25/2026 proteus shield sys profile
+# 05/22/2026 proteus shield sys profile
 
 
 def collect_layer_files(layer, subdirs, is_sym, match_args=None):
@@ -148,17 +148,17 @@ def main(turbo, logging_values):
 
     systemf = []  # all files
     xdata = []   # files to hash
-    # COMPLETE = []  # nsf
-    SORTCOMPLETE = []
+    # complete = []  # nsf
+    sortcomplete = []
 
-    COMPLETE_1, COMPLETE_2 = [], []  # nsf perms?
+    complete_1, complete_2 = [], []  # nsf perms?
 
     xdata_raw = []
     diff = []
 
     all_layers = []
     ch = "/mnt/live/memory/images"
-    CACHE_F = "/dev/null"
+    cache_f = "/dev/null"
 
     is_sym = True  # include symlinks
 
@@ -224,17 +224,17 @@ def main(turbo, logging_values):
         }
         search_start_dt = None
 
-        xdata, COMPLETE_2 = process_lines(process_sys_line, xdata_raw, "main", search_start_dt, "PROCESS_SYS", user_setting, logging_values, CACHE_F)
+        xdata, complete_2 = process_lines(process_sys_line, xdata_raw, "main", search_start_dt, "PROCESS_SYS", user_setting, logging_values, cache_f)
 
         user_setting['checksum'] = False
-        systemf, COMPLETE_1 = process_lines(process_sys_line, diff, "main", search_start_dt, "PROCESS_SYS", user_setting, logging_values, CACHE_F)
+        systemf, complete_1 = process_lines(process_sys_line, diff, "main", search_start_dt, "PROCESS_SYS", user_setting, logging_values, cache_f)
 
-        SORTCOMPLETE = xdata + systemf
+        sortcomplete = xdata + systemf
 
-        if SORTCOMPLETE:
-            return SORTCOMPLETE
+        if sortcomplete:
+            return sortcomplete
         else:
-            logger.debug("SORTCOMPLETE was empty.")
+            logger.debug("sortcomplete was empty.")
             return []
     return []
 

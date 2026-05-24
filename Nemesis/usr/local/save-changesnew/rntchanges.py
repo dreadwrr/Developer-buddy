@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
-# v5.0                                                       03/25/2026
+# v5.0                                                       05/22/2026
 # This script is the entry point for recentchanges. The inv flag is passed in from from /usr/local/save-changesnew/filteredsearch script from /usr/bin/rnt symlink
 #
 # There are 2 positional arguments. a third is the inv flag and is filtered out before executing script.
-# the filtered arg just changes a regular search to the inverse for `recentchanges search`, `recentchanges search n`, `recentchanges search myfile`
+# the filtered arg just changes a regular search to the inverse
 #
-# for `recentchanges` the arguments shift. as its `recentchanges` or `recentchanges n` and the filter arg doesnt apply. There is a SRC tag which will make a .xzm
-# from a root directory with the most recent files.
-# `recentchanges` takes 1 argument the time n or no arguments for 5 minutes.
+# There is a SRC tag which will make a .xzm from a root directory with the most recent files.
+# recentchanges takes 1 argument the time n or no arguments for 5 minutes.
 #
-# `recentchanges search` - Desktop unfiltered files and tmp files. Also search for newer than file filtered. if called from rnt.bat its the opposite.
-# `query` - show stats from the database from past searches
+# recentchanges search - Desktop unfiltered files and tmp files. Also search for newer than file filtered.
+# query - show stats from the database from past searches
 #
-# `recentchanges` - AppData unfiltered and archives searches. No tmp files.
+# recentchanges - /tmp unfiltered
 
 
-# argone - the search time for `recentchanges` or the keyword search for `recentchanges search` or keyword query to get stats from database
-# argtwo - search time for `recentchanges search`
+# argone - the search time for recentchanges or the keyword search for recentchanges search or keyword query to get stats from database
+# argtwo - search time for recentchanges search
 # argf - inv flag from rnt symlink
 import sys
 from gpgkeymanagement import remove_gpg_keys
@@ -40,44 +39,45 @@ def main(argv):
     len_arg = len(argv)
     if len_arg > max_len:
         print("Incorrect usage. max from rnt 6. provided: ", len(argv))
-        print("Required <USR> <PWD>")
+        print("Required <usr> <pwd>")
         print("please call from /opt/recentchanges/recentchanges")
         return 1
     if len_arg < 3:
-        print("Incorrect usage. <USR> <PWD> please call from /opt/recentchanges/recentchanges")
+        print("Incorrect usage. <usr> <pwd> please call from /opt/recentchanges/recentchanges")
         return 1
     if argv[1] == "reset":
+        # return query_main(usr, True)
         return remove_gpg_keys(argv)
 
-    USR = argv[1]  # USR = os.getenv("USR")
-    PWD = argv[2]
+    usr = argv[1]  # usr = os.getenv("USR")
+    pwd = argv[2]
     args = argv[3:]
 
-    arge, argf = filter_invflag(args)  # filter out the invflag set argf to `filtered`. passed from filteredsearch
+    arge, argf = filter_invflag(args)  # filter out the invflag set argf to filtered. passed from /usr/local/save-changesnew/filteredsearch
 
     argone = arge[0] or "noarguser"
-    THETIME = arge[1] or "noarguser"
+    thetime = arge[1] or "noarguser"
 
     if argone == "search":  # recentchanges search
-        return recentchanges_main(argone, THETIME, USR, PWD, argf, "")
+        return recentchanges_main(argone, thetime, usr, pwd, argf, "")
 
     else:  # recentchanges
         argf = "bnk"
 
-        SRCDIR = "SRC" if "SRC" in arge[:2] else "noarguser"
+        srcDIR = "SRC" if "SRC" in arge[:2] else "noarguser"
 
-        THETIME = arge[0] or "noarguser"  # Shift for this script
-        if THETIME == "SRC":
-            THETIME = arge[1] or "noarguser"
+        thetime = arge[0] or "noarguser"  # Shift for this script
+        if thetime == "SRC":
+            thetime = arge[1] or "noarguser"
 
-        if THETIME == "search":
+        if thetime == "search":
             print("Exiting not a search.")
             return 1
 
-        if THETIME == "SRC":
-            THETIME = "noarguser"
+        if thetime == "SRC":
+            thetime = "noarguser"
 
-        return recentchanges_main(THETIME, SRCDIR, USR, PWD, argf, "rnt")
+        return recentchanges_main(thetime, srcDIR, usr, pwd, argf, "rnt")
 
 
 if __name__ == "__main__":

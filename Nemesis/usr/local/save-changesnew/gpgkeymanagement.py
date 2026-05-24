@@ -5,6 +5,7 @@ import tempfile
 import traceback
 from pathlib import Path
 from typing import Any
+from rntchangesfunctions import name_of
 from rntchangesfunctions import removefile
 
 
@@ -22,7 +23,7 @@ def iskey(email):
     return False
 
 
-def genkey(user, email, name, dbtarget, CACHE_F, flth, TEMPD, passphrase=None):
+def genkey(user, email, name, dbtarget, cache_f, flth, TEMPD, passphrase=None):
 
     if not passphrase:
         p = getpass.getpass("Enter passphrase for new GPG key: ")
@@ -73,7 +74,7 @@ def genkey(user, email, name, dbtarget, CACHE_F, flth, TEMPD, passphrase=None):
             #     subprocess.run(
             #         cmd, check=True, stdin=param_file)
 
-            clear_gpg(user, dbtarget, CACHE_F, flth)
+            clear_gpg(user, dbtarget, cache_f, flth)
             print(f"GPG key generated for {email}.")
             return True
         except subprocess.CalledProcessError as e:
@@ -104,21 +105,25 @@ def get_key_fingerprint(email, root_target=None):
 
 
 def remove_gpg_keys(args):
-    if len(args) < 5:
+    if len(args) < 6:
         print("Incorrect usage. reset <USR> <email> <app_install>")
         return 1
     user = args[2]
     email = args[3]
-    appdata_local = Path(args[4])
-    dbtarget = appdata_local / "recent.gpg"
-    ctimecache = appdata_local / "ctimecache.gpg"
-    flth = appdata_local / "flth.csv"
+    # appdata_local = Path(args[4])
+    home_dir = Path(args[5])
+
+    pst_data = Path(home_dir) / ".local" / "share" / "save-changesnew"
+    dbtarget = pst_data / "recent.gpg"
+    ctimecache = pst_data / "ctimecache.gpg"
+    flth = pst_data / "flth.csv"
     return delete_gpg_keys(user, email, dbtarget, ctimecache, flth)
 
 
-def clear_gpg(usr, dbtarget, CACHE_F, flth):
+def clear_gpg(usr, dbtarget, cache_f, flth):
     """ delete ctimecache & db .gpg & filter hits """
-    for r in (CACHE_F, dbtarget, flth):
+    dbopt = name_of(dbtarget, '.db')
+    for r in (cache_f, dbtarget, dbopt, flth):
         p = Path(r)
         try:
             is_root_owned = p.exists() and p.stat().st_uid == 0
@@ -131,6 +136,9 @@ def clear_gpg(usr, dbtarget, CACHE_F, flth):
 
 
 def delete_gpg_keys(usr, email, dbtarget, ctimecache, flth):
+
+    def instruct_out():
+        print()
 
     def exec_delete_keys(usr, email, fingerprint):
         silent: dict[str, Any] = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
@@ -162,16 +170,14 @@ def delete_gpg_keys(usr, email, dbtarget, ctimecache, flth):
                     exec_delete_keys(usr, email, fingerprint)
 
                 # look for key in user
-                if usr != "root":
-                    fingerprint = get_key_fingerprint(email, root_target=True)
-                    if fingerprint:
-                        result = True
-                        exec_delete_keys(usr, email, fingerprint)
+                # if usr != "root":
+                #     fingerprint = get_key_fingerprint(email, root_target=True)
+                #     if fingerprint:
+                #         result = True
+                #         exec_delete_keys(usr, email, fingerprint)
 
                 clear_gpg(usr, dbtarget, ctimecache, flth)
-
                 if result:
-
                     # print(f"\nDelete {dbtarget} if it exists as it uses the old key pair.")
                     return 0
                 else:
@@ -182,17 +188,7 @@ def delete_gpg_keys(usr, email, dbtarget, ctimecache, flth):
                 uinp = 'n'
 
         if uinp == 'n':
-            print("To import the key for one to the other to attempt to repair it, try the following. If it doesn't work delete the key pair and start over.")
-            print("\nAs user or root:")
-            print(f"gpg --batch --yes --pinentry-mode loopback --export-secret-keys --armor {email} > key.asc")
-            print("user or root")
-            print("gpg --batch --yes --pinentry-mode loopback --import key.asc")
-            print("shred -u key.asc")
-            print(f"gpg --edit-key {email}")
-            print("trust")
-            print("5")
-            print("y")
-            print("quit")
+            instruct_out()
             return 1
         else:
             print("Invalid input, please enter 'Y' or 'N'.")

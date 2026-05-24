@@ -48,12 +48,12 @@ def user_info(user=None):
             usr_info = pwd.getpwnam(user)
         else:
             usr_info = pwd.getpwuid(os.geteuid())
-        USR = usr_info.pw_name
+        usr = usr_info.pw_name
         uid = usr_info.pw_uid
         gid = usr_info.pw_gid  # gid = grp.getgrnam(user).gr_gid
         home_dir = Path(usr_info.pw_dir)
 
-        return USR, uid, gid, home_dir
+        return usr, uid, gid, home_dir
     except (KeyError, OSError):
         raise ValueError(f"unable to get user info for {user if user else 'current user'}")
 
@@ -79,21 +79,30 @@ def user_info(user=None):
 #         raise RuntimeError("Unsupported `find` detected. GNU findutils is required.")
 
 
+def get_xdg_runtime(uid):
+    # uid_str = os.environ.get("PKEXEC_UID")
+    # if uid_str:
+    #     runtime_dir = f"/run/user/{uid_str}"
+    # else:
+    # raise RuntimeError("Not launched via pkexec (PKEXEC_UID missing)")
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
+    if not runtime_dir:
+        if uid is None:
+            raise RuntimeError("environment xdg_runtime_dir not set and there is uid is None")
+        runtime_dir = f"/run/user/{uid}"
+    xdg_runtime = Path(runtime_dir)
+    if not xdg_runtime.is_dir() or (int(uid) == 0 and xdg_runtime.stat().st_uid != 0):
+        xdg_runtime = Path(f"/tmp/recentchanges-{uid}")
+        os.makedirs(xdg_runtime, mode=0o700, exist_ok=True)
+    # print("runtime_dir", runtime_dir)
+    return xdg_runtime
+
+
 # toml
 
 
 def get_config(appdata_local=None, user=None):
     """ user configuration location """
-    home_dir = None
-    config_file = "config (copy).toml"
-
-    if appdata_local:
-        default_conf = appdata_local / "config" / config_file
-    else:
-        default_conf = Path(os.path.join("/usr/local/save-changesnew/config", config_file))
-
-    user, uid, gid, home_dir = user_info(user)
-
     xdg_config = os.environ.get("XDG_CONFIG_HOME")
 
     # if xdg_config:
@@ -112,6 +121,14 @@ def get_config(appdata_local=None, user=None):
     # os.makedirs(config_local, mode=0o755, exist_ok=True)
     config_local = appdata_local / "config"
     toml_file = config_local / "config.toml"
+    config_file = "config (copy).toml"
+
+    if appdata_local:
+        default_conf = appdata_local / "config" / config_file
+    else:
+        default_conf = Path(os.path.join("/usr/local/save-changesnew/config", config_file))
+
+    user, uid, gid, home_dir = user_info(user)
 
     toml_missing = not toml_file.is_file()
     # first_time_setup = toml_missing
@@ -124,8 +141,9 @@ def get_config(appdata_local=None, user=None):
     # if first_time_setup:
     #     ensure_default_utils()
 
+    xdg_runtime = get_xdg_runtime(uid)
     if toml_file.is_file():
-        return toml_file, home_dir, xdg_config, uid, gid
+        return toml_file, home_dir, xdg_config, xdg_runtime, uid, gid
     raise FileNotFoundError(f"Unable to find config.toml config file in {config_local}")
 
 

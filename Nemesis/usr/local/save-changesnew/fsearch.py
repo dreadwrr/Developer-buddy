@@ -14,7 +14,7 @@ from pyfunctions import escf_py
 # Find Parallel SORTCOMPLETE search and  ctime hashing
 
 
-def process_line(line, checksum, file_type, search_start_dt, CACHE_F, logger=None):
+def process_line(line, checksum, file_type, search_start_dt, cache_f, logger=None):
 
     label = "Sortcomplete"
     fmt = "%Y-%m-%d %H:%M:%S"
@@ -67,7 +67,7 @@ def process_line(line, checksum, file_type, search_start_dt, CACHE_F, logger=Non
     if sym != "y" and size and checksum:
 
         if size > CSZE:
-            cached = get_cached(CACHE_F, size, mtime_us, escf_path)
+            cached = get_cached(cache_f, size, mtime_us, escf_path)
             if cached is None:
                 checks, file_dt, file_us, file_st, status = calculate_checksum(file_path, mtime, mtime_us, inode, size, retry=1, max_retry=1, cacheable=True, log_q=logs.WORKER_LOG_Q, logger=logger)
                 if checks is not None:
