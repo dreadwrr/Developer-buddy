@@ -5,11 +5,13 @@
 
 for Porteus 5.01, 5.1 and Nemesis 
 
-This is my script which includes recentchanes as well as save-changesnew. There is now only the bash (which by default uses a python backend) being the main version. A special edition py ver will be available
+This is my script which includes recentchanes as well as save-changesnew. There is now only the bash (default uses a python backend) being the main version. A special edition py ver will be available
 and linked on here and the documentation. This will help streamline development as I move to just bash and qt for the primary releases. Both being on the opposite sides of implementation.
 
-I first started a Qt gui for Windows 10/11. https://github.com/dreadwrr/Recentchanges <br>
-A linux Qt version is available https://github.com/dreadwrr/Recentchanges-Linux<br><br>
+I first started a Qt gui for Windows 10/11 based on recent changes. Then converted it to work with linux. After having released both went back and updated the initial windows release. 
+
+Windows Qt https://github.com/dreadwrr/Recentchanges <br>
+Linux https://github.com/dreadwrr/Recentchanges-Linux<br><br>
 
 Going forward I will be looking for new ideas to expand and improve recentchanges eventually splitting the two into different modules.
 
