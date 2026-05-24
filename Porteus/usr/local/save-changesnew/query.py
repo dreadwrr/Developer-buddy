@@ -6,9 +6,9 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
-import tkinter as tk
+
 import traceback
-from tkinter import ttk
+
 from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -27,11 +27,18 @@ from pyfunctions import reset_csvliteral
 from pysql import blank_count
 from pysql import insert
 from pysql import table_has_data
+from rntchangesfunctions import cnc
 from rntchangesfunctions import cprint
 from rntchangesfunctions import name_of
-from rntchangesfunctions import cnc
+try:
+    import tkinter as tk
+    from tkinter import ttk
+    TK_AVAILABLE = True
+except ImportError:
+    TK_AVAILABLE = False
 
-# 03/25/2026
+
+# 05/22/2026
 
 # see pyfunctions.py cache clear patterns for db
 
@@ -175,7 +182,7 @@ def hardlinks(database, target, conn, cur, user, email, compLVL):
             )
             conn.commit()
             nc = cnc(target, compLVL)
-            rlt = encr(database, target, email, no_compression=nc, dcr=True)
+            rlt = encr(database, target, email, user=user, no_compression=nc, dcr=True)
             if rlt:
                 print("Hard links updated.")
             else:
@@ -189,7 +196,7 @@ def hardlinks(database, target, conn, cur, user, email, compLVL):
         print(f"Error setting hardlinks: {e} {type(e).__name__} \n{traceback.format_exc()}")
 
 
-def clear_cache(database, target, flth, conn, cur, email, compLVL, cachermPATTERNS):
+def clear_cache(database, target, flth, conn, cur, email, user, compLVL, cachermPATTERNS):
     files_d = cachermPATTERNS
     filename_pattern = None
     try:
@@ -200,7 +207,7 @@ def clear_cache(database, target, flth, conn, cur, email, compLVL, cachermPATTER
             conn.commit()
 
         nc = cnc(target, compLVL)
-        rlt = encr(database, target, email, no_compression=nc, dcr=True)
+        rlt = encr(database, target, email, user=user, no_compression=nc, dcr=True)
         if rlt:
             print("Cache files cleared.")
             try:
@@ -215,7 +222,7 @@ def clear_cache(database, target, flth, conn, cur, email, compLVL, cachermPATTER
         print(f"Cache clear failed to write to db. on {filename_pattern if filename_pattern else ''} {e} {type(e).__name__}")
 
 
-def clear_sys(database, target, conn, cur, config_file, email, compLVL, dcr=True):
+def clear_sys(database, target, conn, cur, config_file, email, user, compLVL, dcr=True):
     try:
         if table_has_data(conn, "sys"):
             cur.execute("DELETE FROM sys")
@@ -226,7 +233,7 @@ def clear_sys(database, target, conn, cur, config_file, email, compLVL, dcr=True
             conn.commit()
 
             nc = cnc(database, compLVL)
-            rlt = encr(database, target, email, no_compression=nc, dcr=True)
+            rlt = encr(database, target, email, user=user, no_compression=nc, dcr=True)
             if rlt:
 
                 update_toml_setting('shield', 'proteusSHIELD', False, config_file)
@@ -242,12 +249,11 @@ def clear_sys(database, target, conn, cur, config_file, email, compLVL, dcr=True
     return False
 
 
-def activateps(parsedsys, database, target, conn, cur, email, compLVL):
+def activateps(parsedsys, database, target, conn, cur, email, user, compLVL):
     try:
         insert(parsedsys, conn, cur, "sys", ['count', 'mtime_us'])
-        conn.commit()
         nc = cnc(database, compLVL)
-        rlt = encr(database, target, email, no_compression=nc, dcr=True)
+        rlt = encr(database, target, email, user=user, no_compression=nc, dcr=True)
         if rlt:
             print("Proteus shield activated.")
         else:
@@ -277,6 +283,7 @@ def run_sys_profile(appdata_local, tempdir, database, target, config_file, log_f
             config_file,
             str(log_file),
             email,
+            user,
             ll_level,
             turbo,
             str(compLVL)
@@ -327,7 +334,7 @@ def ps(database, target, conn, cur, config_file, user, email, turbo, compLVL, lo
             return False
         print("Clearing sys table")
 
-        if not clear_sys(database, target, conn, cur, config_file, email, compLVL, True):
+        if not clear_sys(database, target, conn, cur, config_file, email, user, compLVL, True):
             print("initial Sys clear failed. exiting...")
             return False
 
@@ -378,7 +385,7 @@ def results(database, target, conn, cur, email, user, flth, config_path, turbo, 
     selected_table = tk.StringVar(value=tables[0])
 
     def clear_sys_and_redraw():
-        if clear_sys(database, target, conn, cur, config_path, email, compLVL, dcr=True):
+        if clear_sys(database, target, conn, cur, config_path, email, user, compLVL, dcr=True):
             selected_table.set("logs")
             table_menu.event_generate("<<ComboboxSelected>>")
 
@@ -414,7 +421,7 @@ def results(database, target, conn, cur, email, user, flth, config_path, turbo, 
 
     hardlink_button = tk.Button(toolbar, text="Set Hardlinks", command=lambda: hardlinks(database, target, conn, cur, user, email, compLVL))
     hardlink_button.pack(side=tk.RIGHT, padx=10)
-    clear_cache_button = tk.Button(toolbar, text="Clear Cache", command=lambda: clear_cache(database, target, flth, conn, cur, email, compLVL, cachermPATTERNS))
+    clear_cache_button = tk.Button(toolbar, text="Clear Cache", command=lambda: clear_cache(database, target, flth, conn, cur, email, user, compLVL, cachermPATTERNS))
     clear_cache_button.pack(side=tk.RIGHT, padx=10)
     new_button = tk.Button(lower_frame, text="Clear sys", command=lambda: clear_sys_and_redraw())
     new_button.pack(side=tk.RIGHT, padx=10)
@@ -446,7 +453,7 @@ def results(database, target, conn, cur, email, user, flth, config_path, turbo, 
         for col in columns:
             tree.heading(col, text=col, command=lambda _col=col: sort_column(tree, _col, columns))
             if col == "filename":
-                tree.column(col, width=1200, anchor="w", stretch=True)
+                tree.column(col, width=1200, anchor="w", stretch=True)  # user = None
             elif col == "id":
                 tree.column(col, width=60, anchor="w", stretch=True)
             elif col in ("timestamp", "accesstime", "changetime"):
@@ -512,14 +519,12 @@ def showdb(question):
 def main(usr, reset=None):
 
     appdata_local = find_install()
-    toml_file, _, _, _, _ = get_config(appdata_local, usr)
+    toml_file, home_dir, _, _, uid, gid = get_config(appdata_local, usr)
+
     config = load_toml(toml_file)
     cachermPATTERNS = config['backend']['cachermPATTERNS']
     email = config['backend']['email']
     compLVL = config['logs']['compLVL']
-    flth = appdata_local / "flth.csv"
-    dbtarget = appdata_local / "recent.gpg"
-    ctimecache = appdata_local / "ctimecache.gpg"
     ll_level = config['logs']['logLEVEL']
     root_log_file = config['logs']['rootLOG']
     log_file = config['logs']['userLOG'] if usr != "root" else root_log_file
@@ -528,7 +533,12 @@ def main(usr, reset=None):
 
     cachermPATTERNS = cache_clear_patterns(usr, cachermPATTERNS)
 
+    pst_data = Path(home_dir) / ".local" / "share" / "save-changesnew"
+    flth = pst_data / "flth.csv"
+    dbtarget = pst_data / "recent.gpg"
+    ctimecache = pst_data / "ctimecache.gpg"
     log_file = appdata_local / "logs" / log_file
+
     output = name_of(dbtarget, '.db')
 
     flth = str(flth)
@@ -543,22 +553,24 @@ def main(usr, reset=None):
         return delete_gpg_keys(usr, email, dbtarget, ctimecache, flth)
 
     try:
-
+        # with tempfile.TemporaryDirectory() as tempdir:
         with tempfile.TemporaryDirectory(dir='/tmp') as tempdir:
 
             logging_values = (log_file, ll_level, appdata_local, tempdir)
             setup_logger(log_file, ll_level, "QUERY")
 
             dbopt = os.path.join(tempdir, output)
-
+            # dbopt = os.path.join(dst, output)
             if not gpg_can_decrypt(usr, dbtarget):
                 return 0
 
             # can easily break if trying to automate fixing keys. let the user do it if wanted.
 
-            result = decr(dbtarget, dbopt)
+            result = decr(dbtarget, dbopt, usr)
             if result:
 
+                # change_perm(dbopt, uid, gid)
+                # subprocess.run(["sudo", "chown", "guest:guest", dbopt], check=True)
                 if os.path.isfile(dbopt):
                     with sqlite3.connect(dbopt) as conn:
                         cur = conn.cursor()
@@ -677,16 +689,23 @@ def main(usr, reset=None):
                             with open(flth, 'r') as file:
                                 for line in file:
                                     print(line, end='')
-                        if showdb("display database?"):
-                            wish_path = shutil.which("wish")
-                            if wish_path:
-                                print(f'database in: {tempdir}')
-                                results(dbopt, dbtarget, conn, cur, email, usr, flth, toml_file, turbo, compLVL, logging_values, cachermPATTERNS)
-                                return 0
+
+                        res = showdb("display database?")
+                        if res:
+                            if TK_AVAILABLE:
+                                wish_path = shutil.which("wish")
+                                if wish_path:
+                                    print(f'database in: {tempdir}')
+                                    results(dbopt, dbtarget, conn, cur, email, usr, flth, toml_file, turbo, compLVL, logging_values, cachermPATTERNS)
+                                    return 0
+                                else:
+                                    print("Install tk to display db.")
                             else:
-                                print("Install tk to display db.")
+                                print("tk not available, skipping database display.")
+
                         else:
                             return 0
+
                 else:
                     # no recent.db file permission error abort so sql doesnt make an empty database
                     print("Unable to locate database: ", dbopt)

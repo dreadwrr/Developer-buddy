@@ -42,14 +42,14 @@ def _fk_process(pattern):
     return False
 
 
-def strup(script_dir, home_dir, inotify_creation_file, CACHE_F, checksum, MODULENAME, log_file):
+def strup(script_dir, home_dir, inotify_creation_file, cache_f, checksum, moduleNAME, log_file):
 
     script_path = os.path.join(script_dir, 'start_inotify')
     cmd = [
         script_path,
         str(inotify_creation_file),
-        MODULENAME,
-        str(CACHE_F),
+        moduleNAME,
+        str(cache_f),
         str(checksum).lower(),
         str(home_dir),
         "ctime",
@@ -196,13 +196,13 @@ def parselog(file, checksum):
     return results
 
 
-def rotate_cache(cfr, CACHE_F):
-    if CACHE_F.is_file():
-        rotated = CACHE_F.with_name(CACHE_F.name + ".old")
+def rotate_cache(cfr, cache_f):
+    if cache_f.is_file():
+        rotated = cache_f.with_name(cache_f.name + ".old")
         if rotated.exists():
             logging.debug("init_recentchanges old cachefile already existed %s", rotated)
             removefile(rotated)
-        os.rename(CACHE_F, rotated)
+        os.rename(cache_f, rotated)
         with rotated.open("r") as f:
             for line in f:
                 line = line.rstrip("\n")
@@ -259,7 +259,7 @@ def parse_tout(log_file, checksum):
     return all_files
 
 
-def init_recentchanges(script_dir, home_dir, inotify_creation_file, cfr, xRC, checksum, MODULENAME, log_path):
+def init_recentchanges(script_dir, home_dir, inotify_creation_file, cfr, xRC, checksum, moduleNAME, log_path):
     try:
         all_files = []
         search_pattern = os.path.join(script_dir.name, "inotify")
@@ -268,13 +268,13 @@ def init_recentchanges(script_dir, home_dir, inotify_creation_file, cfr, xRC, ch
 
             cached = Path("/tmp/dbctimecache/")
 
-            CACHE_F = cached / "ctimecache"
+            cache_f = cached / "ctimecache"
 
             os.makedirs(cached, mode=0o700, exist_ok=True)
 
             if process_status(search_pattern):
                 fk_success = _fk_process('inotifywait -m -r -e create -e moved_to --format %e|%w%f%0')
-                rotate_cache(cfr, CACHE_F)
+                rotate_cache(cfr, cache_f)
 
                 if os.path.isfile(inotify_creation_file):
 
@@ -282,12 +282,12 @@ def init_recentchanges(script_dir, home_dir, inotify_creation_file, cfr, xRC, ch
 
                 open(inotify_creation_file, 'w').close()
                 if fk_success or not process_status(search_pattern):
-                    strup(script_dir, home_dir, inotify_creation_file, CACHE_F, checksum, MODULENAME, log_path)
+                    strup(script_dir, home_dir, inotify_creation_file, cache_f, checksum, moduleNAME, log_path)
                 else:
                     removefile(inotify_creation_file)
             else:
                 removefile(inotify_creation_file)
-                strup(script_dir, home_dir, inotify_creation_file, CACHE_F, checksum, MODULENAME, log_path)
+                strup(script_dir, home_dir, inotify_creation_file, cache_f, checksum, moduleNAME, log_path)
         else:
             if process_status(search_pattern):
                 fk_success = _fk_process('inotifywait -m -r -e create -e moved_to --format %e|%w%f%0')

@@ -13,16 +13,11 @@ from rntchangesfunctions import removefile
 
 
 # enc mem
-def encrm(c_data: str, opt: str, r_email: str, no_compression: bool = True, armor: bool = False) -> bool:
+def encrm(c_data: str, opt: str, r_email: str, user=None, no_compression: bool = True, armor: bool = False) -> bool:
     try:
-        cmd = [
-            "gpg",
-            "--batch",
-            "--yes",
-            "--encrypt",
-            "-r", r_email,
-            "-o", opt
-        ]
+        # user = None  # force root gpg agent
+        cmd = set_cmd(user)
+        cmd += ["gpg", "--batch", "--yes", "--encrypt", "-r", r_email, "-o", opt]
 
         if no_compression:
             cmd.extend(["--compress-level", "0"])
@@ -54,35 +49,45 @@ def set_cmd(user):
 
 
 # dec mem
-def decrm(src):
+def decrm(src: str, user=None) -> str | None:
+    # user = None
+    cmd = set_cmd(user)
+    cmd += ["gpg", "--decrypt", src]
+    ret = subprocess.run(cmd, stdout=subprocess.PIPE)
+    if ret.returncode != 0:
+        return None
+    return ret.stdout.decode("utf-8")
 
+    # original commented out to not conflict with pinentry
+    # try:
+    #     cmd = ["gpg", "--quiet", "--batch", "--yes", "--decrypt", src]
+
+    #     result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")  # check=True removed for parsing errors
+    #     if result.returncode != 0:
+    #         if result.returncode == 2:
+    #             stderr = (result.stderr or "").lower()
+    #             if "permission" not in stderr and "pinentry" not in stderr:
+    #                 # No key
+    #                 return None
+    #         raise subprocess.CalledProcessError(result.returncode, cmd, output=result.stdout, stderr=result.stderr)
+    #     return result.stdout
+
+    # except subprocess.CalledProcessError as e:
+    #     print(f"[ERROR] Cache Decryption failed: {e} {type(e).__name__} \n {traceback.format_exc()}")
+    #     combined = "\n".join(filter(None, [e.stdout, e.stderr]))
+    #     if combined:
+    #         print(combined)
+    #     if "permission" in (e.stderr or "").lower():
+    #         print("Invalid password or Pinentry problem ensure using the correct pinentry package 15.0 or current. current for porteus alpha")
+    #         print("Alternatively try to use pinentry-gtk-2 so root can prompt for password**")
+    #     return False
+
+
+def encr(database, opt, email, user=None, no_compression=False, dcr=False):
     try:
-        cmd = ["gpg", "--quiet", "--batch", "--yes", "--decrypt", src]
-
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")  # check=True removed for parsing errors
-        if result.returncode != 0:
-            if result.returncode == 2:
-                stderr = (result.stderr or "").lower()
-                if "permission" not in stderr and "pinentry" not in stderr:
-                    # No key
-                    return None
-            raise subprocess.CalledProcessError(result.returncode, cmd, output=result.stdout, stderr=result.stderr)
-        return result.stdout
-
-    except subprocess.CalledProcessError as e:
-        print(f"[ERROR] Cache Decryption failed: {e} {type(e).__name__} \n {traceback.format_exc()}")
-        combined = "\n".join(filter(None, [e.stdout, e.stderr]))
-        if combined:
-            print(combined)
-        if "permission" in (e.stderr or "").lower():
-            print("Invalid password or Pinentry problem ensure using the correct pinentry package 15.0 or current. current for porteus alpha")
-            print("Alternatively try to use pinentry-gtk-2 so root can prompt for password**")
-        return False
-
-
-def encr(database, opt, email, no_compression=False, dcr=False):
-    try:
-        cmd = ["gpg", "--yes", "--encrypt", "-r", email, "-o", opt]
+        # user = None
+        cmd = set_cmd(user)
+        cmd += ["gpg", "--yes", "--encrypt", "-r", email, "-o", opt]
         if no_compression:
             cmd.extend(["--compress-level", "0"])
         cmd.append(database)
@@ -102,65 +107,46 @@ def encr(database, opt, email, no_compression=False, dcr=False):
     return False
 
 
-def decr(src, opt):
+def decr(src, opt, user=None):
     if os.path.isfile(src):
-        try:
-            cmd = ["gpg", "--yes", "--decrypt", "-o", opt, src]
-            result = subprocess.run(cmd, capture_output=True, text=True)  # check=True
-
-            if result.returncode != 0:
-                if result.returncode == 2:
-                    stderr = (result.stderr or "").lower()
-                    if "permission" not in stderr and "pinentry" not in stderr:
-                        # No key
-                        return None
-                raise subprocess.CalledProcessError(result.returncode, cmd, output=result.stdout, stderr=result.stderr)
-            return True
-
-        except subprocess.CalledProcessError as e:
-            print(f"[ERROR] Decryption failed:  {e} return_code: {e.returncode}")
-            combined = "\n".join(filter(None, [e.stdout, e.stderr]))
-            if combined:
-                print("[OUTPUT]\n" + combined)
-
-        except FileNotFoundError as e:
-            print("GPG not found. Please ensure GPG is installed. or could not find file: ", src, " error: ", e)
-        except Exception as e:
-            print(f"[ERROR] decr Unexpected exception err: {e} {type(e).__name__} \n {traceback.format_exc()}")
+        # user = None
+        cmd = set_cmd(user)
+        cmd += ["gpg", "--yes", "--decrypt", "-o", opt, src]
+        result = subprocess.run(cmd)  # capture_output=True, text=True
+        return result.returncode == 0
     else:
         print(f"[ERROR] File {src} not found. Ensure the .gpg file exists.")
-
     return False
 
 
-def encr_cache(cfr, CACHE_F, user, uid, gid, email, compLVL):
+def encr_cache(cfr, cache_f, user, uid, gid, email, compLVL):
     data_to_write = dict_to_list(cfr)
     ctarget = dict_string(data_to_write)
 
-    nc = cnc(CACHE_F, compLVL)
+    nc = cnc(cache_f, compLVL)
 
     new_file = False
-    if not os.path.isfile(CACHE_F):
+    if not os.path.isfile(cache_f):
         new_file = True
 
-    rlt = encrm(ctarget, CACHE_F, email, no_compression=nc, armor=False)
+    rlt = encrm(ctarget, cache_f, email, user=user, no_compression=nc, armor=False)
     if not rlt:
         print("Reencryption failed cache not saved.")
-
+    # else:
+    #     change_perm(cache_f, uid, gid)
     if new_file:
-        change_perm(CACHE_F, uid, gid)
+        change_perm(cache_f, uid, gid)
 
 
-def decr_ctime(CACHE_F, user):
-    if not CACHE_F or not os.path.isfile(CACHE_F):
+def decr_ctime(cache_f, user):
+    if not cache_f or not os.path.isfile(cache_f):
         return {}
 
-    csv_path = decrm(CACHE_F)
+    csv_path = decrm(cache_f, user)
     if not csv_path:
         if csv_path is None:
-            print("Root doesnt have the key.")
             print("if having problems run recentchanges reset to clear .gpg files and keys")
-        print(f"Unable to retrieve cache file {CACHE_F}. cache file might be corrupt removing the file may resolve issue. quitting.")
+        print(f"Unable to retrieve cache file {cache_f}. cache file might be corrupt removing the file may resolve issue. quitting.")
         sys.exit(1)
 
     cfr_src = {}
@@ -191,6 +177,48 @@ def decr_ctime(CACHE_F, user):
         }
 
     return cfr_src
+
+
+# commandline start the users gpg agent before decrypting the cache file above ***
+# also used for processhandler.py to start the gpg agent before QProcess
+def start_user_agent(gpg_file, user=None):
+    """ Not used as requires an existing .gpg file
+          pipes will fail with inappropriate ioctl for device unless using gui pinetry """
+    # user = None  # force root gpg agent
+    cmd = set_cmd(user)
+    cmd += ["gpg", "--decrypt", "--dry-run", gpg_file, "-o", "/dev/null"]
+    result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    stderr = result.stderr
+    if stderr:
+        for line in stderr.splitlines():
+            if "no secret key" in line.lower():
+                print(line)
+                print(f"No key for {gpg_file} delete the file to reset")
+                return False
+    return result.returncode == 0
+
+
+def start_gpg_agent(source, email):
+    """ prep the gpg agent so root can use users cached gpg password """
+    result = subprocess.run(["gpg", "--local-user", email, "--output", "/dev/null", "--sign", source], text=True)
+    if result.returncode == 0:
+        return True
+    if result.stderr:
+        for line in result.stderr.split(b'\n'):
+            """ print(line.decode('utf-8', errors='ignore')) """
+            # if b"ioctl" in line.lower():  # wont show up with loopback
+            #     return None
+            if email.encode() not in line:
+                if b"bad passphrase" in line.lower():
+                    """ print(line.decode('utf-8', errors='ignore')) """
+                    return False
+                """ print(line.decode('utf-8', errors='ignore')) """
+        for line in result.stdout.split(b'\n'):
+            if b"bad passphrase" in line.lower():
+                """ print(line) """
+                return False
+
+    return None
 
 
 # can also delete the key with the subid from fingerprint of the .gpg file

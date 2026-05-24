@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database.     03/25/2026
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database.     05/22/2026
 import os
 import sqlite3
 import sys
@@ -20,14 +20,17 @@ from pysql import insert
 from pysql import insert_if_not_exists
 from pysql import table_has_data
 from pysql import collision_check
+# from rntchangesfunctions import change_perm
 
 
-def main(dbtarget, xdata, COMPLETE, user_setting, logging_values, rout, scr, cerr, cachermPATTERNS, dcr=False):
+def main(dbtarget, xdata, complete, user_setting, logging_values, rout, scr, cerr, cachermPATTERNS, dcr=False):
 
-    user = user_setting['USR']
+    user = user_setting['usr']
+    # uid = user_setting['uid']
+    # gid = user_setting['gid']
     email = user_setting['email']
     mMODE = user_setting['mMODE']
-    ANALYTICSECT = user_setting['ANALYTICSECT']
+    analyticSECT = user_setting['analyticSECT']
     checksum = user_setting['checksum']
     cdiag = user_setting['cdiag']
     ps = user_setting['ps']
@@ -48,20 +51,20 @@ def main(dbtarget, xdata, COMPLETE, user_setting, logging_values, rout, scr, cer
     res = 0
 
     # original with a temp dir cant leave db to reencrypt if everything succeeds but only reencryption fails. so leave in app directory with proper perms
-    # TEMPDIR = tempfile.gettempdir()
-    # TEMPDIR = tempfile.mkdtemp()
-    # os.makedirs(TEMPDIR, exist_ok=True)
-    # with tempfile.TemporaryDirectory(dir=TEMPDIR) as mainl:
+    # tempdir = tempfile.gettempdir()
+    # tempdir = tempfile.mkdtemp()
+    # os.makedirs(tempdir, exist_ok=True)
+    # with tempfile.TemporaryDirectory(dir=tempdir) as mainl:
     # dbopt = name_of(dbtarget, 'db')   # generic output database
     # with tempfile.TemporaryDirectory(dir='/tmp') as tempdir:
     #     dbopt = os.path.join(tempdir, dbopt)
 
-    # app_dir = os.path.dirname(dbtarget)
-    app_dir = logging_values[2]
+    app_dir = os.path.dirname(dbtarget)
+    # app_dir = logging_values[2]
     dbopt = os.path.join(app_dir, outfile)
 
     if os.path.isfile(dbtarget):
-        sts = decr(dbtarget, dbopt)
+        sts = decr(dbtarget, dbopt, user)
         if not sts:
             if sts is None:
                 print(f"pstsrg unable to do hybrid analysis No key for {dbtarget} delete it to make a new one.")
@@ -118,7 +121,7 @@ def main(dbtarget, xdata, COMPLETE, user_setting, logging_values, rout, scr, cer
 
                 try:
 
-                    csum = hanly_parallel(rout, scr, cerr, mMODE, xdata, cachermPATTERNS, ANALYTICSECT, checksum, cdiag, dbopt, is_ps, user, logging_values)
+                    csum = hanly_parallel(rout, scr, cerr, mMODE, xdata, cachermPATTERNS, analyticSECT, checksum, cdiag, dbopt, is_ps, user, logging_values)
 
                 except Exception as e:
                     print(f"hanlydb failed to process on mode {mMODE}: {e} {traceback.format_exc()}", file=sys.stderr)
@@ -153,9 +156,9 @@ def main(dbtarget, xdata, COMPLETE, user_setting, logging_values, rout, scr, cer
         # Stats
         if rout:
 
-            if COMPLETE:  # store no such files
-                rout.extend([" ".join(map(str, item)) for item in COMPLETE])
-                # rout.extend(" ".join(map(str, item)) for item in COMPLETE)
+            if complete:  # store no such files
+                rout.extend([" ".join(map(str, item)) for item in complete])
+                # rout.extend(" ".join(map(str, item)) for item in complete)
 
             try:
                 for record in rout:
@@ -178,11 +181,13 @@ def main(dbtarget, xdata, COMPLETE, user_setting, logging_values, rout, scr, cer
             try:
                 conn.commit()
                 nc = cnc(dbopt, compLVL)
-                sts = encr(dbopt, dbtarget, email, no_compression=nc, dcr=dcr)
+
+                sts = encr(dbopt, dbtarget, email, user=user, no_compression=nc, dcr=dcr)
                 if not sts:
                     res = 3  # & 2 gpg problem
                     print(f'Failed to encrypt database. Run   gpg --yes -e -r {email} -o {dbtarget} {dbopt}  before running again to preserve data.')
-
+                # else:
+                #     change_perm(dbtarget, uid, gid)
             except Exception as e:
                 res = 3
                 print(f'Encryption failed: {e}')
