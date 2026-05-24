@@ -1,20 +1,17 @@
 #                               05/22/2026
-First started a Qt gui for Windows 10/11. https://github.com/dreadwrr/Recentchanges <br>
-Qt for linux https://github.com/dreadwrr/Recentchanges-Linux<br><br>
+
 
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
 
 for Porteus 5.01, 5.1 and Nemesis 
 
+This is my script which includes recentchanes as well as save-changesnew. There is now only the bash and bash python version being the main version. A special edition py ver will be available
+and linked on here and the documentation. This will help streamline development as I move to just bash qt for the primary releases. Both being on the opposite sides of implementation.
 
-Version available <br>
-1.3.1-py python edition<br>
-1.3.2 Bash text backend or bash python database backend new release! with changes to save-changesnew <br>
+I first started a Qt gui for Windows 10/11. https://github.com/dreadwrr/Recentchanges <br>
+A linux Qt version is available https://github.com/dreadwrr/Recentchanges-Linux<br><br>
 
-all versions updated with Qt version hybrid analysis changes <br>
-<br>
-
-
+Going forward I will be looking for new ideas to expand and improve recentchanges eventually splitting the two into different modules.
 
 
 Commands:<br>
