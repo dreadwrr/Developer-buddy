@@ -1,7 +1,10 @@
 #                               05/24/2026
 ## Python edition <br>
 
-This is the python special edition of recent changes. the main difference is the find command is streamed and the functionality implemented in python. <br>
+Full logging system, xRC inotify, isdiff, logic, display, filterhits, process hybrid analysis, filter output pretty much all the logic rewritten in python
+slight change in data handling with use of arrays vs files in bash ( rout the file that handles ha output and file actions)
+the filter is filter.py and there is a config.toml <br>
+
 both the bash and the python edition have the advantages of not needing any dependencies. <br><br>
 
 v1.3.2-py <br>
@@ -36,12 +39,6 @@ New symlink target changed detection <br>
 Build system profile in python. updated to ensure profile is built accurately from base xzms <br>
 New updates to save-changesnew <br><br>
 Released v1.2.6-py1 with finalized, inotify wait and other features!<br><br>
-Updated launch script for compatibility with wayland and other distros<br><br> 
-Differences from bash and bash\python backends is the find command is streamed with the main search written in python. <br><br>
-Full logging system, xRC inotify, isdiff, logic, display, filterhits, process hybrid analysis, filter output pretty much all the logic rewritten in python
-slight change in data handling with use of arrays vs files in bash ( rout the file that handles ha output and file actions)
-the filter is filter.py and there is a config.toml <br><br>
-
 
 ![Logo](https://i.imgur.com/sbZa1r3.png)
 
