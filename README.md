@@ -15,6 +15,7 @@ Linux https://github.com/dreadwrr/Recentchanges-Linux<br><br>
 
 Going forward I will be looking for new ideas to expand and improve recentchanges eventually splitting the two into different modules.
 
+Requirements: gpg agent pinentry setup for root <br>
 
 Commands:<br>
 save-changesnew<br>
