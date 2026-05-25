@@ -1,6 +1,9 @@
 #                               05/24/2026
 ## Python edition <br>
 
+This is the python special edition of recent changes. the main difference is the find command is streamed and functionality implemented in python. <br>
+both the bash and the python edition have the advantages of not needing any dependencies. <br><br>
+
 v1.3.2-py <br>
 py ver is now the special edition of recentchanges with the focus of main release being bash
 Added only user pinentry needed instead of shared keys between root and user
@@ -12,7 +15,6 @@ support for encrypted .dat backups <br>
 new merge logic in case a file changed to directory and vice versa to avoid file cannot overwrite directory error while merging.<br>
 ensured mounts are handled properly with proper error handling <br>
 general cleanup and organization of function names <br><br>
-
 v1.3.0-py <br>
 added .dat support for backup on changes= and changes=EXIT <br>
 changed the way .wh. are handled with rsync<br>
