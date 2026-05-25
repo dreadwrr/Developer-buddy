@@ -1,7 +1,7 @@
 #                               05/24/2026
 ## Python edition <br>
 
-This is the python special edition of recent changes. the main difference is the find command is streamed and functionality implemented in python. <br>
+This is the python special edition of recent changes. the main difference is the find command is streamed and the functionality implemented in python. <br>
 both the bash and the python edition have the advantages of not needing any dependencies. <br><br>
 
 v1.3.2-py <br>
