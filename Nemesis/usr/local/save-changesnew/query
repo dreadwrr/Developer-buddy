@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #   recentchanges query                recentchanges v5.0                                                                               05/22/2026
 #   retrieval of data  from  /tmp  or  logpst and statpst
 . /usr/share/porteus/porteus-functions
@@ -18,7 +18,9 @@ logpst=$dr/logs.gpg						    ;	output_file=$rtmp/output.log
 statpst=$dr/stats.gpg					    ;	flth=$dr/flth.csv
 timestamp=$(date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_')
 mkdir $rtmp
+
 if [ "$STATPST" == "true" ]; then
+	
     if [ -s $logpst ]; then
         cyan "Pulling logs from persistent storage"
         if gpg -d -o $xdata $logpst; then #decrypt

@@ -1,5 +1,5 @@
 #!/bin/bash
-#   Developer buddy 5.0 core                                               05/22/2026
+#   Developer buddy 5.0 core                                               06/10/2026
 
 fmt="%Y-%m-%d %H:%M:%S"
 
@@ -266,8 +266,10 @@ fi
 }
 decrypt(){	if ! gpg --yes -d -o $1 $2; then return 1; fi; }
 iscopy() {
-local r y
+local r y found
+
 while IFS= read -r p; do
+	found="false"
     read -r f1 f2 f3 f4 f5 f6 f7 f8 f9 _ <<< "$p"
 	[[ -z "$f9" ]] && continue
     dt="$f1 $f2" ; cFILE="$f3" ; ct="$f4 $f5"
@@ -279,15 +281,26 @@ while IFS= read -r p; do
 		if [ "$in" -ge 0 ] 2>/dev/null && [ "$oin" -ge 0 ] 2>/dev/null; then
 			if (( in != oin )); then
 				if is_valid_date "$at" && is_valid_date "$oat"; then 
+					found="true"
 					r="${cFILE#\"}"
-					cFILE="${r%\"}"
-				    y="$( ap_filedec "$cFILE")"
+					r="${r%\"}"
+				    y="$( ap_filedec "$r")"
 					echo "Copy $dt $ct $y" >> "$rout"
 					break
 				fi
 			fi
 		fi
 	done < <(grep -E "[[:space:]]$chksum[[:space:]]" "$1")
+	if [ "$found" == "false" ]; then
+		if is_valid_date "$ct"; then
+			if [[ "$ct" > "$dt" ]]; then
+				r="${cFILE#\"}"
+				r="${r%\"}"
+				y="$( ap_filedec "$r")"
+				echo "Casmod $dt $ct $y" >> "$rout"
+			fi
+		fi
+	fi
 done < "$2"
 }
 collision() {
@@ -468,15 +481,18 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 	fi
 done < $SORTCOMPLETE
 (( ${#collisions[@]} )) && for entry in "${collisions[@]}"; do echo "$entry" >> "$cerr" ; done
-
 }
 hanly(){
 local y=8
 declare -a collisions=()
-x=$(wc -l < "$SORTCOMPLETE")
+
+unique_files=$(awk '{print $3}' $2 | sort | uniq | wc -l | tr -d ' ') 
+start=$(date +%s.%N)
+
+
 if [ "$mMODE" == "mc" ] && (( x > 100 )); then
 	workfld=$workdir
-	y=$(( (x + max_jobs - 1) / max_jobs )) 
+	y=$(( (total_files + max_jobs - 1) / max_jobs )) 
 	split -l $y --numeric-suffixes=1 --suffix-length=4 "$SORTCOMPLETE" "$atmp/sortchunk_"
 	find "$atmp" -type f -name 'sortchunk_*' -print0 | xargs -0 -P"$max_jobs" -I{} /usr/local/save-changesnew/haloop $atmp$workfld "{}" $2 $checkSUM $cdiag  # sort -z
 	isoutput haloop1* haloop2* haloop3* haloop4* $rout $slog $cerr $TMPCOMPLETE
@@ -487,7 +503,9 @@ else
 	while read -r p; do key="$(perl -nE 'say $1 if /"((?:[^"\\]|\\.)*)"/' <<< "$p")" ; ref_map["$key"]="$p" ; done < $2
 	hablk "A" $TMPCOMPLETE
 fi
-# check for copies
+end=$(date +%s.%N)
+ha_total_time=$(awk "BEGIN {print $end - $start}")   # ha time
+# check for copies and downloads or casmod
 test -s $TMPCOMPLETE && iscopy $2 $TMPCOMPLETE
 rm $2  # remove the copy of log pst used in hanly
 processha "$@"
@@ -520,7 +538,9 @@ while IFS= read -r file; do
 		if [[ "$critical" != "no" ]]; then
             if [[ "$file" == "$critical"* ]] || [[ "$file" == "$col"* ]]; then 
                 "$seccolor" "$file $type Critical" ; flg="true"
-            fi
+			elif [[ "$file" == "RESULT"* ]]; then
+				read -r _ ha_total_time logger_total_time unique_files <<< "$file"
+			fi 
         elif [[ "$critical" == "no" ]]; then
            ! is_suppressed && "$seccolor" "$file $type"
         fi
@@ -558,6 +578,12 @@ if [ -s $rout ]; then
 		cp $TMPOUTPUT $TMPCOMPLETE
 	fi
 	awk '{printf "%-9s\t%-19s %s\n", $1, $2" "$3, substr($0, index($0,$4))}' "$TMPCOMPLETE" >> "$difffile"
+
+	cend=$(date +%s.%N)
+	if [ "$backend" == "default" ] && [ -n "$unique_files" ]; then
+		logger_total_time=$(awk "BEGIN {print $cend - $end}")  # ha logger time
+		printf "%s %.3f %s %.3f %s\n" "Hanly total time" "$ha_total_time" "seconds logger:" "$logger_total_time" "seconds"
+	fi
 
 	get_colors
 	if [ -s "/tmp/cerr" ]; then 
@@ -661,6 +687,61 @@ fi
 if [ "$samerlt" == "true" ] && [ "$syschg" == "true" ] && [ "$nodiff" == "true" ]; then cyan "The sys search was the same as before." ; fi
 if [ "$diffrlt" == "false" ] && [ "$nodiff" == "true" ]; then green " Nothing in the sys diff file. That is the results themselves are true" ; fi
 }
+analytics() {
+if  [[ "$ANALYTICSECT" = "true" ]]; then
+    
+    printf "Search took %.3f seconds.\n" "$el"
+	if [ "$checkSUM" == "true" ]; then
+
+		printf "Checksum took %.3f seconds.\n" "$el2"
+	fi
+	echo
+
+	# new analytics with lifetime_total and lifetime_time stored in CACHE_F and ctimecache.gpg	
+
+	echo "Files scanned: $total_files"
+	
+	throughput=$(awk "BEGIN {printf \"%.3f\", ($total_files / $total_time) * 60}")  # throughput=$(( total_files / total_time ))  bash cant do floats
+
+	# ie syschg="true" if there were results
+	if (( total_files > 0 )); then
+
+		lifetime_throughput=""
+
+		# if its the first run dont display lifetime throughput.
+		# lifetime_total set means a proper parse of analytics from the cache file and a pstsrg returned 0
+
+		if [[ "$valid_data" = "true" && -n "$lifetime_total" ]]; then
+			# initial draft
+			#x=$(awk "BEGIN {printf \"%.3f\", ($lifetime_total / $lifetime_time) * 60}")
+			#lifetime_throughput="Lifetime throughput: $x"
+
+			# alternative to above one liner but not protected from division by zero $(awk "BEGIN {printf \"%.3f\", ($lifetime_total / $lifetime_time) * 60}")"
+			# final there is a slim chance of division by zero but it is effectively zero
+			lifetime_throughput=$(awk -v t="$lifetime_time" -v n="$lifetime_total" '
+			BEGIN {
+				if (t > 0)
+					printf "%.3f", (n / t) * 60;
+				else
+					printf "0.000";
+			}')
+			lifetime_throughput="Lifetime throughput: $lifetime_throughput"
+		fi
+
+		echo "Perceived throughput: $throughput files per second $lifetime_throughput"
+
+		# unique files is set from pstsrg and can only be true after the first run. this will also prevent desync from ctimecache.gpg and recent.gpg
+		# as well unique_files isnt displayed if its 0 
+
+		if [ -n "$unique_files" ]; then
+			echo
+			echo "Total unique files in logs: $unique_files"
+		fi
+	fi
+fi
+# print float with awk # time=$(awk "BEGIN {printf \"%.3f\", $end - $start}")
+
+}
 display() {
 local locale=$1
 if [ "$dspEDITOR" != "false" ]; then
@@ -759,6 +840,7 @@ if [ "$ret" -ne 0 ]; then
 fi
 }
 backend() { 
+total_files=$(wc -l < "$SORTCOMPLETE" 2>/dev/null || echo 0)
 ofile=$atmp/tmpinfo ; tfile3=$atmp/tmpd
 # mkdir -p "$xopt"
 # TMPDIR=$(mktemp -d $xopt/tmpda.XXXXXX)  copy of log pst to seperate dir
@@ -827,33 +909,74 @@ if [ "$STATPST" == "true" ]; then
 		else
 			cores=""
 			if ! gpg --list-keys | grep -q $email; then generatekey ; fi
-			python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $COMPLETE $pydbpst $rout $checkSUM $cdiag $USR $email $mMODE $ANALYTICSECT $proteusSHIELD $compLVL
-			ret=$?
-			pyerrblk
+			# pass the search time and checksum time into pstsrg so dont have to return from pstsrg
+			python3 /usr/local/save-changesnew/pstsrg.py $SORTCOMPLETE $COMPLETE $pydbpst $rout $checkSUM $cdiag $USR $email $mMODE $ANALYTICSECT $proteusSHIELD $compLVL $total_files
+            ret=$?
+            if [ "$ret" -ne 0 ]; then
+                if [ "$ret" -eq 2 ] || [ "$ret" -eq 3 ]; then
+                    echo "Problem with GPG refer to instructions on setting up pinentry ect. Database preserved."
+                elif [ "$ret" -eq 4 ]; then
+                    echo "Problem with database in psysrg.py"
+                else
+                    echo "Pstsrg.py failed. exitcode $ret"
+                fi
+				valid_data="false"
+            fi
+			# echo "return code: $ret" # debug
 			processha $argf
 		fi
 	fi
 fi
-[[ -f "$CACHE_F" ]] && { gpg --yes -e -r $email -o $ctimecache $CACHE_F ; rm $CACHE_F ; }
-[[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && [[ "$ANALYTICSECT" == "true" ]] && [[ "$backend" == "default" ]] && green "Hybrid analysis on"
+
+total_time=$(awk "BEGIN {print $el + $el2}")
+
+if [[ -f $CACHE_F ]]; then
+	if [[ "$ANALYTICSECT" ]]; then
+		[[ "$backend" = "default" ]] && [[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && green "Hybrid analysis on"
+
+		read -r lt_total lt_time app_start < $CACHE_F  # read the stored count so we can add back to it
+
+		if [[ "$app_start" = "0" ]]; then
+
+			# if its the default value (first run) or a valid float as it should be # awk "BEGIN {exit(!($lifetime_time > 0))}"; then 
+			if [[ "$lt_time" = "0" ]] || [[ "$lt_time" =~ ^-?[0-9]+(\.[0-9]+)?$ ]] then
+
+				# if pstsrg was succesful now update the cache file to avoid desync
+				if [ -n "$valid_data" ]; then
+					lifetime_total=$(( lt_total + total_files ))
+					lifetime_time=$(awk "BEGIN {print $lt_time + $total_time}")
+					sed -i "1s/.*/$lifetime_total $lifetime_time 0/" $CACHE_F  # write the store count back before encryption of cache file
+				fi
+			else
+				echo "incorrect analytic data in $ctimecache the time is: $lifetime_time and should be a float. use recentchanges reset or remove the file"
+			fi
+
+		else
+			echo "Warning cache file $ctimecache missing analytic header skipping analytics. remove the file if persists"
+		fi
+
+	fi
+	# if its STATPST encrypt the cache then remove the cache file
+	[[ "$ANALYTICS" = "false" ]] && { gpg --yes -e -r $email -o $ctimecache $CACHE_F ; rm $CACHE_F ; }
+fi
 
 if [[ "$csum" != "true" && -s $slog && "$suppress" == "false" ]]; then
 	filteroutput $slog "Checksum" "no" "blue" "yellow" "Scr"
 fi
+
 if [[ "$csum" == "true" ]]; then
-	{ echo; echo "cdiag alert"; echo ; grep -v "^Warning File" /tmp/cerr ; } >> "$difffile"
-	rm /tmp/cerr
+	{ echo; echo "cdiag alert"; echo ; grep -vE "^(Warning File|RESULT)" $cerr ; } >> "$difffile"
 fi
+
 # test -e $TMPDIR && rm -rf "${TMPDIR:?}"
 if [ "$POSTOP" == "false" ]; then test -f $rout && rm $rout ; fi
-test -f $slog && rm $slog
-test -f $cerr && rm $cerr
+test -f $slog && rm $slog ; test -f $cerr && rm $cerr
 }
 strup() { /usr/local/save-changesnew/start_inotify $log_file $LCLMODULENAME $CACHE_F "$checkSUM" "ctime" 3600 ; }
 intst() {
 local sz
 #Init
-if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
+start=$(date +%s.%N)
 
 if [[ "$mMODE" == "mc" ]]; then
 	cores=$( nproc 2>/dev/null || echo 1)
@@ -988,7 +1111,7 @@ local mod_time change_time
 local c r
 local checks
 local prev_hash=""
-# local max_retries=0
+local max_retries=$x
 
 if [ "$ino" -ge 0 ] 2>/dev/null && [ "$sze" -ge 0 ] 2>/dev/null; then
 	while (( x >= 0 )); do
@@ -1029,7 +1152,7 @@ if [ "$ino" -ge 0 ] 2>/dev/null && [ "$sze" -ge 0 ] 2>/dev/null; then
 				[[ -z "$a_prm" ]] && break
 				mod_time="$f1 $f2"
 				c=$( date -d "$mod_time" +%s.%N 2>/dev/null)  # %6N
-				[[ -z "$c" ]] && echo "no modified time calculate_checksum error" && return 2  # mtime required # log_lineout $debug_log $debug_file "$log_date" "calculate checksum failed to convert timestamp retry $(( max_retries - x ))"
+				[[ -z "$c" ]] && { echo "no modified time calculate_checksum error" ; log_lineout $debug_log $debug_file "$log_date" "calculate checksum failed to convert timestamp retry $(( max_retries - x ))" ; return 2 ; }  # mtime required #
                 c=$(normalize_ts "$c")
 
 				# if it matches the find command or if two stats match return the checksum
@@ -1053,7 +1176,7 @@ if [ "$ino" -ge 0 ] 2>/dev/null && [ "$sze" -ge 0 ] 2>/dev/null; then
 				modified_epoch=$c
 				change_time="$f3 $f4"
 				r=$( date -d "$change_time" +%s.%N 2>/dev/null)
-				[[ -n "$r" ]] && r=$(normalize_ts "$r") || echo "calculate_checksum changetime was null"  # debug warning # log_lineout $debug_log $debug_file "$log_date" "calculate_csum Warning ct is null on retried. retry $(( max_retries - x ))" && return 1
+				[[ -n "$r" ]] && r=$(normalize_ts "$r") || { echo "calculate_checksum changetime was null" ; log_lineout $debug_log $debug_file "$log_date" "calculate_csum Warning ct is null on retried. retry $(( max_retries - x ))" ; }  # return 1
 				ctime_epoch=$r
 				prev_hash="$checks"
                 sleep $delay
@@ -1064,7 +1187,7 @@ if [ "$ino" -ge 0 ] 2>/dev/null && [ "$sze" -ge 0 ] 2>/dev/null; then
 	    (( x-- ))
 	done
 fi
-# log_lineout $debug_log $debug_file "$log_date" "calculate_csum failed no checksum skipping. retry $(( max_retries - x ))"
+log_lineout $debug_log $debug_file "$log_date" "calculate_csum failed no checksum skipping. retry $(( max_retries - x ))"
 return 1
 }
 # Used for sysprofile as you dont want to cache the checksum
@@ -1075,9 +1198,14 @@ local cam="None"
 
 sl=""
 check_sum=""
+log_date="$(date +"$fmt")"
+# echo "$log_date rblk line in $cur_line" >> /tmp/sp  # add to a log file debug
 
 cur_line="$( ap_safeline "$1")"
 read -r mtime atime itime i sym fs onr grp pmr cFILE <<< "$cur_line"
+
+# the inode is from the .xzm
+# between stat for system inode and use variable in and leave i so calculate_checksum can match inodes
 
 cFILE="$( ap_safeline_dec "$cFILE")"
 y="$( ap_enc "$cFILE")"
@@ -1088,31 +1216,36 @@ ct=$(date -d "@${itime%%.*}" +"$fmt")
 if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 	if [ -n "$mt" ]; then
 
-		mtime=$(normalize_ts "$mtime")
-		itime=$(normalize_ts "$itime")
-		mtime_frac=${mtime#*.}
+		in=$(stat -c '%i' "$cFILE")
+		if [ -n "$in" ]; then
+			mtime=$(normalize_ts "$mtime")
+			itime=$(normalize_ts "$itime")
+			mtime_frac=${mtime#*.}
 
-		[[ "$sym" == l* ]] && sl="y"
-		if [ "$4" == "true" ]; then
-			if [[ -z "$sl" ]]; then
-				calculate_csum "main" "$cFILE" $mtime $i $fs 2 0
+			[[ "$sym" == l* ]] && sl="y"
+			if [ "$4" == "true" ]; then
+				if [[ -z "$sl" ]]; then
+					calculate_csum "main" "$cFILE" $mtime $in $fs 2 0 $debug_log $debug_file "$log_date"  # checksum can log to debug file
+				fi
 			fi
+
+			# log_lineout $5 $6 "$log_date" "rblk checksum was $check_sum"  # send to debug
+		
+			check_sum=${check_sum:-None}
+			fs=${fs:-None} ; sl=${sl:-None}
+			wnr=${onr:-None} ; grp=${grp:-None} ; pmn=${pmr:-None}
+			adtcmd="$check_sum $fs $sl $wnr $grp $pmn $cam"
+
+			ats=$(date -d "@${atime%%.*}" +"$fmt")
+			ct=${ct:-None None}
+			ats=${ats:-None None}
+
+			mtime_oct=$(( 10#$mtime_frac ))
+			mtime_us=$(( mtime_sec * 1000000 + (mtime_oct) ))
+
+			output="$mt \"$y\" $ct $in $ats $adtcmd $mtime_us"
+			printf '%s\n' "$output" >> $2
 		fi
-
-		check_sum=${check_sum:-None}
-		fs=${fs:-None} ; sl=${sl:-None}
-		wnr=${onr:-None} ; grp=${grp:-None} ; pmn=${pmr:-None}
-		adtcmd="$check_sum $fs $sl $wnr $grp $pmn $cam"
-
-		ats=$(date -d "@${atime%%.*}" +"$fmt")
-		ct=${ct:-None None}
-		ats=${ats:-None None}
-
-		mtime_oct=$(( 10#$mtime_frac ))
-		mtime_us=$(( mtime_sec * 1000000 + (mtime_oct) ))
-
-		output="$mt \"$y\" $ct $i $ats $adtcmd $mtime_us"
-		printf '%s\n' "$output" >> $2
 	fi
 else
 	[[ -z "$mt" ]] && { crt=$(date +"$fmt") ; mt=$crt; }
@@ -1508,19 +1641,30 @@ fi
 }
 findfiles() {
 [[ ! -d "$cached" ]] && mkdir $cached && chmod 700 $cached
-
-if [[ ! -f $CACHE_F && -f $ctimecache ]]; then
-    if ! decrypt $CACHE_F $ctimecache; then
-        echo "Failed to decrypt  $ctimecache"
-        return 1
-    fi
+if [[ ! -f $CACHE_F ]]; then
+	if [[ -f $ctimecache ]]; then
+		if ! decrypt $CACHE_F $ctimecache; then
+		    echo "Failed to decrypt  $ctimecache"
+		    exit 1
+		fi
+	else
+		printf "0 0 0\n" > "$CACHE_F" && chmod 600 $CACHE_F
+		valid_data="false"  # means out lifetime total would be the same as the curren total. So dont display Lifetime total
+	fi
+else
+	
+	if ! awk 'NR==1 { exit ($3==0 ? 0 : 1) }' "$CACHE_F"; then
+		echo "corrupt cache file detected resetting"
+		printf "0 0 0\n" > "$CACHE_F" && chmod 600 $CACHE_F
+		valid_data="false"
+	fi
 fi
 
 [[ "$checkSUM" = "true" ]] && [[ "$ANALYTICS" = "true" || "$STATPST" = "true" ]] && cyan "Running checksum." || checkSUM="false"
 if [ ! -s "$tout" ]; then
 	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$RECENTNUL" > /dev/null 2>&1
 	find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$toutnul" > /dev/null 2>&1
-	end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && [[ "$ANALYTICSECT" ]] && cstart=$(date +%s.%N)
+	end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N)
 
     # pacman slackpkg downloads ctime > mtime
 
@@ -1535,8 +1679,9 @@ if [ ! -s "$tout" ]; then
 
 else
 	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$RECENTNUL" > /dev/null 2>&1
-	end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && [[ "$ANALYTICSECT" ]] && cstart=$(date +%s.%N)
+	end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N)
 fi
+el=$(awk "BEGIN {print $end - $start}")  # main search time
 #scrolling look
 if [ "$FEEDBACK" == "true" ]; then tr '\0' '\n' < "$RECENTNUL" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); sub(/\|$/, "") ;print }' ; fi 
 #tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); print }'
@@ -1544,7 +1689,8 @@ if [ "$FEEDBACK" == "true" ]; then tr '\0' '\n' < "$RECENTNUL" | awk '{ $1=$2=$3
 
 search $RECENTNUL $SORTCOMPLETE $COMPLETE $checkSUM "main" batch1  # mtime loop
 cend=$(date +%s.%N)
-# encrypt and remove
+el2=$(awk "BEGIN {print $cend - $cstart}")  # sblk or meta and hash time
+
 [[ -f "$CACHE_F" ]] && chmod 600 "$CACHE_F"
 }
 

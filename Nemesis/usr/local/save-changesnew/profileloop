@@ -9,7 +9,7 @@ atmp="$1"
 checkSUM="$2"
 xmode="$3"
 [[ "$4" = "batch2" ]] && prefix=mainloop3 && prefixt=mainloop4 && prefixth=cache2
-shift 4
+shift 6
 
 # $atmp "false" "main" "batch2"
 SORTCOMPLETE="${atmp}/${prefix}_${RANDOM}$(rand_alpha)$$_tmp.log"
@@ -17,5 +17,5 @@ NFS="${atmp}/${prefixt}_${RANDOM}$(rand_alpha)$$_tmp.log"
 # CACHE="${atmp}/${prefixth}_${RANDOM}$(rand_alpha)$$_tmp.log"
 
 for f in "$@"; do
-    rblk "$f" $SORTCOMPLETE $NFS $checkSUM
+    rblk "$f" $SORTCOMPLETE $NFS $checkSUM $5 $6
 done

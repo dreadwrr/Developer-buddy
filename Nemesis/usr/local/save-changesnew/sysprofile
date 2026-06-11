@@ -1,10 +1,12 @@
 #!/bin/bash
-shopt -s nullglob										# 02/25/2026
+shopt -s nullglob										# 06/10/2026
 . /usr/local/save-changesnew/rntchangesfunctions
 atmp=/tmp/ztmp$$ 					;	ch=/mnt/live/memory/images/
 fmt="%Y-%m-%d %H:%M:%S"	;	xdata3=$atmp/db_log.log
 xdata=$atmp/log.log					;	SORTCOMPLETE=$atmp/list_complete_sorted.txt
 md="$1"									;	systemf=$atmp/filelist
+debug_log="false"						;	debug_file=/tmp/sp.log
+
 # TMPF=$atmp/structure
 mkdir $atmp
 
@@ -85,22 +87,22 @@ if [ "$md" == "mc" ]; then
 	cores=$( nproc 2>/dev/null || echo 1)
 	max_jobs=$(( cores > 16 ? 16 : cores ))
     y=$(( (x + max_jobs - 1) / max_jobs ))
-    xargs -0 -n "$y" -P "$max_jobs" /usr/local/save-changesnew/profileloop $atmp "true" "main" "batch1"  < $xdata3
+    xargs -0 -n "$y" -P "$max_jobs" /usr/local/save-changesnew/profileloop $atmp "true" "main" "batch1" $debug_log $debug_file < $xdata3
     isoutput "mainloop1*" $SORTCOMPLETE
 else
     while IFS= read -r -d '' p ; do
-        rblk "$p" $SORTCOMPLETE "/dev/null" "true"
+        rblk "$p" $SORTCOMPLETE "/dev/null" "true" $debug_log $debug_file
     done < $xdata3
 fi
 #remaining dont hash but convert
 x=$(tr -cd '\0' < $xdata | wc -c) 
 if [ "$md" == "mc" ]; then
     y=$(( (x + max_jobs - 1) / max_jobs ))
-    xargs -0 -n "$y" -P "$max_jobs" /usr/local/save-changesnew/profileloop $atmp "false" "main" "batch2"  < $xdata
+    xargs -0 -n "$y" -P "$max_jobs" /usr/local/save-changesnew/profileloop $atmp "false" "main" "batch2" $debug_log $debug_file < $xdata
     isoutput "mainloop3*" $SORTCOMPLETE
 else
     while IFS= read -r -d '' p ; do
-        rblk "$p" $SORTCOMPLETE "/dev/null" "false"
+        rblk "$p" $SORTCOMPLETE "/dev/null" "false" $debug_log $debug_file
     done < $xdata
 fi
 if [[ -s $SORTCOMPLETE ]]; then

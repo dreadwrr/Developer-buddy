@@ -5,27 +5,34 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
-import tkinter as tk
 import traceback
-from tkinter import ttk
 from collections import defaultdict
 from collections import Counter
 from datetime import datetime
+from math import sin, cos, atan2, pi
+from pathlib import Path
 from pstsrg import decr
 from pstsrg import encr
 from pstsrg import delete_gpg_keys
 from pstsrg import hash_system_profile
 from pstsrg import insert
 from pstsrg import table_has_data
-from pyfunctions import CYAN, GREEN, RESET
+from pyfunctions import CYAN, RED, RESET
 from pyfunctions import getcount
 from pyfunctions import get_delete_patterns
 from pyfunctions import getnm
 from pyfunctions import intst
 from pyfunctions import is_integer
+from pyfunctions import parse_datetime
 from pyfunctions import to_bool
 from pyfunctions import update_config
-# 03/25/2026
+try:
+    import tkinter as tk
+    from tkinter import ttk
+    TK_AVAILABLE = True
+except ImportError:
+    TK_AVAILABLE = False
+# 06/10/2026
 
 # see pyfunctions.py cache clear patterns for db
 
@@ -296,15 +303,15 @@ def ps(database, target, conn, cur, config_file, email, turbo, compLVL):
     return False
 
 
+# ORDER BY timestamp DESC
+# LIMIT ?
 def dexec(cur, actname, limit):
     query = '''
     SELECT *
     FROM stats
     WHERE action = ?
-    ORDER BY timestamp DESC
-    LIMIT ?
     '''
-    cur.execute(query, (actname, limit))
+    cur.execute(query, (actname,))
     return cur.fetchall()
 
 
@@ -434,8 +441,10 @@ def results(database, target, conn, cur, email, user, config_path, turbo, compLV
     root.mainloop()
 
 
-def averagetm(conn, cur):
-    cur = conn.cursor()
+def average_time(conn, cur):
+    # original function for average access time and file activity
+    # Would be inaccurate for times that wrap around ie 23:00 - 01:00
+    # not in use
     cur.execute('''
     SELECT timestamp
     FROM logs
@@ -455,6 +464,80 @@ def averagetm(conn, cur):
         avg_minutes = int(avg_minutes % 60)
         avg_time = f"{avg_hours:02d}:{avg_minutes:02d}"
         return avg_time
+    return "N/A"
+
+
+def clock_average(rows):
+    sum_sin = 0
+    sum_cos = 0
+    n = 0
+
+    for r in rows:
+        if not r or not r[0]:
+            continue
+
+        # seconds = int(r[0]) % 86400  # utc
+        dt = datetime.fromtimestamp(int(r[0]))  # local time
+
+        seconds = (
+            dt.hour * 3600 +
+            dt.minute * 60 +
+            dt.second
+        )
+        angle = 2 * pi * seconds / 86400
+
+        sum_sin += sin(angle)
+        sum_cos += cos(angle)
+        n += 1
+
+    if n == 0:
+        return "N/A"
+
+    angle = atan2(sum_sin, sum_cos)
+    if angle < 0:
+        angle += 2 * pi
+
+    avg_seconds = angle * 86400 / (2 * pi)
+
+    hours = int(avg_seconds // 3600)
+    minutes = int((avg_seconds % 3600) // 60)
+
+    return f"{hours:02d}:{minutes:02d}"
+
+
+def search_times(cur):
+    groups, current = [], []
+
+    # keep order exactly as in database with id column sort
+    cur.execute("""
+        SELECT timestamp
+        FROM logs
+        ORDER BY id
+    """)
+    rows = cur.fetchall()
+
+    for row in rows:
+        ts = row[0]
+
+        is_blank = (ts is None or ts == "")
+
+        if is_blank:
+            if current:
+                groups.append(current)
+                current = []
+            continue
+
+        dt = parse_datetime(ts)
+        if dt:
+            current.append([dt.timestamp(),])
+
+    if current:
+        groups.append(current)
+
+    # first timestamp or start of each search
+    first_times = [group[0] for group in groups if group]
+
+    return first_times
 
 
 def showdb(question):
@@ -497,19 +580,38 @@ def main():
                         # optionally run database commands
                         # cur.execute("DELETE FROM logs WHERE filename = ?", ('/home/guest/Downloads/Untitled' ,))
                         # conn.commit()
-                        atime = averagetm(conn, cur)
+
                         print(f"{CYAN}Search breakdown{RESET}")
+                        # cur.execute("""
+                        #     SELECT
+                        #     datetime(AVG(strftime('%s', accesstime)), 'unixepoch') AS average_accesstime
+                        #     FROM logs
+                        #     WHERE accesstime IS NOT NULL;
+                        # """)
+                        # result = cur.fetchone()
+                        # average_accesstime = result[0] if result and result[0] is not None else None
+
+                        # average file access time
                         cur.execute("""
-                            SELECT
-                            datetime(AVG(strftime('%s', accesstime)), 'unixepoch') AS average_accesstime
+                            SELECT strftime('%s', accesstime)
                             FROM logs
                             WHERE accesstime IS NOT NULL;
                         """)
-                        result = cur.fetchone()
-                        average_accesstime = result[0] if result and result[0] is not None else None
-                        if average_accesstime:
-                            print(f'Average access time: {average_accesstime}')
-                        print(f'Avg hour of activity: {atime}')
+                        rows = cur.fetchall()
+                        avg_atime = clock_average(rows)
+                        print(f'Average access time: {avg_atime}')
+
+                        # average time of user searches
+                        rows = search_times(cur)
+                        avg_search = clock_average(rows)
+                        print(f'Avg hour of activity: {avg_search}')  # atime = average_time(conn, cur) old way which would be incorrect
+
+                        # average file modified time - which is not a valid heuristic
+                        # cur.execute("SELECT strftime('%s', timestamp) FROM logs")
+                        # rows = cur.fetchall()
+                        # avg_mtime = clock_average(rows)
+                        # log_fn(f'Average time of file activity: {avg_mtime}')
+                        # end Search time area
                         cnt = getcount(cur)
                         cur.execute('''
                         SELECT filesize
@@ -537,30 +639,35 @@ def main():
                         WHERE TRIM(filename) != ''
                         ''')  # Ext
                         filenames = cur.fetchall()
+                        filenames = [row[0] for row in filenames]
                         extensions = []
-                        for entry in filenames:
-                            filepath = entry[0]
-                            if '.' in filepath:
-                                ext = '.' + filepath.split('.')[-1] if '.' in filepath else ''
-                            else:
+                        directories = []
+                        for filename in filenames:
+                            if not filename:
+                                continue
+                            directories.append(os.path.dirname(filename))  # get the top directories as well
+                            filepath = Path(filename)
+                            filename = filepath.name
+                            if filename.startswith('.') or '.' not in filename:
                                 ext = '[no extension]'
+                            else:
+                                ext = '.' + '.'.join(filename.split('.')[1:])
                             extensions.append(ext)
                         if extensions:
                             counter = Counter(extensions)
                             top_3 = counter.most_common(3)
-                            print(f"{CYAN}Top extensions{RESET}")
+                            print(f"{CYAN}Most common extensions{RESET}")
                             for ext, count in top_3:
                                 print(f"{ext}")
                         print()
-                        directories = [os.path.dirname(filename[0]) for filename in filenames]  # top directories
-                        directory_counts = Counter(directories)
+                        directory_counts = Counter(directories)  # top directories ln181
                         top_3_directories = directory_counts.most_common(3)
                         print(f'{CYAN}Top 3 directories {RESET}')
                         for directory, count in top_3_directories:
                             print(f'{count}: {directory}')
                         print()
-                        cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''")  # common file 5
-                        filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines
+                        # cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''")  # common file 5
+                        # filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines
                         filename_counts = Counter(filenames)
                         top_5_filenames = filename_counts.most_common(5)
                         print(f'{CYAN}Top 5 created {RESET}')
@@ -570,23 +677,23 @@ def main():
                         filenames = [row[3] for row in top_5_modified]
                         filename_counts = Counter(filenames)
                         top_5_filenames = filename_counts.most_common(5)
-                        print(f'{CYAN}Top 5 modified {RESET}')
+                        print(f'{CYAN}Most modified {RESET}')
                         for filename, count in top_5_filenames:
                             filename = filename.strip()
                             print(f'{count} {filename}')
-                        top_7_deleted = dexec(cur, 'Deleted', 7)
+                        top_7_deleted = dexec(cur, 'Deleted', 5)
                         filenames = [row[3] for row in top_7_deleted]
                         filename_counts = Counter(filenames)
                         top_7_filenames = filename_counts.most_common(7)
-                        print(f'{CYAN}Top 7 deleted {RESET}')
+                        print(f'{CYAN}Top 5 deleted {RESET}')
                         for filename, count in top_7_filenames:
                             filename = filename.strip()
                             print(f'{count} {filename}')
-                        top_7_writen = dexec(cur, 'Overwrite', 7)
+                        top_7_writen = dexec(cur, 'Overwrite', 3)
                         filenames = [row[3] for row in top_7_writen]
                         filename_counts = Counter(filenames)
                         top_7_filenames = filename_counts.most_common(7)
-                        print(f'{CYAN}Top 7 overwritten {RESET}')
+                        print(f'{CYAN}Top 3 overwritten {RESET}')
                         for filename, count in top_7_filenames:
                             filename = filename.strip()
                             print(f'{count} {filename}')
@@ -595,30 +702,40 @@ def main():
                         filename_counts = Counter(filenames)
                         if filename_counts:
                             top_5_filenames = filename_counts.most_common(5)
-                            print(f'{CYAN}Not actually a file {RESET}')
+                            print(f'{CYAN}Top 5 Thats not actually a file{RESET}')
                             for filename, count in top_5_filenames:
                                 print(f'{count} {filename}')
                         print()
-                        print(f"{GREEN}Filter hits{RESET}")
-                        with open('/usr/local/save-changesnew/flth.csv', 'r') as file:
-                            for line in file:
-                                print(line, end='')
-                        if showdb("display database?"):
-                            if os.environ.get("XDG_SESSION_TYPE") == "wayland":
-                                print('Wayland session switch to root and call query for display.')
+                        print(f"{RED}Filter{RESET}")
+                        flth = '/usr/local/save-changesnew/flth.csv'
+                        if os.path.isfile(flth):
+                            with open(flth, 'r') as file:
+                                for line in file:
+                                    print(line, end='')
+                        res = showdb("display database?")
+                        if res:
+                            if TK_AVAILABLE:
+
+                                if os.environ.get("XDG_SESSION_TYPE") == "wayland":
+                                    print('Wayland session switch to root and call query for display.')
+                                else:
+                                    _display = os.environ.get('DISPLAY')
+                                    wish_path = shutil.which("wish")
+                                    if _display and wish_path:
+                                        print(f'database in: {tempdir}')
+                                        results(dbopt, dbtarget, conn, cur, email, usr, config_path, turbo, compLVL)
+                                        return 0
+                                    elif not wish_path:
+                                        print("Install tk to display db.")
+                                    elif not _display:
+                                        print("No X11 display.")
                             else:
-                                disply = os.environ.get('DISPLAY')
-                                wish_path = shutil.which("wish")
-                                if disply and wish_path:
-                                    print(f'database in: {tempdir}')
-                                    results(dbopt, dbtarget, conn, cur, email, usr, config_path, turbo, compLVL)
-                                elif not wish_path:
-                                    print("Install tk to display db.")
-                                elif not disply:
-                                    print("No X11 display.")
+                                print("tk not available, skipping database display.")
+                        else:
+                            return 0
                 else:
                     print("Unable to locate database: ", dbopt)
-                return 0
+
     except Exception as e:
         print(f"Exception while running query {type(e).__name__}: {e}  \n {traceback.format_exc()}")
     return 1

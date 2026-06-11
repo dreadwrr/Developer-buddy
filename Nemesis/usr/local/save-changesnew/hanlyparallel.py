@@ -1,13 +1,14 @@
-import traceback
 import os
 import sqlite3
+import time
+import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from hanlymc import hanly
 from pyfunctions import detect_copy
 from pyfunctions import GREEN, RESET
 from pyfunctions import escf_py
 from pyfunctions import increment_f
-# 02/25/2025
+# 06/10/2026
 
 
 def logger_process(results, sys_records, rout, scr, cerr, dbopt="/usr/local/save-changesnew/recent.db", ps=False):
@@ -17,6 +18,8 @@ def logger_process(results, sys_records, rout, scr, cerr, dbopt="/usr/local/save
         "cerr": [cerr],
         "scr": [scr],
     }
+
+    # fmt = "%Y-%m-%d %H:%M:%S"
 
     with sqlite3.connect(dbopt) as conn:
         c = conn.cursor()
@@ -45,13 +48,24 @@ def logger_process(results, sys_records, rout, scr, cerr, dbopt="/usr/local/save
                                     if filesize:
                                         timestamp = msg[0]
                                         filepath = msg[1]
-                                        ct = msg[2]
+                                        changetime = msg[2]
                                         inode = msg[3]
                                         checksum = msg[5]
+
+                                        label = escf_py(filepath)
                                         result = detect_copy(filepath, inode, checksum, c, ps)
                                         if result:
-                                            label = escf_py(filepath)
-                                            print(f'Copy {timestamp} {ct} {label}', file=file)
+                                            print(f'Copy {timestamp} {changetime} {label}', file=file)
+
+                                        # windows if creation time is greater than modified time it could be a copy, a download or a created file
+                                        # this differs from linux that has no creation time but casmod or change as mod can be put instead
+                                        # change as modified means it is significant in that it could be a downloaded file with preserved metadata
+                                        else:
+                                            # mod_time = timestamp.strftime(fmt)  # if datetime
+                                            mod_time = timestamp
+                                            # lexographic compare
+                                            if changetime > mod_time:
+                                                print(f'Casmod {timestamp} {changetime} {label}', file=file)
 
                     except Exception as e:
                         print(f"Error updating DB for sys entry '{msg}': {e} {type(e).__name__}")
@@ -76,7 +90,7 @@ def logger_process(results, sys_records, rout, scr, cerr, dbopt="/usr/local/save
                 print(f"Unexpected error to {fpath} logger_process: {e} : {type(e).__name__}")
 
 
-def hanly_parallel(rout, scr, cerr, parsed, ANALYTICSECT, checksum, cdiag, dbopt, ps, turbo, user):
+def hanly_parallel(rout, scr, cerr, parsed, checksum, cdiag, dbopt, ps, turbo, user):
 
     all_results, batch_incr = [], []
     if not parsed:
@@ -84,11 +98,12 @@ def hanly_parallel(rout, scr, cerr, parsed, ANALYTICSECT, checksum, cdiag, dbopt
     len_parsed = len(parsed)
     if len_parsed == 0:
         return
+
     csum = False
 
-    if ANALYTICSECT:
-        print(f'{GREEN}Hybrid analysis on{RESET}')
+    print(f'{GREEN}Hybrid analysis on{RESET}')
 
+    start = time.perf_counter()
     if len(parsed) < 80 or turbo != 'mc':
         all_results, batch_incr, csum = hanly(parsed, checksum, cdiag, dbopt, ps, user)
     else:
@@ -114,13 +129,19 @@ def hanly_parallel(rout, scr, cerr, parsed, ANALYTICSECT, checksum, cdiag, dbopt
                         csum = True
                 except Exception as e:
                     print(f"Worker error from hanly multiprocessing: {type(e).__name__} {e} \n {traceback.format_exc()}")
-
+                    break
             # for future in futures:       original
             # 	try:
             # 		all_results.extend(future.result())
             # 	except Exception as e:
             # 		print(f"Worker error from hanly multiprocessing: {type(e).__name__} {e} \n {traceback.format_exc()}")
+    end = time.perf_counter()
+    ha_total_time = end - start
+
     print("processing results")
     logger_process(all_results, batch_incr, rout, scr, cerr, dbopt, ps)
 
-    return csum
+    lend = time.perf_counter()
+    logger_total_time = lend - end
+
+    return csum, ha_total_time, logger_total_time
