@@ -330,8 +330,9 @@ else # all version with  GPG 2.0
 fi
 }
 iscopy() {
-local r y
+local r y found
 while IFS= read -r p; do
+	found="false"
     read -r f1 f2 f3 f4 f5 f6 f7 f8 f9 _ <<< "$p"
 	[[ -z "$f9" ]] && continue
     dt="$f1 $f2" ; cFILE="$f3" ; ct="$f4 $f5"
@@ -343,15 +344,26 @@ while IFS= read -r p; do
 		if [ "$in" -ge 0 ] 2>/dev/null && [ "$oin" -ge 0 ] 2>/dev/null; then
 			if (( in != oin )); then
 				if is_valid_date "$at" && is_valid_date "$oat"; then 
+					found="true"
 					r="${cFILE#\"}"
-					cFILE="${r%\"}"
-				    y="$( ap_filedec "$cFILE")"
+					r="${r%\"}"
+				    y="$( ap_filedec "$r")"
 					echo "Copy $dt $ct $y" >> "$rout"
 					break
 				fi
 			fi
 		fi
 	done < <(grep -E "[[:space:]]$chksum[[:space:]]" "$1")
+	if [ "$found" == "false" ]; then
+		if is_valid_date "$ct"; then
+			if [[ "$ct" > "$dt" ]]; then
+				r="${cFILE#\"}"
+				r="${r%\"}"
+				y="$( ap_filedec "$r")"
+				echo "Casmod $dt $ct $y" >> "$rout"
+			fi
+		fi
+	fi
 done < "$2"
 }
 collision() {
@@ -539,6 +551,7 @@ declare -a collisions=()
 
 unique_files=$(awk '{print $3}' $2 | sort | uniq | wc -l | tr -d ' ') 
 start=$(date +%s.%N)
+
 if [ "$mMODE" == "mc" ] && (( x > 100 )); then
 	workfld=$workdir
 	y=$(( (x + max_jobs - 1) / max_jobs )) 
@@ -554,7 +567,7 @@ else
 fi
 end=$(date +%s.%N)
 ha_total_time=$(awk "BEGIN {print $end - $start}")   # ha time
-# check for copies
+# check for copies and downloads or casmod
 test -s $TMPCOMPLETE && iscopy $2 $TMPCOMPLETE
 rm $2  # remove the copy of log pst used in hanly
 processha "$@"
@@ -879,7 +892,8 @@ k="${k//\\ap5c/\\}"
 printf '%s' "$k"
 }
 
-backend() { 
+backend() {
+total_files=$(wc -l < "$SORTCOMPLETE" 2>/dev/null || echo 0)
 ofile=$atmp/tmpinfo ; tfile3=$atmp/tmpd
 # mkdir -p "$xopt"
 # TMPDIR=$(mktemp -d $xopt/tmpda.XXXXXX)  copy of log pst to seperate dir
@@ -966,7 +980,7 @@ if [ "$STATPST" == "true" ]; then
 		fi
 	fi
 fi
-total_files=$(wc -l < "$SORTCOMPLETE" 2>/dev/null || echo 0)
+
 total_time=$(awk "BEGIN {print $el + $el2}")
 
 if [[ -f $CACHE_F ]]; then
