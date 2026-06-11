@@ -186,7 +186,8 @@ if [ "$1" == "reset" ]; then
 	fi
 elif [ "$1" == "query" ]; then
 	if [ "$backend" == "default" ]; then  
-        /usr/local/save-changesnew/query "$THETIME" $USR "$passdir"
+		[[ -z $2 ]] && THETIME="noarguser" || THETIME=$2
+        /usr/local/save-changesnew/query $THETIME $USR "$passdir"
         exit
     else 
         python3 /usr/local/save-changesnew/query.py "$0" $pydbpst $USR $email $mMODE $compLVL $checkSUM
