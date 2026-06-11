@@ -1,5 +1,5 @@
 #!/bin/bash
-#   NMS5                                                                            05/22/2026  v5.0
+#   NMS5                                                                            06/10/2026  v5.0
 # entry point for recentchanges.
 #
 #   recentchanges. aka Developer buddy      recentchanges / recentchanges search
@@ -39,7 +39,7 @@ get_colors
 # CHANGEABLE
 
 
-export backend="database" 	# default   bash 2 gpg and queries text based stable tested  
+export backend="mc" 	# default   bash 2 gpg and queries text based stable tested  
 											# database   binary database faster queries 1 gpg and python (easier ha)
 
 export email="john.doe@email.com" # default for asymmetrical gpg auth for STATPST
@@ -147,7 +147,7 @@ if [ "$1" = "-v" ]; then get_vrn $1 ; elif [ "$1" = "--help" ] || [ "$1" = "-h" 
 
 if (( EUID != 0 )); then
     echo "Please enter your root password below"
-	sudo -k
+    sudo -k
     exec sudo /opt/recentchanges/recentchanges "$1" "$2" "$3" "$(id -un)" "$PWD"
     exit
 fi
@@ -188,10 +188,12 @@ if [ "$1" == "reset" ]; then
 		echo "reset requries STATPST for default or database key reset" && exit 1
 	fi
 elif [ "$1" == "query" ]; then
-	if [ "$backend" == "default" ]; then  
-        /usr/local/save-changesnew/query "$THETIME" $USR "$passdir"
+	if [ "$backend" == "default" ]; then
+		[[ -z $2 ]] && THETIME="noarguser" || THETIME=$2
+        /usr/local/save-changesnew/query $THETIME $USR "$passdir"
         exit
-    else 
+    else
+
         python3 /usr/local/save-changesnew/query.py "$0" $pydbpst $USR $email $mMODE $compLVL $checkSUM
         exit
     fi
@@ -229,13 +231,16 @@ FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 SRCDIR=""																	;	csm=""
 dirSRC=""																	;	OLDSORTED=""
 
+ha_total_time=""														;	logger_total_time=""
+lifetime_total=""														;	lifetime_time=""
+total_files=0																;   total_time=0	
 cores=0																	;	max_jobs=0
 
 diffrlt="false"															;	pstc="false"
 nodiff="false"															;	samerlt="false"
 syschg="false"															;	validrlt="false"
 approval="true"														;	nc="false"
-csum="false"
+csum="false"															;	valid_data="true"
 
 search="false"
 filtered="false"
@@ -257,7 +262,7 @@ if [ "$1" == "search" ]; then
 
 else    
     THETIME="$argone"
-    if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
+    start=$(date +%s.%N)
     [ "$THETIME" == "SRC" ] &&{ SRCDIR=$THETIME; THETIME="$argtwo"; }  # shift
     [ "$2" == "SRC" ] && SRCDIR=$2 || { [ "$2" == "SEARCH" ] || [ "$2" == "search" ]; } && echo "The SRC tag is for recentchanges only" && exit
 
@@ -433,15 +438,7 @@ fi
 test -d "$tmp" && rm -rf "${tmp:?}" 
 test -d "$atmp" && rm -rf "${atmp:?}"
 
-if [ "$ANALYTICSECT" == "true" ]; then
-    el=$(awk "BEGIN {print $end - $start}")
-    printf "Search took %.3f seconds.\n" "$el"
-	if [ "$checkSUM" == "true" ]; then
-		el=$(awk "BEGIN {print $cend - $cstart}")
-		printf "Checksum took %.3f seconds.\n" "$el"
-	fi
-fi
-
 logic "Refer to /rntfiles_MDY folder for the previous search"
+analytics
 display $dirSRC "$MODULENAME$flnm"
 
