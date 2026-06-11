@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #   Analytics porteus
-#   recentchanges. Developer buddy      make xzm     05/22/2026  v5.0
+#   recentchanges. Developer buddy      make xzm     06/10/2026  v5.0
 # entry point for recentchanges.
 #
 #   recentchanges. aka Developer buddy      recentchanges / recentchanges search
@@ -232,13 +232,16 @@ FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 SRCDIR=""																	;	csm=""
 dirSRC=""																	;	OLDSORTED=""
 
+ha_total_time=""														;	logger_total_time=""
+lifetime_total=""														;	lifetime_time=""
+total_files=0																;   total_time=0	
 cores=0																	;	max_jobs=0
 
 diffrlt="false"															;	pstc="false"
 nodiff="false"															;	samerlt="false"
 syschg="false"															;	validrlt="false"
 approval="true"														;	nc="false"
-csum="false"
+csum="false"															;	valid_data="true"
 
 search="false"
 filtered="false"
@@ -260,7 +263,7 @@ if [ "$1" == "search" ]; then
 
 else    
     THETIME="$argone"
-    if [ "$ANALYTICSECT" == "true" ]; then start=$(date +%s.%N); fi
+    start=$(date +%s.%N)
     [ "$THETIME" == "SRC" ] &&{ SRCDIR=$THETIME; THETIME="$argtwo"; }  # shift
     [ "$2" == "SRC" ] && SRCDIR=$2 || { [ "$2" == "SEARCH" ] || [ "$2" == "search" ]; } && echo "The SRC tag is for recentchanges only" && exit
 
@@ -435,15 +438,7 @@ fi
 test -d "$tmp" && rm -rf "${tmp:?}" 
 test -d "$atmp" && rm -rf "${atmp:?}"
 
-if [ "$ANALYTICSECT" == "true" ]; then
-    el=$(awk "BEGIN {print $end - $start}")
-    printf "Search took %.3f seconds.\n" "$el"
-	if [ "$checkSUM" == "true" ]; then
-		el=$(awk "BEGIN {print $cend - $cstart}")
-		printf "Checksum took %.3f seconds.\n" "$el"
-	fi
-fi
-
 logic "Refer to /rntfiles_MDY folder for the previous search"
+analytics
 display $dirSRC "$MODULENAME$flnm"
 
