@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       05/22/2026
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       06/10/2026
 import getpass
 import os
 import re
@@ -385,6 +385,7 @@ def hash_system_profile(turbo):
             if os.path.isfile(sortcomplete_path):
 
                 checkSUM = True
+                shutil.copy(sortcomplete_path, '/tmp/martar')
                 sys_results = parselog(sortcomplete_path, 'sys', checkSUM)   # sys
 
                 sortcomplete_dir = os.path.dirname(sortcomplete_path)
@@ -505,7 +506,7 @@ def delete_gpg_keys(usr, email, dbtarget, logpst, statpst, ctimecache):
 def main():
 
     xdata = sys.argv[1]   # data source
-    COMPLETE = sys.argv[2]   # nsf
+    complete = sys.argv[2]   # nsf
     dbtarget = sys.argv[3]   # the target
     rout = sys.argv[4]    # tmp holds action
     checksum = to_bool(sys.argv[5])   # important
@@ -513,10 +514,10 @@ def main():
     user = sys.argv[7]
     email = sys.argv[8]
     turbo = sys.argv[9]   # mc
-    ANALYTICSECT = to_bool(sys.argv[10])
+    analyticSECT = to_bool(sys.argv[10])
     ps = to_bool(sys.argv[11])   # proteusshield
     compLVL = int(sys.argv[12])
-
+    # total_files = int(sys.argv[13])
     stats = []
     parsed = []
     parsed_sys = []
@@ -527,6 +528,7 @@ def main():
     scr = '/tmp/scr'
     cerr = '/tmp/cerr'
 
+    # new_database = False
     csum = False
     db_error = False
     goahead = True
@@ -534,6 +536,9 @@ def main():
     conn = None
 
     res = 0
+
+    ha_total_time = logger_total_time = 0
+    unique_files = 0
 
     # original with a temp dir cant leave db to reencrypt if everything succeeds but only reencryption fails. so leave in app directory with proper perms
     # TEMPDIR = tempfile.gettempdir()
@@ -597,10 +602,21 @@ def main():
 
                 try:
 
-                    csum = hanly_parallel(rout, scr, cerr, parsed, ANALYTICSECT, checksum, cdiag, dbopt, is_ps, turbo, user)
+                    csum, ha_total_time, logger_total_time = hanly_parallel(rout, scr, cerr, parsed, checksum, cdiag, dbopt, is_ps, turbo, user)
 
                 except Exception as e:
                     print(f"hanlydb failed to process on mode {turbo}: {e} {traceback.format_exc()}", file=sys.stderr)
+
+                # Analytics - Dont store anything here it is done in bash.
+                # if total_files:  # if len(SORTCOMPLETE) > 0
+                # How many unique files are in the logs table
+                unique_files = c.execute(
+                    "SELECT COUNT(DISTINCT filename) FROM logs WHERE filename IS NOT NULL"
+                ).fetchone()[0]
+
+                # if not unique_files:
+                #     new_database = True
+                # print(unique_files)  # debug
 
             try:
 
@@ -636,8 +652,8 @@ def main():
                     for line in record:
                         statparse(line, stats)
 
-                if os.path.isfile(COMPLETE) and os.path.getsize(COMPLETE) > 0:
-                    with open(COMPLETE, 'r', newline='') as records:
+                if os.path.isfile(complete) and os.path.getsize(complete) > 0:
+                    with open(complete, 'r', newline='') as records:
                         for line in records:
                             statparse(line, stats)
 
@@ -675,6 +691,14 @@ def main():
     if res != 3:
         removefile(dbopt)
 
+    # for benchmarking the time for multiprocessing ect. This can help verify if any changes or new designs improve performance and also
+    # where the bulk of the work is. This data isnt stored so it is essentially free and adds no complexity.
+    if res == 0 and analyticSECT:
+        if ha_total_time and logger_total_time:
+            with open(cerr, "a", encoding="utf-8") as f:
+                f.write(f'RESULT {ha_total_time} {logger_total_time} {unique_files}\n')
+
+            print("Hanly total time:", format(ha_total_time, ".3f"), "seconds", "logger:", format(logger_total_time, ".4f"), "seconds")
     return res
 
 
@@ -685,7 +709,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # gpg key reset so tk dependency isnt required
-    if arg_len < 13:
+    if arg_len < 14:
         config_path = sys.argv[1]
         dbtarget = sys.argv[2]
         usr = sys.argv[3]
@@ -712,7 +736,4 @@ if __name__ == "__main__":
                 print("statpst wasnt specified for stats.gpg STATPSTS")
             sys.exit(1)
 
-    if len(sys.argv) < 13:
-        print("pstsrg Not enough arguments. quitting")
-        sys.exit(1)
     sys.exit(main())

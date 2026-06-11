@@ -60,7 +60,7 @@ sed -i '/\.local\/share/d' $1 $3
 sed -i '/\.xsession/d' $1 $3
 
 #Inclusions from script
-# $USR passed from recentchanges argument chaning into root  $3
+# $USR passed from recentchanges argument changing into root  $3
 # we dont want  USER/.config
 
 sed -i '/\/home\/'"${2}"'\/\.config/d' $1 $3
@@ -85,10 +85,3 @@ sed -i '/\/root\/\.xauth/d' $1 $3
 #Chromium
 #sed -i '/ungoogled/d' $1 $3
 
-#  Now we get into the important directories. Do we exclude at the risk of deleting our program? Tread carefully
-#
-#  Very carefully select only starting /etc/    <------  We can remove this filter if needed
-#
-#
-# we dont want  /etc/
-#sed -i '/^\/etc/d' $1 $3        <--------- including  /etc/
