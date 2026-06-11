@@ -1,5 +1,4 @@
-New analytics and improved query! <br><br>
-
+New analytics and improved query! <br>
 Updated 06/11/2026
 
 
