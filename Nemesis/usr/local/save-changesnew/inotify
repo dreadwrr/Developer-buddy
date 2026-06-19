@@ -68,7 +68,7 @@ j=${sleep_times[sleep_index]}
 prev_size=-1
 incr=0
 
-debug_log="true"  # add debug
+debug_log="false"  # add debug
 
 pblk_log_file=/tmp/output  # debug output of pblk
 
