@@ -82,10 +82,3 @@ sed -i '/release\/AlternateServices\.bin/d' $1 $3
 #Chromium
 #sed -i '/ungoogled/d' $1 $3
 
-#  Now we get into the important directories. Do we exclude at the risk of deleting our program? Tread carefully
-#
-#  Very carefully select only starting /etc/    <------  We can remove this filter if needed
-#
-#
-# we dont want  /etc/
-#sed -i '/^\/etc/d' $1 $3        <--------- including  /etc/

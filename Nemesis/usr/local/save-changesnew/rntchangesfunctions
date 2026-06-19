@@ -1,5 +1,5 @@
 #!/bin/bash
-#   Developer buddy 5.0 core                                               06/10/2026
+#   Developer buddy 5.0 core                                               06/17/2026
 
 fmt="%Y-%m-%d %H:%M:%S"
 
@@ -582,23 +582,13 @@ if [ -s $rout ]; then
 	cend=$(date +%s.%N)
 	if [ "$backend" == "default" ] && [ -n "$unique_files" ]; then
 		logger_total_time=$(awk "BEGIN {print $cend - $end}")  # ha logger time
-		printf "%s %.3f %s %.3f %s\n" "Hanly total time" "$ha_total_time" "seconds logger:" "$logger_total_time" "seconds"
+        [[ "$backend" = "default" ]] && [[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && green "Hybrid analysis on"
+        if [ "$ANALYTICSECT" == "true" ]; then
+		    printf "%s %.3f %s %.3f %s\n" "Hanly total time" "$ha_total_time" "seconds logger:" "$logger_total_time" "seconds"
+        fi
 	fi
 
-	get_colors
-	if [ -s "/tmp/cerr" ]; then 
-        if [ "$supbrwr" == "true" ]; then
-            sbwr
-			grep -E "^(Suspect|COLLISION)" /tmp/cerr > $TMPCOMPLETE
-            for item in "${webb[@]}"; do sed -i "\|$item|d" /tmp/cerr ; done
-            [[ -s $TMPCOMPLETE ]] && { csum="true" ; cat $TMPCOMPLETE ; } >> /tmp/cerr
-            sort -u -o /tmp/cerr /tmp/cerr 
-        fi
-		if ! filteroutput "/tmp/cerr" "Warning" "Suspect" "yellow" "red" "elevated"; then
-			csum="true"
-		fi
-	fi
-	if [ -n "$cores" ] && [ "$csum" == "false" ]; then echo "Detected $cores CPU cores."; fi
+	if [ "$backend" == "default" ] && [ -n "$cores" ] && [ "$csum" == "false" ]; then echo "Detected $cores CPU cores."; fi
 fi
 }
 suffix() {
@@ -701,7 +691,7 @@ if  [[ "$ANALYTICSECT" = "true" ]]; then
 
 	echo "Files scanned: $total_files"
 	
-	throughput=$(awk "BEGIN {printf \"%.3f\", ($total_files / $total_time) * 60}")  # throughput=$(( total_files / total_time ))  bash cant do floats
+	throughput=$(awk "BEGIN {printf \"%.3f\", ($total_files / $total_time)}")  # throughput=$(( total_files / total_time ))  bash cant do floats
 
 	# ie syschg="true" if there were results
 	if (( total_files > 0 )); then
@@ -711,9 +701,9 @@ if  [[ "$ANALYTICSECT" = "true" ]]; then
 		# if its the first run dont display lifetime throughput.
 		# lifetime_total set means a proper parse of analytics from the cache file and a pstsrg returned 0
 
-		if [[ "$valid_data" = "true" && -n "$lifetime_total" ]]; then
+		if [[ -n "$lifetime_total" ]] && [[ "$lifetime_total" != "$total_files" ]]; then
 			# initial draft
-			#x=$(awk "BEGIN {printf \"%.3f\", ($lifetime_total / $lifetime_time) * 60}")
+			#x=$(awk "BEGIN {printf \"%.3f\", ($lifetime_total / $lifetime_time)}")
 			#lifetime_throughput="Lifetime throughput: $x"
 
 			# alternative to above one liner but not protected from division by zero $(awk "BEGIN {printf \"%.3f\", ($lifetime_total / $lifetime_time) * 60}")"
@@ -721,7 +711,7 @@ if  [[ "$ANALYTICSECT" = "true" ]]; then
 			lifetime_throughput=$(awk -v t="$lifetime_time" -v n="$lifetime_total" '
 			BEGIN {
 				if (t > 0)
-					printf "%.3f", (n / t) * 60;
+					printf "%.3f", (n / t);
 				else
 					printf "0.000";
 			}')
@@ -928,36 +918,59 @@ if [ "$STATPST" == "true" ]; then
 	fi
 fi
 
+# save analytics to the cache file and encrypt then remove it
+
 total_time=$(awk "BEGIN {print $el + $el2}")
 
 if [[ -f $CACHE_F ]]; then
-	if [[ "$ANALYTICSECT" ]]; then
-		[[ "$backend" = "default" ]] && [[ -s "$difffile" ]] && [[ -n "$( tail -n 1 "$difffile")" ]] && green "Hybrid analysis on"
 
-		read -r lt_total lt_time app_start < $CACHE_F  # read the stored count so we can add back to it
+    read -r lt_total lt_time app_start < $CACHE_F  # read the stored count so we can add back to it
 
-		if [[ "$app_start" = "0" ]]; then
+    # lt_time starts as 0 from the cache file. the only possibility of corrupting stat is if total_time somehow is negative
 
-			# if its the default value (first run) or a valid float as it should be # awk "BEGIN {exit(!($lifetime_time > 0))}"; then 
-			if [[ "$lt_time" = "0" ]] || [[ "$lt_time" =~ ^-?[0-9]+(\.[0-9]+)?$ ]] then
+    if [[ "$app_start" = "0" ]]; then
+	    if [[ "$lt_time" =~ ^-?[0-9]+(\.[0-9]+)?$ ]]; then
+		    if awk -v t="$total_time" 'BEGIN { exit !(t >= 0) }'; then
 
-				# if pstsrg was succesful now update the cache file to avoid desync
-				if [ -n "$valid_data" ]; then
-					lifetime_total=$(( lt_total + total_files ))
-					lifetime_time=$(awk "BEGIN {print $lt_time + $total_time}")
-					sed -i "1s/.*/$lifetime_total $lifetime_time 0/" $CACHE_F  # write the store count back before encryption of cache file
-				fi
-			else
-				echo "incorrect analytic data in $ctimecache the time is: $lifetime_time and should be a float. use recentchanges reset or remove the file"
-			fi
+			    # only if pstsrg was succesful update the cache file to avoid desync
+			    if [ "$valid_data" == "true" ]; then
+				    lifetime_total=$(( lt_total + total_files ))
+				    lifetime_time=$(awk "BEGIN {print $lt_time + $total_time}")
+				    sed -i "1s/.*/$lifetime_total $lifetime_time 0/" $CACHE_F  # write the store count back before encryption of cache file
+			    fi
+		    else
+			    echo "total time was $total_time and incorrect a variable is mixed up skipping analytics"
+		    fi
+	    else
+		    echo "incorrect analytic data in $ctimecache the time is: $lifetime_time and should be a float. use recentchanges reset or remove the file"
+	    fi
+    else
+	    echo "Warning cache file $ctimecache missing analytic header skipping analytics. remove the file if persists"
+    fi
 
-		else
-			echo "Warning cache file $ctimecache missing analytic header skipping analytics. remove the file if persists"
-		fi
+    # if its STATPST encrypt the cache then remove the cache file
+    if [[ "$ANALYTICS" = "false" ]]; then
+        if ! gpg --yes --quiet -e -r $email -o $ctimecache $CACHE_F ; then
+            echo "Encryption failed for cache file $CACHE_F"
+        fi
+        rm $CACHE_F
+    fi
+fi
 
+# write output to terminal
+
+get_colors
+if [ -s "/tmp/cerr" ]; then 
+    if [ "$supbrwr" == "true" ]; then
+        sbwr
+		grep -E "^(Suspect|COLLISION)" /tmp/cerr > $TMPCOMPLETE
+        for item in "${webb[@]}"; do sed -i "\|$item|d" /tmp/cerr ; done
+        [[ -s $TMPCOMPLETE ]] && { csum="true" ; cat $TMPCOMPLETE ; } >> /tmp/cerr
+        sort -u -o /tmp/cerr /tmp/cerr 
+    fi
+	if ! filteroutput "/tmp/cerr" "Warning" "Suspect" "yellow" "red" "elevated"; then
+		csum="true"
 	fi
-	# if its STATPST encrypt the cache then remove the cache file
-	[[ "$ANALYTICS" = "false" ]] && { gpg --yes -e -r $email -o $ctimecache $CACHE_F ; rm $CACHE_F ; }
 fi
 
 if [[ "$csum" != "true" && -s $slog && "$suppress" == "false" ]]; then
@@ -972,39 +985,63 @@ fi
 if [ "$POSTOP" == "false" ]; then test -f $rout && rm $rout ; fi
 test -f $slog && rm $slog ; test -f $cerr && rm $cerr
 }
-strup() { /usr/local/save-changesnew/start_inotify $log_file $LCLMODULENAME $CACHE_F "$checkSUM" "ctime" 3600 ; }
+strup() { /usr/local/save-changesnew/start_inotify "$log_file" $LCLMODULENAME "$INOTIFY_CACHE" "$cdir" "$LOCKFILE" "$checkSUM" "ctime" 3600 ; }
 intst() {
 local sz
+local killed="false"
 #Init
 start=$(date +%s.%N)
+
+cache_right
 
 if [[ "$mMODE" == "mc" ]]; then
 	cores=$( nproc 2>/dev/null || echo 1)
 	max_jobs=$(( cores > 16 ? 16 : cores ))
 fi
+
 if [ "$xRC" == "true" ]; then
+	exec 200>"$LOCKFILE"
+	flock -x 200
+	# check if there is any cache from inotify script
+	if [[ -s "$INOTIFY_CACHE" ]]; then
+		cat "$INOTIFY_CACHE" >> "$CACHE_F"
+		: > "$INOTIFY_CACHE"
+	fi
+
 	if pgrep -af 'save-changesnew/inotify' > /dev/null; then
-		if [ -f "$log_file" ]; then
-			cp $log_file $tout
-			rm $log_file
+		if pkill -f 'inotifywait -m -r -e create -e moved_to --format %e|%w%f%0'; then
+			killed="true"
 		fi
-        if pkill -f 'inotifywait -m -r -e create -e moved_to --format %e|%w%f%0'; then
-            :>$log_file
+		# check if there is any created files where ctime > mtime ie downloads with preserved metadata from inotify script
+		if [ -s "$log_file" ]; then
+			mv $log_file $tout
+		fi
+
+        if [ "$killed" == "true" ]; then
+            : > $log_file
+			flock -u 200
             strup
+			
+			
         else
 			test -e $tout && rm $tout
 			test -e $log_file	&& rm $log_file
+			flock -u 200
         fi
+
 	else
 		test -e $log_file	&& rm $log_file
+		flock -u 200
 		strup
 	fi
+	exec 200>&-
 else
     if pgrep -af 'save-changesnew/inotify' > /dev/null; then
         pkill -f 'inotifywait -m -r -e create -e moved_to --format %e|%w%f%0'
         test -e $log_file && rm $log_file
     fi
 fi
+
 if [ "$STATPST" == "true" ]; then
     if [ "$backend" != "database" ]; then
         if [ -f $logpst ]; then
@@ -1077,6 +1114,34 @@ while IFS= read -r y; do
 		fi
 	fi
 done < $2 >> $1
+}
+cache_right() {
+# TMPDIR=$(mktemp -d $xopt/tmpda.XXXXXX)
+if [[ ! -d "$cdir" ]]; then
+    if ! mkdir "$cdir"; then
+        echo "Failed to create directory: $cdir" >&2
+        exit 1
+    fi
+fi
+chmod 700 $cdir
+if [[ ! -f $CACHE_F ]]; then
+	if [[ -f $ctimecache ]]; then
+		if ! decrypt $CACHE_F $ctimecache; then
+		    echo "Failed to decrypt  $ctimecache"
+		    exit 1
+		fi
+	else
+		printf "0 0 0\n" > "$CACHE_F"
+	fi
+else
+	
+	if ! awk 'NR==1 { exit ($3==0 ? 0 : 1) }' "$CACHE_F"; then
+		echo "corrupt cache file detected resetting"
+		printf "0 0 0\n" > "$CACHE_F"
+	fi
+fi
+chmod 600 "$CACHE_F"
+
 }
 upt_cache() {
 local inode=$1
@@ -1351,14 +1416,14 @@ log_lineout() { [[ "$1" = "true" ]] && echo "$3 $4" >> $2 ; }
 # If the threshold is high better to implement CREATED event filepath to array then on CLOSE_WRITE check this array and hash. This
 # can be implemented in python as bash its too complicated. do cache files over 1MB.
 pblk() {
-local debug_log="$7"
-local debug_file="$8"
+local cdir="$7"
+local debug_log="$8"
+local pblk_log_file="$9"
 local cur_line left link
 local cam sl lmt cFILE
 local itime_frac itime_oct mtime_oct mtime_us csum_rlt r y
 local log_date
 local cache_flg="false"
-local cdir="/tmp/dbctimecache/"
 local hashed
 r=""				;	sl=""
 lmt=""			;	nlinks=""
@@ -1401,7 +1466,7 @@ if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 		        if [[ -n "$r" ]]; then
 		            check_sum="$r"
 		        else
-					calculate_csum "main" "$cFILE" $mtime $i $fs 2 0 $debug_log $debug_file $log_date
+					calculate_csum "main" "$cFILE" $mtime $i $fs 2 0 $debug_log $pblk_log_file $log_date
 					csum_rlt=$?
 					(( csum_rlt == 0 )) || return 1
 		            cache_flg="true"
@@ -1438,9 +1503,13 @@ if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 
                         output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $nlinks $mtime_us$hashed"
 
-                        if [[ "$cache_flg" = "true" ]] && (( fs > 1000000 )); then [[ -d $cdir ]] || mkdir -p $cdir ; upt_cache "$i" "$fs" "$mtime_us" "$check_sum" "$y" "$6" ; fi
+                        flock -x 200
+
+                        if [[ "$cache_flg" = "true" ]] && (( fs > 1000000 )); then mkdir -p "$cdir" && chmod 700 "$cdir" ; upt_cache "$i" "$fs" "$mtime_us" "$check_sum" "$y" "$6" ; fi
 
                         printf '%s\n' "$output" >> $2
+
+                        flock -u 200
 
                     else
                         log_lineout $7 $8 "$log_date" "pblk failed to process. itime $itime and mtime $mtime ctime was <= mtime skipped. line $1"
@@ -1639,32 +1708,83 @@ else
     fi
 fi
 }
-findfiles() {
-[[ ! -d "$cached" ]] && mkdir $cached && chmod 700 $cached
-if [[ ! -f $CACHE_F ]]; then
-	if [[ -f $ctimecache ]]; then
-		if ! decrypt $CACHE_F $ctimecache; then
-		    echo "Failed to decrypt  $ctimecache"
-		    exit 1
-		fi
-	else
-		printf "0 0 0\n" > "$CACHE_F" && chmod 600 $CACHE_F
-		valid_data="false"  # means out lifetime total would be the same as the curren total. So dont display Lifetime total
-	fi
-else
-	
-	if ! awk 'NR==1 { exit ($3==0 ? 0 : 1) }' "$CACHE_F"; then
-		echo "corrupt cache file detected resetting"
-		printf "0 0 0\n" > "$CACHE_F" && chmod 600 $CACHE_F
-		valid_data="false"
-	fi
+basefolders() {
+local abpath="$1"  # base path
+local list_folders="$2"
+local script_path="$3"  # for logging
+local debug_file="$4"  # .
+local dpaths=()
+local root_dev
+local F="bin etc home lib lib64 opt root sbin tmp usr var"
+root_dev=$(stat -c '%d' $1)
+while IFS= read -r d; do
+    if [ "$(stat -c '%d' "$1$d")" = "$root_dev" ]; then
+        skip="false"
+        # skip known mount areas
+        for fld in "${MOUNT_FOLDERS[@]}"; do
+            if [[ "$d" == "$fld" ]]; then
+                skip="true"
+                break
+            fi
+        done
+        [[ "$skip" = "true" ]] && continue
+        # if its not in known system folders it will be included but could have mount points so log it
+        if [[ ! " $F " =~ " $d " ]]; then
+            shopt -u nullglob
+            for dir in $1$d/*/; do
+                if [ "$(stat -c '%d' "$dir")" != "$root_dev" ]; then
+                    p=$(dirname "$dir")
+                    echo "$dir is possible mount point add $p to MOUNT_FOLDERS in $2" >> $3
+                fi
+            done
+            shopt -u nullglob
+        fi
+        dpaths+=("$1$d")  # base folder
+    else
+        # home could be a mount ect so add it
+        for mnt in "${MOUNTS_INCLUDE[@]}"; do
+            if [[ "$d" == "$mnt" ]]; then
+                dpaths+=("$1$d")  # home mount
+                break
+            fi
+        done
+    fi
+done < <(find $1 -mindepth 1 -maxdepth 1 -type d -printf '%P\n')
+if [ "$list_folders" == "true" ]; then
+    echo "${dpaths[@]}"  # printf '%s\n' "${dpaths[@]}"
 fi
+}
+
+appendmnt() {
+    local val="$1"
+    [[ -z "$val" ]] && return
+    secondary+=("$val")
+}
+
+findrelavant() {
+    input=$(awk '{print $4}' /proc/self/mountinfo | grep -E '^/(home|var|usr)' | sort)
+    secondary=()
+    for p in /var /home /usr; do
+        if echo "$input" | grep -qx "$p"; then
+            appendmnt "$p"
+        else
+            while IFS= read -r line; do
+                appendmnt "$line"
+            done < <(echo "$input" | grep -E "^$p/")
+        fi
+    done
+}
+findfiles() {
 
 [[ "$checkSUM" = "true" ]] && [[ "$ANALYTICS" = "true" || "$STATPST" = "true" ]] && cyan "Running checksum." || checkSUM="false"
 if [ ! -s "$tout" ]; then
-	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$RECENTNUL" > /dev/null 2>&1
-	find "${F[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$toutnul" > /dev/null 2>&1
-	end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N)
+
+    find "${F[@]}" -xdev "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$RECENTNUL" > /dev/null 2>&1
+    (( ${#secondary[@]} )) && find "${secondary[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee -a "$RECENTNUL" > /dev/null 2>&1
+
+    find "${F[@]}" -xdev "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$toutnul" > /dev/null 2>&1
+    (( ${#secondary[@]} )) && find "${secondary[@]}" "${CMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee -a "$toutnul" > /dev/null 2>&1
+    end=$(date +%s.%N)
 
     # pacman slackpkg downloads ctime > mtime
 
@@ -1678,8 +1798,9 @@ if [ ! -s "$tout" ]; then
     fi
 
 else
-	find "${F[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$RECENTNUL" > /dev/null 2>&1
-	end=$(date +%s.%N) ; [[ "$checkSUM" == "true" ]] && cstart=$(date +%s.%N)
+	find "${F[@]}" -xdev "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee "$RECENTNUL" > /dev/null 2>&1
+	(( ${#secondary[@]} )) && find "${secondary[@]}" "${MMIN[@]}" "${TAIL[@]}" 2>/dev/null | tee -a "$RECENTNUL" > /dev/null 2>&1
+	end=$(date +%s.%N)
 fi
 el=$(awk "BEGIN {print $end - $start}")  # main search time
 #scrolling look
@@ -1689,8 +1810,8 @@ if [ "$FEEDBACK" == "true" ]; then tr '\0' '\n' < "$RECENTNUL" | awk '{ $1=$2=$3
 
 search $RECENTNUL $SORTCOMPLETE $COMPLETE $checkSUM "main" batch1  # mtime loop
 cend=$(date +%s.%N)
-el2=$(awk "BEGIN {print $cend - $cstart}")  # sblk or meta and hash time
+el2=$(awk "BEGIN {print $cend - $end}")  # sblk or meta and hash time
 
-[[ -f "$CACHE_F" ]] && chmod 600 "$CACHE_F"
+
 }
 
