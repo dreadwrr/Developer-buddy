@@ -1,6 +1,8 @@
 #                               05/24/2026
 ## Python edition <br>
 
+Note this version hasnt been updated but can be in the future. It is the bash version implemented in python and has no dependencies. So if I release a special edition this will be it <br><br>
+
 Full logging system, xRC inotify, isdiff, logic, display, filterhits, process hybrid analysis, filter output pretty much all the logic rewritten in python
 slight change in data handling with use of arrays vs files in bash ( rout the file that handles ha output and file actions)
 the filter is filter.py and there is a config.toml <br>
