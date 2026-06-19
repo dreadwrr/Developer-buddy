@@ -64,7 +64,7 @@ def logger_process(results, sys_records, rout, scr, cerr, dbopt="/usr/local/save
                                             # mod_time = timestamp.strftime(fmt)  # if datetime
                                             mod_time = timestamp
                                             # lexographic compare
-                                            if changetime > mod_time:
+                                            if changetime and changetime > mod_time:
                                                 print(f'Casmod {timestamp} {changetime} {label}', file=file)
 
                     except Exception as e:

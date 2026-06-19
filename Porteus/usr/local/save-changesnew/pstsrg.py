@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       06/10/2026
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       06/17/2026
 import getpass
 import os
 import re
@@ -22,7 +22,6 @@ from pyfunctions import to_bool
 
 
 # Globals
-count = 0
 QUOTED_RE = re.compile(r'"((?:[^"\\]|\\.)*)"')
 
 
@@ -170,8 +169,6 @@ def create_db(database, action=False):
 
 
 def insert(log, conn, c, table, add_column=None):  # Log, sys
-    global count
-    count = getcount(c)
 
     columns = [
         'timestamp', 'filename', 'changetime', 'inode', 'accesstime',
@@ -385,7 +382,6 @@ def hash_system_profile(turbo):
             if os.path.isfile(sortcomplete_path):
 
                 checkSUM = True
-                shutil.copy(sortcomplete_path, '/tmp/martar')
                 sys_results = parselog(sortcomplete_path, 'sys', checkSUM)   # sys
 
                 sortcomplete_dir = os.path.dirname(sortcomplete_path)
@@ -598,6 +594,11 @@ def main():
 
         # Log
         if parsed:
+
+            count = getcount(c)
+            if count < 1:
+                # new_database = True
+                goahead = False
             if goahead:   # Hybrid analysis. Skip first pass ect.
 
                 try:
@@ -608,15 +609,11 @@ def main():
                     print(f"hanlydb failed to process on mode {turbo}: {e} {traceback.format_exc()}", file=sys.stderr)
 
                 # Analytics - Dont store anything here it is done in bash.
-                # if total_files:  # if len(SORTCOMPLETE) > 0
+
                 # How many unique files are in the logs table
                 unique_files = c.execute(
                     "SELECT COUNT(DISTINCT filename) FROM logs WHERE filename IS NOT NULL"
                 ).fetchone()[0]
-
-                # if not unique_files:
-                #     new_database = True
-                # print(unique_files)  # debug
 
             try:
 
@@ -625,8 +622,15 @@ def main():
                 #     xdata.append(record[:-1])   # remove the epoch that was used in hanly. it was carried over from bash
 
                 insert(parsed, conn, c, "logs", ['hardlinks', 'mtime_us'])
+
+                count = getcount(c)
+
                 if count % 10 == 0:
-                    print(f'{count + 1} searches in gpg database')
+                    print(f'{count} searches in gpg database')
+
+                # if len(SORTCOMPLETE) > 0
+                #     if total_time > 0:
+                #         insert any analytics
 
             except Exception as e:
                 print(f'log db failed insert err: {e} {type(e).__name__}  \n{traceback.format_exc()}')
