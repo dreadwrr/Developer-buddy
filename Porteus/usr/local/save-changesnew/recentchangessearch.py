@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# entry point for recentchanges.                     v5.0                                                       05/22/2026
+# entry point for recentchanges.                     v5.0                                                       06/22/2026
 #
 #   recentchanges. aka Developer buddy      recentchanges / recentchanges search
 #   Provide ease of pattern finding ie what files to block we can do this a number of ways
@@ -42,11 +42,14 @@ from configfunctions import get_config
 from configfunctions import load_toml
 from configfunctions import update_toml_setting
 from dirwalkerfunctions import get_base_folders
+from dirwalkerfunctions import get_relavant_mounts
+from dirwalkerfunctions import MOUNT_FOLDERS
 from filterhits import update_filter_csv
 from gpgcrypto import decr_ctime
 from gpgcrypto import encr_cache
 from logs import setup_logger
 from processha import isdiff
+from pyfunctions import cache_clear_patterns
 from pyfunctions import cprint
 from recentchangessearchparser import build_parser
 from rntchangesfunctions import clear_logs
@@ -109,6 +112,9 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
     toml_file, home_dir, _, xdg_runtime, uid, gid = get_config(appdata_local, usr)
 
     inotify_creation_file = Path("/tmp/file_creation_log.txt")
+    cdir = Path("/tmp/dbctimecache/")
+    lockfile = Path("/tmp/pblk.lock")
+
     log_dir = appdata_local / "logs"
     file_out = xdg_runtime / "file_output"  # holds result filename for bash
 
@@ -123,7 +129,6 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
     config = load_toml(toml_file)
     feedback = config['analytics']['feedback']
     analytics = config['analytics']['analytics']
-    analyticSECT = config['analytics']['analyticSECT']
     email = config['backend']['email']  # email_name = config['backend']['name']
     cachermPATTERNS = config['backend']['cachermPATTERNS']
     checksum = config['diagnostics']['checkSUM']
@@ -140,6 +145,8 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
     autooutput = config['src']['autooutput']
     xzmname = config['src']['xzmname']
     cmode = config['src']['cmode']
+    cachermPATTERNS = config['backend']['cachermPATTERNS']  # cache clear patterns
+    cachermPATTERNS = cache_clear_patterns(usr, cachermPATTERNS)
     exclDIRS = config['search']['exclDIRS']
     ll_level = config['logs']['logLEVEL']
     root_log_file = config['logs']['rootLOG']
@@ -149,13 +156,6 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
         is_mcore = True
 
     escaped_user = re.escape(usr)
-
-    # db cache patterns in config
-    cachermPATTERNS = config['backend']['cachermPATTERNS']
-    cachermPATTERNS = [
-        p.replace("{{user}}", usr)
-        for p in cachermPATTERNS
-    ]
 
     # suppress browser list in config. regex
     supbrwLIST = [
@@ -170,7 +170,6 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
         'mMODE': mMODE,
         'feedback': feedback,
         'analytics': analytics,
-        'analyticSECT': analyticSECT,
         'checksum': checksum,
         'ps': ps,
         'uid': uid,
@@ -214,7 +213,7 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
     flsrh = False
     filtered = False
 
-    dcr = True  # means to leave open after encrypting
+    dcr = False  # means to leave open after encrypting
 
     flnm = ""
     parseflnm = ""
@@ -231,25 +230,36 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
         os.makedirs(usrDIR, mode=0o755, exist_ok=True)
 
     basedir = "/"
-    F = ["find", basedir]
+    F = ["find", basedir, "-xdev"]  # what is on the device
+
+    # this will make sure files and directories that are in base of / or /mnt or some other oscure place are listed.
+    # but mountpoints are not
 
     search_list = []
+
+    exclDIRS_fullpath = [os.path.join(basedir, d) for d in exclDIRS]
+
     try:
-        baselen = len(exclDIRS)
-        PRUNE = ["("]
-        for i, d in enumerate(exclDIRS):
-            PRUNE += ["-path", os.path.join(basedir, d.replace('$', '\\$'))]
+
+        baselen = len(exclDIRS_fullpath)
+        skipped = [os.path.join(basedir, m) for m in MOUNT_FOLDERS]  # using xdev skip the mount excludes
+        prune = ["("]
+        for i, d in enumerate(exclDIRS_fullpath):
+            if d in skipped:
+                continue
+            prune += ["-path", d]
             if i < baselen - 1:
-                PRUNE.append("-o")
-        PRUNE += [")", "-prune", "-o"]
+                prune.append("-o")
+        prune += [")", "-prune",  "-o"]
 
-        # To build the folders that are searched and output to user
+        mounts = get_relavant_mounts(exclDIRS_fullpath)
 
-        exclDIRS_fullpath = [os.path.join(basedir, d) for d in exclDIRS]
+        # build the folders that are searched to output to user
+
         base_folders, _ = get_base_folders(basedir, exclDIRS_fullpath)
         for folder in base_folders:
-            if folder == "/":
-                continue
+            # if folder == "/":
+            #     continue
             search_list.append(folder)
 
     except Exception as e:
@@ -259,7 +269,7 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
             "find",
             "/bin", "/etc", "/home", "/lib", "/lib64", "/opt", "/root", "/sbin", "/tmp", "/usr", "/var"
         ]
-        PRUNE = []
+        prune = []
         search_list = []
 
     TAIL = ["-not", "-type", "d", "-printf", "%T@ %A@ %C@ %i %M %n %s %u %g %m %p\\0"]
@@ -285,7 +295,7 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
 
         cfr = decr_ctime(cache_f, usr)
 
-        logging_values = (log_file, ll_level, appdata_local, tempwork)
+        logging_values = (log_file, ll_level, appdata_local, tempwork, scr, cerr)
 
         setup_logger(log_file, logging_values[1], "MAIN")
         change_perm(log_file, uid, gid)
@@ -297,7 +307,7 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
 
         # load ctime or files created or copied with preserved metadata
         # if xRC
-        tout = init_recentchanges(appdata_local, home_dir, inotify_creation_file, cfr, xRC, checksum, moduleNAME, log_file)
+        tout = init_recentchanges(appdata_local, home_dir, inotify_creation_file, cdir, lockfile, cfr, xRC, checksum, moduleNAME, log_file, supbrwLIST)
 
         if argone != "search":
             thetime = argone
@@ -323,7 +333,7 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
                     sys.exit(1)
                 os.chdir(pwrd)
 
-                filename = argtwo
+                filename = argtwo  # sys.argv[2]
                 if not os.path.isfile(filename) and not os.path.isdir(filename):
                     print('No such directory, file, or integer.')
                     sys.exit(1)
@@ -336,7 +346,6 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
 
                 filtered = True if not filtered else False
 
-                cprint.cyan(f"Searching for files newer than {filename}")
                 flsrh = True
                 ct = int(time.time())
                 frmt = int(os.stat(filename).st_mtime)
@@ -357,30 +366,38 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
         search_start_dt = (current_time - timedelta(minutes=search_time))
         logger = logging.getLogger("FSEARCH")
 
+        secondary = []
         if tout:
             mmin = ["-mmin", f"-{search_time}"]
+
+            find_command_mmin = F + prune + mmin + TAIL
             if search_list:
+                if mounts:
+                    secondary = ["find", *mounts] + mmin + TAIL
+
                 search_paths = 'Running command:' + ' '.join(["find"] + search_list + mmin + TAIL)
 
-            find_command_mmin = F + PRUNE + mmin + TAIL
             init = True
 
             recent, complete_1, recentnul, end, cstart = find_files(
-                find_command_mmin, search_paths, "main", recent, complete_1, recentnul, init, cfr,
+                find_command_mmin, secondary, search_paths, "main", recent, complete_1, recentnul, init, cfr,
                 search_start_dt, user_setting, logging_values, end, cstart, logger=logger
             )
 
         else:
             cmin = ["-cmin", f"-{search_time}"]
             current_time = datetime.now()
+
+            find_command_cmin = F + prune + cmin + TAIL
             if search_list:
+                if mounts:
+                    secondary = ["find", *mounts] + cmin + TAIL
                 search_paths = 'Running command:' + ' '.join(["find"] + search_list + cmin + TAIL)
 
-            find_command_cmin = F + PRUNE + cmin + TAIL
             init = True
 
             tout, complete_2, recentnul, end, cstart = find_files(
-                find_command_cmin, search_paths, "ctime", tout, complete_2, recentnul, init, cfr,
+                find_command_cmin, secondary, search_paths, "ctime", tout, complete_2, recentnul, init, cfr,
                 search_start_dt, user_setting, logging_values, end, cstart, logger=logger
             )
 
@@ -388,14 +405,19 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
             cmin_start = current_time.timestamp()
             cmin_offset = time_convert(cmin_end - cmin_start, 60, 2)
             check_stop(stopf)
+
             mmin = ["-mmin", f"-{search_time + cmin_offset:.2f}"]
+
+            find_command_mmin = F + prune + mmin + TAIL
             if search_list:
+                if mounts:
+                    secondary = ["find", *mounts] + mmin + TAIL
                 search_paths = 'Running command:' + ' '.join(["find"] + search_list + mmin + TAIL)
-            find_command_mmin = F + PRUNE + mmin + TAIL
+
             init = False
 
             recent, complete_1, recentnul, end, cstart = find_files(
-                find_command_mmin, search_paths, "main", recent, complete_1, recentnul, init, cfr,
+                find_command_mmin, secondary, search_paths, "main", recent, complete_1, recentnul, init, cfr,
                 search_start_dt, user_setting, logging_values, end, cstart, logger=logger
             )
 
@@ -616,12 +638,20 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
                     f.write(f'{tss} {fp}\n')
 
             check_stop(stopf)
+            # pass some analytics into pstsrg
+            el = end - start
+            el2 = cend - cstart
+            total_time = el + el2
+            total_files = len(sortcomplete)
             # Backend
-            res, csum = pstsrg.main(dbtarget, sortcomplete, complete, user_setting, logging_values, rout, scr, cerr, cachermPATTERNS, dcr)
-            #  dbopt = res  # alternatively return dbopt filename if doing something after with .db then remove in cleanup
-            if res is not None:
-                if res == 0 or res == "new_profile":
-                    change_perm(dbtarget, uid, gid)
+            dbopt, data = pstsrg.main(dbtarget, sortcomplete, complete, rout, cachermPATTERNS, user_setting, logging_values, total_time, total_files, dcr)
+            # alternatively return dbopt filename if doing something after with .db then remove in cleanup
+
+            if dbopt == 0 or dbopt in ("new_profile", "new_database"):
+                change_perm(dbtarget, uid, gid)
+            elif not dbopt:
+                print("There is a problem in pst_srg no return value. likely database wasnt created, path to database did not exist or permission issue")
+                return 1
             # elif res == 3:
             #     print("Encryption error")
             # elif res == 4:
@@ -630,13 +660,15 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
             #     print("Other problem: error: ", res)
             # elif res == 0:
 
-            if analyticSECT:
-                el = end - start
-                print(f'Search took {el:.3f} seconds')
-                if checksum:
-                    el = cend - cstart
-                    print(f'Checksum took {el:.3f} seconds')
-                print()
+            csum, unique_files, lifetime_throughput, ha_total_time, logger_total_time = data
+
+            # for benchmarking pstsrg returned the time for multiprocessing ect. This can help verify if any changes or new designs improve performance and also
+            # where the bulk of the work is. This data isnt stored so it is essentially free and adds no complexity.
+            if analytics:
+                if dbopt not in ("new_database", "encr_error", "db_error"):  # "new_profile" would be not to scan index as it was just made
+                    valid_data = True
+                    if ha_total_time:
+                        print("Hanly total time:", format(ha_total_time, ".3f"), "seconds", "logger:", format(logger_total_time, ".4f"), "seconds")
 
             # Diff output to user
             processha.processha(rout, absent, diff_file, cerr, flsrh, argf, srttime, escaped_user, supbrwLIST, suppress_browser, suppress)
@@ -704,6 +736,26 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
                 # display(dspEDITOR, result_output, syschg, dspPATH)  # open text editor? handled in wrapper
             except Exception as e:
                 print(f"Error in logic or display {type(e).__name__} : {e}")
+
+            if analytics:
+
+                print(f'Search took {el:.3f} seconds')
+                if checksum:
+                    print(f'Checksum took {el2:.3f} seconds')
+                print()
+
+                print("Files scanned:", total_files)
+                throughput = total_files / total_time
+                if total_files != 0:
+
+                    output = "Perceived throughput: {:.3f} files per second".format(throughput)
+                    if valid_data:
+                        output += f" Lifetime throughput: {lifetime_throughput:.3f}" if lifetime_throughput else ""
+                    print(output)
+                    if unique_files:
+                        print()
+                        print("Total unique files in logs:", unique_files)
+            print()
 
             if syschg:
                 return 0

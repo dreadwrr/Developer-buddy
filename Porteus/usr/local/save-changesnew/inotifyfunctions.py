@@ -1,8 +1,8 @@
+import fcntl
 import logging
 import os
 import re
 import subprocess
-from pathlib import Path
 from fsearchfunctions import upt_cache
 from pyfunctions import ap_decode
 from pyfunctions import epoch_to_date
@@ -42,7 +42,7 @@ def _fk_process(pattern):
     return False
 
 
-def strup(script_dir, home_dir, inotify_creation_file, cache_f, checksum, moduleNAME, log_file):
+def strup(script_dir, home_dir, inotify_creation_file, cdir, lockfile, cache_f, checksum, moduleNAME, log_file, supbrwLIST):
 
     script_path = os.path.join(script_dir, 'start_inotify')
     cmd = [
@@ -50,10 +50,13 @@ def strup(script_dir, home_dir, inotify_creation_file, cache_f, checksum, module
         str(inotify_creation_file),
         moduleNAME,
         str(cache_f),
+        str(cdir),
+        str(lockfile),
         str(checksum).lower(),
         str(home_dir),
         "ctime",
-        "3600"
+        "3600",
+        *supbrwLIST
     ]
     try:
         script_dir = os.path.dirname(script_path)
@@ -259,35 +262,48 @@ def parse_tout(log_file, checksum):
     return all_files
 
 
-def init_recentchanges(script_dir, home_dir, inotify_creation_file, cfr, xRC, checksum, moduleNAME, log_path):
+def init_recentchanges(script_dir, home_dir, inotify_creation_file, cdir, lockfile, cfr, xRC, checksum, moduleNAME, log_path, supbrwLIST):
     try:
         all_files = []
         search_pattern = os.path.join(script_dir.name, "inotify")
 
+        lock_fd = None
         if checksum and xRC:
+            fd = os.open(lockfile, os.O_WRONLY | os.O_CREAT, 0o644)
+            os.dup2(fd, 200)
+            os.close(fd)
 
-            cached = Path("/tmp/dbctimecache/")
+            lock_fd = 200
 
-            cache_f = cached / "ctimecache"
+            try:
 
-            os.makedirs(cached, mode=0o700, exist_ok=True)
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
 
-            if process_status(search_pattern):
-                fk_success = _fk_process('inotifywait -m -r -e create -e moved_to --format %e|%w%f%0')
-                rotate_cache(cfr, cache_f)
+                cache_f = cdir / "ctimecache"
 
-                if os.path.isfile(inotify_creation_file):
+                os.makedirs(cdir, mode=0o700, exist_ok=True)
 
-                    all_files = parse_tout(inotify_creation_file, checksum)
+                if process_status(search_pattern):
+                    fk_success = _fk_process('inotifywait -m -r -e create -e moved_to --format %e|%w%f%0')
+                    rotate_cache(cfr, cache_f)
 
-                open(inotify_creation_file, 'w').close()
-                if fk_success or not process_status(search_pattern):
-                    strup(script_dir, home_dir, inotify_creation_file, cache_f, checksum, moduleNAME, log_path)
+                    if os.path.isfile(inotify_creation_file):
+
+                        all_files = parse_tout(inotify_creation_file, checksum)
+
+                    open(inotify_creation_file, 'w').close()
+                    if fk_success or not process_status(search_pattern):
+                        strup(script_dir, home_dir, inotify_creation_file, cdir, lockfile, cache_f, checksum, moduleNAME, log_path, supbrwLIST)
+                    else:
+                        removefile(inotify_creation_file)
                 else:
                     removefile(inotify_creation_file)
-            else:
-                removefile(inotify_creation_file)
-                strup(script_dir, home_dir, inotify_creation_file, cache_f, checksum, moduleNAME, log_path)
+                    strup(script_dir, home_dir, inotify_creation_file, cdir, lockfile, cache_f, checksum, moduleNAME, log_path, supbrwLIST)
+            finally:
+                if lock_fd:
+                    fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                    os.close(lock_fd)
+
         else:
             if process_status(search_pattern):
                 fk_success = _fk_process('inotifywait -m -r -e create -e moved_to --format %e|%w%f%0')

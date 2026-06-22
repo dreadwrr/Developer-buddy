@@ -5,11 +5,20 @@ import shutil
 import sys
 import subprocess
 import traceback
+from enum import IntEnum
 from io import StringIO
 from typing import Any
 from rntchangesfunctions import change_perm
 from rntchangesfunctions import cnc
 from rntchangesfunctions import removefile
+
+
+class GPGStatus(IntEnum):
+    ERR_OK = 0
+    DECRYPT_FAIL = 1001
+    NO_KEY = 1002
+    NO_PINENTRY = 1003
+    BAD_PASSPHRASE = 1004
 
 
 # enc mem
@@ -112,11 +121,10 @@ def decr(src, opt, user=None):
         # user = None
         cmd = set_cmd(user)
         cmd += ["gpg", "--yes", "--decrypt", "-o", opt, src]
-        result = subprocess.run(cmd)  # capture_output=True, text=True
-        return result.returncode == 0
-    else:
-        print(f"[ERROR] File {src} not found. Ensure the .gpg file exists.")
-    return False
+        result = subprocess.run(cmd, capture_output=True, text=True)  #
+        return result.returncode == 0, result.stderr
+
+    return False, f"[ERROR] File {src} not found. Ensure the .gpg file exists."
 
 
 def encr_cache(cfr, cache_f, user, uid, gid, email, compLVL):
@@ -180,22 +188,33 @@ def decr_ctime(cache_f, user):
 
 
 # commandline start the users gpg agent before decrypting the cache file above ***
-# also used for processhandler.py to start the gpg agent before QProcess
-def start_user_agent(gpg_file, user=None):
-    """ Not used as requires an existing .gpg file
-          pipes will fail with inappropriate ioctl for device unless using gui pinetry """
+def start_user_agent(user, email, gpg_file=None, input_source=None):
+
     # user = None  # force root gpg agent
     cmd = set_cmd(user)
-    cmd += ["gpg", "--decrypt", "--dry-run", gpg_file, "-o", "/dev/null"]
+    if gpg_file:
+        cmd += ["gpg", "--default-key", email, "--decrypt", "--dry-run", gpg_file]
+    elif input_source:
+        cmd += ["gpg", "--local-user", email, "--output", "/dev/null", "--sign", input_source]
+    else:
+        # print("start user agent no input")
+        return GPGStatus.DECRYPT_FAIL
     result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    if result.returncode == 0:
+        return GPGStatus.ERR_OK
     stderr = result.stderr
     if stderr:
-        for line in stderr.splitlines():
-            if "no secret key" in line.lower():
-                print(line)
-                print(f"No key for {gpg_file} delete the file to reset")
-                return False
-    return result.returncode == 0
+        with open('/tmp/teser', 'w') as f:
+            for line in stderr.splitlines():
+                ln = line.lower()
+                f.write(ln + "\n")
+                if "no secret key" in ln:
+                    return GPGStatus.NO_KEY
+                elif "ioctl" in ln or "no pinentry" in ln:
+                    return GPGStatus.NO_PINENTRY
+                elif "bad passphrase" in ln:
+                    return GPGStatus.BAD_PASSPHRASE
+    return GPGStatus.DECRYPT_FAIL
 
 
 def start_gpg_agent(source, email):

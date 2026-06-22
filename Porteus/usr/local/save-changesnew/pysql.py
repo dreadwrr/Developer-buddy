@@ -2,23 +2,28 @@ import sqlite3
 import traceback
 
 
+COLUMNS = [
+    'timestamp TEXT',
+    'filename TEXT',
+    'changetime TEXT',
+    'inode INTEGER',
+    'accesstime TEXT',
+    "checksum TEXT",
+    'filesize INTEGER',
+    'symlink TEXT',
+    'owner TEXT',
+    '`group` TEXT',
+    'permissions TEXT',
+    'casmod TEXT',
+    'target TEXT',
+    'lastmodified TEXT'
+]
+
+
 def create_table(c, table, unique_columns, e_cols=None):
     columns = [
         'id INTEGER PRIMARY KEY AUTOINCREMENT',
-        'timestamp TEXT',
-        'filename TEXT',
-        'changetime TEXT',
-        'inode INTEGER',
-        'accesstime TEXT',
-        'checksum TEXT',
-        'filesize INTEGER',
-        'symlink TEXT',
-        'owner TEXT',
-        '`group` TEXT',
-        'permissions TEXT',
-        'casmod TEXT',
-        'target TEXT',
-        'lastmodified TEXT'
+        *COLUMNS
     ]
     if e_cols:
         if isinstance(e_cols, str):
@@ -67,6 +72,14 @@ def create_db(database, action=None):
         filename TEXT,
         changetime TEXT,
         UNIQUE(timestamp, filename, changetime)
+        )
+    ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS analytics (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            total_files INTEGER NOT NULL DEFAULT 0,
+            total_time INTEGER NOT NULL DEFAULT 0,
+            last_start INTEGER
         )
     ''')
     conn.commit()
@@ -350,3 +363,38 @@ def increment_f(conn, c, records, logger=None):
         if logger:
             logger.error(err, exc_info=True)
     return False
+
+
+def get_unique_files(c):
+    # How many unique files are in the logs table
+    unique_files = c.execute(
+        "SELECT COUNT(DISTINCT filename) FROM logs WHERE filename IS NOT NULL"
+    ).fetchone()[0]
+    return unique_files
+
+
+def insert_files_time(c, total_files, total_time):
+    total_time_int = int(total_time * 1000)
+    c.execute("""
+        INSERT INTO analytics (id, total_files, total_time)
+        VALUES (1, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            total_files = total_files + excluded.total_files,
+            total_time = total_time + excluded.total_time;
+    """, (total_files, total_time_int))
+
+
+def get_lifetime_throughput(c):
+    throughput = 0
+    total_files, total_time = c.execute("""
+        SELECT total_files, total_time
+        FROM analytics
+    """).fetchone()
+
+    if total_files and total_time:
+
+        total_time_float = total_time / 1_000
+
+        throughput = total_files / total_time_float
+
+    return throughput

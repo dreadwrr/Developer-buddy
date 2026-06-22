@@ -2,6 +2,7 @@ import re
 import csv
 from collections import defaultdict
 from filter import _filter
+from pyfunctions import user_path
 
 
 def update_filter_csv(recent, csv_file, escaped_user):
@@ -17,13 +18,13 @@ def update_filter_csv(recent, csv_file, escaped_user):
                 hits_dict[pattern] = int(count)
     except FileNotFoundError:
         pass
-
-    patterns = _filter
+    user_filter = user_path(_filter, escaped_user)
+    patterns = user_filter
 
     for pattern_literal in patterns:
 
-        pattern = pattern_literal.replace("{{user}}", escaped_user)
-        regex = re.compile(pattern)
+        # pattern = pattern_literal.replace("{{user}}", escaped_user)
+        regex = re.compile(pattern_literal)
 
         count = sum(1 for line in recent if len(line) >= 2 and regex.search(line[1]))
         hits_dict[pattern_literal] += count

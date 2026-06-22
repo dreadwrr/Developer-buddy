@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database.     05/22/2026
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database.     06/21/2026
 import os
 import sqlite3
 import sys
@@ -16,21 +16,27 @@ from pyfunctions import unescf_py
 from pysql import blank_count
 from pysql import create_db
 from pysql import create_table
+from pysql import get_lifetime_throughput
+from pysql import get_unique_files
 from pysql import insert
+from pysql import insert_files_time
 from pysql import insert_if_not_exists
 from pysql import table_has_data
 from pysql import collision_check
 # from rntchangesfunctions import change_perm
 
 
-def main(dbtarget, xdata, complete, user_setting, logging_values, rout, scr, cerr, cachermPATTERNS, dcr=False):
+# dbopt, data = pstsrg.main(dbtarget, sortcomplete, complete, rout, cachermPATTERNS, user_setting, logging_values, total_time, total_files, dcr)
+def main(dbtarget, xdata, complete, rout, cachermPATTERNS, user_setting, logging_values, total_time, total_files, dcr=False):
+
+    scr = logging_values[4]
+    cerr = logging_values[5]
 
     user = user_setting['usr']
     # uid = user_setting['uid']
     # gid = user_setting['gid']
     email = user_setting['email']
     mMODE = user_setting['mMODE']
-    analyticSECT = user_setting['analyticSECT']
     checksum = user_setting['checksum']
     cdiag = user_setting['cdiag']
     ps = user_setting['ps']
@@ -43,12 +49,17 @@ def main(dbtarget, xdata, complete, user_setting, logging_values, rout, scr, cer
 
     csum = False
     new_profile = False
+    new_database = False
     db_error = False
     goahead = True
     is_ps = False
     conn = None
 
     res = 0
+
+    ha_total_time = logger_total_time = 0
+    unique_files = 0
+    lifetime_throughput = 0
 
     # original with a temp dir cant leave db to reencrypt if everything succeeds but only reencryption fails. so leave in app directory with proper perms
     # tempdir = tempfile.gettempdir()
@@ -64,11 +75,10 @@ def main(dbtarget, xdata, complete, user_setting, logging_values, rout, scr, cer
     dbopt = os.path.join(app_dir, outfile)
 
     if os.path.isfile(dbtarget):
-        sts = decr(dbtarget, dbopt, user)
+        sts, err = decr(dbtarget, dbopt, user)
         if not sts:
-            if sts is None:
-                print(f"pstsrg unable to do hybrid analysis No key for {dbtarget} delete it to make a new one.")
-            return 2, csum
+            print(err)
+            return None, None
     else:
         try:
             conn = create_db(dbopt, True)
@@ -76,10 +86,11 @@ def main(dbtarget, xdata, complete, user_setting, logging_values, rout, scr, cer
             goahead = False
         except Exception as e:
             print("Failed to create db:", e)
+            return None, None
     if not conn:
         if not os.path.isfile(dbopt):
             print("pstsrg.py couldnt locate database: ", dbopt, " quiting.")
-            return 1, csum
+            return None, None
         conn = sqlite3.connect(dbopt)
 
     try:
@@ -114,6 +125,11 @@ def main(dbtarget, xdata, complete, user_setting, logging_values, rout, scr, cer
             elif ps:
                 print('Sys profile requires the setting checksum to index')
 
+        count = blank_count(c)
+        if count < 1:
+            goahead = False
+            new_database = True
+
         # Log
         if xdata:
 
@@ -121,7 +137,7 @@ def main(dbtarget, xdata, complete, user_setting, logging_values, rout, scr, cer
 
                 try:
 
-                    csum = hanly_parallel(rout, scr, cerr, mMODE, xdata, cachermPATTERNS, analyticSECT, checksum, cdiag, dbopt, is_ps, user, logging_values)
+                    csum, ha_total_time, logger_total_time = hanly_parallel(rout, scr, cerr, mMODE, xdata, cachermPATTERNS, checksum, cdiag, dbopt, is_ps, user, logging_values)
 
                 except Exception as e:
                     print(f"hanlydb failed to process on mode {mMODE}: {e} {traceback.format_exc()}", file=sys.stderr)
@@ -137,12 +153,25 @@ def main(dbtarget, xdata, complete, user_setting, logging_values, rout, scr, cer
 
                 count = blank_count(c)
                 if count % 10 == 0:
-                    print(f'{count + 1} searches in gpg database')
+                    print(f'{count} searches in gpg database')
 
                 # Check for hash collisions
                 if checksum and cdiag:
                     if collision_check(xdata, cerr, c, ps):
                         csum = True
+
+                # Analytics - Store the total files and total time for the search. Also get unique files and lifetime throughput.
+                if total_files:
+                    if total_time > 0:
+                        insert_files_time(c, total_files, total_time)  # insert and increment
+
+                        lifetime_throughput = get_lifetime_throughput(c)  # get the total
+
+                    unique_files = get_unique_files(c)
+
+                    if not lifetime_throughput:
+                        print("pstsrg couldnt get analytics. skipped")
+                    # end Lifetime throughput
 
             except Exception as e:
                 print(f'log db failed insert err: {e} {type(e).__name__}  \n{traceback.format_exc()}')
@@ -200,16 +229,20 @@ def main(dbtarget, xdata, complete, user_setting, logging_values, rout, scr, cer
         if conn:
             conn.close()
 
-    if (dcr and res != 3) or not dcr:
+    data = (csum, unique_files, lifetime_throughput, ha_total_time, logger_total_time)
+
+    if not dcr and res != 3:
         removefile(dbopt)
 
     if res == 0 and new_profile:
-        return "new_profile", csum
+        return "new_profile", data
+    elif res == 0 and new_database:
+        return "new_database", data
     elif res == 0:
-        return 0, csum
+        return 0, data
         # return dbopt
     elif res == 3:
-        return "encr_error", csum
+        return "encr_error", data
     elif res == 4:
-        return "db_error", csum
-    return res, csum
+        return "db_error", data
+    return None, None
