@@ -1,13 +1,15 @@
 #                               06/22/2026
 ## Python edition <br>
 
-Note this version hasnt been updated but can be in the future. It is the bash version implemented in python and has no dependencies. So if I release a special edition this will be it <br><br>
 
 Full logging system, xRC inotify, isdiff, logic, display, filterhits, process hybrid analysis, filter output pretty much all the logic rewritten in python
 slight change in data handling with use of arrays vs files in bash ( rout the file that handles ha output and file actions)
 the filter is filter.py and there is a config.toml <br>
 
 both the bash and the python edition have the advantages of not needing any dependencies. <br><br>
+v5.0.0-py<br>
+changed the way the find command is run with -xdev<br>
+parallized inotify wait<br>
 
 v1.3.2-py <br>
 py ver is now the special edition of recentchanges with the focus of main release being bash
