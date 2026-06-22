@@ -3,17 +3,17 @@
 backend = "database"
 # patterns to delete from db.
 cachermPATTERNS = [
-    "%caches%",
-    "%cache2%",
-    "%Cache2%",
-    "%.cache%",
-    "%share/Trash%",
-    "%home/{{user}}/.local/state/wireplumber%",
-    "%root/.local/state/wireplumber%",
-    "%usr/share/mime/application%",
-    "%usr/share/mime/text%",
-    "%usr/share/mime/image%",
-    "%release/cache%"
+    "caches",
+    "cache2",
+    "Cache2",
+    ".cache",
+    "share/Trash",
+    "home/{{user}}/.local/state/wireplumber",
+    "root/.local/state/wireplumber",
+    "usr/share/mime/application",
+    "usr/share/mime/text",
+    "usr/share/mime/image",
+    "release/cache"
 ]
 
 
@@ -37,10 +37,11 @@ rootLOG = "errs2.log"
 
 [search]
 
-# Directories to exclude from the searches. ie 
-# default directories that are left "/bin", "/etc", "/home", "/lib", "/lib64", "/opt", "/root", "/sbin", "/tmp", "/usr",  "/var"
-# prevent permission errors.  # eg var/cache, home/{{user}}/.cache or home/guest/somefolder
-exclDIRS = ["dev", ".cache", "media", "mnt", "proc", "run", "srv", "sys"]	
+# Directories to exclude from the searches
+# default directories that are left "/bin", "/etc", "/home", "/lib", "/lib64", "/opt", "/root", "/sbin", "/tmp", "/usr",  "/var", "srv"
+# exclude mountpoint areas ect. see dirwalkerfunctions for mount folders and mounts include
+# eg srv, var/cache, home/{{user}}/.cache or home/guest/somefolder
+exclDIRS = ["dev", ".cache", "proc", "run", "sys"]
 
 
 # handle switching automatically? mMODE also known as turbo mode.  
@@ -64,7 +65,6 @@ analytics = true
                             # total search time ect
                             # we dont want too much output on the terminal just a slight bit more
                             # others stats
-analyticSECT = true
 
 
 # include find output in terminal as well ie scrolling terminal look
