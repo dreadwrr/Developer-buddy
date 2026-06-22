@@ -38,7 +38,7 @@ except ImportError:
     TK_AVAILABLE = False
 
 
-# 05/22/2026
+# 06/21/2026
 
 # see pyfunctions.py cache clear patterns for db
 
@@ -388,7 +388,7 @@ def results(database, target, conn, cur, email, user, flth, config_path, turbo, 
     toolbar = tk.Frame(root)
     toolbar.pack(side=tk.TOP, fill=tk.X)
     cur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-    tables = [t[0] for t in cur.fetchall()] or ["(no tables)"]
+    tables = [t[0] for t in cur.fetchall() if t[0] != 'analytics'] or ["(no tables)"]
     selected_table = tk.StringVar(value=tables[0])
 
     def clear_sys_and_redraw():

@@ -212,6 +212,7 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
     syschg = False
     flsrh = False
     filtered = False
+    valid_data = False
 
     dcr = False  # means to leave open after encrypting
 
@@ -547,7 +548,7 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
                 check_stop(stopf)
 
                 if argtwo == "SRC":
-                    res = porteus_linux_check()
+                    res = porteus_linux_check(any_version=True)
                     if res:
                         validrlt = copy_files(recent, recentnul, tmpopt, argone, thetime, argtwo, usr, tempwork, archivesrh, autooutput, xzmname, cmode, fmt, appdata_local)
                     elif res is not None:
@@ -647,11 +648,9 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
             dbopt, data = pstsrg.main(dbtarget, sortcomplete, complete, rout, cachermPATTERNS, user_setting, logging_values, total_time, total_files, dcr)
             # alternatively return dbopt filename if doing something after with .db then remove in cleanup
 
-            if dbopt == 0 or dbopt in ("new_profile", "new_database"):
-                change_perm(dbtarget, uid, gid)
-            elif not dbopt:
-                print("There is a problem in pst_srg no return value. likely database wasnt created, path to database did not exist or permission issue")
-                return 1
+            # if dbopt == 0 or dbopt in ("new_profile", "new_database"):
+            change_perm(dbtarget, uid, gid)
+
             # elif res == 3:
             #     print("Encryption error")
             # elif res == 4:
@@ -659,7 +658,9 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
             # elif res != 0:
             #     print("Other problem: error: ", res)
             # elif res == 0:
-
+            if not dbopt:
+                print("There is a problem in pst_srg no return value. likely database wasnt created, path to database did not exist or permission issue")
+                return 1
             csum, unique_files, lifetime_throughput, ha_total_time, logger_total_time = data
 
             # for benchmarking pstsrg returned the time for multiprocessing ect. This can help verify if any changes or new designs improve performance and also

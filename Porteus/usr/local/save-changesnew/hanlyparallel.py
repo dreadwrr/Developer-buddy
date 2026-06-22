@@ -71,9 +71,10 @@ def logger_process(results, sys_records, rout, scr, cerr, dbopt, ps, logger=None
                                     inode = msg[3]
                                     checksum = msg[5]
 
+                                    label = escf_py(filepath)
                                     result = detect_copy(filepath, inode, checksum, c, ps)
                                     if result:
-                                        label = escf_py(filepath)
+
                                         rout.append(f'Copy {timestamp} {changetime} {label}')
 
                                     # windows if creation time is greater than modified time it could be a copy, a download or a created file

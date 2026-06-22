@@ -254,23 +254,26 @@ def filter_output(filepath, escaped_user, filtername, critical, pricolor, seccol
                         getattr(cprint, seccolor, lambda msg: print(msg))(f"{file_line} {typ}")
 
 
-def porteus_linux_check():
-    if os.path.isfile("/etc/porteus-release"):
-        return True
+def porteus_linux_check(any_version=False):
+    if any_version:
+        if os.path.isfile("/etc/porteus-release"):
+            return True
     os_release_path = "/etc/os-release"
     distro_info = {}
     try:
-        with open(os_release_path, "r") as file:
-            for line in file:
-                if "=" in line:
-                    key, value = line.strip().split("=", 1)
-                    value = value.strip('"')
-                    distro_info[key] = value
-        distro_id = distro_info.get("ID", "").lower()
-        distro_name = distro_info.get("NAME", "").lower()
-        for target in ("porteus", "nemesis"):
-            if target in distro_id or target in distro_name:
-                return True
+        if os.path.isfile("/etc/porteus-release"):
+            with open(os_release_path, "r") as file:
+                for line in file:
+                    if "=" in line:
+                        key, value = line.strip().split("=", 1)
+                        value = value.strip('"')
+                        distro_info[key] = value
+            distro_id = distro_info.get("ID", "").lower()
+            distro_name = distro_info.get("NAME", "").lower()
+            for target in ("artix", "nemesis"):
+                if target in distro_id or target in distro_name:
+                    return "nemesis"
+            return "porteus"
         return False
     except FileNotFoundError:
         print("The file /etc/os-release was not found.")
@@ -406,7 +409,9 @@ def clear_logs(dirSRC, method, appdata_local, moduleNAME, archivesrh):
     # Archive last search to /tmp
     keep = [
         "xSystemchanges",
-        "xSystemDiffFromLastSearch"
+        "xSystemDiffFromLastSearch",
+        "xFltDiffFromLastSearch",
+        "xFltchanges"
     ]
 
     new_folder = None

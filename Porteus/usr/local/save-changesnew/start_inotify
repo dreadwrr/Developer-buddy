@@ -8,13 +8,14 @@ debug_file=/tmp/inotify.log  # core inotify debug output
 log_date=$(date +"$fmt")
 echo $log_date > $debug_file
 
-if [ "$#" -lt 8 ]; then
-    echo "Usage: $0 log_file mdlnameprefix cache_file cdir lockfile checksum mode time" >&2
+if [ "$#" -lt 9 ]; then
+    echo "Usage: $0 log_file mdlnameprefix cache_file cdir lockfile checksum homedir mode time" >&2
 	echo "not enough args" >> $debug_file
     exit 1
 fi
 
-nohup "$SCRIPT_PATH"/inotify "$@" "$debug_file" >> $debug_file 2>&1 &
+# nohup "$SCRIPT_PATH"/inotify "$@" "$debug_file" >> $debug_file 2>&1 &
+setsid "$SCRIPT_PATH"/inotify "$@" "$debug_file" >> "$debug_file" 2>&1 &
 pid=$!
 sleep 1
 

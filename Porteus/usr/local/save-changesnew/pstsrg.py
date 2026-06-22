@@ -239,10 +239,11 @@ def main(dbtarget, xdata, complete, rout, cachermPATTERNS, user_setting, logging
     elif res == 0 and new_database:
         return "new_database", data
     elif res == 0:
-        return 0, data
+        return dbopt, data
         # return dbopt
     elif res == 3:
         return "encr_error", data
     elif res == 4:
         return "db_error", data
+
     return None, None

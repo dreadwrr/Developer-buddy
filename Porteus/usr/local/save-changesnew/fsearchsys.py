@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 from fileops import calculate_checksum
 from fileops import find_link_target
+from fileops import goahead
 from fileops import set_stat
 from fsearchfunctions import normalize_timestamp
 from logs import emit_log
@@ -52,13 +53,23 @@ def process_sys_line(line, checksum, file_type, search_start_dt, cache_f, logger
         emit_log("ERROR", f"process_sys_line from find  {e} {type(e).__name__} size: {size} line:{line}", logs.WORKER_LOG_Q, logger=logger)
         return None, log_entries
 
+    # the inode is from the .xzm get the inode from the system ****
+
+    st = goahead(file_path, log_q=logs.WORKER_LOG_Q, logger=logger)
+    if st == "Nosuchfile":
+        mt = mtime.replace(microsecond=0)
+        escf_path = escf_py(file_path)
+        return ("Deleted", mt, mt, escf_path), log_entries
+    elif st:
+        inode = st.st_ino
+
     ctime = epoch_to_date(change_time)
 
     sym = "y" if isinstance(symlink, str) and symlink.startswith("l") else None
 
     mtime_us = normalize_timestamp(mod_time)
     if sym != "y" and checksum:
-        checks, file_dt, file_us, file_st, status = calculate_checksum(file_path, mtime, mtime_us, inode, size, retry=2, max_retry=2, cacheable=True, log_q=logs.WORKER_LOG_Q, logger=logger)
+        checks, file_dt, file_us, file_st, status = calculate_checksum(file_path, mtime, mtime_us, inode, size, retry=2, cacheable=True, log_q=logs.WORKER_LOG_Q, logger=logger)
         if checks is not None:
             if status == "Retried":
                 checks, mtime, st, mtime_us, ctime, inode, size = set_stat(line, checks, file_dt, file_st, file_us, inode, logs.WORKER_LOG_Q, logger=logger)

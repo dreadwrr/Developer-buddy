@@ -60,8 +60,10 @@ def set_stat(line, checks, file_dt, file_st, file_us, inode, log_q=None, logger=
     return checks, mtime, file_st, mtime_us, ctime, a_ino, size_int
 
 
-def calculate_checksum(file_path, mtime, mod_time, inode, size_int, prev_hash=None, st=None, retry=1, max_retry=1, cacheable=True, log_q=None, logger=None):
+def calculate_checksum(file_path, mtime, mod_time, inode, size_int, prev_hash=None, st=None, retry=1, max_retry=None, cacheable=True, log_q=None, logger=None):
 
+    if max_retry is None:
+        max_retry = retry
     total_size = 0
 
     try:

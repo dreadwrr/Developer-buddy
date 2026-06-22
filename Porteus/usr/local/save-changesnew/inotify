@@ -42,9 +42,9 @@ checkSUM="$6"
 HOME_DIR="$7"
 xMODE="$8"
 time="$9"
-debug_file=${10}  # debug output of this script
-shift 10
-webb=("$@")  # sbwr. Filter terminal or supress browser. common items to exclude from prompt      .  regex  notes: ([^/]*)$
+shift 9
+webb=("${@:1:$#-1}")  # sbwr. Filter terminal or supress browser. common items to exclude from prompt      .  regex  notes: ([^/]*)$
+debug_file="${!#}"  # debug output of this script
 match_found=0
 dpaths=()
 

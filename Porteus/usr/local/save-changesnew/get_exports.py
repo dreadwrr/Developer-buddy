@@ -20,6 +20,11 @@ def get_exports():
     appdata_local = find_install()  # software install aka workdir
     log_dir = appdata_local / "logs"
 
+    # look into this but log file is local
+    # xdg_state = os.environ.get("XDG_STATE_HOME")
+    # if xdg_state:
+    #     log_dir = path(xdg_state) / "recentchanges" / "logs"
+
     toml_file, home_dir, xdg_config, xdg_runtime, _, _ = get_config(appdata_local, user)
     with open(toml_file, "rb") as f:
         config = tomllib.load(f)
