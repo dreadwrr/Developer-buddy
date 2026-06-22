@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#   Developer buddy 5.0 core                                               05/22/2026
+#   Developer buddy 5.0 core                                               06/22/2026
 
 # ascii positional encoding
 # escape input newlines for parsing
@@ -116,16 +116,22 @@ setup_exports() {
     output=$( python3 "$app_install"/get_exports.py $USR) ; res=$?
     # 
     if [[ $res -ne 0 ]]; then
-        if [[ $res -eq 7 ]]; then 
-            echo "bad passphrase" && exit 7
-        elif [[ $res -eq 4 ]]; then 
+        
+        if [[ $res -eq 3 ]]; then
+            echo "no key found"  # if there is a .gpg in /home/guest/.local/share/recentchanges but now there isnt a gpg key generatekey will clear it the .gpg
+        elif [[ $res -eq 4 ]]; then
             echo "inappropriate ioctl or no pinentry." ; echo "if having problems run recentchanges reset" && exit 4
+        elif [[ $res -eq 7 ]]; then 
+            echo "bad passphrase" && exit 7
+        elif [[ $res -eq 2 ]]; then
+            echo "failed to start user gpg agent" && exit 2
         else
-            echo "couldnt start user gpg agent before root" && exit $res
+            echo "failed to setup environment from $app_install/src/get_exports.py" && exit $res
         fi
     fi
+
     eval "$output"
-    [[ "$1" = "reset" ]] && { python3 "$app_install"/rntchanges.py reset "$USR" "$email" "$app_install" "$home_dir"; exit ; }
+    [[ "$1" = "reset" ]] && { python3 "$app_install"/rntchanges.py reset "$USR" "$email" "$app_install" "$home_dir" "$tomlf"; exit ; }
     if ! gpg --list-keys | grep -q $email; then generatekey ; fi  # setup key for user
 }
 
@@ -253,7 +259,7 @@ if [ "$ino" -ge 0 ] 2>/dev/null && [ "$sze" -ge 0 ] 2>/dev/null; then
                 modified_epoch=$c
                 change_time="$f3 $f4"
                 r=$( date -d "$change_time" +%s.%N 2>/dev/null)
-                [[ -n "$r" ]] && r=$(normalize_ts "$r") || log_lineout $debug_log $debug_file "$log_date" "calculate_csum Warning ct is null on retried. retry $(( max_retries - x ))" && return 1
+                [[ -n "$r" ]] && r=$(normalize_ts "$r") || { echo "calculate_checksum changetime was null" ; log_lineout $debug_log $debug_file "$log_date" "calculate_csum Warning ct is null on retried. retry $(( max_retries - x ))" ; return 1 ; }
                 ctime_epoch=$r
                 prev_hash="$checks"
                 sleep $delay
@@ -275,27 +281,27 @@ log_lineout() { [[ "$1" = "true" ]] && echo "$3 $4" >> $2 ; }
 # If the threshold is high better to implement CREATED even filepath to array then on CLOSE_WRITE check this array and hash. This
 # can be implemented in python as bash its too complicated. do cache files over 1MB.
 pblk() {
-local debug_log="$7"
-local debug_file="$8"
-local fmt="%Y-%m-%d %H:%M:%S"
-local r y z
-local mod_time mtime_us csum_rlt
-local cam sl lmt cFILE retries
+local cdir="$7"
+local debug_log="$8"
+local debug_file="$9"
+local cur_line
+local cam sl lmt cFILE
+local itime_frac itime_oct mtime_oct mtime_us csum_rlt r y
 local log_date
 local cache_flg="false"
 local cdir="/tmp/dbctimecache/"
-
 r=""                ;    sl=""
 lmt=""            ;    nlinks=""
 cam="None"
 check_sum=""
 
-[[ "$7" = "true" ]] && log_date="$(date +"$fmt")"
+[[ "$8" = "true" ]] && log_date="$(date +"$fmt")"
 
 cur_line="$( ap_safeline "$1")"
-log_lineout $7 $8 "$log_date" "pblk line in $cur_line"  # debug
+log_lineout $8 $9 "$log_date" "pblk line in $cur_line"  # debug
+
 read -r mtime atime itime i sym n fs onr grp pmr cFILE <<< "$cur_line"
-log_lineout $7 $8 "$log_date" "itime: $itime and mtime: $mtime , pblk after parsing line in $cur_line"
+log_lineout $8 $9 "$log_date" "itime: $itime and mtime: $mtime , pblk after parsing line in $cur_line"
 
 cFILE="$( ap_safeline_dec "$cFILE")"
 y="$( ap_enc "$cFILE")"
@@ -306,12 +312,13 @@ mt=$(date -d "@$mtime_sec" +"$fmt")
 ct=$(date -d "@$itime_sec" +"$fmt")
 if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
     if [ -n "$mt" ]; then
-        [[ -z "$ct" ]] && log_lineout $7 $8 "$log_date" "Warning ct is null on input to pblk $1" && return 1
+        [[ -z "$ct" ]] && log_lineout $8 $9 "$log_date" "Warning ct is null on input to pblk $1" && return 1
         mtime=$( normalize_ts "$mtime")
         itime=$(normalize_ts "$itime")
         mtime_frac=${mtime#*.}
 
         if [ "$4" == "true" ]; then
+
             [[ "$sym" == l* ]] && sl="y" && check_sum="None"
             if [[ -z "$sl" ]]; then
                 [[ -e "$CACHE_F" ]] && mtime_us=$(( $mtime_sec * 1000000 + (10#$mtime_frac) )) && r=$(get_cached $i $fs $mtime_us)
@@ -336,7 +343,7 @@ if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
                 ats=${ats:-None None}
                 lmt=${lmt:-None None}
 
-                [[ "$7" = "true" ]] && log_date="$(date +"$fmt")"
+                [[ "$8" = "true" ]] && log_date="$(date +"$fmt")"
 
                 if [[ -n "$ct" && "$5" = "ctime" ]]; then
 
@@ -349,37 +356,41 @@ if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
 
                     if (( itime_sec == mtime_sec && itime_oct > mtime_oct )) || (( itime_sec > mtime_sec )); then   # awk -v it="$itime" -v mt="$mtime" 'BEGIN {exit !(it > mt)}'; then
 
-                        log_lineout $7 $8 "$log_date" "change time: $itime and mtime: $mtime , pblk passed processed line in $cur_line"
+                        log_lineout $8 $9 "$log_date" "change time: $itime and mtime: $mtime , pblk passed processed line in $cur_line"
 
                         cam="y" ; lmt=$mt ; mt=$ct
 
                         output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $nlinks $mtime_us"
 
-                        if [[ "$cache_flg" = "true" ]] && (( fs > 1000000 )); then [[ -d $cdir ]] || mkdir -p $cdir ; z="$( escf "$cFILE")" ; upt_cache "$i" "$fs" "$mtime_us" "$check_sum" "$z" "$6" ; fi
+                        flock -x 200
+
+                        if [[ "$cache_flg" = "true" ]] && (( fs > 1000000 )); then mkdir -p "$cdir" && chmod 700 "$cdir" ; z="$( escf "$cFILE")" ; upt_cache "$i" "$fs" "$mtime_us" "$check_sum" "$z" "$6" ; fi
 
                         printf '%s\n' "$output" >> $2
 
+                        flock -u 200
+
                     else
-                        log_lineout $7 $8 "$log_date" "pblk failed to process. itime $itime and mtime $mtime ctime was <= mtime skipped. line $1"
+                        log_lineout $8 $9 "$log_date" "pblk failed to process. itime $itime and mtime $mtime ctime was <= mtime skipped. line $1"
                         output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $nlinks $mtime_us"
-                        log_lineout $7 $8 "$log_date" "pblk results $output"
+                        log_lineout $8 $9 "$log_date" "pblk results $output"
                     fi
                 else
-                    [[ "$5" != "ctime" ]] && log_lineout $7 $8 "$log_date" "ctime is not set. currently set to $5 continue $1"
+                    [[ "$5" != "ctime" ]] && log_lineout $8 $9 "$log_date" "ctime is not set. currently set to $5 continue $1"
                     output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $nlinks $mtime_us"
-                    log_lineout $7 $8 "$log_date" "pblk results $output"
+                    log_lineout $8 $9 "$log_date" "pblk results $output"
                 fi
             else
-                log_lineout $7 $8 "$log_date" "pblk no checksum skipping $1"
+                log_lineout $8 $9 "$log_date" "pblk no checksum skipping $1"
             fi
         else
-            log_lineout $7 $8 "$log_date" "pblk checksum is false skipping $1"
+            log_lineout $8 $9 "$log_date" "pblk checksum is false skipping $1"
         fi
     else
-        log_lineout $7 $8 "$log_date" "Warning mt is null on input to pblk skipped $1"
+        log_lineout $8 $9 "$log_date" "Warning mt is null on input to pblk skipped $1"
     fi
 else
-    log_lineout $7 $8 "$log_date" "change time: $itime and mtime: $mtime , sblk Nosuchfile line $cur_line"
+    log_lineout $8 $9 "$log_date" "change time: $itime and mtime: $mtime , sblk Nosuchfile line $cur_line"
 fi
 }
 findrootfolder() {

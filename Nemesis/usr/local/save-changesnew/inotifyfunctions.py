@@ -1,14 +1,17 @@
+import fcntl
 import logging
 import os
 import re
+import signal
 import subprocess
-from pathlib import Path
 from fsearchfunctions import upt_cache
 from pyfunctions import ap_decode
 from pyfunctions import epoch_to_date
 from pyfunctions import escf_py
 from pyfunctions import parse_datetime
 from rntchangesfunctions import removefile
+# 06/22/2026
+
 
 # Globals
 QUOTED_RE = re.compile(r'"((?:[^"\\]|\\.)*)"')
@@ -29,6 +32,24 @@ def process_status(pattern):
     return False
 
 
+def shutdown(pid_file):
+    pid = None
+    if os.path.isfile(pid_file):
+        try:
+            with open(pid_file, "r") as f:
+                pid = int(f.read().strip())
+        except (ValueError, OSError):
+            return None
+        try:
+            os.kill(-pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass  # already gone
+        except PermissionError:
+            print("shutdown func inotifywait permission error")
+            pass
+    return pid
+
+
 def _fk_process(pattern):
     try:
         result = subprocess.run(
@@ -42,7 +63,7 @@ def _fk_process(pattern):
     return False
 
 
-def strup(script_dir, home_dir, inotify_creation_file, cache_f, checksum, moduleNAME, log_file):
+def strup(script_dir, home_dir, inotify_creation_file, cdir, lockfile, cache_f, checksum, moduleNAME, log_file, supbrwLIST):
 
     script_path = os.path.join(script_dir, 'start_inotify')
     cmd = [
@@ -50,10 +71,13 @@ def strup(script_dir, home_dir, inotify_creation_file, cache_f, checksum, module
         str(inotify_creation_file),
         moduleNAME,
         str(cache_f),
+        str(cdir),
+        str(lockfile),
         str(checksum).lower(),
         str(home_dir),
         "ctime",
-        "3600"
+        "3600",
+        *supbrwLIST
     ]
     try:
         script_dir = os.path.dirname(script_path)
@@ -259,41 +283,73 @@ def parse_tout(log_file, checksum):
     return all_files
 
 
-def init_recentchanges(script_dir, home_dir, inotify_creation_file, cfr, xRC, checksum, moduleNAME, log_path):
+def init_recentchanges(script_dir, home_dir, inotify_creation_file, cdir, lockfile, cfr, xRC, checksum, moduleNAME, log_path, supbrwLIST):
     try:
         all_files = []
         search_pattern = os.path.join(script_dir.name, "inotify")
+        cache_f = cdir / "ctimecache"
+        inotify_pid = '/tmp/inotify_watcher.pid'
+        lock_fd = None
 
-        if checksum and xRC:
+        fk_success = True
 
-            cached = Path("/tmp/dbctimecache/")
+        if process_status(search_pattern):
 
-            cache_f = cached / "ctimecache"
+            # inotify wait is running wait until it is finished if it is in the middle of a write
 
-            os.makedirs(cached, mode=0o700, exist_ok=True)
+            fd = os.open(lockfile, os.O_WRONLY | os.O_CREAT, 0o644)
+            os.dup2(fd, 200)
+            os.close(fd)
 
-            if process_status(search_pattern):
-                fk_success = _fk_process('inotifywait -m -r -e create -e moved_to --format %e|%w%f%0')
-                rotate_cache(cfr, cache_f)
+            lock_fd = 200
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
 
-                if os.path.isfile(inotify_creation_file):
+                # kill inotify wait process results and restart the timer
+                if checksum and xRC:
 
-                    all_files = parse_tout(inotify_creation_file, checksum)
+                    os.makedirs(cdir, mode=0o700, exist_ok=True)
 
-                open(inotify_creation_file, 'w').close()
-                if fk_success or not process_status(search_pattern):
-                    strup(script_dir, home_dir, inotify_creation_file, cache_f, checksum, moduleNAME, log_path)
+                    # if the pid file is written
+                    if not shutdown(inotify_pid):
+                        # if couldnt get pid
+                        fk_success = _fk_process(r'inotifywait.*-e create -e moved_to --format %e\|%w%f%0')  # fk_success = _fk_process('inotifywait -m -r -e create -e moved_to --format %e|%w%f%0')  # original
+
+                    rotate_cache(cfr, cache_f)
+
+                    if os.path.isfile(inotify_creation_file):
+
+                        all_files = parse_tout(inotify_creation_file, checksum)
+
+                    open(inotify_creation_file, 'w').close()
+                    if fk_success or not process_status(search_pattern):
+                        strup(script_dir, home_dir, inotify_creation_file, cdir, lockfile, cache_f, checksum, moduleNAME, log_path, supbrwLIST)
+                    else:
+                        if fk_success:
+                            logging.debug("init_recentchanges inotifywait was already running continuing")  # log unusual event
+
+                        removefile(inotify_creation_file)
+
+                # the setting was turned off kill inotify wait
                 else:
+
+                    if not shutdown(inotify_pid):
+                        fk_success = _fk_process(r'inotifywait.*-e create -e moved_to --format %e\|%w%f%0')  # fk_success = _fk_process('inotifywait -m -r -e create -e moved_to --format %e|%w%f%0')  # original
+
                     removefile(inotify_creation_file)
-            else:
-                removefile(inotify_creation_file)
-                strup(script_dir, home_dir, inotify_creation_file, cache_f, checksum, moduleNAME, log_path)
-        else:
-            if process_status(search_pattern):
-                fk_success = _fk_process('inotifywait -m -r -e create -e moved_to --format %e|%w%f%0')
+
                 if not fk_success:
-                    logging.debug("init_recentchanges _fk_process did not report success for inotifywait termination")
-                removefile(inotify_creation_file)
+                    logging.debug("init_recentchanges _fk_process did not report success for inotifywait termination")  # log second unusual event
+            finally:
+                if lock_fd:
+                    fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                    os.close(lock_fd)
+
+        # first start
+        elif checksum and xRC:
+            removefile(inotify_creation_file)
+            strup(script_dir, home_dir, inotify_creation_file, cdir, lockfile, cache_f, checksum, moduleNAME, log_path, supbrwLIST)
+
         return all_files
     except Exception as e:
         logging.error(f"Error in xRC error: {e} {type(e).__name__}", exc_info=True)

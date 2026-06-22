@@ -103,6 +103,18 @@ def get_xdg_runtime(uid):
 
 def get_config(appdata_local=None, user=None):
     """ user configuration location """
+
+    config_local = appdata_local / "config"
+    toml_file = config_local / "config.toml"
+    config_file = "config (copy).toml"
+
+    if appdata_local:
+        default_conf = appdata_local / "config" / config_file
+    else:
+        default_conf = Path(os.path.join("/usr/local/save-changesnew/config", config_file))
+
+    user, uid, gid, home_dir = user_info(user)
+
     xdg_config = os.environ.get("XDG_CONFIG_HOME")
 
     # if xdg_config:
@@ -118,17 +130,8 @@ def get_config(appdata_local=None, user=None):
     #     config_home = Path(default_conf_home)
 
     # config_local = config_home / "save-changesnew"
+    # toml_file = config_local / "config.toml"
     # os.makedirs(config_local, mode=0o755, exist_ok=True)
-    config_local = appdata_local / "config"
-    toml_file = config_local / "config.toml"
-    config_file = "config (copy).toml"
-
-    if appdata_local:
-        default_conf = appdata_local / "config" / config_file
-    else:
-        default_conf = Path(os.path.join("/usr/local/save-changesnew/config", config_file))
-
-    user, uid, gid, home_dir = user_info(user)
 
     toml_missing = not toml_file.is_file()
     # first_time_setup = toml_missing

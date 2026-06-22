@@ -17,7 +17,7 @@ def suppress_list(escaped_user, suppress_list):
 
 def cache_clear_patterns(usr, cachermPATTERNS):
     return [
-        p.replace("{{user}}", usr)
+        f"%{p.replace("{{user}}", usr)}%"
         for p in cachermPATTERNS
     ]
 
@@ -25,12 +25,15 @@ def cache_clear_patterns(usr, cachermPATTERNS):
 def reset_csvliteral(csv_file):
 
     patterns_to_reset = _filterhitRESET
+    is_diff = False
     try:
         with open(csv_file, newline='') as f:
             reader = csv.reader(f)
             rows = list(reader)
         for row in rows[1:]:
             if row[0] in patterns_to_reset:
+                if row[1] != '0':
+                    is_diff = True
                 row[1] = '0'
         with open(csv_file, 'w', newline='') as f:
             writer = csv.writer(f)
@@ -38,6 +41,7 @@ def reset_csvliteral(csv_file):
     except (FileNotFoundError, PermissionError):
         print(f"nfs permission error on {csv_file} reset_csvliteral.")
         pass
+    return is_diff
 
 
 class cprint:

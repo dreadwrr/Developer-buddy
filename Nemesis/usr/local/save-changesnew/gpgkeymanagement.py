@@ -112,17 +112,34 @@ def remove_gpg_keys(args):
     email = args[3]
     # appdata_local = Path(args[4])
     home_dir = Path(args[5])
+    toml_file = Path(args[6])
 
     pst_data = Path(home_dir) / ".local" / "share" / "save-changesnew"
     dbtarget = pst_data / "recent.gpg"
     ctimecache = pst_data / "ctimecache.gpg"
     flth = pst_data / "flth.csv"
-    return delete_gpg_keys(user, email, dbtarget, ctimecache, flth)
+    return delete_gpg_keys(user, email, dbtarget, ctimecache, flth, toml_file)
 
 
-def clear_gpg(usr, dbtarget, cache_f, flth):
-    """ delete ctimecache & db .gpg & filter hits """
+def clear_gpg(usr, dbtarget, cache_f, flth, toml_file=None):
+    """ delete ctimecache & db .gpg & filter hits
+    if toml_file it is called from delete_gpg_keys and prompt to reset config files """
     dbopt = name_of(dbtarget, '.db')
+
+    # config
+    if (toml_file):
+        while True:
+            uinp = input("Reset config (Y/N): ").strip().lower()
+            if uinp == 'y':
+
+                if os.path.isfile(toml_file):
+                    os.remove(toml_file)
+                break
+            elif uinp == 'n':
+                break
+            else:
+                print("Invalid input, please enter 'Y' or 'N'.")
+
     for r in (cache_f, dbtarget, dbopt, flth):
         p = Path(r)
         try:
@@ -135,7 +152,7 @@ def clear_gpg(usr, dbtarget, cache_f, flth):
             pass
 
 
-def delete_gpg_keys(usr, email, dbtarget, ctimecache, flth):
+def delete_gpg_keys(usr, email, dbtarget, ctimecache, flth, toml_file):
 
     def instruct_out():
         print()
@@ -176,7 +193,7 @@ def delete_gpg_keys(usr, email, dbtarget, ctimecache, flth):
                 #         result = True
                 #         exec_delete_keys(usr, email, fingerprint)
 
-                clear_gpg(usr, dbtarget, ctimecache, flth)
+                clear_gpg(usr, dbtarget, ctimecache, flth, toml_file)
                 if result:
                     # print(f"\nDelete {dbtarget} if it exists as it uses the old key pair.")
                     return 0

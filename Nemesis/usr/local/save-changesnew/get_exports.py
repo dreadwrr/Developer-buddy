@@ -2,10 +2,11 @@
 import tomllib
 import shlex
 import sys
+from pathlib import Path
 from configfunctions import find_install
 from configfunctions import get_config
-# from gpgcrypto import start_user_agent
-from gpgcrypto import start_gpg_agent
+from gpgcrypto import GPGStatus
+from gpgcrypto import start_user_agent
 from gpgkeymanagement import iskey
 from logs import check_log_perms
 
@@ -18,6 +19,11 @@ def get_exports():
 
     appdata_local = find_install()  # software install aka workdir
     log_dir = appdata_local / "logs"
+
+    # look into this but log file is local
+    # xdg_state = os.environ.get("XDG_STATE_HOME")
+    # if xdg_state:
+    #     log_dir = path(xdg_state) / "recentchanges" / "logs"
 
     toml_file, home_dir, xdg_config, xdg_runtime, _, _ = get_config(appdata_local, user)
     with open(toml_file, "rb") as f:
@@ -55,7 +61,7 @@ def get_exports():
     #        print(f'export {k}={shlex.quote(val)}')
 
     export_a = {
-        "home_dir": home_dir,
+        "home_dir": str(home_dir),
         "lclhome": str(appdata_local),
         "tomlf": str(toml_file),
         "LAUNCHED_NON_ROOT": user,
@@ -70,29 +76,31 @@ def get_exports():
     email = config['backend']['email']
     is_key = iskey(email)
     if is_key:
-        # from pathlib import Path
-        # pst_data = Path(home_dir) / ".local" / "share" / "save-changesnew"
-        # cache_f_frm = pst_data / "ctimecache.gpg"
-        # dbtarget = pst_data / "recent.gpg"
-        # if cache_f_frm.is_file():
-        #     cache_f = str(cache_f_frm)
-        # elif dbtarget.is_file():
-        #     cache_f = str(dbtarget)
-        #
-        # instead of above feed the config as input to sign to start agent
 
-        cache_f = str(toml_file)
+        pst_data = Path(home_dir) / ".local" / "share" / "save-changesnew"
+        cache_f_frm = pst_data / "ctimecache.gpg"
+        dbtarget = pst_data / "recent.gpg"
+
+        cache_f = None
+        if cache_f_frm.is_file():
+            cache_f = str(cache_f_frm)
+        elif dbtarget.is_file():
+            cache_f = str(dbtarget)
         if cache_f:
-            # res = start_user_agent(cache_f, user)  # a .gpg file might no exist to use as input
 
-            res = start_gpg_agent(cache_f, email)  # pass the config as a temp file as input
-            if res is False:
-                # Bad  passphrase
-                sys.exit(7)
-            if res is None:
-                # inappropriate ioctl or no pinentry
-                # print(f"there may be no key for {cache_f} delete the file to reset")
-                sys.exit(4)
+            res = start_user_agent(user, email, cache_f, str(toml_file))  # pass the config as a temp file as input
+            if res != GPGStatus.ERR_OK:
+                if res == GPGStatus.DECRYPT_FAIL:
+                    sys.exit(2)
+                elif res == GPGStatus.NO_KEY:
+                    sys.exit(3)
+                elif res == GPGStatus.NO_PINENTRY:
+                    # or inappropriate ioctl for device
+                    sys.exit(4)
+                elif res == GPGStatus.BAD_PASSPHRASE:
+                    sys.exit(7)
+                else:
+                    sys.exit(res)
 
 
 if __name__ == "__main__":

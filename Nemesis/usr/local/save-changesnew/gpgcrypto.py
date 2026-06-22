@@ -5,11 +5,48 @@ import shutil
 import sys
 import subprocess
 import traceback
+from enum import IntEnum
 from io import StringIO
 from typing import Any
+from configfunctions import user_info
 from rntchangesfunctions import change_perm
 from rntchangesfunctions import cnc
 from rntchangesfunctions import removefile
+
+
+class GPGStatus(IntEnum):
+    ERR_OK = 0
+    DECRYPT_FAIL = 1001
+    NO_KEY = 1002
+    NO_PINENTRY = 1003
+    BAD_PASSPHRASE = 1004
+
+
+def encr_cache(cfr, cache_f, user, uid, gid, email, compLVL):
+    data_to_write = dict_to_list(cfr)
+    ctarget = dict_string(data_to_write)
+
+    nc = cnc(cache_f, compLVL)
+
+    new_file = False
+    if not os.path.isfile(cache_f):
+        new_file = True
+
+    rlt = encrm(ctarget, cache_f, email, user=user, no_compression=nc, armor=False)
+    if not rlt:
+        print("Reencryption failed cache not saved.")
+    # else:
+    #     change_perm(cache_f, uid, gid)
+    if new_file:
+        change_perm(cache_f, uid, gid)
+
+
+def set_cmd(user):
+    cmd = []
+    if user:
+        if user != 'root':
+            cmd += ["sudo", "-u", user]
+    return cmd
 
 
 # enc mem
@@ -38,14 +75,6 @@ def encrm(c_data: str, opt: str, r_email: str, user=None, no_compression: bool =
         err_msg = e.stderr.decode().strip() if e.stderr else str(e)
         print(f"[ERROR] Cache Encryption failed: {err_msg}")
     return False
-
-
-def set_cmd(user):
-    cmd = []
-    if user:
-        if user != 'root':
-            cmd += ["sudo", "-u", user]
-    return cmd
 
 
 # dec mem
@@ -112,30 +141,10 @@ def decr(src, opt, user=None):
         # user = None
         cmd = set_cmd(user)
         cmd += ["gpg", "--yes", "--decrypt", "-o", opt, src]
-        result = subprocess.run(cmd)  # capture_output=True, text=True
-        return result.returncode == 0
-    else:
-        print(f"[ERROR] File {src} not found. Ensure the .gpg file exists.")
-    return False
+        result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        return result.returncode == 0, result.stderr
 
-
-def encr_cache(cfr, cache_f, user, uid, gid, email, compLVL):
-    data_to_write = dict_to_list(cfr)
-    ctarget = dict_string(data_to_write)
-
-    nc = cnc(cache_f, compLVL)
-
-    new_file = False
-    if not os.path.isfile(cache_f):
-        new_file = True
-
-    rlt = encrm(ctarget, cache_f, email, user=user, no_compression=nc, armor=False)
-    if not rlt:
-        print("Reencryption failed cache not saved.")
-    # else:
-    #     change_perm(cache_f, uid, gid)
-    if new_file:
-        change_perm(cache_f, uid, gid)
+    return False, f"[ERROR] File {src} not found. Ensure the .gpg file exists."
 
 
 def decr_ctime(cache_f, user):
@@ -180,24 +189,38 @@ def decr_ctime(cache_f, user):
 
 
 # commandline start the users gpg agent before decrypting the cache file above ***
-# also used for processhandler.py to start the gpg agent before QProcess
-def start_user_agent(gpg_file, user=None):
-    """ Not used as requires an existing .gpg file
-          pipes will fail with inappropriate ioctl for device unless using gui pinetry """
+def start_user_agent(user, email, gpg_file=None, input_source=None):
+
     # user = None  # force root gpg agent
     cmd = set_cmd(user)
-    cmd += ["gpg", "--decrypt", "--dry-run", gpg_file, "-o", "/dev/null"]
+    if gpg_file:
+        cmd += ["gpg", "--default-key", email, "--decrypt", "--dry-run", gpg_file]
+    elif input_source:
+        cmd += ["gpg", "--local-user", email, "--output", "/dev/null", "--sign", input_source]
+    else:
+        # print("start user agent no input")
+        return GPGStatus.DECRYPT_FAIL
     result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    if result.returncode == 0:
+        return GPGStatus.ERR_OK
     stderr = result.stderr
     if stderr:
-        for line in stderr.splitlines():
-            if "no secret key" in line.lower():
-                print(line)
-                print(f"No key for {gpg_file} delete the file to reset")
-                return False
-    return result.returncode == 0
+        with open('/tmp/teser', 'w') as f:
+            for line in stderr.splitlines():
+                ln = line.lower()
+                f.write(ln + "\n")
+                if "no secret key" in ln:
+                    return GPGStatus.NO_KEY
+                elif "ioctl" in ln or "no pinentry" in ln:
+                    return GPGStatus.NO_PINENTRY
+                elif "bad passphrase" in ln:
+                    return GPGStatus.BAD_PASSPHRASE
+    return GPGStatus.DECRYPT_FAIL
 
 
+# Qt precache or refresh gpg passphrase.
+# this function either refreshes the passphrase or can detect when passphrase has expired so can prompt
+# the user in the gui to user terminal as many would have curses or tty pinentry
 def start_gpg_agent(source, email):
     """ prep the gpg agent so root can use users cached gpg password """
     result = subprocess.run(["gpg", "--local-user", email, "--output", "/dev/null", "--sign", source], text=True)
@@ -219,6 +242,30 @@ def start_gpg_agent(source, email):
                 return False
 
     return None
+
+
+# probe the gpg agent for pin-entry program
+def test_gpg_agent(email):
+    """ If result is None there is no tty and user is using tty or curses
+    purpose is to refresh the cached passphrase or see if passphrase has expired """
+    result = subprocess.run(["gpg", "--default-key", email, "-s"], input=b"", capture_output=True)
+    # for line in result.stdout.decode('utf-8', errors='ignore').split('\n'): # slower
+    #     if 'bad passphrase' in line.lower():
+    #         return False
+    # for line in result.stderr.decode('utf-8', errors='ignore').split('\n'): # slower
+    #     if 'ioctl' in line.lower():
+    for line in result.stderr.split(b'\n'):
+        # print(line.decode('utf-8', errors='ignore'))
+        if b"ioctl" in line.lower():
+            return None
+        if email.encode() not in line:
+            if b"bad passphrase" in line.lower():
+                return False
+            # print(line.decode('utf-8', errors='ignore'))
+    for line in result.stdout.split(b'\n'):
+        if b"bad passphrase" in line.lower():
+            return False
+    return result.returncode == 0
 
 
 # can also delete the key with the subid from fingerprint of the .gpg file
@@ -262,16 +309,30 @@ def check_for_gpg():
     return None, None
 
 
+# ensure recent.gpg is owned by user. checks if the user can
+# decrypt the encrypted file and confirm valid key
 def gpg_can_decrypt(usr, dbtarget):
-    # emtpy results
     if not os.path.isfile(dbtarget):
         return True
+    # cmd = []
     if usr != 'root':
         st = os.stat(dbtarget)
         is_owned_by_root = (st.st_uid == 0)
         if is_owned_by_root:
             print(f"{dbtarget} is owned by root. permission must be owned by {usr}. set permission to continue.")
-            return False
+            uinp = input(f"change permission to {usr} for {dbtarget} (Y/N): ").strip().lower()
+            if uinp == 'y':
+                _, _, _, uid, gid = user_info(usr)
+                res = subprocess.run(["sudo", "chown", f"{uid}:{gid}", dbtarget], capture_output=True, text=True)
+                if res.returncode != 0:
+                    print("failed to set permissions.")
+                    return False
+                if res.stdout:
+                    print(res.stdout)
+            elif uinp == 'n':
+                return False
+            else:
+                print("Invalid input, please enter 'Y' or 'N'.")
     return True
 
     # result = subprocess.run(
