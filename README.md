@@ -1,4 +1,4 @@
-#                               05/24/2026
+#                               06/22/2026
 ## Python edition <br>
 
 Note this version hasnt been updated but can be in the future. It is the bash version implemented in python and has no dependencies. So if I release a special edition this will be it <br><br>
