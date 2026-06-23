@@ -8,7 +8,7 @@ New analytics and improved query! <br>
 
 for Porteus 5.01, 5.1 and Nemesis 
 
-script includes recentchanges as well as save-changesnew. There is now only the bash (default uses python backend) being the main release. This will help streamline development as I move to just bash and qt for the primary releases. Both being on the opposite sides of implementation.
+script includes recentchanges as well as save-changesnew. There is the bash (with python backend) which is the main release. A python version which is recentchanges implemented in python that I use for bridging from bash to qt. This streamlines development as new changes are made for primary releases. Both bash and qt being on the opposite sides of implementation.
 
 I first started a Qt gui for Windows 10/11 based on recent changes. Then converted it for linux. Afterwards went back and updated the initial windows release. 
 
