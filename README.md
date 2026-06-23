@@ -10,7 +10,7 @@ both the bash and the python edition have the advantages of not needing any depe
 v5.0.0-py<br>
 recentchanges reset prompts to reset config<br>
 changed the way the find command is run with -xdev<br>
-parallized inotify wait<br>
+parallelized inotify wait<br>
 
 v1.3.2-py <br>
 py ver is now the special edition of recentchanges with the focus of main release being bash
