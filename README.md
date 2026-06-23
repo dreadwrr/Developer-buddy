@@ -15,7 +15,7 @@ I first started a Qt gui for Windows 10/11 based on recent changes. Then convert
 Windows Qt https://github.com/dreadwrr/Recentchanges <br>
 Linux https://github.com/dreadwrr/Recentchanges-Linux<br><br>
 
-Going forward I will be looking for new ideas to expand and improve recentchanges eventually splitting savechangesnew and recentchanges into different modules.
+Going forward I will be looking for new ideas to expand and improve recentchanges eventually splitting save-changesnew and recentchanges into different modules.
 
 Requirements: gpg agent pinentry setup for root <br>
 
