@@ -1,7 +1,7 @@
 Added change to find command and adjusted analytics as was too high <br><br>
 
 Updated 06/22/2026 <br>
-released python special edition https://github.com/dreadwrr/Developer-buddy/tree/pyver<br>
+released python special edition [Repo](https://github.com/dreadwrr/Developer-buddy/tree/pyver)<br>
 New analytics and improved query! <br>
 
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
