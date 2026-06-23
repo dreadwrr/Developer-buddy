@@ -8,6 +8,7 @@ the filter is filter.py and there is a config.toml <br>
 
 both the bash and the python edition have the advantages of not needing any dependencies. <br><br>
 v5.0.0-py<br>
+recentchanges reset prompts to reset config<br>
 changed the way the find command is run with -xdev<br>
 parallized inotify wait<br>
 
