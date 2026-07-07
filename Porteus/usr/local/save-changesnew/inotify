@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-#inotify db5                     06/18/2026
+#inotify db5                     07/05/2026
 # inotify to watching either / or /mnt/live/memory/changes. filters out some files and also browser suppressions in sbwr array. see rntchangesfunctions
 # Also filters out app inclusions in inotifyexl array
-# purpose to prepare hashed files that are downloads from a package manager or are copied files that have preserved
+# result of wanting to prepare hashed files that are downloads from a package manager or are copied files that have preserved
 # metadata where ctime is greater than mtime. This is because they would not show up in a regular file search.
 #
-# result bypassing, one of two loops, the ctime loop. Any files over 1MB are cached for this script and the main search mtime loop
+# as progress was made with watchdog the implementation was changed to search for created files. Then instead of preparing a results file the
+# results file is used as an indirect feature as file_creation_log.txt can be viewed for created files. The second output is the cache which will 
+# save the hash for the main search. So if anything goes wrong with inotify the results are not effected.
+#
+# result created cache of created files over 1MB and also output to a created files log.
 #SCRIPT_PATH="$( dirname "$0")"
 #. "$SCRIPT_PATH"/rntchangesfunctions
 . /usr/local/save-changesnew/rntchangesfunctions
@@ -26,12 +30,13 @@ inclusion=(
     "/usr/local/save-changesnew/stats.gpg"
     "/usr/local/save-changesnew/ctimecache.gpg"
     "$output_file"
+	"$cache_file"
+    "$CACHE_F"
 )
 }
 
-
-#VARS
 MAX_JOBS=8
+IDLE=$(( MAX_JOBS / 2 ))
 BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
 
 ch="/mnt/live/memory/changes"
@@ -49,17 +54,26 @@ mail=""
 
 output_file=$1  # main output
 LCLMODULENAME="$2"
-CACHE_F="$3"  # secondary output cache
-cdir="$4"
-LOCKFILE="$5"
-checkSUM="$6"
-xMODE="$7"
-time="$8"
-debug_file=$9  # debug output of this script
-match_found=0
-dpaths=()
+cache_file="$3"  # main script cache on decrypt for exclude
+CACHE_F="$4"  # secondary output cache
+CSZE="$5"
+cdir="$6"
+LOCKFILE="$7"
+checkSUM="$8"
+time=$9
+min_span="${10}"  # set greater than time to increase capacity. 0 prevents log from being cleared. otherwise increase _time in /opt/porteus-scripts/recentchanges
+debug_file="${11}"  # debug output of this script
 
-time_out=160
+match_found=0
+
+debug_log="false"  # add debug
+
+pblk_log_file=/tmp/output  # debug output of pblk
+
+dpaths=()
+declare -A mvfrm_pending
+declare -A create_pending
+
 retried=0
 LIMIT=3
 sleep_index=0
@@ -68,13 +82,13 @@ j=${sleep_times[sleep_index]}
 prev_size=-1
 incr=0
 
-debug_log="false"  # add debug
-
-pblk_log_file=/tmp/output  # debug output of pblk
+STRTTIME=$(date +%s)
 
 get_inclusion "$efile"
 
 :> $CACHE_F ; :> $pblk_log_file
+
+minspan $output_file $time $min_span $debug_file
 
 echo "$BRAND inotify started" >> $debug_file
 
@@ -91,13 +105,17 @@ exec 200>"$LOCKFILE"
 
 exclude="^(proc|sys|dev|run"
 for fld in "${MOUNT_FOLDERS[@]}"; do exclude+="|$fld" ; done
+exclude+="|^/tmp/${LCLMODULENAME}_MDY_.*-TIME_.*(/.*)?\$"  # created by main script
 exclude+=")"
 # search in / or changes
 
-timeout "$time" inotifywait -m -r --exclude "$exclude" -e create -e moved_to --format '%e|%w%f%0' $abpath | while read -r -d '' o; do
+timeout "$time" inotifywait -m -r --exclude "$exclude" -e create -e moved_to -e moved_from --format '%e|%c|%w%f%0' $abpath | while read -r -d '' o; do
 
     [[ "$debug_log" = "true" ]] && log_date=$(date +"$fmt")
+
     event=${o%%|*}
+    o=${o#*|}
+    cookie=${o%%|*}  # pairs a moved from event to a moved to event. src -> dest
     o=${o#*|}
 
     if [[ $abpath != "/" ]]; then o="${o#$ch}" ; fi
@@ -116,82 +134,130 @@ timeout "$time" inotifywait -m -r --exclude "$exclude" -e create -e moved_to --f
         continue
 
     elif [[ -f "$o" ]]; then
-        (
-            log_lineout $debug_log $debug_file "$log_date" "inotify found checking for matches $o"
-            # if [[ "$o" =~ \.(tmp|swp|bak|part|crdownload|partial|lock)$ ]]; then continue ; fi  original
-            if [[ "$o" == *.* ]]; then
-                ext="${o##*.}"
-                ext="${ext,,}"
-                if [[ "$ext" =~ ^(tmp|swp|bak|part|crdownload|partial|lock)$ ]]; then
-                    continue
-                fi
+
+        log_lineout $debug_log $debug_file "$log_date" "inotify found checking for matches $o"
+
+        match_found=0
+        for item in "${webb[@]}"; do
+            if [[ "$o" =~ $item ]]; then
+                match_found=1
+                break
             fi
-            match_found=0
-            for item in "${webb[@]}"; do
+        done
+        if (( match_found == 0 )); then
+            for item in "${inclusion[@]}"; do
                 if [[ "$o" =~ $item ]]; then
                     match_found=1
                     break
                 fi
             done
-            if (( match_found == 0 )); then
-                for item in "${inclusion[@]}"; do
-                    if [[ "$o" =~ $item ]]; then
-                        match_found=1
-                        break
-                    fi
-                done
+        fi
+
+        # a CREATE event should match a MOVED_TO event
+        # but there can be cases where the CREATE event wasnt seen or lost so it logs
+        if [[ "$event" = "CREATE" ]]; then
+            create_pending[$o]=1
+        elif [[ "$event" = "MOVED_FROM" ]]; then
+            mvfrm_pending["$cookie"]="$o"  # this is needed in the MOVED_TO event so can verify the src from the MOVED_FROM to a CREATE event. normal operation is verify dest as it would match in most cases from web browsers ect
+            continue
+        fi
+
+        if [[ "$o" == *.* ]]; then
+            ext="${o##*.}"
+            ext="${ext,,}"
+            if [[ "$ext" =~ ^(tmp|temp|swp|bak|part|crdownload|partial|lock)$ ]]; then
+                continue
             fi
+        fi
 
-            if (( match_found == 0 )); then
-                SECONDS=0
-                prev_size=-1
-                incr=0
-                retried=0
-                sleep_index=0
+        if [[ "$event" = "MOVED_TO" ]]; then
+            src="${mvfrm_pending[$cookie]}"
+            if [[ -n "$src" ]]; then
+                unset 'mvfrm_pending[$cookie]'
+                if [[ -v create_pending[$src] ]]; then
+                    unset 'create_pending[$src]'
+                    log_lineout $debug_log $debug_file "$log_date" "inotify MOVED_TO unusual src was in create_pending on move after created file. src: $src dest or file: $o"
+                # normal
+                else
+                    pairhandle ; continue
+                fi
+            # normal
+            else
+                pairhandle ; continue
+            fi
+        fi
 
-                log_lineout $debug_log $debug_file "$log_date" "notify matched input to pblk waiting for stable size $o"
-                while (( SECONDS < time_out )); do
-                    (( incr++ ))
-                    curr_size=$(stat -c %s "$o" 2>/dev/null || echo -1)
-                    (( curr_size < 0 )) && break  # Nosuchfile
-                    if (( curr_size == prev_size )); then
-                        (( retried++ ))
-                        [[ $retried -ge $LIMIT ]] && break  # found
-                        sleep_index=0
-                        j=${sleep_times[0]}
+        if (( match_found == 0 )); then
+
+            current_jobs=$(jobs -r | wc -l)
+
+            (
+                if [[ "$event" = "CREATE" ]]; then
+                    if (( current_jobs > IDLE )); then
+                        log_lineout $debug_log $debug_file "$log_date" "system at has idle jobs: ($current_jobs) skipping stabilization wait $o"
                     else
+                        curr_size=0
+                        prev_size=-1
+                        incr=0
                         retried=0
-                        (( sleep_index < ${#sleep_times[@]} - 1 )) && ((sleep_index++))
-                        j=${sleep_times[sleep_index]}
-                    fi
-                    prev_size="$curr_size" && sleep $j
-                done
-                [[ "$debug_log" = "true" ]] && log_date=$(date +"$fmt")
-                log_lineout $debug_log $debug_file "$log_date" "inotify size stabilized for pblk $o"
+                        sleep_index=0
 
-                # stat --printf="%y %x %z %i %A %h %s %U %G %a %n" "$o"  # alternative doesnt print microsecond**
-                # y 2026-01-14 00:48:20.527855839
-                # have to parse with date -d "2026-01-14 00:48:20.527855839" +%s.%N 2>/dev/null
+                        log_lineout $debug_log $debug_file "$log_date" "notify matched input to pblk waiting for stable size $o"
+
+                        stable=0
+                        while :; do
+                            (( incr++ ))
+                            curr_size=$(stat -c %s "$o" 2>/dev/null || echo -1)
+                            (( curr_size < 0 )) && break  # Nosuchfile
+                            if (( curr_size == prev_size )); then
+                                (( retried++ ))
+                                [[ $retried -ge $LIMIT ]] && stable=1 && break  # found
+                                sleep_index=0
+                                j=${sleep_times[0]}
+                            else
+                                retried=0
+                                (( sleep_index < ${#sleep_times[@]} - 1 )) && ((sleep_index++))
+                                j=${sleep_times[sleep_index]}
+                            fi
+                            prev_size="$curr_size" && sleep $j
+                        done
+                        [[ "$debug_log" = "true" ]] && log_date=$(date +"$fmt")
+                        (( $curr_size )) || { log_lineout $debug_log $debug_file "$log_date" "inotify size stabilized looks like a download 0 bytes. returning for move event. file:$o" ; exit ; }
+
+                        if (( stable == 1 )); then
+                            log_lineout $debug_log $debug_file "$log_date" "inotify size stabilized for pblk $o"
+                        else
+                            log_lineout $debug_log $debug_file "$log_date" "inotify timed out waiting for stable size, proceeding anyway (checksum will self-guard): $o"
+                        fi
+                    fi
+                fi
+
                 { find "$o" -printf "%T@ %A@ %C@ %i %M %n %s %u %g %m %p|%l\0" 2>/dev/null; } |
                 while IFS= read -r -d '' record; do
                     [[ -z "$record" ]] && continue
 
-                    pblk "$record" "$output_file" "/dev/null" $checkSUM $xMODE "$CACHE_F" "$cdir" $debug_log "$pblk_log_file"
+                    pblk "$record" "$output_file" "/dev/null" $checkSUM $CSZE "$CACHE_F" "$cdir" $debug_log "$pblk_log_file"
 
                 done
-            else
-                log_lineout $debug_log $debug_file "$log_date" "inotify found excluded by matching skipped. for $o"
-            fi
-        ) &
-        while (( $(jobs -r | wc -l) >= MAX_JOBS )); do
-            wait -n 2>/dev/null || sleep 0.1
-        done
+
+            ) &
+            while (( $(jobs -r | wc -l) >= MAX_JOBS )); do
+                wait -n 2>/dev/null || sleep 0.1
+            done
+
+        else
+            log_lineout $debug_log $debug_file "$log_date" "inotify found excluded by matching skipped. for $o"
+        fi
      else
         log_lineout $debug_log $debug_file "$log_date" "inotify file not found or parsing error. for $o"
     fi
 done
-test -e $output_file && rm $output_file
+
 # original drafting
+# stat --printf="%y %x %z %i %A %h %s %U %G %a %n" "$o"  # alternative doesnt print microsecond**
+# y 2026-01-14 00:48:20.527855839
+# have to parse with date -d "2026-01-14 00:48:20.527855839" +%s.%N 2>/dev/null
+
 #RS=$'\x1E'  # | sed "s/$/$RS/"  seperator   , then decode # file="${o//$RS/$'\n'}" 
 # { stat --format="%Y %X %Z %i %h %s %U %G %a %n" "$o" 2>/dev/null; printf '\0'; } | sblk /dev/stdin "$output_file" "/dev/null" $checkSUM $xMODE $CACHE_F  original appends \n before \0
 # { stat --printf="%Y %X %Z %i %h %s %U %G %a %n" "$o" 2>/dev/null ; printf '\0;' } | sblk /dev/stdin "$output_file" "/dev/null" $checkSUM $xMODE $CACHE_F
@@ -212,3 +278,26 @@ test -e $output_file && rm $output_file
 # notes
 # grep -r inotify /proc/*/fdinfo/* 2>/dev/null | wc -l  # current usage
 # cat /proc/sys/fs/inotify/max_user_watches  # watch limit
+
+# caching system to prevent possible extra work but not needed
+# mkdir -p $datadict || exit ; chmod 700 $datadict
+#(
+#    while true; do
+#        sleep 900
+#        find $datadict -mindepth 1 -mmin +15 -delete
+#    done
+#) &
+#pid2=$!
+#trap 'kill "$pid2" 2>/dev/null' EXIT
+#if [[ "$event" = "CREATE" ]]; then
+#    key="${fs}_${m_epoch}"
+#    if [[ -e "$datadict/$key" ]]; then
+#        log_lineout $debug_log $pblk_log_file "$log_date" "created event file was renamed or moved returned on: $1"
+#        return 1
+#	else
+#		log_lineout $debug_log $pblk_log_file "$log_date" "created event file key was $key on: $1"
+#    fi
+#fi
+#key="${a_sze}_${mtime}"
+#printf '%s\n' "$o" > "$datadict/$key"
+
