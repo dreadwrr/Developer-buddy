@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# supress output helper script to launch inotifywait optional logging   09/15/2025 06/18/2026
+# supress output helper script to launch inotifywait optional logging   09/15/2025 07/05/2026
 #nohup /usr/local/save-changesnew/inotify "$@" > /dev/null 2>&1 &
 # SCRIPT_PATH="$( dirname "$0")"
 fmt="%Y-%m-%d %H:%M:%S"
 debug_file=/tmp/inotify.log  # core inotify debug output
 echo $log_date > $debug_file
-if [ "$#" -lt 8 ]; then
-    echo "Usage: $0 log_file mdlnameprefix cache_file cdir lockfile checksum mode time" >&2
+if [ "$#" -lt 10 ]; then
+    echo "Usage: $0 log_file mdlnameprefix cache_file inotify_cache_file csze cdir lockfile checksum _time min_span" >&2
 	echo "not enough args" >> $debug_file
     exit 1
 fi
 log_date=$(date +"$fmt")
 
-nohup /usr/local/save-changesnew/inotify "$@" "$debug_file" >> $debug_file 2>&1 &
+setsid /usr/local/save-changesnew/inotify "$@" "$debug_file" >> "$debug_file" 2>&1 &  # nohup /usr/local/save-changesnew/inotify "$@" "$debug_file" >> $debug_file 2>&1 &
 pid=$!
 sleep 1
 
@@ -21,5 +21,24 @@ if ! kill -0 "$pid" 2>/dev/null; then
     exit 1
 fi
 
-echo "$pid" > /tmp/inotify_watcher.pid
+# awk '{print $22}' /proc/5473/stat
+printf '%s|%s\n' "$pid" "$(ps -o lstart= -p "$pid")" > /tmp/inotify_watcher.pid
+
+oldpid() {
+local res=0
+if [[ -f $1 ]]; then
+    IFS='|' read -r stored_pid stored_start < $1
+    current="$(ps -o lstart= -p "$pid")"
+    if [[ -n "$current" ]]; then
+        if [ "$current_start" = "$stored_start" ]; then
+            if ! kill -- -$stored_pid; then
+                echo "failed to close old pid $stored_pid $stored_start"
+                res=1
+            fi
+        fi
+    fi
+    rm -f $1
+fi
+return $res
+}
 
