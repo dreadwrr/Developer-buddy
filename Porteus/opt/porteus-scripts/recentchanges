@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #   Analytics porteus
-#   recentchanges. Developer buddy      make xzm     06/10/2026  v5.0
+#   recentchanges. Developer buddy      make xzm     07/05/2026  v5.0
 # entry point for recentchanges.
 #
 #   recentchanges. aka Developer buddy      recentchanges / recentchanges search
@@ -95,11 +95,11 @@ export STATPST="true" # persistent storage searches encrypted in /usr/local/save
                                     # Only overhead is gpg compression set compression to off. At large size speeds can increase by as much as 50%.
                                     # if you prefer security turn ANALYTICS false and use this
 
-export xRC="false"	# false - default. run inotifywait for one hour to look for new files where ctime > mtime in /changes.
-									# this is for downloads or copies with preserved metadata pacman slackpkg ect.
-									# if false the files will still show up. It just dynamically bypasses a section of the script if $tout is already made.T
-									# With this setting If true can bypass 1 of 2 search loops and reduce process overhead as the search is already there effectively increasing the overall speed
-
+export xRC="false"	# false - default. run inotifywait to look for new files in /changes.
+									# if automation fails it doesnt effect the results as the purpose to to make file_creation_log and cache files over 1MB for ctimecache.gpg
+									# With this setting If true can reduce process overhead as larger created files or downloads the results are already there
+export _time=3600   # default xRC searches for 1 hour before closing. default is to clear file_creation_log
+export min_span=3600	# set above _time to increase capacity. 0 would leave the log untouched
 #Display
 export ANALYTICSECT="true" # provides more feedback
                                             # total search time ect
@@ -144,7 +144,7 @@ if [ "$1" = "-v" ]; then get_vrn $1 ; elif [ "$1" = "--help" ] || [ "$1" = "-h" 
 
 if (( EUID != 0 )); then
     echo "Please enter your root password below"
-	sudo -k
+    sudo -k
     exec sudo /opt/porteus-scripts/recentchanges "$1" "$2" "$3" "$(id -un)" "$PWD"
     exit
 fi
@@ -176,17 +176,17 @@ export DISPLAY=:0  # for tkl and root xed featherpad
 export XAUTHORITY=/home/$USR/.Xauthority
 
 if [ "$1" == "reset" ]; then
-	if [ "$STATPST" == "true" ]; then
-		 python3 /usr/local/save-changesnew/pstsrg.py "$0" "$pydbpst" "root" $email $mMODE $compLVL $checkSUM "true" "$logpst" "$statpst" "$ctimecache"
-		ret=$?
-		[[ $ret -eq 0 ]] && { remove_gpg ; exit 0 ; }
-		exit 1
-	else
-		echo "reset requries STATPST for default or database key reset" && exit 1
-	fi
+    if [ "$STATPST" == "true" ]; then
+        python3 /usr/local/save-changesnew/pstsrg.py "$0" "$pydbpst" "root" $email $mMODE $compLVL $checkSUM "true" "$logpst" "$statpst" "$ctimecache"
+        ret=$?
+        [[ $ret -eq 0 ]] && { remove_gpg ; exit 0 ; }
+        exit 1
+    else
+        echo "reset requries STATPST for default or database key reset" && exit 1
+    fi
 elif [ "$1" == "query" ]; then
-	if [ "$backend" == "default" ]; then  
-		[[ -z $2 ]] && THETIME="noarguser" || THETIME=$2
+    if [ "$backend" == "default" ]; then  
+        [[ -z $2 ]] && THETIME="noarguser" || THETIME=$2
         /usr/local/save-changesnew/query $THETIME $USR "$passdir"
         exit
     else 
@@ -194,12 +194,6 @@ elif [ "$1" == "query" ]; then
         exit
     fi
 fi
-
-convertn() {
-local x
-    x=$( echo "scale=2; $1 / $2" | bc)
-    echo "$x"
-}
 
 #VARS
 # $tmp  main search tmp files from original
@@ -222,7 +216,8 @@ FOLDERLOG=$tmp/save.totalfolders.tmp					;	log_file=/tmp/file_creation_log.txt
 SORTCOMPLETE=$tmp/list_complete_sorted.txt			;	LCLMODULENAME=${chxzm:1:8}
 RECENTNUL=$tmp/list_recentchanges_filterednul.txt	;	USRDIR=/home/$USR/Downloads
 SVFOLDERS=$tmp/save.rncfoldersmanifest.tmp			;	SVFILES=$tmp/save.rncfilesmanifest.tmp
-cdir=/tmp/dbctimecache/                                      		;   secondary=()
+
+cdir=/tmp/dbctimecache/											;	secondary=()
 cerr=/tmp/cerr															;	arrreject=()
 slog=/tmp/scr															;	arrfiles=()
 
@@ -232,6 +227,8 @@ LOCKFILE=/tmp/pblk.lock
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 
+STRTTIME=$(date +%s.%N)
+
 SRCDIR=""																	;	csm=""
 dirSRC=""																	;	OLDSORTED=""
 
@@ -239,6 +236,11 @@ ha_total_time=""														;	logger_total_time=""
 lifetime_total=""														;	lifetime_time=""
 total_files=0																;   total_time=0	
 cores=0																	;	max_jobs=0
+
+astring=""																	;	search_string=""
+deltadiff=""																;	search_time=0
+
+CSZE=$(( 1024 * 1024 ))  # cache anything over 1 MB
 
 diffrlt="false"															;	pstc="false"
 nodiff="false"															;	samerlt="false"
@@ -273,76 +275,85 @@ else
 
 fi
 
-#	tmn=$( echo "scale=2; $argone /$p" | bc)
 if [ "$argf" == "filtered" ]; then
     filtered="true"
+    astring="filtered"
 fi
 
 if [ "$THETIME" != "noarguser" ]; then
-	p=60
-	if [ "$THETIME" -ge 0 ] 2>/dev/null; then
+    p=60
+    if [ "$THETIME" -ge 0 ] 2>/dev/null; then
         argone=$THETIME
-		tmn=$( convertn $argone $p)
-		cyan "searching for files $2 seconds old or newer"
+        search_time=$argone
+        search_string="files $2 seconds old or newer"
+        tmn=$( convertn $argone $p)
+
     else
         argone=".txt"
-    	test -d "$passdir" || { echo "Invalid argument $passdir . PWD required."; exit 1; }
-		cd "$passdir"  || exit
-    	filename="$argtwo"
-    	test -f "$filename" || { test -d "$filename" || echo no such directory file or integer; exit 1; }
-    	parseflnm="${argtwo##*/}"
-		if [ "$parseflnm" == "" ]; then parseflnm="$(echo "$argtwo" | sed -e 's/\/$//' -e 's@.*/@@')" ; fi
-    	cyan "searching for files newer than $filename "
+        test -d "$passdir" || { echo "Invalid argument $passdir . PWD required."; exit 1; }
+        cd "$passdir"  || exit
+        filename="$argtwo"
+        test -f "$filename" || { test -d "$filename" || echo no such directory file or integer; exit 1; }
+        parseflnm="${argtwo##*/}"
+        if [ "$parseflnm" == "" ]; then parseflnm="$(echo "$argtwo" | sed -e 's/\/$//' -e 's@.*/@@')" ; fi
+        cyan "searching for files newer than $filename "
 
         if [ "$filtered" == "true" ]; then
             filtered="false"
+            astring=""
         else
+            astring=" filtered"
             filtered="true"
         fi
-    	flsrh="true"
-		ct=$(date +%s)
-		fmt=$(stat -c %Y "$filename")
-		ag=$(( ct - fmt ))
-		ag=$( convertn $ag $p)
-		MMIN=(-newer "$filename")
-		CMIN=(-cmin "-$ag")
+        flsrh="true"
+        ct=$(date +%s)
+        frmt=$(stat -c %Y "$filename")
+        ag=$(( ct - frmt ))
+        search_time=$ag
+        search_string="files newer than $filename"
+        deltadiff=$( timedelta $STRTTIME $ag 6)
+        ag=$( convertn $ag $p)
+        MMIN=(-newer "$filename")
+        CMIN=(-cmin "-$ag")
     fi
 else
-	argone="5" ; tmn=$argone ; cyan "searching for files 5 minutes old or newer"
+    search_string="files 5 minutes old or newer"
+    argone="5" ; tmn=$argone ; search_time=300
 fi
-if [ "$tmn" != "" ]; then
 
-	MMIN=(-mmin "-$tmn")
-	CMIN=(-cmin "-$tmn")
+cyan "searching for$astring $search_string"
+
+if [ "$tmn" != "" ]; then
+    MMIN=(-mmin "-$tmn")
+    CMIN=(-cmin "-$tmn")
 fi
 findrelavant
 findfiles
 
 if [ -s $SORTCOMPLETE ]; then
 
-	syschg="true"
+    syschg="true"
 
-	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE ; SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') ; PRD=$SRTTIME
+    sort -u -o  $SORTCOMPLETE $SORTCOMPLETE 
 
-	merge_ctime $SORTCOMPLETE $tout $PRD
-	inclusions $SORTCOMPLETE
+    inclusions $SORTCOMPLETE
 
     if [ "$flsrh" != "true" ]; then
-	    s=$(date -d "$SRTTIME" "+%s")
-	    if [ "$THETIME" == "noarguser" ]; then RANGE=$(( s + 300 )) ; else RANGE=$(( s + argone )) ; fi  # filter out non existant files ect
-	    PRD=$(date -d "@$RANGE" +"$fmt")
-	    awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' $SORTCOMPLETE > $tout ; mv $tout $SORTCOMPLETE
+        s=${STRTTIME%%.*}
+        RANGE=$(( s + search_time ))  # filter out non existant files ect
+        PRD=$(date -d "@$RANGE" +"$fmt")
+        awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' $SORTCOMPLETE > $tout ; mv $tout $SORTCOMPLETE
     fi
 
-	sort -u -o $SORTCOMPLETE $SORTCOMPLETE
+    sort -u -o $SORTCOMPLETE $SORTCOMPLETE
 
-	process_sort $SORTCOMPLETE $TMPOPT
+    process_sort $SORTCOMPLETE $TMPOPT
 
     cat $TMPOPT | grep ' /tmp/' > $TMPOUTPUT
     sort -o $TMPOUTPUT $TMPOUTPUT
-	sed -i '/\"\/tmp/d' $SORTCOMPLETE
-	sed -i '/ \/tmp/d' $TMPOPT
-	sort -o $TMPOPT $TMPOPT
+    sed -i '/\"\/tmp/d' $SORTCOMPLETE
+    sed -i '/ \/tmp/d' $TMPOPT
+    sort -o $TMPOPT $TMPOPT
 
     cp $TMPOPT $RECENT
 
@@ -362,15 +373,15 @@ if [ -s $SORTCOMPLETE ]; then
     FLTOUT="/tmp"$MODULENAME"ItemsFilteredout"
 
     if [ "$flsrh" == "true" ]; then
-	    flnm="xNewerThan_$parseflnm"
-	    flnmdff="xDiffFromLast_$parseflnm"
+        flnm="xNewerThan_$parseflnm"
+        flnmdff="xDiffFromLast_$parseflnm"
 
     elif [ "$argf" == "filtered" ]; then
-	    flnm="xFltchanges_"$argone
-	    flnmdff="xFltDiffFromLastSearch_"$argone
+        flnm="xFltchanges_"$argone
+        flnmdff="xFltDiffFromLastSearch_"$argone
     else
-	    flnm="xSystemchanges"$argone
-	    flnmdff="xSystemDiffFromLastSearch"$argone
+        flnm="xSystemchanges"$argone
+        flnmdff="xSystemDiffFromLastSearch"$argone
     fi
 
     if [ "$search" == "false" ]; then
@@ -426,9 +437,9 @@ if [ -s $SORTCOMPLETE ]; then
 
     isdiff "$difffile" $TMPOPT $TMPCOMPLETE
 
-	backend $argf
-	filterhits $TMPOPT $flth
-	postop $SORTCOMPLETE $0
+    backend $argf
+    filterhits $TMPOPT $flth
+    postop $SORTCOMPLETE $0
     test -e "$difffile" && chown $USR "$difffile"
 
 fi
