@@ -1,5 +1,5 @@
 #!/bin/bash
-#   NMS5                                                                            06/18/2026  v5.0
+#   NMS5                                                                            07/05/2026  v5.0
 # entry point for recentchanges.
 #
 #   recentchanges. aka Developer buddy      recentchanges / recentchanges search
@@ -98,11 +98,11 @@ export STATPST="true" # persistent storage searches encrypted in /usr/local/save
                                     # Only overhead is gpg compression set compression to off. At large size speeds can increase by as much as 50%.
                                     # if you prefer security turn ANALYTICS false and use this
 
-export xRC="false"	# false - default. run inotifywait for one hour to look for new files where ctime > mtime in /changes.
-									# this is for downloads or copies with preserved metadata pacman slackpkg ect.
-									# if false the files will still show up keep in mind the /tmp file search results are in a seperate file in /Downloads use `recentchanges search`
-									# With this setting If true can bypass 1 of 2 search loops and reduce process overhead as the search is already there effectively increasing the overall speed
-
+export xRC="false"	# false - default. run inotifywait to look for new files in /changes.
+									# if automation fails it doesnt effect the results as the purpose to to make file_creation_log and cache files over 1MB for ctimecache.gpg
+									# With this setting If true can reduce process overhead as larger created files or downloads the results are already there
+export _time=3600   # default xRC searches for 1 hour before closing. default is to clear file_creation_log
+export min_span=3600	# set above _time to increase capacity. 0 would leave the log untouched
 #Display
 export ANALYTICSECT="true" # provides more feedback
                                             # total search time ect
@@ -220,7 +220,8 @@ FOLDERLOG=$tmp/save.totalfolders.tmp					;	log_file=/tmp/file_creation_log.txt
 SORTCOMPLETE=$tmp/list_complete_sorted.txt			;	LCLMODULENAME=${chxzm:1:8}
 RECENTNUL=$tmp/list_recentchanges_filterednul.txt	;	USRDIR=/home/$USR/Downloads
 SVFOLDERS=$tmp/save.rncfoldersmanifest.tmp			;	SVFILES=$tmp/save.rncfilesmanifest.tmp
-cdir=/tmp/dbctimecache/                                      		;   secondary=()
+
+cdir=/tmp/dbctimecache/											;	secondary=()
 cerr=/tmp/cerr															;	arrreject=()
 slog=/tmp/scr															;	arrfiles=()
 
@@ -230,6 +231,9 @@ LOCKFILE=/tmp/pblk.lock
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 
+STRTTIME=$(date +%s.%N)
+
+file_path=""  # for flsrh inclusion to not list the file itself
 SRCDIR=""																	;	csm=""
 dirSRC=""																	;	OLDSORTED=""
 
@@ -237,6 +241,11 @@ ha_total_time=""														;	logger_total_time=""
 lifetime_total=""														;	lifetime_time=""
 total_files=0																;   total_time=0	
 cores=0																	;	max_jobs=0
+
+astring=""																	;	search_string=""
+deltadiff=""																;	search_time=0
+
+CSZE=$(( 1024 * 1024 ))  # cache anything over 1 MB
 
 diffrlt="false"															;	pstc="false"
 nodiff="false"															;	samerlt="false"
@@ -273,14 +282,17 @@ fi
 
 if [ "$argf" == "filtered" ]; then
     filtered="true"
+    astring="filtered"
 fi
 
 if [ "$THETIME" != "noarguser" ]; then
 	if [ "$THETIME" -ge 0 ] 2>/dev/null; then
         argone=$THETIME
+        search_time=$argone
+        search_string="files $2 seconds old or newer"
 		comp $argone
 		tmn=$qtn
-		cyan "searching for files $2 seconds old or newer"
+
     else
         argone=".txt"
     	test -d "$passdir" || { echo "Invalid argument $passdir . PWD required."; exit 1; }
@@ -293,24 +305,29 @@ if [ "$THETIME" != "noarguser" ]; then
 
         if [ "$filtered" == "true" ]; then
             filtered="false"
+            astring=""
         else
+            astring=" filtered"
             filtered="true"
         fi
-    	flsrh="true"
-
+		file_path="$passdir/$parseflnm"
+        flsrh="true"
 		ct=$(date +%s)
 		fmt=$(stat -c %Y "$filename")
 		ag=$(( ct - fmt ))
+		search_time=$ag
+		search_string="files newer than $filename"
+		deltadiff=$( timedelta $STRTTIME $ag 6)
 		comp $ag
 		ag=$qtn
 		MMIN=(-newer "$filename")
 		CMIN=(-cmin "-$ag")
     fi
 else
-	argone="5" ; tmn=$argone ; cyan "searching for files 5 minutes old or newer"
+    search_string="files 5 minutes old or newer"
+    argone="5" ; tmn=$argone ; search_time=300
 fi
 if [ "$tmn" != "" ]; then
-
 	MMIN=(-mmin "-$tmn")
 	CMIN=(-cmin "-$tmn")
 fi
@@ -321,16 +338,15 @@ if [ -s $SORTCOMPLETE ]; then
 
 	syschg="true"
 
-	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE ; SRTTIME=$( head -n1 $SORTCOMPLETE | awk '{print $1 " " $2}') ; PRD=$SRTTIME
+	sort -u -o  $SORTCOMPLETE $SORTCOMPLETE 
 
-	merge_ctime $SORTCOMPLETE $tout $PRD
 	inclusions $SORTCOMPLETE
 
     if [ "$flsrh" != "true" ]; then
-	    s=$(date -d "$SRTTIME" "+%s")
-	    if [ "$THETIME" == "noarguser" ]; then RANGE=$(( s + 300 )) ; else RANGE=$(( s + argone )) ; fi  # filter out non existant files ect
-	    PRD=$(date -d "@$RANGE" +"$fmt")
-	    awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' $SORTCOMPLETE > $tout ; mv $tout $SORTCOMPLETE
+        s=${STRTTIME%%.*}
+        RANGE=$(( s + search_time ))  # filter out non existant files ect
+        PRD=$(date -d "@$RANGE" +"$fmt")
+        awk -v tme="$PRD" '{ ts = $1 " " $2; if (ts <= tme) print }' $SORTCOMPLETE > $tout ; mv $tout $SORTCOMPLETE
     fi
 
 	sort -u -o $SORTCOMPLETE $SORTCOMPLETE
