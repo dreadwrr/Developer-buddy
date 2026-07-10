@@ -48,10 +48,16 @@ exclDIRS = ["dev", ".cache", "proc", "run", "sys"]
 mMODE = "mc"		#  mc   will run the search in parallel or multiple cores if over a certain number of file result threshhold. otherwise runs serially. mc is default
                             # default   if set to default you have a hard drive run the searches serially
 
-# run inotifywait for one hour to look for new files where ctime > mtime in /changes. this is for downloads or copies with preserved metadata pacman slackpkg ect.
-# It just dynamically bypasses a section of the script if tout result is already made. It is also inserted into the cache ctimecache.gpg.
-xRC = false               # false - default. if false the files will still show up
-                                # true - With this setting can bypass 1 of 2 search loops and reduce process overhead as the search is already there effectively increasing the overall speed
+# run watchdog for one hour to look for new files in basedir. if automation fails it doesnt effect the results as the purpose is
+# to make file_creation_log and cache files over 1MB for ctimecache.gpg.
+# reduces process overhead as larger created files or downloads the results are already there
+xRC = false              # false - default. if false the files will still show up
+                         # true
+
+_time = 3600    # default xRC searches for 1 hour before closing. default is to clear file_creation_log
+
+min_span = 3600  # set above _time to increase capacity. 0 would leave the log untouched
+
 
                         # How many old searches to save and rnt.xzm. These can be grabbed by `recentchanges search` and `recentchanges`
                         # for comparisons in diff file
