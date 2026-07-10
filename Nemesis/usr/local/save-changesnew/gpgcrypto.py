@@ -205,16 +205,16 @@ def start_user_agent(user, email, gpg_file=None, input_source=None):
         return GPGStatus.ERR_OK
     stderr = result.stderr
     if stderr:
-        with open('/tmp/teser', 'w') as f:
-            for line in stderr.splitlines():
-                ln = line.lower()
-                f.write(ln + "\n")
-                if "no secret key" in ln:
-                    return GPGStatus.NO_KEY
-                elif "ioctl" in ln or "no pinentry" in ln:
-                    return GPGStatus.NO_PINENTRY
-                elif "bad passphrase" in ln:
-                    return GPGStatus.BAD_PASSPHRASE
+        # with open('/tmp/teser', 'w') as f:
+        for line in stderr.splitlines():
+            ln = line.lower()
+            # f.write(ln + "\n")
+            if "no secret key" in ln:
+                return GPGStatus.NO_KEY
+            elif "ioctl" in ln or "no pinentry" in ln:
+                return GPGStatus.NO_PINENTRY
+            elif "bad passphrase" in ln:
+                return GPGStatus.BAD_PASSPHRASE
     return GPGStatus.DECRYPT_FAIL
 
 

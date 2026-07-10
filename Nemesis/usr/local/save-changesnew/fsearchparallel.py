@@ -14,7 +14,7 @@ from logs import logging_worker
 # import queue
 
 
-def process_line_worker(search_fn, chunk, checksum, file_type, search_start_dt, cache_f, logger=None):
+def process_line_worker(search_fn, chunk, checksum, search_start_dt, cache_f, logger=None):
 
     results = []
     log_entries = []
@@ -22,7 +22,7 @@ def process_line_worker(search_fn, chunk, checksum, file_type, search_start_dt, 
     for i, line in enumerate(chunk):
         try:
 
-            result, log_ = search_fn(line, checksum, file_type, search_start_dt, cache_f, logger)
+            result, log_ = search_fn(line, checksum, search_start_dt, cache_f, logger)
 
             if result is not None:
                 results.append(result)
@@ -38,7 +38,7 @@ def process_line_worker(search_fn, chunk, checksum, file_type, search_start_dt, 
     return results, log_entries, r
 
 
-def process_lines(search_fn, lines, file_type, search_start_dt, process_label, user_setting, logging_values, cache_f):
+def process_lines(search_fn, lines, search_start_dt, process_label, user_setting, logging_values, cache_f):
 
     mMODE = user_setting['mMODE']
     checksum = user_setting['checksum']
@@ -61,7 +61,7 @@ def process_lines(search_fn, lines, file_type, search_start_dt, process_label, u
             # tlog.start()
 
             # ck_results, log_
-            ck_results, _, _ = process_line_worker(search_fn, lines, checksum, file_type, search_start_dt, cache_f, logger)
+            ck_results, _, _ = process_line_worker(search_fn, lines, checksum, search_start_dt, cache_f, logger)
             # if log_:
             #     logs_to_queue(log_, log_q)
         except Exception as e:
@@ -96,7 +96,7 @@ def process_lines(search_fn, lines, file_type, search_start_dt, process_label, u
             ) as executor:
                 futures = [
                     executor.submit(
-                        process_line_worker, search_fn, chunk, checksum, file_type, search_start_dt, cache_f
+                        process_line_worker, search_fn, chunk, checksum, search_start_dt, cache_f
 
                     )
                     for idx, chunk in enumerate(chunks)

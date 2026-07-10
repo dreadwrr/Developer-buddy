@@ -45,6 +45,8 @@ from dirwalkerfunctions import get_base_folders
 from dirwalkerfunctions import get_relavant_mounts
 from dirwalkerfunctions import MOUNT_FOLDERS
 from filterhits import update_filter_csv
+from fsearch import process_line
+from fsearchparallel import process_lines
 from gpgcrypto import decr_ctime
 from gpgcrypto import encr_cache
 from logs import setup_logger
@@ -111,10 +113,6 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
     appdata_local = find_install()  # appdata software install aka workdir
     toml_file, home_dir, _, xdg_runtime, uid, gid = get_config(appdata_local, usr)
 
-    inotify_creation_file = Path("/tmp/file_creation_log.txt")
-    cdir = Path("/tmp/dbctimecache/")
-    lockfile = Path("/tmp/pblk.lock")
-
     log_dir = appdata_local / "logs"
     file_out = xdg_runtime / "file_output"  # holds result filename for bash
 
@@ -152,6 +150,8 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
     root_log_file = config['logs']['rootLOG']
     log_file = config['logs']['userLOG'] if usr != "root" else root_log_file
     xRC = config['search']['xRC']
+    _time = config['search']['_time']
+    min_span = config['search']['min_span']
     if mMODE == "mc":
         is_mcore = True
 
@@ -184,12 +184,11 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
     tmpoutput = []  # holding
     # Searches
     recent = []  # main results
-    tout = []  # ctime results
+    # tout = []  # ctime results # formerly seperate ctime search
     sortcomplete = []  # combined
     tmpopt = []   # combined filtered
     # NSF
     complete_1 = []
-    complete_2 = []
     complete = []   # combined
     # Diff file
     diff_file = []
@@ -308,7 +307,7 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
 
         # load ctime or files created or copied with preserved metadata
         # if xRC
-        tout = init_recentchanges(appdata_local, home_dir, inotify_creation_file, cdir, lockfile, cfr, xRC, checksum, moduleNAME, log_file, supbrwLIST)
+        init_recentchanges(appdata_local, home_dir, cfr, xRC, _time, min_span, checksum, moduleNAME, log_file, supbrwLIST)
 
         if argone != "search":
             thetime = argone
@@ -365,86 +364,64 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
 
         current_time = datetime.now()
         search_start_dt = (current_time - timedelta(minutes=search_time))
-        logger = logging.getLogger("FSEARCH")
+        # logger = logging.getLogger("FSEARCH")
 
-        secondary = []
-        if tout:
-            mmin = ["-mmin", f"-{search_time}"]
+        records = []
+        mmin = ["-mmin", f"-{search_time}"]
+        cmin = ["-cmin", f"-{search_time}"]
+        current_time = datetime.now()
 
-            find_command_mmin = F + prune + mmin + TAIL
-            if search_list:
-                if mounts:
-                    secondary = ["find", *mounts] + mmin + TAIL
+        find_command = F + prune + ["("] + mmin + ["-o"] + cmin + [")"] + TAIL
+        if search_list:
 
-                search_paths = 'Running command:' + ' '.join(["find"] + search_list + mmin + TAIL)
+            search_paths = 'Running command:' + ' '.join(["find"] + search_list + ["("] + mmin + ["-o"] + cmin + [")"] + TAIL)
 
-            init = True
+        init = True
 
-            recent, complete_1, recentnul, end, cstart = find_files(
-                find_command_mmin, secondary, search_paths, "main", recent, complete_1, recentnul, init, cfr,
-                search_start_dt, user_setting, logging_values, end, cstart, logger=logger
-            )
+        records, recentnul = find_files(find_command, search_paths, records, recentnul, feedback)
+        _end = time.time()
 
-        else:
-            cmin = ["-cmin", f"-{search_time}"]
-            current_time = datetime.now()
+        if mounts:
 
-            find_command_cmin = F + prune + cmin + TAIL
-            if search_list:
-                if mounts:
-                    secondary = ["find", *mounts] + cmin + TAIL
-                search_paths = 'Running command:' + ' '.join(["find"] + search_list + cmin + TAIL)
+            search_paths = None
 
-            init = True
-
-            tout, complete_2, recentnul, end, cstart = find_files(
-                find_command_cmin, secondary, search_paths, "ctime", tout, complete_2, recentnul, init, cfr,
-                search_start_dt, user_setting, logging_values, end, cstart, logger=logger
-            )
-
-            cmin_end = time.time()
-            cmin_start = current_time.timestamp()
-            cmin_offset = time_convert(cmin_end - cmin_start, 60, 2)
+            _start = current_time.timestamp()
+            find_offset = time_convert(_end - _start, 60, 2)
             check_stop(stopf)
 
-            mmin = ["-mmin", f"-{search_time + cmin_offset:.2f}"]
+            mmin = ["-mmin", f"-{search_time + find_offset:.2f}"]
+            cmin = ["-cmin", f"-{search_time + find_offset:.2f}"]
 
-            find_command_mmin = F + prune + mmin + TAIL
-            if search_list:
-                if mounts:
-                    secondary = ["find", *mounts] + mmin + TAIL
-                search_paths = 'Running command:' + ' '.join(["find"] + search_list + mmin + TAIL)
+            find_command = ["find", *mounts] + ["("] + mmin + ["-o"] + cmin + [")"] + TAIL
 
-            init = False
+            records, recentnul = find_files(find_command, search_paths, records, recentnul, feedback)
+        end = time.time()
 
-            recent, complete_1, recentnul, end, cstart = find_files(
-                find_command_mmin, secondary, search_paths, "main", recent, complete_1, recentnul, init, cfr,
-                search_start_dt, user_setting, logging_values, end, cstart, logger=logger
-            )
+        if init and checksum:
+            cstart = time.time()
+            cprint.cyan("Running checksum")
+
+        recent, complete_1 = process_lines(process_line, records, search_start_dt, 'FSEARCH', user_setting, logging_values, cfr)
 
         cend = time.time()
 
         # end Main search
 
-        if recent is None or tout is None:
+        if recent is None:
             return 1
 
         check_stop(stopf)
-        if cfr and (recent or tout):
+        if cfr and recent:
             encr_cache(cfr, cache_f, usr, uid, gid, email, compLVL)
 
         if not recent:
-            if not tout:
-                cprint.cyan("No new files found or invalid search criteria")
-                return 0
-            # for entry in tout:
+
+            cprint.cyan("No new files found or invalid search criteria")
+            return 0
+            # for entry in recent:
             #     tss = entry[0].strftime(fmt)
             #     fp = entry[1]
             #     print(f'{tss} {fp}')
-            recent = tout[:]
-            tout = []
-
-        complete = complete_1 + complete_2  # nsf append to rout in pstsrg before stat insert
 
         sortcomplete = recent
 
@@ -455,15 +432,6 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
         srttime = sortcomplete[0][0]  # store the start time
         merged = sortcomplete[:]
 
-        for entry in tout:
-            if not entry:
-                continue
-            tout_dt = entry[0]
-            if tout_dt >= srttime:
-                merged.append(entry)
-        merged.sort(key=lambda x: x[0])
-
-        # the start time is stored before appending ctime results
         seen = {}
 
         for entry in merged:

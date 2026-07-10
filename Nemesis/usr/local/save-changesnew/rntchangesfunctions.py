@@ -1,4 +1,4 @@
-# developer buddy v5.0 core                     06/21/2026
+# developer buddy v5.0 core                     07/10/2026
 import glob
 import logging
 import os
@@ -7,13 +7,10 @@ import shlex
 import shutil
 import subprocess
 import sys
-import time
 from datetime import datetime
 from pathlib import Path
 from configfunctions import update_config
 from filter import _filter
-from fsearch import process_line
-from fsearchparallel import process_lines
 from pyfunctions import cprint
 from pyfunctions import suppress_list
 from pyfunctions import unescf_py
@@ -282,76 +279,83 @@ def porteus_linux_check(any_version=False):
     return None
 
 
-# One search ctime > mtime for downloaded, copied or preserved metadata files. cmin. Main search for mtime newer than mmin.
-def find_files(find_command, secondary, search_paths, file_type, recent, complete, recentnul, init, cfr, search_start_dt, user_setting, logging_values, end, cstart, logger=None):
-    records = []
+def find_files(find_command, search_paths, records, recentnul, feedback):
 
     if search_paths:
         print(search_paths)
     else:
         print('Running command:', shlex.join(find_command))  # ' '.join(find_command))
 
+    # import shlex
+    # cmd = shlex.join(find_command)
+
+    # if secondary:
+    #     cmd += " ; " + shlex.join(secondary)
+
+    # proc = subprocess.Popen(
+    #     cmd,
+    #     shell=True,
+    #     stdout=subprocess.PIPE,
+    #     stderr=subprocess.PIPE
+    # )
+
     try:
 
-        comm = [find_command]
-        if secondary:
-            comm.append(secondary)
+        buffer = b''
+        proc = subprocess.Popen(find_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)  # stderr=subprocess.DEVNULL  # original
 
-        for cmd in comm:
-            buffer = b''
-            proc = subprocess.Popen(find_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)  # stderr=subprocess.DEVNULL
-            # output, err = proc.communicate()
+        # output, err = proc.communicate()  # original if buffering
 
-            # if proc.returncode not in (0, 1):
-            #     stderr_str = err.decode("utf-8")
-            #     print(stderr_str)
-            #     print("Find command failed, unable to continue. Quitting.")
-            #     sys.exit(1)
-            while True:
-                if proc.stdout is None:
-                    break
-                chunk = proc.stdout.read(8192)
-                if not chunk:
-                    break
-                buffer += chunk
-                while b'\0' in buffer:
-                    part, buffer = buffer.split(b'\0', 1)
-                    if part.strip():
+        # if proc.returncode not in (0, 1):  # original if buffering
+        #     stderr_str = err.decode("utf-8")
+        #     print(stderr_str)
+        #     print("Find command failed, unable to continue. Quitting.")
+        #     sys.exit(1)
+        while True:
+            if proc.stdout is None:
+                break
+            chunk = proc.stdout.read(8192)
+            if not chunk:
+                break
+            buffer += chunk
+            while b'\0' in buffer:
+                part, buffer = buffer.split(b'\0', 1)
+                if part.strip():
 
-                        line = part.decode("utf-8", errors="replace")
-                        fields = line.split(maxsplit=10)
-                        if len(fields) >= 11:
-                            if file_type == "main":
-                                file_path = fields[10]
-                                recentnul += (file_path.encode() + b'\0')  # copy file list `recentchanges` null byte
-                                if user_setting['feedback']:  # scrolling terminal look       alternative output
-                                    print(fields[10], flush=True)
-                            # escaped_entry = " ".join(fields)
-                            records.append(fields)
-            if buffer.strip():
-                try:
-                    line = buffer.decode('utf-8', errors='replace')
+                    line = part.decode("utf-8", errors="replace")
                     fields = line.split(maxsplit=10)
                     if len(fields) >= 11:
+
+                        file_path = fields[10]
+                        recentnul += (file_path.encode() + b'\0')  # copy file list `recentchanges` null byte
+                        if feedback:  # scrolling terminal look       alternative output
+                            print(fields[10], flush=True)
+                        # escaped_entry = " ".join(fields)
                         records.append(fields)
+        if buffer.strip():
+            try:
+                line = buffer.decode('utf-8', errors='replace')
+                fields = line.split(maxsplit=10)
+                if len(fields) >= 11:
+                    records.append(fields)
 
-                except Exception as e:
-                    print(f"fault in trailing buffer ignored. {type(e).__name__} {e}")
-                    pass
+            except Exception as e:
+                print(f"fault in trailing buffer ignored. {type(e).__name__} {e}")
+                pass
 
-            if proc.stdout is not None:
-                proc.stdout.close()
-            proc.wait()
+        if proc.stdout is not None:
+            proc.stdout.close()
+        proc.wait()
 
-            if proc.returncode not in (0, 1):
-                if proc.stderr is not None:
+        if proc.returncode not in (0, 1):
+            if proc.stderr is not None:
 
-                    for raw in iter(proc.stderr.readline, b''):
-                        text = raw.decode("utf-8", errors="replace").strip()
-                        if text:
-                            print(text)
-                print("Find command failed, unable to continue. Quitting.")
-                sys.exit(1)
+                for raw in iter(proc.stderr.readline, b''):
+                    text = raw.decode("utf-8", errors="replace").strip()
+                    if text:
+                        print(text)
+            print("Find command failed, unable to continue. Quitting.")
+            sys.exit(1)
 
     except (FileNotFoundError, PermissionError) as e:
         print(f"Error running find in find_files {e}")
@@ -360,10 +364,7 @@ def find_files(find_command, secondary, search_paths, file_type, recent, complet
         print(f"Unexpected error running find ommand: {find_command} \nfind_files func: {type(e).__name__} {e}")
         sys.exit(1)
 
-    if file_type == "main":
-        end = time.time()
-
-    # file_entries = [entry.decode('utf-8', errors='backslashreplace') for entry in output.split(b'\0') if entry]
+    # file_entries = [entry.decode('utf-8', errors='backslashreplace') for entry in output.split(b'\0') if entry]  # original if buffering
 
     # using escf_py and unesc_py for bash support otherwise can use: filename.encode('unicode_escape').decode('ascii') , codecs.decode(escaped, 'unicode_escape')
     # using escf_py and unesc_py for bash
@@ -377,24 +378,17 @@ def find_files(find_command, secondary, search_paths, file_type, recent, complet
     # for entry in file_entries:
     #     fields = entry.split(maxsplit=10)
     #     if len(fields) >= 11:
-    #         if file_type == "main":
-    #             file_path = fields[10]
-    #             recentnul += (file_path.encode() + b'\0')  # copy file list `recentchanges` null byte
-    #             if user_setting['feedback']:  # scrolling terminal look       alternative output
-    #                 print(fields[10])
+
+    #         file_path = fields[10]
+    #         recentnul += (file_path.encode() + b'\0')  # copy file list `recentchanges` null byte
+    #         if user_setting['feedback']:  # scrolling terminal look       alternative output
+    #             print(fields[10], flush=True)
 
     #         # escaped_entry = " ".join(fields)
     #         records.append(fields)
     # end original
 
-    if file_type not in ("ctime", "main"):
-        raise ValueError(f"Invalid search type: {file_type}")
-
-    if init and user_setting['checksum']:
-        cstart = time.time()
-        cprint.cyan("Running checksum")
-    recent, complete = process_lines(process_line, records, file_type, search_start_dt, 'FSEARCH', user_setting, logging_values, cfr)
-    return recent, complete, recentnul, end, cstart
+    return records, recentnul
 
 
 # recentchanges search
