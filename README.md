@@ -1,4 +1,4 @@
-#                               06/22/2026
+#                               07/10/2026
 ## Python edition <br>
 
 
@@ -7,6 +7,10 @@ slight change in data handling with use of arrays vs files in bash ( rout the fi
 the filter is filter.py and there is a config.toml <br>
 
 both the bash and the python edition have the advantages of not needing any dependencies. <br><br>
+v6.0.0-py<br>
+Find uses one process for both ctime and mtime results <br>
+inotify makes a file_creation_log.txt as well as caches created files for the main search <br>
+if something goes wrong with automation the results arent effected because it would be just the cache <br><br>
 v5.0.0-py<br>
 recentchanges reset prompts to reset config<br>
 changed the way the find command is run with -xdev<br>
