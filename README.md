@@ -1,8 +1,10 @@
 Added change to find command and adjusted analytics as was too high <br><br>
 
-Updated 07/07/2026 <br>
+Updated 07/10/2026 <br>
 
-finalized xRC inotify wait script and updated bash versions. Python special edition will get an update after the release of the new qt watchdog file creation watcher. <br><br>
+Python special edition updated ahead of qt watchdog file creation watcher release 
+
+finalized xRC inotify wait script and updated bash versions. <br><br>
 
 released python special edition [Repo](https://github.com/dreadwrr/Developer-buddy/tree/pyver)<br>
 New analytics and improved query! <br>
