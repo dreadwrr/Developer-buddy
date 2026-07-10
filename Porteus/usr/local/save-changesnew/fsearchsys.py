@@ -14,7 +14,7 @@ from pyfunctions import escf_py
 # Find Parallel SORTCOMPLETE search and  ctime hashing
 
 
-def process_sys_line(line, checksum, file_type, search_start_dt, cache_f, logger=None):
+def process_sys_line(line, checksum, search_start_dt, cache_f, logger=None):
 
     label = "Sortcomplete"
     fmt = "%Y-%m-%d %H:%M:%S"
