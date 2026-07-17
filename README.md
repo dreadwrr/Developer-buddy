@@ -4,9 +4,9 @@ With having finalized recentchanges currently reviewing for inconsistencies to a
 can then include optimizations and changes for constistency. New artwork is in developement as well as a
 review of documentation to ensure proper synopsis and ease of use
 
-What is coming in the next update:
-File shannon
-Mime type in database as numbers
+What is coming in the next update: <br>
+File shannon <br>
+Mime type in database as numbers <br><br>
 
 Updated 07/10/2026 <br>
 Python special edition updated ahead of qt watchdog file creation watcher release <br>
