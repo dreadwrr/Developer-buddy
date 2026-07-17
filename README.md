@@ -6,7 +6,7 @@ With having finalized recentchanges currently reviewing for inconsistencies to a
 can then include optimizations with the consistency changes. New artwork is in developement as well as a
 review of documentation to ensure proper synopsis and ease of use
 
-added md5s to output hash and entrop for bash versions for next update
+added md5s to output hash and entropy for bash versions for next update
 
 What is coming in the next update: <br>
 File shannon <br>
