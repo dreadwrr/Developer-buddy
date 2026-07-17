@@ -16,7 +16,7 @@ for Porteus 5.01, 5.1 and Nemesis
 
 script includes recentchanges as well as save-changesnew. There is the bash version (with python backend) that is the main release. A python version which is recentchanges implemented in python that I also use for bridging from bash to qt. This streamlines development as new changes are made for primary releases. Both bash and qt being on the opposite sides of implementation.
 
-I first started a Qt gui for Windows 10/11 based on recent changes. Then converted it for linux. Afterwards went back and updated the initial windows release. 
+I first started a Qt gui for Windows 10/11 based on recent changes. Then converted it for linux.
 
 Windows Qt https://github.com/dreadwrr/Recentchanges <br>
 Linux https://github.com/dreadwrr/Recentchanges-Linux<br><br>
