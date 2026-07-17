@@ -1,3 +1,5 @@
+python special edition [Repo](https://github.com/dreadwrr/Developer-buddy/tree/pyver)<br>
+
 07/17/2026
 
 With having finalized recentchanges currently reviewing for inconsistencies to add stability. Any later update
@@ -7,15 +9,6 @@ review of documentation to ensure proper synopsis and ease of use
 What is coming in the next update: <br>
 File shannon <br>
 Mime type in database as numbers <br><br>
-
-Updated 07/10/2026 <br>
-Python special edition updated ahead of qt watchdog file creation watcher release <br>
-finalized xRC inotify wait script and updated bash versions. <br><br>
-
-06/22/2026 <br>
-Added change to find command and adjusted analytics as was too high <br><br>
-released python special edition [Repo](https://github.com/dreadwrr/Developer-buddy/tree/pyver)<br>
-New analytics and improved query! <br>
 
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
 
