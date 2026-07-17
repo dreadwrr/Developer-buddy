@@ -3,7 +3,7 @@ python special edition [Repo](https://github.com/dreadwrr/Developer-buddy/tree/p
 07/17/2026
 
 With having finalized recentchanges currently reviewing for inconsistencies to add stability. Any later update
-can then include optimizations and changes for constistency. New artwork is in developement as well as a
+can then include optimizations with the consistency changes. New artwork is in developement as well as a
 review of documentation to ensure proper synopsis and ease of use
 
 What is coming in the next update: <br>
