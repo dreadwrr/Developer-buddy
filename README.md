@@ -1,8 +1,15 @@
+07/17/2026
+
+With having finalized recentchanges currently reviewing for inconsistencies to add stability. Any later update
+can then include optimizations and changes for constistency. New artwork is in developement as well as a
+review of documentation to ensure proper synopsis and ease of use
+
+What is coming in the next update:
+File shannon
+Mime type in database as numbers
 
 Updated 07/10/2026 <br>
-
 Python special edition updated ahead of qt watchdog file creation watcher release 
-
 finalized xRC inotify wait script and updated bash versions. <br><br>
 
 06/22/2026 <br>
