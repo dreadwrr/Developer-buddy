@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
+#include <magic.h>
 #include <math.h>
 #include "md5.h"
 
@@ -13,20 +15,38 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    FILE *fp = fopen(argv[1], "rb");
-    if (!fp) {
-        perror("fopen");  // fprintf(stderr, "fopen: %s\n", strerror(errno));
+    FILE *fp;
+    magic_t magic;
+    MD5_CTX ctx;
+   
+    const char *mime;
+
+    unsigned char buf[BUF_SIZE];
+    unsigned char magic_buf[BUF_SIZE];
+    unsigned char digest[MD5_DIGEST_LENGTH];
+    uint64_t total = 0;
+    uint64_t entropy_count[256] = {0};
+    size_t magic_len = 0;
+    size_t n;
+    double entropy = 0.0;
+
+    magic = magic_open(MAGIC_MIME_TYPE);
+    if (!magic) {
+        fprintf(stderr, "magic_open failed\n");
+        return 1;
+    }
+    if (magic_load(magic, NULL) != 0) {
+        fprintf(stderr, "%s\n", magic_error(magic));
+        magic_close(magic);
         return 1;
     }
 
-    MD5_CTX ctx;
-    unsigned char digest[MD5_DIGEST_LENGTH];
-
-    unsigned char buf[BUF_SIZE];
-    uint64_t entropy_count[256] = {0};
-    uint64_t total = 0;
-    double entropy = 0.0;
-    size_t n;
+    fp = fopen(argv[1], "rb");
+    if (!fp) {
+        perror("fopen");  // fprintf(stderr, "fopen: %s\n", strerror(errno));
+        magic_close(magic);
+        return 1;
+    }
 
     MD5_Init(&ctx);
 
@@ -35,30 +55,50 @@ int main(int argc, char **argv)
         for (size_t i = 0; i < n; i++)
             entropy_count[buf[i]]++;
 
+        if (magic_len < sizeof(magic_buf)) {
+            size_t copy = n;
+            size_t held = sizeof(magic_buf) - magic_len
+
+            if (copy > held)
+                copy = held;
+
+            memcpy(magic_buf + magic_len, buf, copy);
+            magic_len += copy;
+        }
         total += n;
     }
 
     if (ferror(fp)) {
         perror("fread");
         fclose(fp);
+        magic_close(magic);
         return 1;
     }
 
     fclose(fp);
 
-    for (int i = 0; i < 256; i++) {
-        if (entropy_count[i]) {
-            double p = (double)entropy_count[i] / total;
-            entropy -= p * log2(p);
+    if (total > 0) {
+        for (int i = 0; i < 256; i++) {
+            if (entropy_count[i]) {
+                double p = (double)entropy_count[i] / total;
+                entropy -= p * log2(p);
+            }
         }
     }
+
+    mime = magic_buffer(magic, magic_buf, magic_len);
+    
+    if (!mime)
+        mime = "Unknown";  // "application/octet-stream";
 
     MD5_Final(digest, &ctx);
 
     for (int i = 0; i < MD5_DIGEST_LENGTH; i++)
         printf("%02x", digest[i]);
 
-    printf(" %.6f\n", entropy);
+    printf(" %.6f %s\n", entropy, mime);
+    
+    magic_close(magic);
 
     return 0;
 }
