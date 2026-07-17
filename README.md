@@ -2,9 +2,10 @@ python special edition [Repo](https://github.com/dreadwrr/Developer-buddy/tree/p
 
 07/17/2026
 
-With having finalized recentchanges currently reviewing for inconsistencies to add stability. Any later update
-can then include optimizations with the consistency changes. New artwork is in developement as well as a
-review of documentation to ensure proper synopsis and ease of use
+With having finalized recentchanges currently reviewing for inconsistencies to add stability. Then can include
+any optimizations found in a later update. So can remain in a holding pattern for when a change to a new
+implementation or design is discovered or justifiable. artwork is in developement as well as a review of
+documentation to ensure proper synopsis and ease of use
 
 added md5s to output hash and entropy for bash versions for next update
 
