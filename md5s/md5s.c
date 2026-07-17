@@ -8,6 +8,15 @@
 #define BUF_SIZE 65536
 #define MD5_DIGEST_LENGTH 16
 
+/*  Use open wall md5 implementation and also output file shannon entropy  and mime type
+    so only have to open the file once 
+
+    if ! ldconfig -p | grep -q libmagic; then
+        echo "libmagic missing, exiting"
+        exit 1
+    fi
+    
+            */
 int main(int argc, char **argv)
 {
     if (argc != 2) {
@@ -50,6 +59,7 @@ int main(int argc, char **argv)
 
     MD5_Init(&ctx);
 
+    // read for md5 as well as prepare bytes for file entropy and mime type
     while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
         MD5_Update(&ctx, buf, n);
         for (size_t i = 0; i < n; i++)
@@ -77,6 +87,10 @@ int main(int argc, char **argv)
 
     fclose(fp);
 
+    // output area
+
+    MD5_Final(digest, &ctx);
+
     if (total > 0) {
         for (int i = 0; i < 256; i++) {
             if (entropy_count[i]) {
@@ -89,9 +103,7 @@ int main(int argc, char **argv)
     mime = magic_buffer(magic, magic_buf, magic_len);
     
     if (!mime)
-        mime = "Unknown";  // "application/octet-stream";
-
-    MD5_Final(digest, &ctx);
+        mime = "Unknown";  // default value "application/octet-stream";
 
     for (int i = 0; i < MD5_DIGEST_LENGTH; i++)
         printf("%02x", digest[i]);
