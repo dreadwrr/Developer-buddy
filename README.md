@@ -9,7 +9,7 @@ File shannon
 Mime type in database as numbers
 
 Updated 07/10/2026 <br>
-Python special edition updated ahead of qt watchdog file creation watcher release 
+Python special edition updated ahead of qt watchdog file creation watcher release <br>
 finalized xRC inotify wait script and updated bash versions. <br><br>
 
 06/22/2026 <br>
