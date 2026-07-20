@@ -7,11 +7,10 @@ any optimizations found in a later update. So can remain in a holding pattern fo
 implementation or design is discovered or needed. artwork is in developement as well as a review of
 documentation to ensure proper synopsis and ease of use
 
-added md5s to output hash and entropy for bash versions for next update
+added md5s or md5ent to output hash entropy and mime type with one read. As an experiment for bash versions.
+This wont be added to the bash version as it would be too awkward to maintain.
 
-What is coming in the next update: <br>
-File shannon <br>
-Mime type in database as numbers <br><br>
+Next update will include any stabilizy changes found
 
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
 
