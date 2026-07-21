@@ -10,7 +10,7 @@ documentation to ensure proper synopsis and ease of use
 added md5s or md5ent to output hash entropy and mime type with one read. As an experiment for bash versions.
 This wont be added to the bash version as it would be too awkward to maintain.
 
-Next update will include any stabilizy changes found
+Next update will include any stability changes found
 
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
 
