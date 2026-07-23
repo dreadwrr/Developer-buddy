@@ -101,9 +101,15 @@ int main(int argc, char **argv)
     }
 
     mime = magic_buffer(magic, magic_buf, magic_len);
-    
-    if (!mime)
-        mime = "Unknown";  // default value "application/octet-stream";
+    if (!mime) {
+        fprintf(stderr, "magic_buffer failed: %s\n", magic_error(magic));
+        // magic_close(magic);
+        // return 1;
+        mime = "None";
+    } 
+    // else if (strcmp(mime, "application/octet-stream") == 0) {
+        // mime = "Unknown";
+    // }
 
     for (int i = 0; i < MD5_DIGEST_LENGTH; i++)
         printf("%02x", digest[i]);
@@ -114,3 +120,4 @@ int main(int argc, char **argv)
 
     return 0;
 }
+
