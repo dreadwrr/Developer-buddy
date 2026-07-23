@@ -57,6 +57,12 @@ int main(int argc, char **argv)
     }
 
     blake2b_init(&S, 32);
+    if (blake2b_init(&S, 32) != 0) {
+        fprintf(stderr, "blake2b_init failed\n");
+        fclose(fp);
+        magic_close(magic);
+        return 1;
+    }
 
     // read for md5 as well as prepare bytes for file entropy and mime type
     while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
@@ -100,9 +106,15 @@ int main(int argc, char **argv)
     }
 
     mime = magic_buffer(magic, magic_buf, magic_len);
-    
-    if (!mime)
-        mime = "Unknown";  // default value "application/octet-stream";
+    if (!mime) {
+        fprintf(stderr, "magic_buffer failed: %s\n", magic_error(magic));
+        // magic_close(magic);
+        // return 1;
+        mime = "None";
+    } 
+    // else if (strcmp(mime, "application/octet-stream") == 0) {
+        // mime = "Unknown";
+    // }
 
     for (int i = 0; i < 32; i++)
         printf("%02x", digest[i]);
