@@ -1,7 +1,6 @@
 python special edition [Repo](https://github.com/dreadwrr/Developer-buddy/tree/pyver)<br>
 
-07/24/2026 <br>
-v6.5 will include: <br>
+upcoming v6.5 will include: <br>
 entropy, mime and target change to hybrid analysis <br>
 enhanced tk with theming (ttkbootstrap, starvalley, azure and forest) and datastreaming for better response
 
