@@ -1,14 +1,9 @@
 python special edition [Repo](https://github.com/dreadwrr/Developer-buddy/tree/pyver)<br>
 
-07/17/2026
-
-With having finalized recentchanges currently reviewing for inconsistencies to add stability. Then can include
-any optimizations found in a later update. So can remain in a holding pattern for when a change to a new
-implementation or design is discovered or needed. artwork is in developement as well as a review of
-documentation to ensure proper synopsis and ease of use
-
-added md5s or md5ent to output hash entropy and mime type with one read. As an experiment for bash versions.
-This wont be added to the bash version as it would be too awkward to maintain.
+07/24/2026
+v6.5 will include:
+entropy, mime and target change to hybrid analysis
+enhanced tk with theming (ttkbootstrap, starvalley, azure and forest) and datastreaming for better response
 
 Next update will include any stability changes found
 
