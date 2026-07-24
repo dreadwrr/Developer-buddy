@@ -1,4 +1,4 @@
-# b2ent
+# md5ent or b2ent
 
 Single-pass file analyzer that outputs:
 - blake2b 256 checksum
