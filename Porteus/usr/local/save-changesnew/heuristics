@@ -4,13 +4,12 @@ asz() {
 awk '
 {
     # Remove quotes from file path
-    path = $2
+    path = $3
     gsub(/^"|"$/, "", path)
 
-    inode = $4
-    filesize = $7
+    inode = $6
+    filesize = $12
 
-    # Example: accumulate total size
     total_size += filesize
     file_count++
 }
@@ -32,7 +31,7 @@ awk '
     rest = substr($0, RSTART + RLENGTH)
     split(rest, f, " ")
 
-    # Assuming f[1..2] after the quote are old date/time, f[3] is inode
+    # f[3] is inode
     date_idx = 4  # access date
     time_idx = 5  # access time
 
@@ -151,7 +150,7 @@ hr() {
 		avg_minute = (total_counts > 0) ? sum_minutes / total_counts : 0
 		avg_min_int = int(avg_minute)
 
-		# Decide top or bottom half
+		# top or bottom half
 		half = (avg_minute < 30) ? "top of the hour" : "bottom of the hour"
 
 		printf "Avg time of file activity: %02d:%02d (%.2f minutes)\n", max_hour, avg_min_int, avg_minute

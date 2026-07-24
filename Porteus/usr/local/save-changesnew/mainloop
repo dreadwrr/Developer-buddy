@@ -8,23 +8,28 @@ prefixth=cache1
 
 atmp="$1"
 checkSUM="$2"
-[[ "$3" = "batch2" ]] && prefix=mainloop3 && prefixt=mainloop4 && prefixth=cache2
-CACHE_F="$4"
-deltadiff=$5
-CSZE=$6
-shift 6
+checkMETHOD="$3"
+# [[ "$3" = "batch2" ]] && prefix=mainloop3 && prefixt=mainloop4 && prefixth=cache2  # if interleaving
+SORTCOMPLETE="$4"
+NFS="$5"
+CACHE_F="$6"
+deltadiff=$7
+CSZE=$8
+shift 8
 
-# $atmp "false" "main" "batch2"
-SORTCOMPLETE="${atmp}/${prefix}_${RANDOM}$(rand_alpha)$$_tmp.log"
-NFS="${atmp}/${prefixt}_${RANDOM}$(rand_alpha)$$_tmp.log"
-CACHE="${atmp}/${prefixth}_${RANDOM}$(rand_alpha)$$_tmp.log"
+## $atmp "false" "main" "batch2"
+#SORTCOMPLETE="${atmp}/${prefix}_${RANDOM}$(rand_alpha)$$_tmp.log"  # if interleaving
+#NFS="${atmp}/${prefixt}_${RANDOM}$(rand_alpha)$$_tmp.log"  # if interleaving
+#CACHE="${atmp}/${prefixth}_${RANDOM}$(rand_alpha)$$_tmp.log"  # if interleaving
+is_sum="false"
+get_hashmethod "mainloop"
 
 if [ "$CSZE" -ge 0 ] 2>/dev/null; then
     for f in "$@"; do
 
-	    sblk "$f" $SORTCOMPLETE $NFS $checkSUM $CSZE $CACHE $deltadiff
+        sblk "$f" $SORTCOMPLETE $NFS $checkSUM $CSZE $CACHE $deltadiff
     done
 else
-	echo "mainloop Incorrect arguments supplied"
+    echo "mainloop Incorrect arguments supplied"
 fi
 

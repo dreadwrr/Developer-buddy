@@ -1,15 +1,18 @@
 #!/bin/bash
-# Clear cache from gpgs                 06/10/2026 
+# Clear cache from gpgs                 07/22/2026
 # usage. None required. $1 username if one isnt provided default is used `guest`. $2 means from database reset literal exit early
+CONFIG_FILE="/opt/porteus-scripts/recentchanges"
+SCRIPT_PATH="/usr/local/save-changesnew"
 . /usr/share/porteus/porteus-functions
 get_colors
-. /usr/local/save-changesnew/save-changesnewfnts
-. /usr/local/save-changesnew/rntchangesfunctions
+. "$SCRIPT_PATH"/save-changesnewfnts
+. "$SCRIPT_PATH"/rntchangesfunctions
 if [[ $(whoami) != "root" ]]; then su - -c "/usr/local/save-changesnew/clearcache `whoami`" ; exit ; fi 
 USR="$1"
 [[ -z "$USR" ]] && USR="guest"
 
 
+# patterns to delete from db on cache clear. 
 # deletes from logs. ANALYTICS  deletes frm logs. STATPST  logs and stats
 patterns=(
     'caches'
@@ -17,14 +20,14 @@ patterns=(
     'Cache2'
     '\.cache'
     'share/Trash'
-	"/home/$USR/Downloads/rntfiles"
-	"/home/$USR/\.local/state/wireplumber"
+    "/home/$USR/Downloads/rntfiles"
+    "/home/$USR/\.local/state/wireplumber"
     '/usr/share/mime/application'
     '/usr/share/mime/text'
     '/usr/share/mime/image'
-	'release/cache'
+    'release/cache'
     '\.local/share'
-    '/usr/local/save-changesnew/flth\.csv'
+    "$SCRIPT_PATH/flth\.csv"
 ) 
 
 
@@ -32,7 +35,7 @@ patterns=(
 # anything after "sed -i '/ and before /d'
 clear_flth() {
 literal=()
-literal+=("\/home\/'\"\${2}\"'\/Downloads\/rntfiles") 
+literal+=("\/home\/'\"\${2}\"'\/Downloads\/rntfiles")
 literal+=("\.cache")
 literal+=("\/home\/'\"\${2}\"'\/\.config")
 literal+=("\.local\/share")
@@ -40,43 +43,39 @@ literal+=("\/var\/cache")
 # literal+=("\.bash_history")
 
 for pat in "${literal[@]}"; do
-	y=$( grep -F "sed -i '/$pat/d" $flth | cut -d',' -f2)
+    y=$( grep -F "sed -i '/$pat/d" $flth | cut -d',' -f2)
 
-	if [ -n "$y" ] && (( y > 0 )); then
-		is_diff="true"
-		lno=$(grep -Fn "sed -i '/$pat/d'" "$flth" | cut -d: -f1)
-		if [[ -n $lno ]]; then
-			sed -i "${lno}s/,[0-9]\+\$/,0/" $flth
-		fi
-	fi
+    if [ -n "$y" ] && (( y > 0 )); then
+        is_diff="true"
+        lno=$(grep -Fn "sed -i '/$pat/d'" "$flth" | cut -d: -f1)
+        if [[ -n $lno ]]; then
+            sed -i "${lno}s/,[0-9]\+\$/,0/" $flth
+        fi
+    fi
 done
 }
-
 
 # declare -p patterns . prints the array  # echo "sed -i \"\|$pat|d\" \"$1\"  debug output
 clear_c() { for pat in "${patterns[@]}"; do sed -i "\|$pat|d" $1 ; done ; }
 ctmp() { if [ -d /tmp/rc ]; then for file in /tmp/rc/*; do [[ -s $file ]] && clear_c $file ; done ; fi ; }
 decrypt(){	if ! gpg --yes -d -o $1 $2; then red "Failed to decrypt  ${2}" && rm $atmp && exit 1; fi; }
 encr() { if ! gpg --yes -e -r $mail -o $2 $1; then red "Rencryption failed. Everything preserved" && rm $atmp && exit 1; fi; }
-atmp=/tmp/atmp$$									;	logpst="/usr/local/save-changesnew/logs.gpg"
-efile="/opt/porteus-scripts/recentchanges"	;	statpst="/usr/local/save-changesnew/stats.gpg"
-email="john.doe@email.com"					;	pydbpst="/usr/local/save-changesnew/recent.gpg"
-flth="/usr/local/save-changesnew/flth.csv"	;	xdata=$atmp/logs_stats.log
+atmp=/tmp/atmp$$    ;   flth="$SCRIPT_PATH"/flth.csv
+xdata=$atmp/logs_stats.log
+
 is_diff="false"
-rlt=$(sed -n 's/.*export logpst=\([^ ]*\).*/\1/p' "$efile")
-rltt=$(sed -n 's/.*export statpst=\([^ ]*\).*/\1/p' "$efile")
-mail=$(sed -n 's/.*export email=\([^ ]*\).*/\1/p' "$efile")
-rlt=${rlt//\"/} ; rltt=${rltt//\"/} ; mail=${mail//\"/}
-[ -z "$rlt" ] && rlt="$logpst" ; [ -z "$rltt" ] && rltt="$statpst" ; [ -z "$mail" ] && mail=$email
+
+get_inclusion "$CONFIG_FILE"
 
 mkdir $atmp 
 [[ -n "$2" ]] && { clear_flth && [[ "$is_diff" = "true" ]] && echo "Filter hits cleared."; exit 0; }
-et=$(sed -n 's/.*export ANALYTICS=\([^ ]*\).*/\1/p' $efile) ; et=${et//\"/}
-if [[ "$et" == "true" ]]; then echo "Clearing tmp searches" && ctmp ; clear_flth ; exit ; fi
+analytics=$(sed -n 's/.*export ANALYTICS=\([^ ]*\).*/\1/p' $CONFIG_FILE) ; analytics=${analytics//\"/}
+if [[ "$analytics" == "true" ]]; then echo "Clearing tmp searches" && ctmp ; clear_flth ; exit ; fi
 
-test -f $rlt || { cyan "logpst not found." && exit; } ; test -f $rltt || { cyan "statpst not found." && exit; }
-# lggpg=$( echo $rlt | fixcmp | fixOT) ; sttgpg=$( echo $rltt | fixcmp | fixOT) ; dbgpg=$( echo $rlttt | fixcmp | fixOT)
-decrypt $xdata $rlt ; clear_c $xdata ; encr $xdata $rlt && rm $xdata
-decrypt $xdata $rltt ; clear_c $xdata ; sed -i '/^$/d' $xdata ; encr $xdata $rltt && rm $xdata
+test -f $log || { cyan "logpst not found." && exit; } ; test -f $stat || { cyan "$statpst not found." && exit; }
+# lggpg=$( echo $log | fixcmp | fixOT) ; sttgpg=$( echo $stat | fixcmp | fixOT) ; dbgpg=$( echo $db | fixcmp | fixOT)
+decrypt $xdata $log ; clear_c $xdata ; encr $xdata $log && rm $xdata
+decrypt $xdata $stat ; clear_c $xdata ; sed -i '/^$/d' $xdata ; encr $xdata $stat && rm $xdata
 clear_flth
 rm -rf $atmp && green "Cache succesfully cleared"
+

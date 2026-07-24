@@ -1,44 +1,33 @@
 #!/usr/bin/env bash
-# supress output helper script to launch inotifywait optional logging   09/15/2025 07/05/2026
+# supress output helper script to launch inotifywait optional logging   09/15/2025 07/22/2026
 #nohup /usr/local/save-changesnew/inotify "$@" > /dev/null 2>&1 &
 # SCRIPT_PATH="$( dirname "$0")"
+. /usr/local/save-changesnew/inotifyfunctions
 fmt="%Y-%m-%d %H:%M:%S"
-debug_file=/tmp/inotify.log  # core inotify debug output
-echo $log_date > $debug_file
-if [ "$#" -lt 10 ]; then
-    echo "Usage: $0 log_file mdlnameprefix cache_file inotify_cache_file csze cdir lockfile checksum _time min_span" >&2
-	echo "not enough args" >> $debug_file
+inotify_pid_file="$5"
+inotify_debug_file="$6"  # core inotify debug output
+
+log_date=$(date +"$fmt")
+echo $log_date > "$inotify_debug_file"
+if [ "$#" -lt 13 ]; then
+    echo "Usage: $0 log_file mdlnameprefix cache_file inotify_cache_file inotify_pid_file inotify_debug_file cdir datadict lockfile csze checkmethod _time min_span" >&2
+    echo "not enough args" >> "$inotify_debug_file"
     exit 1
 fi
-log_date=$(date +"$fmt")
 
-setsid /usr/local/save-changesnew/inotify "$@" "$debug_file" >> "$debug_file" 2>&1 &  # nohup /usr/local/save-changesnew/inotify "$@" "$debug_file" >> $debug_file 2>&1 &
+if ! oldpid "$inotify_pid_file"; then
+    echo "failed to close a previously running process quiting" >> "$inotify_debug_file"
+    exit 1
+fi
+setsid /usr/local/save-changesnew/inotify "$@" >> "$inotify_debug_file" 2>&1 &  # nohup /usr/local/save-changesnew/inotify "$@" >> "$inotify_debug_file" 2>&1 &
 pid=$!
 sleep 1
 
 if ! kill -0 "$pid" 2>/dev/null; then
-    echo "inotify failed to start" >> $debug_file
+    echo "inotify failed to start" >> "$inotify_debug_file"
     exit 1
 fi
 
 # awk '{print $22}' /proc/5473/stat
-printf '%s|%s\n' "$pid" "$(ps -o lstart= -p "$pid")" > /tmp/inotify_watcher.pid
-
-oldpid() {
-local res=0
-if [[ -f $1 ]]; then
-    IFS='|' read -r stored_pid stored_start < $1
-    current="$(ps -o lstart= -p "$pid")"
-    if [[ -n "$current" ]]; then
-        if [ "$current_start" = "$stored_start" ]; then
-            if ! kill -- -$stored_pid; then
-                echo "failed to close old pid $stored_pid $stored_start"
-                res=1
-            fi
-        fi
-    fi
-    rm -f $1
-fi
-return $res
-}
+printf '%s|%s\n' "$pid" "$(ps -o lstart= -p "$pid")" > "$inotify_pid_file"
 

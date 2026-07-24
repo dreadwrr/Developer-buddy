@@ -1,11 +1,13 @@
 #!/bin/bash
-shopt -s nullglob										# 06/10/2026
+shopt -s nullglob										# 07/24/2026
 . /usr/local/save-changesnew/rntchangesfunctions
 atmp=/tmp/ztmp$$ 					;	ch=/mnt/live/memory/images/
 fmt="%Y-%m-%d %H:%M:%S"	;	xdata3=$atmp/db_log.log
 xdata=$atmp/log.log					;	SORTCOMPLETE=$atmp/list_complete_sorted.txt
-md="$1"									;	systemf=$atmp/filelist
-debug_log="false"						;	debug_file=/tmp/sp.log
+checkMETHOD="$1"					;	md="$2"
+systemf=$atmp/filelist				;	debug_file=/tmp/sp.log
+debug_log="false"
+is_sum="false"  # ensure the right hash program is used and is set in get_hashmethod
 
 # TMPF=$atmp/structure
 mkdir $atmp
@@ -87,9 +89,10 @@ if [ "$md" == "mc" ]; then
 	cores=$( nproc 2>/dev/null || echo 1)
 	max_jobs=$(( cores > 16 ? 16 : cores ))
     y=$(( (x + max_jobs - 1) / max_jobs ))
-    xargs -0 -n "$y" -P "$max_jobs" /usr/local/save-changesnew/profileloop $atmp "true" "main" "batch1" $debug_log $debug_file < $xdata3
-    isoutput "mainloop1*" $SORTCOMPLETE
+    xargs -0 -n "$y" -P "$max_jobs" /usr/local/save-changesnew/profileloop $atmp $SORTCOMPLETE "null" "true" $checkMETHOD $debug_log $debug_file < $xdata3  # "batch1"
+    # isoutput "mainloop1*" $SORTCOMPLETE  # if interleaving
 else
+    get_hashmethod "sysprofile"
     while IFS= read -r -d '' p ; do
         rblk "$p" $SORTCOMPLETE "/dev/null" "true" $debug_log $debug_file
     done < $xdata3
@@ -98,8 +101,8 @@ fi
 x=$(tr -cd '\0' < $xdata | wc -c) 
 if [ "$md" == "mc" ]; then
     y=$(( (x + max_jobs - 1) / max_jobs ))
-    xargs -0 -n "$y" -P "$max_jobs" /usr/local/save-changesnew/profileloop $atmp "false" "main" "batch2" $debug_log $debug_file < $xdata
-    isoutput "mainloop3*" $SORTCOMPLETE
+    xargs -0 -n "$y" -P "$max_jobs" /usr/local/save-changesnew/profileloop $atmp $SORTCOMPLETE "null" "false" $checkMETHOD $debug_log $debug_file < $xdata  # "batch2"
+    # isoutput "mainloop3*" $SORTCOMPLETE  # if interleaving
 else
     while IFS= read -r -d '' p ; do
         rblk "$p" $SORTCOMPLETE "/dev/null" "false" $debug_log $debug_file
@@ -115,3 +118,4 @@ fi
 #while IFS= read -r -d '' y; do  x=$(escf "$(cut -d' ' -f9- <<< "$y")") ; printf '%s\0' "$x"; done < $xdata3 > $TMPF
 #sort -z -o $TMPF $TMPF
 #comm -z -23 $systemf $TMPF > $xdata # all other files not hashed
+

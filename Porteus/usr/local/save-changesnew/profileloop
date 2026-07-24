@@ -6,16 +6,23 @@ prefix=mainloop1
 prefixt=mainloop2
 prefixth=cache1
 atmp="$1"
-checkSUM="$2"
-xmode="$3"
-[[ "$4" = "batch2" ]] && prefix=mainloop3 && prefixt=mainloop4 && prefixth=cache2
-shift 6
+SORTCOMPLETE="$2"
+NFS="$3"
+checkSUM="$4"
+checkMETHOD="$5"
+# [[ "$5" = "batch2" ]] && prefix=mainloop3 && prefixt=mainloop4 && prefixth=cache2  # $4  # if interleaving
+debug_log="$6"
+debug_file="$7"
 
-# $atmp "false" "main" "batch2"
-SORTCOMPLETE="${atmp}/${prefix}_${RANDOM}$(rand_alpha)$$_tmp.log"
-NFS="${atmp}/${prefixt}_${RANDOM}$(rand_alpha)$$_tmp.log"
-# CACHE="${atmp}/${prefixth}_${RANDOM}$(rand_alpha)$$_tmp.log"
+shift 7
+is_sum="false"
+get_hashmethod "profileloop"
+
+## $atmp "false" "main" "batch2"
+# SORTCOMPLETE="${atmp}/${prefix}_${RANDOM}$(rand_alpha)$$_tmp.log"  # if interleaving
+# NFS="${atmp}/${prefixt}_${RANDOM}$(rand_alpha)$$_tmp.log"  # if interleaving
+## CACHE="${atmp}/${prefixth}_${RANDOM}$(rand_alpha)$$_tmp.log"
 
 for f in "$@"; do
-    rblk "$f" $SORTCOMPLETE $NFS $checkSUM $5 $6
+    rblk "$f" $SORTCOMPLETE $NFS $checkSUM $debug_log $debug_file
 done

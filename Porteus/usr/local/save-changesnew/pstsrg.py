@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       06/17/2026
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       07/24/2026
 import getpass
 import os
 import re
@@ -14,8 +14,10 @@ from hanlyparallel import hanly_parallel
 from pyfunctions import ap_decode
 from pyfunctions import CYAN, GREEN, RESET
 from pyfunctions import collision_check
+from pyfunctions import convert_mime_to_int
 from pyfunctions import getcount
 from pyfunctions import getnm
+from pyfunctions import get_mime_map
 from pyfunctions import intst
 from pyfunctions import removefile
 from pyfunctions import to_bool
@@ -24,15 +26,34 @@ from pyfunctions import to_bool
 # Globals
 QUOTED_RE = re.compile(r'"((?:[^"\\]|\\.)*)"')
 
+COLUMNS = [
+    'timestamp TEXT',
+    'filename TEXT',
+    'changetime TEXT',
+    'inode INTEGER',
+    'accesstime TEXT',
+    'checksum TEXT',
+    'entropy REAL',
+    'mime_id INTEGER',
+    'filesize INTEGER',
+    'symlink TEXT',
+    'owner TEXT',
+    '`group` TEXT',
+    'permissions TEXT',
+    'casmod TEXT',
+    'target TEXT',
+    'lastmodified TEXT'
+]
+
 
 def encr(database, opt, email, no_compression, dcr=False):
     try:
         cmd = [
-                "gpg",
-                "--yes",
-                "--encrypt",
-                "-r", email,
-                "-o", opt,
+            "gpg",
+            "--yes",
+            "--encrypt",
+            "-r", email,
+            "-o", opt,
         ]
         if no_compression:
             cmd.extend(["--compress-level", "0"])
@@ -42,12 +63,12 @@ def encr(database, opt, email, no_compression, dcr=False):
             removefile(database)
         return True
     except subprocess.CalledProcessError as e:
-        print(f"[ERROR] Failed to encrypt:  {e} return_code: {e.returncode}")
+        print(f"[ERROR] Failed to encrypt: {e} return_code: {e.returncode}")
         combined = "\n".join(filter(None, [e.stdout, e.stderr]))
         if combined:
             print("[OUTPUT]\n" + combined)
     except FileNotFoundError as e:
-        print("[ERROR] File not found possibly: ", database, " error: ", e)
+        print("[ERROR] File not found possibly:", database, " error:", e)
     except Exception as e:
         print(f"[ERROR] general exc encr: {e} {type(e).__name__} \n {traceback.format_exc()}")
     return False
@@ -72,7 +93,7 @@ def decr(src, opt):
                 print("[OUTPUT]\n" + combined)
 
         except FileNotFoundError as e:
-            print("GPG not found. Please ensure GPG is installed. or could not find file: ", src, " error: ", e)
+            print("GPG not found. Please ensure GPG is installed. or could not find file:", src, "error:", e)
         except Exception as e:
             print(f"[ERROR] decr Unexpected exception err: {e} {type(e).__name__} \n {traceback.format_exc()}")
     else:
@@ -99,20 +120,7 @@ def table_has_data(conn, table_name):
 def create_table(c, table, unique_columns, e_cols=None):
     columns = [
         'id INTEGER PRIMARY KEY AUTOINCREMENT',
-        'timestamp TEXT',
-        'filename TEXT',
-        'changetime TEXT',
-        'inode INTEGER',
-        'accesstime TEXT',
-        'checksum TEXT',
-        'filesize INTEGER',
-        'symlink TEXT',
-        'owner TEXT',
-        '`group` TEXT',
-        'permissions TEXT',
-        'casmod TEXT',
-        'target TEXT',
-        'lastmodified TEXT'
+        *COLUMNS
     ]
     if e_cols:
         if isinstance(e_cols, str):
@@ -151,16 +159,30 @@ def create_db(database, action=False):
 
     create_table(c, 'sys', ('timestamp', 'filename', 'changetime', 'checksum'), ['count INTEGER', 'mtime_us INTEGER'])
 
-    c.execute('''
-    CREATE TABLE IF NOT EXISTS stats (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        action TEXT,
-        timestamp TEXT,
-        filename TEXT,
-        changetime TEXT,
-        UNIQUE(timestamp, filename, changetime)
+    tables = [
+        '''
+        CREATE TABLE mime_types (
+            id INTEGER PRIMARY KEY,
+            mime TEXT UNIQUE NOT NULL,
+            mime_primary TEXT,
+            mime_subtype TEXT
         )
-    ''')
+        ''',
+        '''
+        CREATE TABLE IF NOT EXISTS stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            action TEXT,
+            timestamp TEXT,
+            filename TEXT,
+            changetime TEXT,
+            UNIQUE(timestamp, filename, changetime)
+            )
+        '''
+    ]
+
+    for sql in tables:
+        c.execute(sql)
+
     conn.commit()
     if action:
         return (conn)
@@ -172,8 +194,9 @@ def insert(log, conn, c, table, add_column=None):  # Log, sys
 
     columns = [
         'timestamp', 'filename', 'changetime', 'inode', 'accesstime',
-        'checksum', 'filesize', 'symlink', 'owner', '`group`',
-        'permissions', 'casmod', 'target', 'lastmodified'
+        'checksum', 'entropy', 'mime_id', 'filesize', 'symlink',
+        'owner', '`group`', 'permissions', 'casmod', 'target',
+        'lastmodified'
     ]
     if add_column:
         if isinstance(add_column, (tuple, list)):
@@ -204,6 +227,15 @@ def insert_if_not_exists(action, timestamp, filename, changetime, conn, c):  # S
     VALUES (?, ?, ?, ?)
     ''', (action, timestamp, filename, changetime))
     conn.commit()
+
+
+def insert_mimes(cur, new_mime_rows):
+    if not new_mime_rows:
+        return
+    cur.executemany(
+        "INSERT INTO mime_types (id, mime, mime_primary, mime_subtype) VALUES (?, ?, ?, ?)",
+        new_mime_rows
+    )
 
 
 def parse_line(line):
@@ -242,17 +274,23 @@ def parse_line(line):
     return [timestamp1, filepath, timestamp2, inode, timestamp3] + rest
 
 
-def _to_int_or_none(value, field, line):
-    if value in ("", "None", None):
-        return None
+def to_int_or_none(value, field, line):
     try:
         return int(value)
-    except (TypeError, ValueError):
-        print(f"parselog invalid integer {field} {value} {line}")
+    except (TypeError, ValueError) as e:
+        print(f"parselog invalid integer {field} {repr(value)} {line} err: {e}")
         return None
 
 
-def parselog(file, table, checksum):
+def to_float_or_none(value, field, line):
+    try:
+        return float(value)
+    except (TypeError, ValueError) as e:
+        print(f"parselog not a float entropy {field} {repr(value)} {line} err: {e}")
+        return None
+
+
+def parselog(file, table, checksum=None):
 
     results = []
 
@@ -267,12 +305,12 @@ def parselog(file, table, checksum):
                 n = len(inputln)
                 if table == 'sortcomplete':
                     if checksum:
-                        if n < 15:
-                            print("parselog sortcomplete setting checksum, input out of boundaries skipping")
+                        if n < 18:
+                            print(f"parselog file: {line} record length less than required 18. skipping")
                             continue
                     else:
                         if n < 10:
-                            print("parselog sortcomplete setting no checksum, input out of boundaries skipping")
+                            print(f"parselog file: {line} record length less than required 10. skipping")
                             continue
 
                 timestamp = inputln[0]
@@ -281,22 +319,26 @@ def parselog(file, table, checksum):
                 ino = None if inputln[3] in ("", "None") else inputln[3]
                 accesstime = inputln[4]
                 checks = None if n > 5 and inputln[5] in ("", "None") else (inputln[5] if n > 5 else None)
-                sze = None if n > 6 and inputln[6] in ("", "None") else (inputln[6] if n > 6 else None)
-                sym = None if n <= 7 or inputln[7] in ("", "None") else inputln[7]
-                onr = None if n <= 8 or inputln[8] in ("", "None") else inputln[8]
-                gpp = None if n <= 9 or inputln[9] in ("", "None") else inputln[9]
-                pmr = None if n <= 10 or inputln[10] in ("", "None") else inputln[10]
-                cam = None if n <= 11 or inputln[11] in ("", "None") else inputln[11]
-                timestamp1 = None if n <= 12 or inputln[12] in ("", "None") else inputln[12]
-                timestamp2 = None if n <= 13 or inputln[13] in ("", "None") else inputln[13]
+                entropy = None if n > 6 and inputln[6] in ("", "None") else (inputln[6] if n > 6 else None)
+                mime = None if n > 7 and inputln[7] in ("", "None") else (inputln[7] if n > 7 else None)
+                sze = None if n > 8 and inputln[8] in ("", "None") else (inputln[8] if n > 8 else None)
+                sym = None if n <= 9 or inputln[9] in ("", "None") else inputln[9]
+                onr = None if n <= 10 or inputln[10] in ("", "None") else inputln[10]
+                gpp = None if n <= 11 or inputln[11] in ("", "None") else inputln[11]
+                pmr = None if n <= 12 or inputln[12] in ("", "None") else inputln[12]
+                cam = None if n <= 13 or inputln[13] in ("", "None") else inputln[13]
+                timestamp1 = None if n <= 14 or inputln[14] in ("", "None") else inputln[14]
+                timestamp2 = None if n <= 15 or inputln[15] in ("", "None") else inputln[15]
                 lastmodified = None if not timestamp1 or not timestamp2 else f"{timestamp1} {timestamp2}"
-                hardlink = None if n <= 14 or inputln[14] in ("", "None") else inputln[14]
-                inode = _to_int_or_none(ino, "inode", line)
+                hardlink = None if n <= 16 or inputln[16] in ("", "None") else inputln[16]
+
+                inode = to_int_or_none(ino, "inode", line)
 
                 if table == 'sys':
-                    filesize = _to_int_or_none(sze, "filesize", line)
+                    filesize = to_int_or_none(sze, "filesize", line)
+                    entropy = to_float_or_none(entropy, "entropy", line)
                     us = timestamp1
-                    usec = _to_int_or_none(us, "usec", line)
+                    usec = to_int_or_none(us, "usec", line)
                     count = 0
 
                     target = None
@@ -304,34 +346,36 @@ def parselog(file, table, checksum):
                         try:
                             target = os.readlink(filename)
                         except OSError:
-                            print("skipped error resolving symlink target, file: %s", filename)
+                            print("skipped error resolving symlink target, file:", filename)
 
-                    results.append((timestamp, filename, changetime, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, cam, target, lastmodified, count, usec))
+                    results.append((timestamp, filename, changetime, inode, accesstime, checks, entropy, mime, filesize, sym, onr, gpp, pmr, cam, target, lastmodified, count, usec))
+
                 elif table == 'sortcomplete':
                     if checksum:
-                        filesize = _to_int_or_none(sze, "filesize", line)
-                        us = None if n <= 15 or inputln[15] in ("", "None") else inputln[15]
-                        usec = _to_int_or_none(us, "usec", line) if checksum else us
-                        hashed = None if n <= 16 or inputln[16] in ("", "None") else inputln[16]
-                    if not checksum:
+                        filesize = to_int_or_none(sze, "filesize", line)
+                        entropy = to_float_or_none(entropy, "entropy", line)
+                        us = None if n <= 17 or inputln[17] in ("", "None") else inputln[17]
+                        usec = to_int_or_none(us, "usec", line) if checksum else us
+                        hashed = None if n <= 18 or inputln[18] in ("", "None") else inputln[18]
+                    else:
                         filesize = None
                         cam = checks
-                        timestamp1 = sze
-                        timestamp2 = sym
+                        timestamp1 = entropy
+                        timestamp2 = mime
                         lastmodified = None if not timestamp1 or not timestamp2 else f"{timestamp1} {timestamp2}"
-                        hardlink = onr
-                        usec = _to_int_or_none(gpp, "gpp", line)
-                        hashed = pmr
-                        checks = filesize = sym = onr = gpp = None
-                    hardlink_count = _to_int_or_none(hardlink, "hardlink_count", line) if checksum else hardlink
+                        hardlink = sze
+                        usec = to_int_or_none(sym, "sym", line)
+                        hashed = onr
+                        checks = entropy = mime = sze = sym = onr = gpp = None
+                    hardlink_count = to_int_or_none(hardlink, "hardlink_count", line) if checksum else hardlink
                     target = hashed
                     if sym == 'y':
                         try:
                             target = os.readlink(filename)
                         except OSError:
-                            print("skipped error resolving symlink target, file: %s", filename)
+                            print("skipped error resolving symlink target, file:", filename)
 
-                    results.append((timestamp, filename, changetime, inode, accesstime, checks, filesize, sym, onr, gpp, pmr, cam, target, lastmodified, hardlink_count, usec))
+                    results.append((timestamp, filename, changetime, inode, accesstime, checks, entropy, mime, filesize, sym, onr, gpp, pmr, cam, target, lastmodified, hardlink_count, usec))
                 else:
                     raise ValueError("Supplied table not in accepted boundaries: sys or sortcomplete. value supplied", table)
             except Exception as e:
@@ -359,13 +403,13 @@ def statparse(line, outputlist):
         outputlist.append((action, timestamp, changetime, filename))
 
 
-def hash_system_profile(turbo):
+def hash_system_profile(checkMETHOD, turbo):
 
     sys_results = []
 
     print(f'{CYAN}Generating system profile from base .xzms.{RESET}')
     print("Turbo is:", turbo)
-    result = subprocess.run(["/usr/local/save-changesnew/sysprofile", turbo], capture_output=True, text=True)
+    result = subprocess.run(["/usr/local/save-changesnew/sysprofile", checkMETHOD, turbo], capture_output=True, text=True)
     r = result.returncode
 
     if r != 0:
@@ -381,8 +425,7 @@ def hash_system_profile(turbo):
 
             if os.path.isfile(sortcomplete_path):
 
-                checkSUM = True
-                sys_results = parselog(sortcomplete_path, 'sys', checkSUM)   # sys
+                sys_results = parselog(sortcomplete_path, 'sys')   # sys
 
                 sortcomplete_dir = os.path.dirname(sortcomplete_path)
 
@@ -501,19 +544,34 @@ def delete_gpg_keys(usr, email, dbtarget, logpst, statpst, ctimecache):
 # error codes 2 & 3 are gpg problems. error code 4 is database problem. error code 1 is permissive or general failure
 def main():
 
+    # read in the array. Created files for hanly format path|inode\0
+    data = sys.stdin.buffer.read()
+    created_files = []
+    if data:
+        created_files = data.rstrip(b"\0").split(b"\0")
+        created_files = [f.decode("utf-8") for f in created_files if f]
+    created = {}
+    # for arg in sys.argv[14:]:
+    for create in created_files:
+        path, inode = create.rsplit("|", 1)  # arg.rsplit
+        created[path] = inode
+    # end read in the array
+
     xdata = sys.argv[1]   # data source
     complete = sys.argv[2]   # nsf
     dbtarget = sys.argv[3]   # the target
     rout = sys.argv[4]    # tmp holds action
     checksum = to_bool(sys.argv[5])   # important
-    cdiag = to_bool(sys.argv[6])    # setting
-    user = sys.argv[7]
-    email = sys.argv[8]
-    turbo = sys.argv[9]   # mc
-    analyticSECT = to_bool(sys.argv[10])
-    ps = to_bool(sys.argv[11])   # proteusshield
-    compLVL = int(sys.argv[12])
-    # total_files = int(sys.argv[13])
+    checkMETHOD = sys.argv[6]
+    cdiag = to_bool(sys.argv[7])    # setting
+    user = sys.argv[8]
+    email = sys.argv[9]
+    turbo = sys.argv[10]   # mc
+    analyticSECT = to_bool(sys.argv[11])
+    ps = to_bool(sys.argv[12])   # proteusshield
+    compLVL = int(sys.argv[13])
+    # total_files = int(sys.argv[14])
+
     stats = []
     parsed = []
     parsed_sys = []
@@ -570,6 +628,13 @@ def main():
 
         parsed = parselog(xdata, 'sortcomplete', checksum)   # SORTCOMPLETE/Log
 
+        # 07/20/2026
+        new_mime_rows = []
+
+        mime_hashmap, id_to_mime = get_mime_map(c)
+        # map mime str to an int for database
+        parsed, new_mime_rows, next_mime_id = convert_mime_to_int(parsed, mime_hashmap, id_to_mime)
+
         if table_has_data(conn, sys_table):
             is_ps = True
         else:
@@ -577,9 +642,11 @@ def main():
             if ps and checksum:
                 create_table(c, sys_table, ('timestamp', 'filename', 'changetime', 'checksum',), ['count INTEGER', 'mtime_us INTEGER'])
 
-                parsed_sys = hash_system_profile(turbo)
+                parsed_sys = hash_system_profile(checkMETHOD, turbo)
 
                 if parsed_sys:
+
+                    parsed_sys, new_mime_rows, _ = convert_mime_to_int(parsed_sys, mime_hashmap, id_to_mime, next_mime_id, new_mime_rows)
 
                     try:
 
@@ -603,7 +670,7 @@ def main():
 
                 try:
 
-                    csum, ha_total_time, logger_total_time = hanly_parallel(rout, scr, cerr, parsed, checksum, cdiag, dbopt, is_ps, turbo, user)
+                    csum, ha_total_time, logger_total_time = hanly_parallel(rout, scr, cerr, parsed, created, id_to_mime, checksum, dbopt, is_ps, turbo, user)
 
                 except Exception as e:
                     print(f"hanlydb failed to process on mode {turbo}: {e} {traceback.format_exc()}", file=sys.stderr)
@@ -622,6 +689,8 @@ def main():
                 #     xdata.append(record[:-1])   # remove the epoch that was used in hanly. it was carried over from bash
 
                 insert(parsed, conn, c, "logs", ['hardlinks', 'mtime_us'])
+
+                insert_mimes(c, new_mime_rows)
 
                 count = getcount(c)
 
@@ -696,7 +765,7 @@ def main():
         removefile(dbopt)
 
     # for benchmarking the time for multiprocessing ect. This can help verify if any changes or new designs improve performance and also
-    # where the bulk of the work is. This data isnt stored so it is essentially free and adds no complexity.
+    # where the bulk of the work is. This data isnt stored
     if res == 0 and analyticSECT:
         if ha_total_time and logger_total_time:
             with open(cerr, "a", encoding="utf-8") as f:
@@ -708,7 +777,7 @@ def main():
 
 if __name__ == "__main__":
     arg_len = len(sys.argv)
-    if arg_len < 8:
+    if arg_len < 13:
         print("Error insufficient number of arguments supplied to resest key")
         sys.exit(1)
 
@@ -721,10 +790,11 @@ if __name__ == "__main__":
         turbo = sys.argv[5]
         compLVL = int(sys.argv[6])
         checkSUM = to_bool(sys.argv[7])
-        reset = to_bool(sys.argv[8]) if len(sys.argv) > 8 else False
-        logpst = sys.argv[9] if len(sys.argv) > 9 else None
-        statpst = sys.argv[10] if len(sys.argv) > 10 else None
-        ctimecache = sys.argv[11] if len(sys.argv) > 11 else None
+        checkMETHOD = sys.argv[8]
+        reset = to_bool(sys.argv[9]) if len(sys.argv) > 9 else False
+        logpst = sys.argv[10] if len(sys.argv) > 10 else None
+        statpst = sys.argv[11] if len(sys.argv) > 11 else None
+        ctimecache = sys.argv[12] if len(sys.argv) > 12 else None
 
         output = getnm(dbtarget, '.db')
 
