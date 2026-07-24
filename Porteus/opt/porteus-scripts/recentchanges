@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #   Analytics porteus
-#   recentchanges. Developer buddy      make xzm     07/05/2026  v5.0
+#   recentchanges. Developer buddy      make xzm     07/24/2026  v6.5
 # entry point for recentchanges.
 #
 #   recentchanges. aka Developer buddy      recentchanges / recentchanges search
@@ -39,7 +39,7 @@ get_colors
 # CHANGEABLE
 
 export backend="database" # default normal    bash 2 gpg and queries text based stable tested
-											# database   binary database faster queries 1 gpg and python (easier ha)
+                                            # database   binary database faster queries 1 gpg and python (easier ha)
 
 export email="john.doe@email.com" # default for asymmetrical gpg auth for STATPST
                                                         # asks for paraphrase and caches for 15 minutes
@@ -61,21 +61,20 @@ cmode="gzip"                   # default nothing. uses gzip compression level ba
                                            # xz        best compression
                                            # zstd     faster bootup
                                             # lzo      faster bootup
-archivesrh=5						# How many old searches to save and rnt.xzm in /tmp(all filtered files) pulled. These can be grabbed by recentchanges search and recentchanges
-#
+archivesrh=5                    # How many old searches to save and rnt.xzm in /tmp(all filtered files) pulled. These can be grabbed by recentchanges search and recentchanges
+
 #SRC options
-#this script
 xzmname="Application$$" # What to name .xzm when using SRC and create the .xzm automatically without selecting or entering a name. mutually depedent on autooutput
 autooutput="false"
-# 
+# end SRC options
 # end this script
 
 export tmpSRHS=7 # Default 7 store most recent searches in /tmp try 30 and then nrun recentchanges query with STATPST false
                                 # for hybrid analysis in diff file
                                  # also queries ie recentchanges query stats
 
-export mMODE="mc"  		# default. regular search
-								   		# mc      turbo mode run the search in parallel or multiple cores.
+export mMODE="mc"        # default. regular search
+                                        # mc      turbo mode run the search in parallel or multiple cores.
 
 
 export ANALYTICS="false" # store recent searches in /tmp       default false
@@ -95,12 +94,13 @@ export STATPST="true" # persistent storage searches encrypted in /usr/local/save
                                     # Only overhead is gpg compression set compression to off. At large size speeds can increase by as much as 50%.
                                     # if you prefer security turn ANALYTICS false and use this
 
-export xRC="false"	# false - default. run inotifywait to look for new files in /changes.
-									# if automation fails it doesnt effect the results as the purpose to to make file_creation_log and cache files over 1MB for ctimecache.gpg
-									# With this setting If true can reduce process overhead as larger created files or downloads the results are already there
+export xRC="true"    # false - default. run inotifywait to look for new files in /changes.
+                                    # if automation fails it doesnt effect the results as the purpose to to make file_creation_log and cache files over 1MB for ctimecache.gpg
+                                    # With this setting If true can reduce process overhead as larger created files or downloads the results are already there
 export _time=3600   # default xRC searches for 1 hour before closing. default is to clear file_creation_log
-export min_span=3600	# set above _time to increase capacity. 0 would leave the log untouched
-#Display
+export min_span=3600  # set above _time to increase capacity. 0 would leave the log untouched
+
+#Analytics
 export ANALYTICSECT="true" # provides more feedback
                                             # total search time ect
                                             # we dont want too much output on the terminal just a slight bit more
@@ -108,15 +108,28 @@ export ANALYTICSECT="true" # provides more feedback
 
 export FEEDBACK="true"  # include find output in terminal as well ie scrolling terminal look
 
+#Display
 export dspEDITOR="xed" # false.  default dont display text editor. launch text editor?
-										# featherpad
-										# xed  
+                                        # featherpad
+                                        # xed  
 
+# optional theme packages are supported for query. precedence is ttkbootstrap, sv-ttk then ttkazure or forest
+
+export BOOTSTRAPTHEME="darkly"  # default theme to use for ttkbootstrap
+
+export defaultTHEME="dark"  # dark - default for sv azure ect
+                                             # light
 
 ## Diagnostics
-export checkSUM="true"	# compare file checksums for slight changes
-										# slower useful if you want to check deeper level of stats
-export cdiag="true"       # add extra detail like filesize in output and critical events. Also check for hash collisions.
+# slower useful if you want to check deeper level of stats
+export checkSUM="false"    # compare file checksums for slight changes
+                                         # slower useful if you want to check deeper level of stats
+export checkMETHOD="b2sum"  # md5sum
+                                                # md5ent - include entropy
+                                                # b2sum - blake2 256 (note hash collision checks will be turned off)
+                                                # b2ent - include entropy - blake2 256 (note hash collision checks will be turned off)
+
+export cdiag="true"       #  check for hash collisions
 export supbrwr="true"   # supress cache warnings on terminal from known browsers? Mozilla... ect list top of rntfuncions
 export suppress="false"  # ..      all cdiag output to terminal except critical events
 
@@ -126,7 +139,7 @@ export POSTOP="false" # Diagnostics. Create file doctrine. Runs post search oper
                                     #
                                     # if it is run again and a file is still there it will not run the POSTOP and the script will set POSTOP to false to itself
 
-export proteusSHIELD="false"	# take initial hash of base modules 001-core.. ect database mode
+export proteusSHIELD="false"    # take initial hash of base modules 001-core.. ect database mode
 ## End Diagnostics
 
 export MODULENAME="rntfiles"    # prefix for search result file
@@ -136,9 +149,12 @@ export pydbpst="/usr/local/save-changesnew/recent.gpg"
 export ctimecache="/usr/local/save-changesnew/ctimecache.gpg"
 export flth="/usr/local/save-changesnew/flth.csv"
 
+
 # END CHANGEABLE
+
 [[ "$mMODE" != "default" ]] && [[ "$mMODE" != "mc" ]] && echo incorrect mMODE && exit 
 [[ "$STATPST" = "true" ]] && [[ "$ANALYTICS" = "true" ]] && { echo With STATPST cant run with ANALYTICS. for security reasons as its stored in gpg. ; echo you can modify to run both if wanted. ; } && exit
+[[ "$STATPST" = "false" ]] && [[ "$ANALYTICS" = "false" ]] && { echo STATPST or ANALYTICS not set select in recentchanges ; exit ; }
 [[ "$STATPST" = "false" ]] && [[ "$backend" = "database" ]] && echo cant run database with ANALYTICS. && exit
 if [ "$1" = "-v" ]; then get_vrn $1 ; elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] || [ "$1" = "-help" ]; then get_vrn $1; fi # If inquery tag no need to call root. pass to other function and exit.
 
@@ -148,6 +164,8 @@ if (( EUID != 0 )); then
     exec sudo /opt/porteus-scripts/recentchanges "$1" "$2" "$3" "$(id -un)" "$PWD"
     exit
 fi
+is_sum="false"  # ensure the right hash program is used set in get_hashmethod
+get_hashmethod "$0"
 
 argone=${1:-noarguser}
 argtwo=${2:-noarguser}
@@ -166,9 +184,8 @@ fi
 
 USR="$4"
 passdir="$5"
-
-if  ! id $USR>/dev/null 2>&1; then echo "user: $USR not found"; exit 1; fi
 if [ "$4" == "" ] || [ "$5" == "" ]; then USR="guest" ; passdir=$PWD ; fi #Default user
+if  ! id $USR >/dev/null 2>&1; then echo "user: $USR not found"; exit 1; fi
 if [ "$3" == "SRC" ]; then echo "Incorrect usage please use recentchanges SRC s , s SRC or SRC" && exit 1; fi
 if [ -z "$argf" ]; then argf="bnk"; fi #Default
 
@@ -177,7 +194,7 @@ export XAUTHORITY=/home/$USR/.Xauthority
 
 if [ "$1" == "reset" ]; then
     if [ "$STATPST" == "true" ]; then
-        python3 /usr/local/save-changesnew/pstsrg.py "$0" "$pydbpst" "root" $email $mMODE $compLVL $checkSUM "true" "$logpst" "$statpst" "$ctimecache"
+        python3 /usr/local/save-changesnew/pstsrg.py "$0" "$pydbpst" "root" $email $mMODE $compLVL $checkSUM $checkMETHOD "true" "$logpst" "$statpst" "$ctimecache"
         ret=$?
         [[ $ret -eq 0 ]] && { remove_gpg ; exit 0 ; }
         exit 1
@@ -190,7 +207,7 @@ elif [ "$1" == "query" ]; then
         /usr/local/save-changesnew/query $THETIME $USR "$passdir"
         exit
     else 
-        python3 /usr/local/save-changesnew/query.py "$0" $pydbpst $USR $email $mMODE $compLVL $checkSUM
+        python3 /usr/local/save-changesnew/query.py "$0" $pydbpst $USR $email $mMODE $compLVL $checkSUM $checkMETHOD $BOOTSTRAPTHEME $defaultTHEME
         exit
     fi
 fi
@@ -217,12 +234,18 @@ SORTCOMPLETE=$tmp/list_complete_sorted.txt			;	LCLMODULENAME=${chxzm:1:8}
 RECENTNUL=$tmp/list_recentchanges_filterednul.txt	;	USRDIR=/home/$USR/Downloads
 SVFOLDERS=$tmp/save.rncfoldersmanifest.tmp			;	SVFILES=$tmp/save.rncfilesmanifest.tmp
 
-cdir=/tmp/dbctimecache/											;	secondary=()
-cerr=/tmp/cerr															;	arrreject=()
-slog=/tmp/scr															;	arrfiles=()
+cdir=/tmp/dbctimecache/											;	cerr=/tmp/cerr
+datadict="${cdir}datadict"										;	slog=/tmp/scr
+secondary=()															;	arrreject=()
+arrfiles=()
+
+declare -A created
 
 CACHE_F="${cdir}ctimecache"
 INOTIFY_CACHE="${cdir}inotify_cache"
+INOTIFY_PID_FILE=/tmp/inotify_watcher.pid
+INOTIFY_DEBUG_FILE=/tmp/inotify.log
+
 LOCKFILE=/tmp/pblk.lock
 BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')
 FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
@@ -255,6 +278,7 @@ flsrh="false"
 # /etc /home /lib /lib64 /opt /root /sbin /tmp /usr /var
 F=( / )
 TAIL=(-not -type d -printf '%T@ %A@ %C@ %i %M %n %s %u %g %m %p|%l\0')
+PRUNE=("(" "-path" "$datadict" "-prune" ")" "-o")
 
 mkdir $tmp
 mkdir $tmp$workdir
@@ -271,7 +295,11 @@ else
     THETIME="$argone"
     start=$(date +%s.%N)
     [ "$THETIME" == "SRC" ] &&{ SRCDIR=$THETIME; THETIME="$argtwo"; }  # shift
-    [ "$2" == "SRC" ] && SRCDIR=$2 || { [ "$2" == "SEARCH" ] || [ "$2" == "search" ]; } && echo "The SRC tag is for recentchanges only" && exit
+    if [ "$2" == "SRC" ]; then
+        SRCDIR=$2
+    elif [ "$2" == "SEARCH" ] || [ "$2" == "search" ]; then
+        echo "Exiting not a search" && exit
+    fi
 
 fi
 
@@ -334,8 +362,8 @@ if [ -s $SORTCOMPLETE ]; then
 
     syschg="true"
 
-    sort -u -o  $SORTCOMPLETE $SORTCOMPLETE 
-
+    sort -u -o  $SORTCOMPLETE $SORTCOMPLETE
+    cp $SORTCOMPLETE /home/guest/ttf
     inclusions $SORTCOMPLETE
 
     if [ "$flsrh" != "true" ]; then
@@ -428,9 +456,12 @@ if [ -s $SORTCOMPLETE ]; then
 
     # prep OLDSORT
     # possible sort?
+
     # sed -i '/^[[:space:]]*$/d' $OLDSORTED  # remove blank lines
 
-    [[ -n $OLDSORTED ]] && nodiff="true" && comm -23 "$OLDSORTED" $logf > "$difffile"
+    # 07/24/2026
+    # added sort -u -o $OLDSORTED $OLDSORTED
+    [[ -n $OLDSORTED ]] && { sort -u -o $OLDSORTED $OLDSORTED ; nodiff="true" ; comm -23 "$OLDSORTED" $logf > "$difffile" ; }
 
     cp $logf "$dirSRC$MODULENAME$flnm"
     chown $USR "$dirSRC$MODULENAME$flnm"
@@ -450,8 +481,8 @@ if [ "$ANALYTICS" == "true" ] && [ "$STATPST" == "false" ]; then
     if [ ! -f /tmp/rc/full ]; then cyan "Search saved in /tmp"; fi
 fi
 
-test -d "$tmp" && rm -rf "${tmp:?}" 
-test -d "$atmp" && rm -rf "${atmp:?}"
+test -d "$tmp" && rm -rf "$tmp"
+test -d "$atmp" && rm -rf "$atmp"
 
 logic "Refer to /rntfiles_MDY folder for the previous search"
 analytics
