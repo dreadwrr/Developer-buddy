@@ -5,7 +5,6 @@ v6.5 will include: <br>
 entropy, mime and target change to hybrid analysis <br>
 enhanced tk with theming (ttkbootstrap, starvalley, azure and forest) and datastreaming for better response
 
-Next update will include any stability changes found
 
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
 
