@@ -363,7 +363,7 @@ if [ -s $SORTCOMPLETE ]; then
     syschg="true"
 
     sort -u -o  $SORTCOMPLETE $SORTCOMPLETE
-    cp $SORTCOMPLETE /home/guest/ttf
+
     inclusions $SORTCOMPLETE
 
     if [ "$flsrh" != "true" ]; then
