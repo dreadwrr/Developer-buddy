@@ -7,7 +7,7 @@ if [ "$1" = "-v" ]; then
    echo
    exit
 elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
-   echo "version 5.0"
+   echo "version 6.5"
    echo
    echo "recentchanges aka Developer buddy"
    echo

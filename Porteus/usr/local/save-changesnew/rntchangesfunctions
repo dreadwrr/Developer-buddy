@@ -95,14 +95,16 @@ if [ "$POSTOP" == "true" ]; then
                 size_kb=$(( sz / 1024 ))
             fi
             y="$( ap_filedec "$f")"
-            found_rout="${ref_lines[$y]}"
+            filepath="$( escf "$filepath")"
+            found_rout="${ref_lines[$filepath]}"
             if [ -n "$found_rout" ]; then
                 IFS=',' read -r action _ <<< "$found_rout"
                 if [ -n "$action" ] && [ "$action" == "Copy" ]; then
                     is_copy="y"
                 fi
             fi
-            if [ "${created[$y]}" == "$ino" ]; then
+            
+            if [ "${created[$f]}" == "$ino" ]; then
                 is_created="y"
             fi
             if [ "$is_cam" == "y" ]; then cam="y" ; fi
@@ -723,6 +725,7 @@ inclusions() {
 local c=$1
 # sed -i '/\/usr\/local\/save-changesnew\/flth\.csv/d' $c  # sed -i '/\/tmp/\/rnt/d' $2
 sed -i '/\/home\/'"${USR}"'\/Downloads\/'"${LCLMODULENAME}x"'/d' $c
+if [ "$flsrh" == "true" ]; then sed -i "\|$file_path|d" $c ; fi
 for var in flth logpst statpst pydbpst ctimecache datadict; do gp="${!var}" ; sed -i "\|$gp|d" $c ; done
 }
 clearlogs() {
@@ -777,7 +780,7 @@ if [ "$syschg" == "true" ]; then
     elif [ "$5" = "filtered" ]; then
         cyan "All new filtered files are listed in $dirSRC"
     else
-      	cyan "All new system files are listed in $dirSRC"
+        cyan "All new system files are listed in $dirSRC"
     fi
     echo
     cyan "$MODULENAME$flnm"

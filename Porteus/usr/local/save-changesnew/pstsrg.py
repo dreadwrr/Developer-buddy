@@ -285,8 +285,8 @@ def to_int_or_none(value, field, line):
 def to_float_or_none(value, field, line):
     try:
         return float(value)
-    except (TypeError, ValueError) as e:
-        print(f"parselog not a float entropy {field} {repr(value)} {line} err: {e}")
+    except (TypeError, ValueError):
+        # print(f"parselog not a float entropy {field} {repr(value)} {line} err: {e}")
         return None
 
 
