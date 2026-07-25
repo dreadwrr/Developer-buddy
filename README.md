@@ -1,3 +1,5 @@
+Python special edition or pyver is currently being updated to the new version 6.5.0 <br><br>
+
 #                               07/10/2026
 ## Python edition v6.0.0 <br>
 
