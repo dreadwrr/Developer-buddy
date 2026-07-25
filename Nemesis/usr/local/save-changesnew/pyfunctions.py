@@ -104,13 +104,13 @@ def detect_copy(filename, inode, checksum, cursor, ps):
     return False
 
 
-#  previous_mtime_us = previous[13]
 def get_recent_changes(filename, cursor, table, e_cols=None):
     columns = [
         "timestamp", "filename", "changetime", "inode",
-        "accesstime", "checksum", "filesize", "symlink",
-        "owner", "`group`", "permissions", "casmod",
-        "target", "mtime_us"
+        "accesstime", "checksum", "entropy", "mime_id",
+        "filesize", "symlink", "owner", "`group`",
+        "permissions", "casmod", "target",
+        "mtime_us"
     ]
     if e_cols:
         if isinstance(e_cols, str):
@@ -145,6 +145,17 @@ def getcount(curs):
     return count[0]
 
 
+def clear_conn(conn, cur):
+    # if cur and conn is None:
+    #     print("Warning: cursor exists with no connection")
+    for obj, name in ((cur, "cursor"), (conn, "connection")):
+        try:
+            if obj:
+                obj.close()
+        except Exception as e:
+            print(f"Warning: failed to close {name}: {e}")
+
+
 def increment_f(conn, c, records):
     if not records:
         return False
@@ -156,9 +167,10 @@ def increment_f(conn, c, records):
             c.execute("""
                 INSERT OR IGNORE INTO sys (
                     timestamp, filename, changetime, inode, accesstime, checksum,
-                    filesize, symlink, owner, `group`, permissions, casmod,
-                    target, lastmodified, count, mtime_us
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    entropy, mime_id, filesize, symlink, owner, `group`,
+                    permissions, casmod, target, lastmodified, count,
+                    mtime_us
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, record)
 
             if c.rowcount > 0:
@@ -174,6 +186,35 @@ def increment_f(conn, c, records):
 
     conn.commit()
     return True
+
+
+def get_mime_map(cur):
+
+    mime_to_info = {}
+    id_to_info = {}
+    cur.execute("SELECT id, mime, mime_primary, mime_subtype FROM mime_types")
+
+    for row in cur:
+        info = {
+            "id": row[0],
+            "mime": row[1],
+            "primary": row[2],
+            "subtype": row[3],
+        }
+
+        mime_to_info[row[1]] = info
+        id_to_info[row[0]] = info
+
+    return mime_to_info, id_to_info
+
+
+def insert_mimes(cur, new_mime_rows):
+    if not new_mime_rows:
+        return
+    cur.executemany(
+        "INSERT INTO mime_types (id, mime, mime_primary, mime_subtype) VALUES (?, ?, ?, ?)",
+        new_mime_rows
+    )
 
 
 def collision_check(xdata, cerr, c, ps):
@@ -192,7 +233,7 @@ def collision_check(xdata, cerr, c, ps):
                 for record in xdata:
                     filename = record[1]
                     checks = record[5]
-                    size_non_zero = record[6]
+                    size_non_zero = record[8]
                     if size_non_zero:
                         key = (filename, checks)
                         if key in collision_map:
@@ -261,7 +302,7 @@ def unescf_py(s):
     return s
 
 
-# not used in python backend. used in bash to allow for parsing in bash ha and arrives in  this format.
+# used in bash to allow for parsing in bash ha and arrives in  this format.
 def ap_encode(filename):
     filename = filename.replace('\\', '\\ap5c')
     filename = filename.replace('\n', '\\ap0A')
@@ -338,16 +379,18 @@ def sys_record_flds(record, sys_records, prev_count):
         record[3],  # inode
         record[4],  # accesstime
         record[5],  # checksum
-        record[6],  # filesize
-        record[7],  # symlink
-        record[8],  # owner
-        record[9],  # group
-        record[10],  # permissions
-        record[11],  # casmod
-        record[12],  # target
-        record[13],  # lastmodified
-        prev_count,  # incremented count
-        record[15]
+        record[6],  # entropy
+        record[7],  # mime_id
+        record[8],  # filesize
+        record[9],  # symlink
+        record[10],  # owner
+        record[11],  # group
+        record[12],  # permissions
+        record[13],  # casmod
+        record[14],  # target
+        record[15],  # lastmodified
+        prev_count,  # incremented count or hardlink column
+        record[17]   # mtime_us
     ))
 
 
@@ -433,3 +476,53 @@ def update_config(config_file, setting_name, old_value, quiet=False):
     else:
         print(result)
         print(f'Bash script failed {script_path}. error code: {result.returncode}')
+
+
+def convert_mime_to_int(xdata: tuple, mime_hashmap: dict, id_to_mime: dict, next_mime_id: int = None, new_mime_rows: list | None = None, ) -> tuple[list, list, int]:
+    """ convert tuple from mime str to int from hashmap
+        update mime hashmap and id_to_mime hashmap and
+        generate insertion list of unseen mime types
+        for db """
+
+    if not new_mime_rows:
+        new_mime_rows = []  # for updating mime_types tbl and maintaining the index of mimes
+    if not next_mime_id:
+        next_mime_id = max(id_to_mime.keys(), default=0) + 1
+
+    parsed_revised = []  # convert the mime field which is a str to an id
+    for row in xdata:
+        mime = row[7]
+
+        if mime:
+            if mime in mime_hashmap:
+                mime_id = mime_hashmap[mime]["id"]
+            else:
+                mime_id = next_mime_id
+                primary = subtype = None
+                if "/" in mime:
+                    primary, subtype = mime.split("/", 1)
+
+                info = {
+                    "id": next_mime_id,
+                    "mime": mime,
+                    "mime_primary": primary,
+                    "mime_subtype": subtype
+
+                }
+
+                mime_hashmap[mime] = info
+                id_to_mime[next_mime_id] = info
+
+                new_mime_rows.append(
+                    (mime_id, mime, primary, subtype)
+                )
+
+                next_mime_id += 1
+
+            parsed_revised.append(
+                row[:7] + (mime_id,) + row[8:]
+            )
+        else:
+            parsed_revised.append(row)
+
+    return parsed_revised, new_mime_rows, next_mime_id

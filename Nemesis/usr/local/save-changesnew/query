@@ -1,31 +1,29 @@
-#!/usr/bin/env bash
-#   recentchanges query                recentchanges v5.0                                                                               05/22/2026
+#!/bin/bash
+#   recentchanges query                recentchanges v3.0                                                                              07/24/2026
 #   retrieval of data  from  /tmp  or  logpst and statpst
 . /usr/share/porteus/porteus-functions
 get_colors
 . /usr/local/save-changesnew/heuristics
 # CHANGABLE
 # CHANGABLE booleans
-outputTFILE="false" # show the report in /tmp
+outputTFILE="false"  # show the report in /tmp
 
-outputPSTFILE="false" # show the report in /home/$USR/Downloads
-genPSTTFILE="false" # Run heuristics on PST and include in the report?
+outputPSTFILE="false"  # show the report in /home/$USR/Downloads
+genPSTTFILE="false"  # Run heuristics on PST and include in the report?
 # End CHANGABLE
-rtmp=/tmp/rtmp$$	                            ;	trc=/tmp/rc
-xdata=$rtmp/logs_decrypted.log        ;	report=/query_$timestamp
+rtmp=/tmp/rtmp$$						;	trc=/tmp/rc
+xdata=$rtmp/logs_decrypted.log			;	report=/query_$timestamp
 dr=/usr/local/save-changesnew			;	TOPT=$rtmp/tmpfile.log
-logpst=$dr/logs.gpg						    ;	output_file=$rtmp/output.log
-statpst=$dr/stats.gpg					    ;	flth=$dr/flth.csv
+logpst=$dr/logs.gpg						;	output_file=$rtmp/output.log
+statpst=$dr/stats.gpg					;	flth=$dr/flth.csv
 timestamp=$(date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_')
 mkdir $rtmp
-
 if [ "$STATPST" == "true" ]; then
-	
     if [ -s $logpst ]; then
         cyan "Pulling logs from persistent storage"
         if gpg -d -o $xdata $logpst; then #decrypt
 			# debug decrypt logs.gpg
-            # cp $xdata /tmp/logdebug
+            cp $xdata /tmp/logdebug
 			# sed -i '/NOTA-FI-LE 77:77:77/d' $xdata
 			cd /home/$2/Downloads || exit
 			rm query_MDY* > /dev/null 2>&1
@@ -456,7 +454,7 @@ if [ -s $flth ]; then
 	if [ "$outputTFILE" = "true" ]  && [ "$STATPST" == "false" ] && [ -d $trc ]; then test -e $output_file && green "Report in /tmp" ; cp $output_file /tmp$report ; fi
 	z="Cache items can be cleared with cache clear script /usr/local/save-changesnew/. takes one arg username or default guest will be used"
 	[[ "$ANALYTICS" == "true" ]] && (( srhc % 5 == 0 )) && echo "$z"
-	[[ "$STATPST" == "true" ]] && (( srhc % 50 == 0 )) && echo "$z"
+	[[ "$STATPST" == "true" ]] && (( srhc % 10 == 0 )) && echo "$z"
 	if [ "$outputPSTFILE" == "true" ] && [ "$STATPST" == "true" ]  && [ "$genPSTTFILE" == "true" ] && [ -s $logpst ]; then
 		green "Report in /Downloads along with heuristics"
 		cp $output_file /home/$2/Downloads$report

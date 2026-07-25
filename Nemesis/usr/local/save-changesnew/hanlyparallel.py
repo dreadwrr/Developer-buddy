@@ -4,6 +4,7 @@ import time
 import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from hanlymc import hanly
+from pyfunctions import ap_encode
 from pyfunctions import detect_copy
 from pyfunctions import GREEN, RESET
 from pyfunctions import escf_py
@@ -11,7 +12,7 @@ from pyfunctions import increment_f
 # 06/10/2026
 
 
-def logger_process(results, sys_records, rout, scr, cerr, dbopt="/usr/local/save-changesnew/recent.db", ps=False):
+def logger_process(results, sys_records, rout, scr, cerr, created, dbopt="/usr/local/save-changesnew/recent.db", ps=False):
 
     key_to_files = {
         "flag": [rout],
@@ -52,6 +53,7 @@ def logger_process(results, sys_records, rout, scr, cerr, dbopt="/usr/local/save
                                         inode = msg[3]
                                         checksum = msg[5]
 
+                                        y = ap_encode(filepath)
                                         label = escf_py(filepath)
                                         result = detect_copy(filepath, inode, checksum, c, ps)
                                         if result:
@@ -60,6 +62,9 @@ def logger_process(results, sys_records, rout, scr, cerr, dbopt="/usr/local/save
                                         # windows if creation time is greater than modified time it could be a copy, a download or a created file
                                         # this differs from linux that has no creation time but casmod or change as mod can be put instead
                                         # change as modified means it is significant in that it could be a downloaded file with preserved metadata
+                                        elif y in created:
+                                            if inode == created[y]:
+                                                print(f'Created {timestamp} {changetime} {label}', file=file)
                                         else:
                                             # mod_time = timestamp.strftime(fmt)  # if datetime
                                             mod_time = timestamp
@@ -90,7 +95,7 @@ def logger_process(results, sys_records, rout, scr, cerr, dbopt="/usr/local/save
                 print(f"Unexpected error to {fpath} logger_process: {e} : {type(e).__name__}")
 
 
-def hanly_parallel(rout, scr, cerr, parsed, checksum, cdiag, dbopt, ps, turbo, user):
+def hanly_parallel(rout, scr, cerr, parsed, created, id_to_mime, checksum, dbopt, ps, turbo, user):
 
     all_results, batch_incr = [], []
     if not parsed:
@@ -99,13 +104,14 @@ def hanly_parallel(rout, scr, cerr, parsed, checksum, cdiag, dbopt, ps, turbo, u
     if len_parsed == 0:
         return
 
+    is_error = False
     csum = False
 
-    print(f'{GREEN}Hybrid analysis on{RESET}')
+    ha_total_time = 0
 
     start = time.perf_counter()
     if len(parsed) < 80 or turbo != 'mc':
-        all_results, batch_incr, csum = hanly(parsed, checksum, cdiag, dbopt, ps, user)
+        all_results, batch_incr, csum = hanly(parsed, checksum, dbopt, ps, user, id_to_mime)
     else:
         max_workers = min(8, os.cpu_count() or 1, len_parsed)
         chunk_size = max(1, (len_parsed + max_workers - 1) // max_workers)
@@ -114,7 +120,7 @@ def hanly_parallel(rout, scr, cerr, parsed, checksum, cdiag, dbopt, ps, turbo, u
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             futures = [
                 executor.submit(
-                    hanly, chunk, checksum, cdiag, dbopt, ps, user
+                    hanly, chunk, checksum, dbopt, ps, user, id_to_mime
                 )
                 for chunk in chunks
             ]
@@ -128,6 +134,7 @@ def hanly_parallel(rout, scr, cerr, parsed, checksum, cdiag, dbopt, ps, turbo, u
                     if is_csum:
                         csum = True
                 except Exception as e:
+                    is_error = True
                     print(f"Worker error from hanly multiprocessing: {type(e).__name__} {e} \n {traceback.format_exc()}")
                     break
             # for future in futures:       original
@@ -136,10 +143,13 @@ def hanly_parallel(rout, scr, cerr, parsed, checksum, cdiag, dbopt, ps, turbo, u
             # 	except Exception as e:
             # 		print(f"Worker error from hanly multiprocessing: {type(e).__name__} {e} \n {traceback.format_exc()}")
     end = time.perf_counter()
-    ha_total_time = end - start
+
+    if not is_error and len(all_results) > 0:
+        ha_total_time = end - start
+        print(f'{GREEN}Hybrid analysis on{RESET}')
 
     print("processing results")
-    logger_process(all_results, batch_incr, rout, scr, cerr, dbopt, ps)
+    logger_process(all_results, batch_incr, rout, scr, cerr, created, dbopt, ps)
 
     lend = time.perf_counter()
     logger_total_time = lend - end
