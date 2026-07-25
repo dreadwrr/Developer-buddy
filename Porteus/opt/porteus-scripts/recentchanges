@@ -94,7 +94,7 @@ export STATPST="true" # persistent storage searches encrypted in /usr/local/save
                                     # Only overhead is gpg compression set compression to off. At large size speeds can increase by as much as 50%.
                                     # if you prefer security turn ANALYTICS false and use this
 
-export xRC="true"    # false - default. run inotifywait to look for new files in /changes.
+export xRC="false"    # false - default. run inotifywait to look for new files in /changes.
                                     # if automation fails it doesnt effect the results as the purpose to to make file_creation_log and cache files over 1MB for ctimecache.gpg
                                     # With this setting If true can reduce process overhead as larger created files or downloads the results are already there
 export _time=3600   # default xRC searches for 1 hour before closing. default is to clear file_creation_log
@@ -122,9 +122,9 @@ export defaultTHEME="dark"  # dark - default for sv azure ect
 
 ## Diagnostics
 # slower useful if you want to check deeper level of stats
-export checkSUM="false"    # compare file checksums for slight changes
+export checkSUM="true"    # compare file checksums for slight changes
                                          # slower useful if you want to check deeper level of stats
-export checkMETHOD="b2sum"  # md5sum
+export checkMETHOD="md5ent"  # md5sum
                                                 # md5ent - include entropy
                                                 # b2sum - blake2 256 (note hash collision checks will be turned off)
                                                 # b2ent - include entropy - blake2 256 (note hash collision checks will be turned off)
@@ -252,6 +252,7 @@ FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
 
 STRTTIME=$(date +%s.%N)
 
+file_path=""  # for flsrh inclusion to not list the file itself
 SRCDIR=""																	;	csm=""
 dirSRC=""																	;	OLDSORTED=""
 
@@ -333,6 +334,7 @@ if [ "$THETIME" != "noarguser" ]; then
             astring=" filtered"
             filtered="true"
         fi
+        file_path="$passdir/$parseflnm"
         flsrh="true"
         ct=$(date +%s)
         frmt=$(stat -c %Y "$filename")
