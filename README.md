@@ -146,8 +146,11 @@ This was put in because when saving Its better not to take any chances. I also p
  This is a proposed change to changes commit with directory method. All original lines are commented out to work with script
 
  working off of base save-changes scripts by
+
+ ![Alt text](https://i.imgur.com/bUOpqEl.png)
+ 
 ![Alt text](https://i.imgur.com/QVWc23x.jpeg)
  ![Alt text](https://i.imgur.com/4jOp3Ry.png) ![Alt text](https://i.imgur.com/3dXwKzW.png)
  ![Alt text](https://i.imgur.com/iZQ1s7t.png) ![Alt text](https://i.imgur.com/tKW7UEe.png)
-![Alt text](https://i.imgur.com/bUOpqEl.png)
+
  
