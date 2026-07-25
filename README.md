@@ -1,8 +1,6 @@
 python special edition [Repo](https://github.com/dreadwrr/Developer-buddy/tree/pyver)<br>
 
 v6.5 released <br>
-entropy, mime and target change to hybrid analysis <br>
-enhanced tk with theming (ttkbootstrap, starvalley, azure and forest) and datastreaming for better response
 
 
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
