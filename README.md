@@ -2,7 +2,7 @@ python special edition [Repo](https://github.com/dreadwrr/Developer-buddy/tree/p
 
 v6.5 released <br>
 themes can we added there are see [instructions](https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0#bookmark=id.7oojvtbxclmu)  to add dark mode ect <br>
-requires root gpg setup https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0#bookmark=id.kotw1gextu63 
+requires root gpg setup: https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0#bookmark=id.kotw1gextu63 
 
 
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
