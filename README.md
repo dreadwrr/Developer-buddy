@@ -1,5 +1,5 @@
 #                               07/10/2026
-## Python edition <br>
+## Python edition v6.0.0 <br>
 
 
 Full logging system, xRC inotify, isdiff, logic, display, filterhits, process hybrid analysis, filter output pretty much all the logic rewritten in python
