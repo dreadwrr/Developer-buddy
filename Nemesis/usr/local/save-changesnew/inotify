@@ -12,6 +12,7 @@
 # result created cache of created files over 1MB and also output to a created files log
 
 SCRIPT_PATH="$( dirname "$0")"
+# SCRIPT_PATH="/usr/local/save-changesnew"
 . "$SCRIPT_PATH"/rntchangesfunctions
 
 MOUNT_FOLDERS=("mnt" "media")

@@ -102,8 +102,6 @@ def main(dbtarget, xdata, complete, rout, created, cachermPATTERNS, user_setting
         c = conn.cursor()
 
         # 07/20/2026
-        new_mime_rows = []
-
         mime_hashmap, id_to_mime = get_mime_map(c)
         # map mime str to an int for database
         xdata, new_mime_rows, next_mime_id = convert_mime_to_int(xdata, mime_hashmap, id_to_mime)

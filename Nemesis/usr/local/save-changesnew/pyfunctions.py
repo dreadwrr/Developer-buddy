@@ -152,6 +152,16 @@ def ap_decode(s):
     return s
 
 
+def ap_encode(s):
+    s = s.replace('\\', '\\ap5c')
+    s = s.replace('\n', '\\ap0A')
+    s = s.replace('"', '\\ap22')
+    s = s.replace('\t', '\\ap09')
+    # s = s.replace('\\ap24', '$')
+    s = s.replace(' ', '\\ap20')
+    return s
+
+
 def escf_py(filename):
     filename = filename.replace('\\', '\\ap5c')
     filename = filename.replace('\n', '\\\\n')
@@ -198,10 +208,10 @@ def is_valid_datetime(value, fmt):
         return False
 
 
-def getstdate(st, fmt):
-    a_mod = int(st.st_mtime)
-    afrm_str = datetime.fromtimestamp(a_mod).strftime(fmt)  # datetime.utcfromtimestamp(a_mod).strftime(fmt)
-    afrm_dt = parse_datetime(afrm_str, fmt)
+def date_from_stat(st, fmt):
+    a_mod = st.st_mtime
+    afrm_dt = datetime.fromtimestamp(a_mod)  # datetime.utcfromtimestamp(a_mod)
+    afrm_str = afrm_dt.strftime(fmt)
     return afrm_dt, afrm_str
 
 

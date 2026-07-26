@@ -154,7 +154,6 @@ def process_results(results, cache_f):
         if cwrite:
 
             for res in cwrite:
-
                 time_stamp = res[0].strftime("%Y-%m-%d %H:%M:%S")
                 # file_path = res[1]
                 checks = res[5]

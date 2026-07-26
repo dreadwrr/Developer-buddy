@@ -168,6 +168,10 @@ def decr_ctime(cache_f, user):
 
         # normalize types
         try:
+            entropy = float(row['entropy']) if row.get('entropy') else None
+        except ValueError:
+            entropy = None
+        try:
             size = int(row['size']) if row.get('size') else None
         except ValueError:
             size = None
@@ -179,6 +183,8 @@ def decr_ctime(cache_f, user):
             continue
         cfr_src.setdefault(root, {})[modified_ep] = {
             "checksum": row.get('checksum', None),
+            "entropy": entropy,
+            "mime": row.get('mime', None),
             "size": size,
             "modified_time": row.get('modified_time', None),
             "owner": row.get('owner', None),
@@ -360,6 +366,8 @@ def dict_to_list(cachedata: dict[str, dict[Any, dict[str, Any]]]) -> list[dict[s
         for modified_ep, metadata in versions.items():
             row = {
                 "checksum": metadata.get("checksum") or '',
+                "entropy": '' if metadata.get("entropy") is None else metadata["entropy"],
+                "mime": '' if metadata.get("mime") is None else metadata["mime"],
                 "size": '' if metadata.get("size") is None else metadata["size"],
                 "modified_time": '' if metadata.get("modified_time") is None else metadata["modified_time"],
                 "modified_ep": '' if modified_ep is None else modified_ep,

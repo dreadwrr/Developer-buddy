@@ -166,7 +166,7 @@ def calculate_checksum(file_path, mtime, mod_time, inode, size_int, prev_hash=No
 
     except FileNotFoundError:
         emit_log("DEBUG", f"calculate_checksum file not found while calculating checksum: {file_path}", log_q, logger=logger)
-        return None, mtime, mod_time, st, "Nosuchfile"
+        return None, entropy, mime, mtime, mod_time, st, "Nosuchfile"
     except PermissionError as e:
         emit_log("DEBUG", f"calculate_checksum: {file_path} error: {e}", log_q, logger=logger)
     except OSError as e:
