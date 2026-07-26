@@ -2,12 +2,9 @@ import csv
 import fnmatch
 import hashlib
 import re
-import traceback
-from collections import defaultdict
 from datetime import datetime
 from configfunctions import not_absolute
 from filter import _filterhitRESET
-from pysql import collision
 
 
 def suppress_list(escaped_user, suppress_list):
@@ -20,6 +17,36 @@ def cache_clear_patterns(usr, cachermPATTERNS):
         f"%{p.replace("{{user}}", usr)}%"
         for p in cachermPATTERNS
     ]
+
+
+def user_path(settingName, theusr):
+
+    if isinstance(settingName, list):
+        processed = []
+        if theusr == "root":
+            for p in settingName:
+                out = p
+                if "{{user}}" in p and not p.startswith("{{user}}"):
+                    _, end = p.split("{{user}}", 1)
+                    out = "/{{user}}"
+                    if not_absolute(p, quiet=True):
+                        out = "{{user}}"
+                    out = out + end
+                processed.append(out)
+        else:
+            processed = settingName
+        return [s.replace("{{user}}", theusr) for s in processed]
+    elif isinstance(settingName, str):
+        if theusr == "root":
+            if "{{user}}" in settingName and not settingName.startswith("{{user}}"):
+                _, end = settingName.split("{{user}}", 1)
+                out = "/root"
+                if not_absolute(settingName, quiet=True):
+                    out = "root"
+                return out + end
+        return settingName.replace("{{user}}", theusr)
+    else:
+        raise ValueError(f"Invalid type for settingName: {type(settingName).__name__}, expected str or list")
 
 
 def reset_csvliteral(csv_file):
@@ -85,36 +112,6 @@ class cprint:
     @staticmethod
     def reset(msg):
         print(f"{cprint.RESET}{msg}")
-
-
-def user_path(settingName, theusr):
-
-    if isinstance(settingName, list):
-        processed = []
-        if theusr == "root":
-            for p in settingName:
-                out = p
-                if "{{user}}" in p and not p.startswith("{{user}}"):
-                    _, end = p.split("{{user}}", 1)
-                    out = "/{{user}}"
-                    if not_absolute(p, quiet=True):
-                        out = "{{user}}"
-                    out = out + end
-                processed.append(out)
-        else:
-            processed = settingName
-        return [s.replace("{{user}}", theusr) for s in processed]
-    elif isinstance(settingName, str):
-        if theusr == "root":
-            if "{{user}}" in settingName and not settingName.startswith("{{user}}"):
-                _, end = settingName.split("{{user}}", 1)
-                out = "/root"
-                if not_absolute(settingName, quiet=True):
-                    out = "root"
-                return out + end
-        return settingName.replace("{{user}}", theusr)
-    else:
-        raise ValueError(f"Invalid type for settingName: {type(settingName).__name__}, expected str or list")
 
 
 # Convert SQL-like % wildcard to fnmatch *
@@ -224,46 +221,66 @@ def sys_record_flds(record, sys_records, prev_count):
         record[3],  # inode
         record[4],  # accesstime
         record[5],  # checksum
-        record[6],  # filesize
-        record[7],  # symlink
-        record[8],  # owner
-        record[9],  # group
-        record[10],  # permissions
-        record[11],  # casmod
-        record[12],  # target
-        record[13],  # lastmodified
+        record[6],  # entropy
+        record[7],  # mime_id
+        record[8],  # filesize
+        record[9],  # symlink
+        record[10],  # owner
+        record[11],  # group
+        record[12],  # permissions
+        record[13],  # casmod
+        record[14],  # target
+        record[15],  # lastmodified
         prev_count,  # count
-        record[15]  # mtime_us
+        record[17]  # mtime_us
     ))
 
 
-def collisions(xdata, cerr, c, ps):
-    """ return collisions from the database. not used currently """
-    reported = set()
-    csum = False
-    colcheck = collision(c, ps)
+def convert_mime_to_int(xdata: tuple, mime_hashmap: dict, id_to_mime: dict, next_mime_id: int = None, new_mime_rows: list | None = None, ) -> tuple[list, list, int]:
+    """ convert tuple from mime str to int from hashmap
+        update mime hashmap and id_to_mime hashmap and
+        generate insertion list of unseen mime types
+        for db """
 
-    if colcheck:
+    if not new_mime_rows:
+        new_mime_rows = []  # for updating mime_types tbl and maintaining the index of mimes
+    if not next_mime_id:
+        next_mime_id = max(id_to_mime.keys(), default=0) + 1
 
-        collision_map = defaultdict(set)
-        for a_filename, b_filename, file_hash, size_a, size_b in colcheck:
-            collision_map[a_filename, file_hash].add((b_filename, file_hash, size_a, size_b))
-            collision_map[b_filename, file_hash].add((a_filename, file_hash, size_b, size_a))
-        try:
-            with open(cerr, "a", encoding="utf-8") as f:
-                for record in xdata:
-                    filename = record[1]
-                    checks = record[5]
-                    size_non_zero = record[6]
-                    if size_non_zero:
-                        key = (filename, checks)
-                        if key in collision_map:
-                            for other_file, file_hash, size1, size2 in collision_map[key]:
-                                pair = tuple(sorted([filename, other_file]))
-                                if pair not in reported:
-                                    csum = True
-                                    print(f"COLLISION: {filename} {size1} vs {other_file} {size2} | Hash: {file_hash}", file=f)
-                                    reported.add(pair)
-        except IOError as e:
-            print(f"Failed to write collisions: {e} {type(e).__name__}  \n{traceback.format_exc()}")
-    return collision_map, csum
+    parsed_revised = []  # convert the mime field which is a str to an id
+    for row in xdata:
+        mime = row[7]
+
+        if mime:
+            if mime in mime_hashmap:
+                mime_id = mime_hashmap[mime]["id"]
+            else:
+                mime_id = next_mime_id
+                primary = subtype = None
+                if "/" in mime:
+                    primary, subtype = mime.split("/", 1)
+
+                info = {
+                    "id": next_mime_id,
+                    "mime": mime,
+                    "mime_primary": primary,
+                    "mime_subtype": subtype
+
+                }
+
+                mime_hashmap[mime] = info
+                id_to_mime[next_mime_id] = info
+
+                new_mime_rows.append(
+                    (mime_id, mime, primary, subtype)
+                )
+
+                next_mime_id += 1
+
+            parsed_revised.append(
+                row[:7] + (mime_id,) + row[8:]
+            )
+        else:
+            parsed_revised.append(row)
+
+    return parsed_revised, new_mime_rows, next_mime_id

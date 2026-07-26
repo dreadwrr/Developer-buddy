@@ -101,8 +101,8 @@ if [ -z "$k" ]; then
 fi
 
 #Cleanup
-test -d "$tmp" && rm -rf "${tmp:?}" 
-test -d "$atmp" && rm -rf "${atmp:?}"
+test -d "$tmp" && rm -rf "$tmp" 
+test -d "$atmp" && rm -rf "$atmp"
 
 if [ "$validrlt" == "true" ]; then
 

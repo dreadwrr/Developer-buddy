@@ -1,4 +1,4 @@
-# developer buddy v5.0 core                     07/10/2026
+# developer buddy v5.0 core                     07/25/2026
 import glob
 import logging
 import os
@@ -13,7 +13,6 @@ from configfunctions import update_config
 from filter import _filter
 from pyfunctions import cprint
 from pyfunctions import suppress_list
-from pyfunctions import unescf_py
 from pyfunctions import user_path
 # Note: For database cacheclear / terminal supression see config.toml
 
@@ -678,7 +677,7 @@ def postop(all_data, usrDIR, toml, lclhome=None):
         return 1
 
 
-def run_doctrine(appdata_local, usrDIR, sortcomplete, tmpopt, logf, rout, toml_file, escaped_user, method, fmt):
+def run_doctrine(appdata_local, usrDIR, sortcomplete, tmpopt, logf, rout, created, toml_file, escaped_user, method, fmt):
 
     if method != "rnt":
         if logf is tmpopt:
@@ -686,6 +685,7 @@ def run_doctrine(appdata_local, usrDIR, sortcomplete, tmpopt, logf, rout, toml_f
 
     # Check if it was a copy
     copy_paths = set()
+    created_paths = set()
     if rout:
         for line in rout:
             parts = line.strip().split(maxsplit=5)
@@ -694,33 +694,40 @@ def run_doctrine(appdata_local, usrDIR, sortcomplete, tmpopt, logf, rout, toml_f
             action = parts[0]
             if action in ("Deleted", "Nosuchfile"):
                 continue
+            # full_path = ' '.join(parts[5:])
+            # full_path = unescf_py(parts[5])
             if action == "Copy":
-                full_path = unescf_py(parts[5])
+                full_path = parts[5]
                 copy_paths.add(full_path)
+            elif action == "Created":
+                full_path = parts[5]
+                created_paths.add(full_path)
 
     all_data = []
     for record in sortcomplete:
 
-        if len(record) < 17:
+        if len(record) < 19:
             logging.debug("An entry for postop was short less than 16. record: %s", record)
             continue
 
         mtime = record[0].strftime(fmt)  # 1 2
         changetime = record[2] if record[2] else "None None"  # 3 4
         atime = record[4] if record[4] else "None None"  # 5 6
-        filesize = record[6]  # 7
-        sym = record[7]  # 8
-        user = record[8]  # 9
-        group = record[9]  # 10
-        cam = record[11]  # 11
-        lastmodified = record[13] if record[13] else "None None"    # 12 13
-        is_copy = "y" if record[16] in copy_paths else "None"       # 14
-        file_path = record[16]                                      # 15
+        mtyp = record[7]  # 7
+        filesize = record[8]  # 8
+        sym = record[9]  # 9
+        user = record[10]  # 10
+        group = record[11]  # 11
+        cam = record[12]  # 12
+        lastmodified = record[13] if record[13] else "None None"    # 13 14
+        is_copy = "y" if record[18] in copy_paths else "None"       # 15
+        is_created = "y" if record[18] in created_paths else "None"    # 16
+        file_path = record[18]                                      # 17
         # inode = record[3]
         # checksum = record[5]
-        # mode = record[10]
-        # hardlink = record[14]
-        # usec_zero = record[15]
-        all_data.append((mtime, changetime, atime, filesize, sym, user, group, cam, lastmodified, is_copy, file_path))
+        # mode = record[12]
+        # hardlink = record[16]
+        # usec_zero = record[17]
+        all_data.append((mtime, changetime, atime, mtyp, filesize, sym, user, group, cam, lastmodified, is_copy, is_created, file_path))
 
     postop(all_data, usrDIR, toml_file, appdata_local)

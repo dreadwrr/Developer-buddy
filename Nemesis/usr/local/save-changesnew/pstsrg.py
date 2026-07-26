@@ -11,23 +11,26 @@ from hanlyparallel import hanly_parallel
 from rntchangesfunctions import cnc
 from rntchangesfunctions import name_of
 from rntchangesfunctions import removefile
+from pyfunctions import convert_mime_to_int
 from pyfunctions import cprint
 from pyfunctions import unescf_py
 from pysql import blank_count
 from pysql import create_db
 from pysql import create_table
 from pysql import get_lifetime_throughput
+from pysql import get_mime_map
 from pysql import get_unique_files
 from pysql import insert
 from pysql import insert_files_time
 from pysql import insert_if_not_exists
+from pysql import insert_mimes
 from pysql import table_has_data
 from pysql import collision_check
 # from rntchangesfunctions import change_perm
 
 
 # dbopt, data = pstsrg.main(dbtarget, sortcomplete, complete, rout, cachermPATTERNS, user_setting, logging_values, total_time, total_files, dcr)
-def main(dbtarget, xdata, complete, rout, cachermPATTERNS, user_setting, logging_values, total_time, total_files, dcr=False):
+def main(dbtarget, xdata, complete, rout, created, cachermPATTERNS, user_setting, logging_values, total_time, total_files, dcr=False):
 
     scr = logging_values[4]
     cerr = logging_values[5]
@@ -38,10 +41,12 @@ def main(dbtarget, xdata, complete, rout, cachermPATTERNS, user_setting, logging
     email = user_setting['email']
     mMODE = user_setting['mMODE']
     checksum = user_setting['checksum']
+    checkMETHOD = user_setting['checkMETHOD']
     cdiag = user_setting['cdiag']
     ps = user_setting['ps']
     compLVL = user_setting['compLVL']
 
+    parsed = []
     parsedsys = []
 
     outfile = name_of(dbtarget, '.db')
@@ -96,6 +101,13 @@ def main(dbtarget, xdata, complete, rout, cachermPATTERNS, user_setting, logging
     try:
         c = conn.cursor()
 
+        # 07/20/2026
+        new_mime_rows = []
+
+        mime_hashmap, id_to_mime = get_mime_map(c)
+        # map mime str to an int for database
+        xdata, new_mime_rows, next_mime_id = convert_mime_to_int(xdata, mime_hashmap, id_to_mime)
+
         if table_has_data(conn, sys_table):
             is_ps = True
         else:
@@ -107,13 +119,15 @@ def main(dbtarget, xdata, complete, rout, cachermPATTERNS, user_setting, logging
 
                 try:
 
-                    parsedsys = sysprofile.main(mMODE, logging_values)  # hash base xzms
+                    parsedsys = sysprofile.main(checkMETHOD, mMODE, logging_values)  # hash base xzms
 
                 except Exception as e:
                     print(f'sysprofile.py failed to hash. {type(e).__name__} {e} \n {traceback.format_exc()} ')
                     parsedsys = None
 
                 if parsedsys:
+
+                    parsedsys, new_mime_rows, _ = convert_mime_to_int(parsedsys, mime_hashmap, id_to_mime, next_mime_id, new_mime_rows)
 
                     try:
 
@@ -136,27 +150,28 @@ def main(dbtarget, xdata, complete, rout, cachermPATTERNS, user_setting, logging
             if goahead:  # Hybrid analysis. Skip first pass ect.
 
                 try:
-
-                    csum, ha_total_time, logger_total_time = hanly_parallel(rout, scr, cerr, mMODE, xdata, cachermPATTERNS, checksum, cdiag, dbopt, is_ps, user, logging_values)
+                    csum, ha_total_time, logger_total_time = hanly_parallel(rout, created, scr, cerr, mMODE, xdata, id_to_mime, cachermPATTERNS, checksum, cdiag, dbopt, is_ps, user, logging_values)
 
                 except Exception as e:
                     print(f"hanlydb failed to process on mode {mMODE}: {e} {traceback.format_exc()}", file=sys.stderr)
 
-            parsed = []
-            for record in xdata:
-                parsed.append(record[:16])  # trim esc_path from end
+        for record in xdata:
+            parsed.append(record[:18])  # trim escf_path from end sortcomplete
 
         if parsed:
             try:
 
                 insert(parsed, conn, c, "logs", ['hardlinks', 'mtime_us'])
 
+                insert_mimes(c, new_mime_rows)
+
                 count = blank_count(c)
+
                 if count % 10 == 0:
                     print(f'{count} searches in gpg database')
 
                 # Check for hash collisions
-                if checksum and cdiag:
+                if checkMETHOD != "blake2" and checksum and cdiag:
                     if collision_check(xdata, cerr, c, ps):
                         csum = True
 

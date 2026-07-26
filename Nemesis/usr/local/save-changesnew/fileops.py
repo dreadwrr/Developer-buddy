@@ -1,7 +1,13 @@
+import logging
 import hashlib
+import magic
+import math
+import multiprocessing
 import os
+from collections import Counter
 from logs import emit_log
 from pyfunctions import epoch_to_date
+# 07/25/2026
 
 
 def find_link_target(file_path, log_q=None, log_entries=None, logger=None):
@@ -60,34 +66,77 @@ def set_stat(line, checks, file_dt, file_st, file_us, inode, log_q=None, logger=
     return checks, mtime, file_st, mtime_us, ctime, a_ino, size_int
 
 
-def calculate_checksum(file_path, mtime, mod_time, inode, size_int, prev_hash=None, st=None, retry=1, max_retry=None, cacheable=True, log_q=None, logger=None):
+def save_header(chunk: bytes, header: bytearray):
+    if len(header) < 8192:
+        header.extend(chunk[:8192 - len(header)])
+
+
+def file_shannon(counts: Counter, total_size: int) -> float:
+    entropy = 0.0
+
+    for c in counts.values():
+        p = c / total_size
+        entropy -= p * math.log2(p)
+    return round(entropy, 2)
+
+
+def magic_entropy(file_path: str, header: bytearray, counts: Counter, total_size: int, log_q: multiprocessing.Queue, logger: logging.Logger) -> tuple[str, float]:
+    """ use current bytes from the file to get the mime type and file shannon """
+    entropy = mime = None
+
+    if total_size:
+        try:
+            mime = magic.from_buffer(bytes(header), mime=True)
+        except magic.MagicException as e:
+            emit_log("ERROR", f"calculate_checksum was unable to resolve mime type for file: {file_path} err: {e}", log_q, logger=logger)
+            pass
+
+        entropy = file_shannon(counts, total_size)
+    return mime, entropy
+
+
+def get_hash_func(algo="md5"):
+    if algo == "blake2":
+        return hashlib.blake2b(digest_size=32)
+    return hashlib.md5()
+
+
+def calculate_checksum(file_path, mtime, mod_time, inode, size_int, prev_hash=None, algo='md5', st=None, retry=1, max_retry=None, cacheable=True, log_q=None, logger=None):
 
     if max_retry is None:
         max_retry = retry
-    total_size = 0
 
+    counts = Counter()
+    header = bytearray()
+    entropy = None
+    mime = None
+    total_size = 0
     try:
-        hash_func = hashlib.md5()
+        hash_func = get_hash_func(algo)
         with open(file_path, 'rb') as f:
             while chunk := f.read(8192):
                 hash_func.update(chunk)
+                counts.update(chunk)
+                save_header(chunk, header)
+
                 total_size += len(chunk)
 
         checks = hash_func.hexdigest()
 
         if prev_hash is not None:
             if checks == prev_hash:
-                return checks, mtime, mod_time, st, "Retried"
+                mime, entropy = magic_entropy(file_path, header, counts, total_size, log_q, logger)
+                return checks, entropy, mime, mtime, mod_time, st, "Retried"
 
         if retry > 0:
 
-            if not total_size:
-                emit_log("DEBUG", f"calculate_checksum Size was zero: {file_path} checksum {checks} and total_size {total_size}", log_q, logger=logger)
+            # if not total_size:
+            #     emit_log("DEBUG", f"calculate_checksum Size was zero: {file_path} checksum {checks} and total_size {total_size}", log_q, logger=logger)
 
             re_st = goahead(file_path, log_q, logger=logger)
             if re_st == "Nosuchfile":
                 emit_log("DEBUG", f"calculate_checksum file not found: {file_path}", log_q, logger=logger)
-                return None, mtime, mod_time, st, "Nosuchfile"
+                return None, entropy, mime, mtime, mod_time, st, "Nosuchfile"
 
             elif re_st:
 
@@ -97,21 +146,23 @@ def calculate_checksum(file_path, mtime, mod_time, inode, size_int, prev_hash=No
 
                 if total_size == size_int and mod_time == a_mod and inode and int(inode) == a_ino:
                     status = "Returned"
+                    mime, entropy = magic_entropy(file_path, header, counts, total_size, log_q, logger)
+
                     if prev_hash:
                         mtime = epoch_to_date(re_st.st_mtime)
                         status = "Retried"
-                    return checks, mtime, mod_time, st, status
-                else:
-                    emit_log("DEBUG", f"File changed from first stat. the file is Cacheable: {cacheable} doesnt match: {file_path} the follow characteristics: ", log_q, logger=logger)
-                    emit_log("DEBUG", f"Retry #{retry}\\{max_retry}. Entry mtime {mod_time} size {size_int} inode {inode}", log_q, logger=logger)
-                    emit_log("DEBUG", f"calculate_checksum checksum size is {total_size} . mtime {a_mod} size {a_size} inode {a_ino}", log_q, logger=logger)
+                    return checks, entropy, mime, mtime, mod_time, st, status
+                # else:
+                #     emit_log("DEBUG", f"File changed from first stat. the file is Cacheable: {cacheable} doesnt match: {file_path} the follow characteristics: ", log_q, logger=logger)
+                #     emit_log("DEBUG", f"Retry #{retry}\\{max_retry}. Entry mtime {mod_time} size {size_int} inode {inode}", log_q, logger=logger)
+                #     emit_log("DEBUG", f"calculate_checksum checksum size is {total_size} . mtime {a_mod} size {a_size} inode {a_ino}", log_q, logger=logger)
 
                 mtime = epoch_to_date(re_st.st_mtime)
-                return calculate_checksum(file_path, mtime, a_mod, a_ino, a_size, checks, re_st, retry - 1, max_retry, cacheable, log_q)
+                return calculate_checksum(file_path, mtime, a_mod, a_ino, a_size, checks, algo, re_st, retry - 1, max_retry, cacheable, log_q)
 
         emit_log("DEBUG", f"calculate_checksum file changed returning None: {file_path}", log_q, logger=logger)
 
-        return None, mtime, mod_time, st, "Changed"
+        return None, entropy, mime, mtime, mod_time, st, "Changed"
 
     except FileNotFoundError:
         emit_log("DEBUG", f"calculate_checksum file not found while calculating checksum: {file_path}", log_q, logger=logger)
@@ -124,7 +175,7 @@ def calculate_checksum(file_path, mtime, mod_time, inode, size_int, prev_hash=No
         emit_log("ERROR", f"Exception calculating checksum for file: {file_path} total_size {total_size} size_int {size_int} error: {e}", log_q, logger=logger)
         raise
 
-    return None, mtime, mod_time, st, "Error"
+    return None, entropy, mime, mtime, mod_time, st, "Error"
 
 
 def truncate_to_6_digits(timestamp):

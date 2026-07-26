@@ -7,10 +7,12 @@ import sysprofile
 from pathlib import Path
 from configfunctions import update_toml_setting
 from logs import setup_logger
+from pyfunctions import convert_mime_to_int
+from pysql import get_mime_map
 from query import activateps
 
 
-def main(appdata_local, tempdir, database, target, config_file, log_file, email, user, ll_level, turbo, compLVL):
+def main(appdata_local, tempdir, database, target, config_file, log_file, email, user, ll_level, turbo, compLVL, checkMETHOD):
 
     parsed_sys = []
     compLVL = int(compLVL)
@@ -27,12 +29,17 @@ def main(appdata_local, tempdir, database, target, config_file, log_file, email,
             with sqlite3.connect(database) as conn:
                 cur = conn.cursor()
 
-                parsed_sys = sysprofile.main(turbo, logging_values)
+                parsed_sys = sysprofile.main(checkMETHOD, turbo, logging_values)
 
                 # process results
                 if parsed_sys:
 
-                    if activateps(parsed_sys, database, target, conn, cur, email, user, compLVL):
+                    # 07/20/2026
+                    mime_hashmap, id_to_mime = get_mime_map(cur)
+                    # map mime str to an int for database
+                    parsed_sys, new_mime_rows, _ = convert_mime_to_int(parsed_sys, mime_hashmap, id_to_mime)
+
+                    if activateps(parsed_sys, new_mime_rows, database, target, conn, cur, email, user, compLVL):
                         update_toml_setting('shield', 'proteusSHIELD', True, config_file)  # update_config(config_file, "proteusSHIELD", "false") # sed # avoid spawning process
                         return 0
                     else:
@@ -54,8 +61,8 @@ def main(appdata_local, tempdir, database, target, config_file, log_file, email,
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 12:
-        print("Usage: hash_profile.py <ppdata_local> <tempdir> <database> <target> <config_file> <logfile> <email> <user> <ll_level> <turbo> <compLVL>")
+    if len(sys.argv) < 13:
+        print("Usage: hash_profile.py <ppdata_local> <tempdir> <database> <target> <config_file> <logfile> <email> <user> <ll_level> <turbo> <compLVL> <checkMETHOD>")
         sys.exit(0)
 
-    sys.exit(main(*sys.argv[1:12]))
+    sys.exit(main(*sys.argv[1:13]))

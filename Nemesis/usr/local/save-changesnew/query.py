@@ -26,76 +26,181 @@ from pyfunctions import parse_datetime
 from pyfunctions import reset_csvliteral
 from pysql import blank_count
 from pysql import insert
+from pysql import insert_mimes
 from pysql import table_has_data
 from rntchangesfunctions import cnc
 from rntchangesfunctions import cprint
 from rntchangesfunctions import name_of
 try:
     import tkinter as tk
-    from tkinter import ttk
     TK_AVAILABLE = True
+
 except ImportError:
     TK_AVAILABLE = False
+try:
+    import sv_ttk
+    SV_TTK = True
 
+except ImportError:
+    SV_TTK = False
+try:
+    import ttkbootstrap as ttk
+    USE_BOOTSTRAP = True
 
-# 06/21/2026
+except ImportError:
+    from tkinter import ttk
+    USE_BOOTSTRAP = False
+# 07/25/2026
 
 # see pyfunctions.py cache clear patterns for db
 
+
 # Globals
+BOOTSTRAP_DEFAULT = "darkly"    # default theme for ttkbootstrap
+DEFAULT_THEME = "dark"          # light # default for sv azure
+LARGE_TABLE_THRESHOLD = 20000   # when to use pagination
 sort_directions = {}
+TABLE_ROW_COUNTS = {}
+after_id = None
+COLUMN_WIDTHS = {
+    "id": 60,
+    "timestamp": 145,
+    "filename": 900,
+    "changetime": 145,
+    "inode": 70,
+    "accesstime": 145,
+    "checksum": 270,
+    "entropy": 65,
+    "mime_id": 65,
+    "filesize": 70,
+    "symlink": 65,
+    "owner": 65,
+    "group": 65,
+    "casmod": 65,
+    "target": 65,
+    "lastmodified": 145,
+    "hardlinks": 65,
+    "count": 65,
+    "permissions": 120
+}
+NUMERIC_COLUMNS = {"inode", "filesize", "mime_id", "permissions", "hardlinks", "count"}
+REAL_COLUMNS = {"entropy"}
 
 
-def redraw_table(table, cur, table_name):
+def sort_column(tree, cur, selected_table, _col, column_names):
 
-    for row in table.get_children():
-        table.delete(row)
+    if TABLE_ROW_COUNTS.get(selected_table, 0) > LARGE_TABLE_THRESHOLD:
+        global sort_directions
+        ascending = sort_directions.get(_col, True)
+        sort_directions[_col] = not ascending
+        sql = f'SELECT * FROM "{selected_table}" ORDER BY "{_col}" {"ASC" if ascending else "DESC"}'
 
-    cur.execute(f"SELECT * FROM {table_name}")
-    rows = cur.fetchall()
+        load_table(tree, cur, sql, selected_table)
+    else:
+        _sort_column(tree, _col, column_names)
 
-    column_widths = {
-        "filename": 900,
-        "id": 60,
-        "timestamp": 150,
-        "accesstime": 150,
-        "changetime": 150,
-        "inode": 70,
-        "filesize": 70,
-        "checksum": 270,
-        "owner": 65,
-        "group": 65,
-        "casmod": 65,
-        "lastmodified": 150,
-        "hardlinks": 65,
-        "symlink": 65,
-        "permissions": 65,
-        "target": 135,
-        "mtime_us": 135
-    }
+
+def _sort_column(tree, col, columns):
+    global sort_directions
+    # index_ = columns.index(col)
+    ascending = sort_directions.get(col, True)
+    sort_directions[col] = not ascending
+    data = [(tree.set(child, col), child) for child in tree.get_children('')]
+
+    def convert(value):
+        if col in NUMERIC_COLUMNS:
+            try:
+                return int(value)
+            except (ValueError, TypeError):
+                return -1
+        elif col in REAL_COLUMNS:
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                return -1.0
+        return value.casefold() if isinstance(value, str) else value  # value.lower()
+
+    data.sort(key=lambda t: convert(t[0]), reverse=not ascending)
+    for index_, (val, item) in enumerate(data):
+        tree.move(item, '', index_)
+
+
+def insert_batch(table, cur, all_columns, batch_size=500):
+    global after_id
+
+    rows = cur.fetchmany(batch_size)
+
+    if not rows:
+        after_id = None
+        table.yview_moveto(0)
+        table.xview_moveto(0)
+        table.update_idletasks()
+        return
+
+    for row in rows:
+        display_row = [
+            row[i]
+            for i, col in enumerate(all_columns)
+            if col != "escapedpath"
+        ]
+        table.insert("", "end", values=display_row)
+
+    after_id = table.after(10, lambda: insert_batch(table, cur, all_columns))
+
+
+def load_table(table, cur, sql, table_name, batch_size=500):
+
+    global after_id
+    global TABLE_ROW_COUNTS
+
+    if after_id is not None:
+        table.after_cancel(after_id)
+        after_id = None
+
+    if table_name == "(no tables)":
+        table.delete(*table.get_children())
+        # for iid in table.get_children():
+        #     table.delete(iid)
+        table["columns"] = ()
+        return
+
+    rows = None
+
+    total_rows = TABLE_ROW_COUNTS.get(table_name, 0)
+    if not total_rows:
+        cur.execute(f'SELECT COUNT(*) FROM "{table_name}"')
+        total_rows = cur.fetchone()[0]
+        TABLE_ROW_COUNTS[table_name] = total_rows
+
+    cur.execute(sql)
+
+    all_columns = [desc[0] for desc in cur.description]
+    column_names = [col for col in all_columns if col != "escapedpath"]
+    table["columns"] = column_names
     # table["columns"] = [f"Col{i}" for i in range(len(cur.description))]
     # for i, col in enumerate(table["columns"]):
     #     table.heading(col, text=cur.description[i][0])
     #     table.column(col, width=100)
 
-    all_columns = [desc[0] for desc in cur.description]
-    column_names = [col for col in all_columns]  # if col != "escapedpath"
-    table["columns"] = column_names
-
-    for col in column_names:
-        table.heading(col, text=col)
-
-        table.column(col, width=column_widths.get(col, 120), anchor="w", stretch=True)
-
     table.delete(*table.get_children())
+    # for row in table.get_children():
+    #     table.delete(row)
 
     for col in column_names:
-        table.heading(col, text=col, command=lambda _col=col: sort_column(table, _col, column_names))
-        table.column(col, width=column_widths.get(col, 120), anchor="w", stretch=True)
+        table.heading(col, text=col, command=lambda _col=col: sort_column(table, cur, table_name, _col, column_names))
+        table.column(col, width=COLUMN_WIDTHS.get(col, 120), anchor="w", stretch=False)
+        if col == "filename":
+            table.column(col, anchor="w", stretch=True)
 
-    for row in rows:
-        display_row = [row[i] for i, col in enumerate(all_columns) if col != "escapedpath"]
-        table.insert("", "end", values=display_row)
+    if total_rows > LARGE_TABLE_THRESHOLD:
+        insert_batch(table, cur, all_columns, batch_size)
+    else:
+        rows = cur.fetchall()
+        for row in rows:
+            display_row = [row[i] for i, col in enumerate(all_columns) if col != "escapedpath"]
+            table.insert("", "end", values=display_row)
+            # table.insert("", tk.END, values=display_row)   # row)  # orig
+        TABLE_ROW_COUNTS[table_name] = len(rows)
 
 
 def hardlinks(database, target, conn, cur, user, email, compLVL):
@@ -256,9 +361,12 @@ def clear_sys(database, target, conn, cur, config_file, email, user, compLVL, dc
     return False
 
 
-def activateps(parsedsys, database, target, conn, cur, email, user, compLVL):
+def activateps(parsedsys, new_mime_rows, database, target, conn, cur, email, user, compLVL):
     try:
         insert(parsedsys, conn, cur, "sys", ['count', 'mtime_us'])
+
+        insert_mimes(cur, new_mime_rows)
+        conn.commit()
         nc = cnc(database, compLVL)
         rlt = encr(database, target, email, user=user, no_compression=nc, dcr=True)
         if rlt:
@@ -272,7 +380,7 @@ def activateps(parsedsys, database, target, conn, cur, email, user, compLVL):
     return True
 
 
-def run_sys_profile(appdata_local, tempdir, database, target, config_file, log_file, user, email, ll_level, turbo, compLVL):
+def run_sys_profile(appdata_local, tempdir, database, target, config_file, log_file, user, email, ll_level, turbo, compLVL, checkMETHOD):
 
     script_file = "hash_profile.py"
     script_path = appdata_local / script_file
@@ -293,7 +401,8 @@ def run_sys_profile(appdata_local, tempdir, database, target, config_file, log_f
             user,
             ll_level,
             turbo,
-            str(compLVL)
+            str(compLVL),
+            checkMETHOD
         ]
         script_dir = str(script_path.parent)
         result = subprocess.Popen(cmd, cwd=script_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, universal_newlines=True)
@@ -323,7 +432,7 @@ def run_sys_profile(appdata_local, tempdir, database, target, config_file, log_f
     return False
 
 
-def ps(database, target, conn, cur, config_file, user, email, turbo, compLVL, logging_values):
+def ps(database, target, conn, cur, config_file, user, email, turbo, compLVL, checkMETHOD, logging_values):
 
     log_file = logging_values[0]
     ll_level = logging_values[1]
@@ -332,7 +441,7 @@ def ps(database, target, conn, cur, config_file, user, email, turbo, compLVL, lo
 
     if not table_has_data(conn, "sys"):
 
-        result = run_sys_profile(appdata_local, tempdir, database, target, config_file, log_file, user, email, ll_level, turbo, compLVL)
+        result = run_sys_profile(appdata_local, tempdir, database, target, config_file, log_file, user, email, ll_level, turbo, compLVL, checkMETHOD)
 
     else:
 
@@ -345,50 +454,63 @@ def ps(database, target, conn, cur, config_file, user, email, turbo, compLVL, lo
             print("initial Sys clear failed. exiting...")
             return False
 
-        result = run_sys_profile(appdata_local, tempdir, database, target, config_file, log_file, user, email, ll_level, turbo, compLVL)
+        result = run_sys_profile(appdata_local, tempdir, database, target, config_file, log_file, user, email, ll_level, turbo, compLVL, checkMETHOD)
 
     return result
 
 
-def dexec(cur, actname, limit):
-    query = '''
-    SELECT *
-    FROM stats
-    WHERE action = ?
-    ORDER BY timestamp DESC
-    LIMIT ?
-    '''
-    cur.execute(query, (actname, limit))
-    return cur.fetchall()
+def make_button(parent, text, command, bootstyle="secondary", **kwargs):
+    if USE_BOOTSTRAP:
+        return ttk.Button(parent, text=text, command=command, bootstyle=bootstyle, **kwargs)
+    return tk.Button(parent, text=text, command=command, **kwargs)
 
 
-def sort_column(tree, col, columns):
-    global sort_directions
-    # index_ = columns.index(col)
-    ascending = sort_directions.get(col, True)
-    sort_directions[col] = not ascending
-    data = [(tree.set(child, col), child) for child in tree.get_children('')]
-
-    def convert(value):
-        if col == "filesize":
-            try:
-                return int(value)
-            except (ValueError, TypeError):
-                return -1
-        else:
-            return value.lower() if isinstance(value, str) else value
-    data.sort(key=lambda t: convert(t[0]), reverse=not ascending)
-    for index_, (val, item) in enumerate(data):
-        tree.move(item, '', index_)
+def make_combobox(parent, textvariable, values, bootstyle="primary", **kwargs):
+    if USE_BOOTSTRAP:
+        return ttk.Combobox(parent, textvariable=textvariable, values=values, bootstyle=bootstyle, **kwargs)
+    return ttk.Combobox(parent, textvariable=textvariable, values=values, **kwargs)
 
 
-def results(database, target, conn, cur, email, user, flth, config_path, turbo, compLVL, logging_values, cachermPATTERNS):
+def results(database, target, conn, cur, email, user, flth, config_path, turbo, compLVL, checkMETHOD, bootstrapTHEME, defaultTHEME, logging_values, cachermPATTERNS):
+
+    # for testing theme precedence
+    # global USE_BOOTSTRAP
+    # USE_BOOTSTRAP = False
+
+    img_path = os.path.join(logging_values[2], "Documents", "crests", "port.png")
+    icon_path = img_path
+
+    if USE_BOOTSTRAP:
+        root = ttk.App(title="Database Viewer", iconphoto=icon_path)  # , theme=bootstrapTHEME
+        img = tk.PhotoImage(file=icon_path)
+    else:
+        azure_path = os.path.join(logging_values[2], "azure.tcl")
+        forest_dark = os.path.join(logging_values[2], "forest-dark.tcl")
+        forest_light = os.path.join(logging_values[2], "forest-light.tcl")
+
+        if defaultTHEME not in ("dark", "light"):
+            defaultTHEME = "dark"
+
     root = tk.Tk()
     root.title("Database Viewer")
-    toolbar = tk.Frame(root)
+    img = tk.PhotoImage(file=icon_path)
+    root.iconphoto(True, img)
+    if SV_TTK:
+        sv_ttk.set_theme(defaultTHEME)
+    elif os.path.isfile(azure_path):
+        root.tk.call("source", azure_path)
+        root.tk.call("set_theme", defaultTHEME)
+    elif os.path.isfile(forest_dark) and defaultTHEME == "dark":
+        root.tk.call("source", forest_dark)
+        ttk.Style().theme_use("forest-dark")
+    elif os.path.isfile(forest_light) and defaultTHEME == "light":
+        root.tk.call("source", forest_light)
+        ttk.Style().theme_use("forest-light")
+
+    toolbar = ttk.Frame(root)
     toolbar.pack(side=tk.TOP, fill=tk.X)
     cur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-    tables = [t[0] for t in cur.fetchall() if t[0] != 'analytics'] or ["(no tables)"]
+    tables = [t[0] for t in cur.fetchall() if "analytics" not in t[0]] or ["(no tables)"]
     selected_table = tk.StringVar(value=tables[0])
 
     def clear_sys_and_redraw():
@@ -397,42 +519,54 @@ def results(database, target, conn, cur, email, user, flth, config_path, turbo, 
             table_menu.event_generate("<<ComboboxSelected>>")
 
     def index_system():
-        if ps(database, target, conn, cur, config_path, user, email, turbo, compLVL, logging_values):
+        if ps(database, target, conn, cur, config_path, user, email, turbo, compLVL, checkMETHOD, logging_values):
             selected_table.set("sys")
             table_menu.event_generate("<<ComboboxSelected>>")
 
-    lower_frame = tk.Frame(root)
+    lower_frame = ttk.Frame(root)
     lower_frame.pack(side=tk.TOP, fill=tk.X, pady=5)
 
-    table_menu = ttk.Combobox(lower_frame, textvariable=selected_table, values=tables, state="readonly", width=14)
+    table_menu = make_combobox(lower_frame, selected_table, tables, state="readonly", width=14)
     table_menu.pack(side=tk.LEFT, padx=10)
 
-    table_frame = tk.Frame(root)
+    table_frame = ttk.Frame(root)
     table_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
     tree = ttk.Treeview(table_frame, show='headings')
 
-    reload_button = tk.Button(
-        lower_frame,
-        text="",
-        width=6,  # small button
-        command=lambda: redraw_table(tree, cur, selected_table.get())  # reload the sys table
-    )
+    reload_button = make_button(lower_frame, "", lambda: load_table(tree, cur, f'SELECT * FROM "{selected_table.get()}"', selected_table.get()), bootstyle="secondary", width=6)
+
     reload_button.pack(side=tk.LEFT, padx=(2))
-    img_path = os.path.join(logging_values[2], "Documents", "crests", "port.png")
-    img = tk.PhotoImage(file=img_path)
-    # img = img.subsample(2, 2)
-    label = tk.Label(toolbar, image=img)
-    label.image = img  # type: ignore
+
+    if USE_BOOTSTRAP:
+
+        if bootstrapTHEME not in root.theme_names():
+            bootstrapTHEME = BOOTSTRAP_DEFAULT
+
+        theme_var = tk.StringVar(value=bootstrapTHEME)
+        theme_menu = ttk.Combobox(
+            lower_frame,
+            textvariable=theme_var,
+            values=root.theme_names(),
+            state="readonly",
+            width=12,
+        )
+        theme_menu.pack(side=tk.LEFT, padx=10)
+        theme_menu.bind("<<ComboboxSelected>>", lambda e: root.theme_use(theme_var.get()))
+        root.theme_use(bootstrapTHEME)
+
+    label = ttk.Label(toolbar, image=img)  # img = img.subsample(2, 2)
+
+    label.image = img
     label.pack(side=tk.LEFT)
 
-    hardlink_button = tk.Button(toolbar, text="Set Hardlinks", command=lambda: hardlinks(database, target, conn, cur, user, email, compLVL))
+    hardlink_button = make_button(toolbar, "Set Hardlinks", lambda: hardlinks(database, target, conn, cur, email, compLVL), bootstyle="primary")
     hardlink_button.pack(side=tk.RIGHT, padx=10)
-    clear_cache_button = tk.Button(toolbar, text="Clear Cache", command=lambda: clear_cache(database, target, flth, conn, cur, email, user, compLVL, cachermPATTERNS))
+    clear_cache_button = make_button(toolbar, "Clear Cache", lambda: clear_cache(database, target, flth, conn, cur, email, user, compLVL, cachermPATTERNS), bootstyle="primary")
     clear_cache_button.pack(side=tk.RIGHT, padx=10)
-    new_button = tk.Button(lower_frame, text="Clear sys", command=lambda: clear_sys_and_redraw())
+    new_button = make_button(lower_frame, "Clear sys", lambda: clear_sys_and_redraw(), bootstyle="primary")
     new_button.pack(side=tk.RIGHT, padx=10)
-    ps_button = tk.Button(lower_frame, text="Proteus Shield", command=lambda: index_system())
+    ps_button = make_button(lower_frame, "Proteus Shield", lambda: index_system(), bootstyle="primary")
     ps_button.pack(side=tk.RIGHT, padx=10)
 
     tree.grid(row=0, column=0, sticky="nsew")
@@ -444,49 +578,27 @@ def results(database, target, conn, cur, email, user, flth, config_path, turbo, 
     table_frame.rowconfigure(0, weight=1)
     table_frame.columnconfigure(0, weight=1)
 
-    def load_table(table_name: str):
-        if table_name == "(no tables)":
-            for iid in tree.get_children():
-                tree.delete(iid)
-            tree["columns"] = ()
-            return
-        c = conn.cursor()
-        c.execute(f"SELECT * FROM \"{table_name}\"")
-        rows = c.fetchall()
-        columns = [d[0] for d in c.description if d[0] != "escapedpath"]  # columns = [d[0] for d in c.description]
-        tree.delete(*tree.get_children())
-        tree["columns"] = columns
-
-        for col in columns:
-            tree.heading(col, text=col, command=lambda _col=col: sort_column(tree, _col, columns))
-            if col == "filename":
-                tree.column(col, width=1200, anchor="w", stretch=True)  # user = None
-            elif col == "id":
-                tree.column(col, width=60, anchor="w", stretch=True)
-            elif col in ("timestamp", "accesstime", "changetime"):
-                tree.column(col, width=150, anchor="w", stretch=False)
-            elif col in ("inode", "filesize"):
-                tree.column(col, width=70, anchor="w", stretch=False)
-            elif col == "checksum":
-                tree.column(col, width=270, anchor="w", stretch=True)
-            elif col in ("owner", "group", "casmod", "hardlinks", "symlink"):
-                tree.column(col, width=65, anchor="w", stretch=False)
-            elif col in ("permissions",):
-                tree.column(col, width=65, anchor="w", stretch=False)
-            else:
-                tree.column(col, width=120, anchor="w", stretch=True)
-        for row in rows:
-            display_row = [row[i] for i, d in enumerate(c.description) if d[0] != "escapedpath"]
-            tree.insert("", tk.END, values=display_row)   # row)
-        tree.yview_moveto(0)
-        tree.xview_moveto(0)
-        table_frame.update_idletasks()
-
     def on_select(_event):
-        load_table(selected_table.get())
+        load_table(tree, cur, f'SELECT * FROM "{selected_table.get()}"', selected_table.get())
     table_menu.bind("<<ComboboxSelected>>", on_select)
-    load_table(tables[0])
+    load_table(tree, cur, f'SELECT * FROM "{tables[0]}"', tables[0])
+
+    tree.yview_moveto(0)
+    tree.xview_moveto(0)
+    table_frame.update_idletasks()
     root.mainloop()
+
+
+# ORDER BY timestamp DESC
+# LIMIT ?
+def dexec(cur, actname, limit):
+    query = '''
+    SELECT *
+    FROM stats
+    WHERE action = ?
+    '''
+    cur.execute(query, (actname,))
+    return cur.fetchall()
 
 
 def average_time(conn, cur):
@@ -608,13 +720,15 @@ def main(usr, reset=None):
     cachermPATTERNS = config['backend']['cachermPATTERNS']
     cachermPATTERNS = cache_clear_patterns(usr, cachermPATTERNS)
     email = config['backend']['email']
+    bootstrapTHEME = config['display']['bootstrapTHEME']
+    defaultTHEME = config['display']['defaultTHEME']
     compLVL = config['logs']['compLVL']
     ll_level = config['logs']['logLEVEL']
     root_log_file = config['logs']['rootLOG']
     log_file = config['logs']['userLOG'] if usr != "root" else root_log_file
     turbo = config['search']['mMODE']
     # checksum = config['diagnostics']['checkSUM']
-
+    checkMETHOD = config['diagnostics']['checkMETHOD']
     pst_data = Path(home_dir) / ".local" / "share" / "save-changesnew"
     flth = pst_data / "flth.csv"
     dbtarget = pst_data / "recent.gpg"
@@ -790,7 +904,8 @@ def main(usr, reset=None):
                                 wish_path = shutil.which("wish")
                                 if _display and wish_path:
                                     print(f'database in: {tempdir}')
-                                    results(dbopt, dbtarget, conn, cur, email, usr, flth, toml_file, turbo, compLVL, logging_values, cachermPATTERNS)
+
+                                    results(dbopt, dbtarget, conn, cur, email, usr, flth, toml_file, turbo, compLVL, checkMETHOD, bootstrapTHEME, defaultTHEME, logging_values, cachermPATTERNS)
                                     return 0
                                 elif not wish_path:
                                     print("Install tk to display db.")
@@ -798,10 +913,8 @@ def main(usr, reset=None):
                                     print("No X11 display.")
                             else:
                                 print("tk not available, skipping database display.")
-
                         else:
                             return 0
-
                 else:
                     # no recent.db file permission error abort so sql doesnt make an empty database
                     print("Unable to locate database: ", dbopt)
