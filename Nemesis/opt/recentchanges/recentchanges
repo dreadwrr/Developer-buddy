@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# launcher script for recentchanges			recentchanges v5.0		05/22/2026
+# launcher script for recentchanges			recentchanges v6.5		07/25/2026
 app_install="/usr/local/save-changesnew"
 . "$app_install"/versionquery
 . "$app_install"/validprogram.sh
