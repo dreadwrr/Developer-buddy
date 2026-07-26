@@ -1,4 +1,7 @@
 see ![trials](https://github.com/dreadwrr/Developer-buddy/tree/b17e58401d68fda72f42b8cb7ea270f44961c90c/trials) to build b2ent md5ent
+v6.5.0 needs the following requirements:
+python-magic
+
 
 Python special edition or pyver is currently being updated to the new version 6.5.0 <br><br>
 
