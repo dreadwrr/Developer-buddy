@@ -633,6 +633,7 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
             if not dbopt:
                 print("There is a problem in pst_srg no return value. likely database wasnt created, path to database did not exist or permission issue")
                 return 1
+
             csum, unique_files, lifetime_throughput, ha_total_time, logger_total_time = data
 
             # for benchmarking pstsrg returned the time for multiprocessing ect. This can help verify if any changes or new designs improve performance and also
@@ -649,17 +650,16 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
             # Filter hits
             update_filter_csv(recent, flth, escaped_user)
             change_perm(flth, uid, gid)
-            # file doctrine
+
+            # File doctrine
             if postop:
 
                 try:
                     outpath = os.path.join(usrDIR, tsv_doc)
                     # if not os.path.isfile(outpath):
-
                     run_doctrine(appdata_local, usrDIR, sortcomplete, tmpopt, logf, rout, created, toml_file, escaped_user, method, fmt)
                     # cprint.green(f"File doctrine.tsv created {usrDIR}\\{tsv_doc}")
                     change_perm(outpath, uid, gid)
-
                     # else:
                     #     update_toml_setting('diagnostics', "postop", False, toml_file)
                     #     # update_config(toml_file, "postop", "true", quiet=True)  # avoid spawning process
@@ -668,9 +668,36 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
                     logging.error(f"Error in postop. err: {e} {type(e).__name__}", exc_info=True)
 
             # Terminal output process scr/cer
+
+            # csum could be and was returned from filter_output in processha but instead is returned from hanly incase scr or cerr
+            # files are stale by somehow being reused
+
+            # terminal output is filtered for browser suppressions or entirely suppressed except for critical events
+            # critical events are Suspect and COLLISION
+
+            # scr feedback
+            #
+            # this is the second filter_output call after cerr in processha
+            #
+            # if there was a critical event nothing gets output to terminal
+            #
+            # primary: Checksum color: blue
+            # other: any color: yellow
+            # scr is added to the end
+
             if not csum and not suppress:
                 if os.path.exists(scr):
                     filter_output(scr, escaped_user, 'Checksum', 'no', 'blue', 'yellow', 'scr', supbrwLIST, suppress_browser)
+
+            # cerr priority
+            #
+            # can start with Warning file, Warning symlink, Warning high, Suspect and COLLISION
+            #
+            # filter_output output earlier with call in processha
+            #
+            # primary: Warning color: yellow
+            # cricital: Suspect color: red
+            # elevated is added to the end
 
             if csum:
                 if os.path.isfile(cerr):
@@ -681,15 +708,26 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
                                 continue
                             dst.write(line)
                     removefile(cerr)
+
+            # summary
+            #
+            # Instead of having more than two colors. Colors are split between scr and cerr. The variety is from the different conditions of the file output
+            # from hanly. Adding too many specific conditions is unnecessary.
+            #
+            # the only sorting is cerr comes before scr. normal output will be blue or yellow from scr. If there is a critical event
+            # output will be yellow or red.
+
             # end Terminal output
 
             # write search file location to open as non root
             if os.path.isfile(result_output) and os.path.getsize(result_output) != 0:
                 syschg = True
                 change_perm(result_output, uid, gid)  # 0o600
+
                 with open(file_out, 'w') as f1:
                     f1.write(result_output)
                 change_perm(file_out, uid, gid)
+
             # Cleanup
             if os.path.isfile(scr):
                 removefile(scr)
@@ -704,8 +742,10 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
                 change_perm(flth, uid, gid)
 
             try:
+
                 logic(syschg, nodiff, diffrlt, validrlt, thetime, argone, argf, result_output, filename, flsrh, method)  # feedback
                 # display(dspEDITOR, result_output, syschg, dspPATH)  # open text editor? handled in wrapper
+
             except Exception as e:
                 print(f"Error in logic or display {type(e).__name__} : {e}")
 

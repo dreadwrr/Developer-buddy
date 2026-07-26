@@ -21,6 +21,20 @@ QUOTED_RE = re.compile(r'"((?:[^"\\]|\\.)*)"')
 # xRC functions
 
 
+def process_status(pattern):
+    """ return True if process is running """
+    try:
+        result = subprocess.run(
+            ["pgrep", "-af", pattern],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        return result.returncode == 0
+    except Exception as e:
+        logging.error(f"process_status xRC failed to check if process was running: {e} {type(e).__name__}", exc_info=True)
+    return False
+
+
 def process_by_target(target):
     """ return process id """
     try:
@@ -37,32 +51,6 @@ def process_by_target(target):
     if result.returncode != 0:
         return 0
     return int(result.stdout.split()[0])
-
-
-def process_status(pattern):
-    """ return True if process is running """
-    try:
-        result = subprocess.run(
-            ["pgrep", "-af", pattern],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-        return result.returncode == 0
-    except Exception as e:
-        logging.error(f"process_status xRC failed to check if process was running: {e} {type(e).__name__}", exc_info=True)
-    return False
-
-
-def get_pid(pid_file):
-    """ not used as could accidently kill the wrong process """
-    pid = None
-    if os.path.isfile(pid_file):
-        try:
-            with open(pid_file, "r") as f:
-                pid = int(f.read().strip())
-        except (ValueError, OSError):
-            return None
-    return pid
 
 
 def _fk_process(pattern):
@@ -90,6 +78,19 @@ def drop_pid(pid, pid_file=None):
         pass  # already gone
     except PermissionError:
         print("shutdown func inotifywait permission error")
+
+
+def get_pid(pid_file):
+    """ not used as could accidently kill the wrong process """
+    pid = None
+    if os.path.isfile(pid_file):
+        try:
+            with open(pid_file, "r") as f:
+                pid = int(f.read().strip())
+        except (ValueError, OSError):
+            return None
+    return pid
+
 
 # cross platform
 # def process_kill(pid, pid_file=None):
@@ -147,9 +148,9 @@ def old_pid_check(pid_file, new_pid, logger):
                         # alternative
                         # try:
                         #     os.killpg(int(stored_pid), signal.SIGTERM)
-                        #     return True
                         # except OSError:
                         #     print(f"failed to close old pid {stored_pid} {stored_start}")
+                        #     return False
                     else:
                         logger.debug(f"{pid_file} pid {stored_pid} reused by a different process, removing stale pidfile")
                 else:
@@ -497,11 +498,11 @@ def trim_tout(log_file, time_back=6, trim_to=9, min_span_hours=0, logger=logging
 
 
 def init_recentchanges(script_dir, home_dir, cfr, xRC, _time, min_span, checksum, moduleNAME, log_path, supbrwLIST, algo='md5'):
-    """ same as qt version but implements slight recovery logic from bash version. which is if it cant kill the process or another process
-          is already running check the pid file. try to kill it again if it is still running abort. """
 
     # to kill inotifywait script
     # sudo pkill -f 'inotifywait.*-e create -e moved_to -e moved_from --format %e|%c|%w%f%0'
+    # or
+    # kill -SIGTERM -<pid>
 
     inotify_log_file = "file_creation_log.txt"
     inotify_debug_file = "inotify.log"
@@ -530,12 +531,11 @@ def init_recentchanges(script_dir, home_dir, cfr, xRC, _time, min_span, checksum
         inotify_pid_file = os.path.join(temp_base, 'inotify_watcher.pid')
         lockfile = "/tmp/pblk.lock"
 
-        killed = True
+        fk_success = True
 
-        pid = process_by_target(search_pattern)
-
-        # if process_status(search_pattern):
-        if pid:
+        # pid = process_by_target(search_pattern)
+        # if pid:
+        if process_status(search_pattern):
 
             # if multiple processes
             # inotify wait is running wait until it is finished if it is in the middle of a write
@@ -554,7 +554,8 @@ def init_recentchanges(script_dir, home_dir, cfr, xRC, _time, min_span, checksum
 
                 os.makedirs(cdir, mode=0o700, exist_ok=True)
 
-                killed = drop_pid(pid)
+                # killed = drop_pid(pid)
+                fk_success = _fk_process(r'inotifywait.*-e create -e moved_to -e moved_from --format %e|%c|%w%f%0')
 
                 # a partial write could occur but would get parsed out and is insignificant this avoids the use of locks currently
 
@@ -564,39 +565,36 @@ def init_recentchanges(script_dir, home_dir, cfr, xRC, _time, min_span, checksum
                 #    all_files = parse_tout(inotify_creation_file, checksum, logger)
                 # open(inotify_creation_file, 'w').close()
 
-                if killed or not process_status(search_pattern):
+                if fk_success or not process_status(search_pattern):
                     strup(
                         script_dir, home_dir, inotify_creation_file, inotify_pid_file, inotify_debug_file, cdir, datadict, lockfile,
                         log_path, _time, min_span, CACHE_F, CSZE, moduleNAME, supbrwLIST, algo, logger
                     )
-                elif killed:
+                elif fk_success:
                     logger.error("inotifywait was already running continuing")  # log unusual event
-                else:
 
-                    logging.debug("couldnt close inotify script checking for pid file")
-                    new_pid = None
-                    if not old_pid_check(inotify_pid_file, new_pid, logging):
-                        with inotify_debug_file.open("a") as f:
-                            f.write("failed to close a previously running process\n")
-
-                    else:
-
-                        if not process_status(search_pattern):
-
-                            strup(
-                                script_dir, home_dir, inotify_creation_file, inotify_pid_file, inotify_debug_file, cdir, datadict, lockfile,
-                                log_path, _time, min_span, CACHE_F, CSZE, moduleNAME, supbrwLIST, algo, logger
-                            )
-                        else:
-                            with inotify_debug_file.open("a") as f:
-                                f.write("failed to start xRC cannot start with a previous running process\n")
+                # else:
+                #     logging.debug("couldnt close inotify script checking for pid file")
+                #     new_pid = None
+                #     if not old_pid_check(inotify_pid_file, new_pid, logging):
+                #         with inotify_debug_file.open("a") as f:
+                #             f.write("failed to close a previously running process\n")
+                #     else:
+                #         if not process_status(search_pattern):
+                #             strup(
+                #                 script_dir, home_dir, inotify_creation_file, inotify_pid_file, inotify_debug_file, cdir, datadict, lockfile,
+                #                 log_path, _time, min_span, CACHE_F, CSZE, moduleNAME, supbrwLIST, algo, logger
+                #             )
+                #         else:
+                #             with inotify_debug_file.open("a") as f:
+                #                 f.write("failed to start xRC cannot start with a previous running process\n")
 
             # the setting was turned off kill inotify wait
             else:
 
-                killed = _fk_process(r'inotifywait.*-e create -e moved_to -e moved_from --format %e|%c|%w%f%0')
+                fk_success = _fk_process(r'inotifywait.*-e create -e moved_to -e moved_from --format %e|%c|%w%f%0')
 
-            if not killed:
+            if not fk_success:
                 logging.debug("_fk_process did not report success for inotifywait termination")  # log second unusual event
             # except OSError as e:
             #     logger.error(f"Failed to acquire lock: {e}")
