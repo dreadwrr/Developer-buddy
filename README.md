@@ -1,3 +1,5 @@
+![Alt text](https://github.com/dreadwrr/Developer-buddy/tree/b17e58401d68fda72f42b8cb7ea270f44961c90c/trials)
+
 Python special edition or pyver is currently being updated to the new version 6.5.0 <br><br>
 
 #                               07/10/2026
