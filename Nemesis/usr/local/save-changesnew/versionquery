@@ -1,0 +1,64 @@
+#!/bin/bash
+get_vrn(){
+if [ "$1" = "-v" ]; then
+   echo "version 6.5"
+   echo
+   echo "recentchanges aka Developer buddy"
+   echo
+   exit
+elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
+   echo "version 6.5"
+   echo
+   echo "recentchanges aka Developer buddy"
+   echo
+   echo "Modes available"
+   echo
+   echo
+   printf "\t\t\toutput /tmp\n"
+   echo
+   printf "recentchanges\t\tsearch for files 5 minutes or newer\n"
+   printf "recentchanges s\t\twhere s is time in seconds\n"
+   echo
+   echo
+   echo "Modes"
+   echo
+   printf "Search\t\t\toutput /Downloads\n"
+   echo
+   printf "recentchanges search\tsearch for files 5 minutes or newer\n"
+   printf "recentchanges search s\twhere s is time in seconds\n"
+   echo
+   echo "Search for files newer than a file or directory"
+   echo
+   printf "recentchanges search /home/guest/myfile.txt\t\t\t\tsearch for files newer than myfile\n"
+   printf "recentchanges search myfile.txt\n"
+   printf "recentchanges search /home/guest/My\ Directory\ two/with\ spaces/\t... newer than directory\n"
+   echo
+   echo
+   echo "SRC"
+   echo
+   printf "recentchanges SRC \tTarget a root directory. Useful if you compiled an application.\n\n"
+   echo     " examples:"
+   echo     " recentchanges SRC, recentchanges 60 SRC or recentchanges SRC 180"
+   echo   
+   echo
+   echo " This feature will package a recently compiled application with a customized name into an .xzm"
+   echo " It allows to focus on one directory and exclude even files that made it past the filter."
+   echo " This was the main intent of the concept of recentchanges and everything is fully automatic"
+   echo
+   echo " The fact that a large amount of files went"
+   echo " to one directory allows this to be possible."
+   echo
+   echo "Query"
+   echo
+   echo "Find out information about files from searches. backend set to default will use query script. database uses query.py"
+   echo "ANALYTICS uses logs from /tmp and with a seperate set of heuristics. STATPST is from logs and stats in .gpgs"
+   echo
+   echo "Inverse the search"
+   echo
+   printf "rnt \t\t\tsearch for filtered rather than unfiltered files\t\t\t output /tmp\n"
+   printf "rnt search \t\tsearch for filtered rather than unfiltered files\t\t\t output /Downloads\n"
+   printf "rnt search myfile.txt\tsearch for unfiltered rather than filtered files\t\t\t . \n"
+   exit
+fi
+exit 1
+}

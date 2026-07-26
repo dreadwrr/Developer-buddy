@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# supress output helper script to launch inotifywait optional logging   09/15/2025 07/22/2026
+#nohup /usr/local/save-changesnew/inotify "$@" > /dev/null 2>&1 &
+# SCRIPT_PATH="$( dirname "$0")"
+. /usr/local/save-changesnew/inotifyfunctions
+fmt="%Y-%m-%d %H:%M:%S"
+inotify_pid_file="$5"
+inotify_debug_file="$6"  # core inotify debug output
+
+log_date=$(date +"$fmt")
+echo $log_date > "$inotify_debug_file"
+if [ "$#" -lt 13 ]; then
+    echo "Usage: $0 log_file mdlnameprefix cache_file inotify_cache_file inotify_pid_file inotify_debug_file cdir datadict lockfile csze checkmethod _time min_span" >&2
+    echo "not enough args" >> "$inotify_debug_file"
+    exit 1
+fi
+
+if ! oldpid "$inotify_pid_file"; then
+    echo "failed to close a previously running process quiting" >> "$inotify_debug_file"
+    exit 1
+fi
+setsid /usr/local/save-changesnew/inotify "$@" >> "$inotify_debug_file" 2>&1 &  # nohup /usr/local/save-changesnew/inotify "$@" >> "$inotify_debug_file" 2>&1 &
+pid=$!
+sleep 1
+
+if ! kill -0 "$pid" 2>/dev/null; then
+    echo "inotify failed to start" >> "$inotify_debug_file"
+    exit 1
+fi
+
+# awk '{print $22}' /proc/5473/stat
+printf '%s|%s\n' "$pid" "$(ps -o lstart= -p "$pid")" > "$inotify_pid_file"
+
