@@ -4,8 +4,8 @@ oldpid() {
 local res=0
 if [[ -f $1 ]]; then
     IFS='|' read -r stored_pid stored_start < $1
-    current="$(ps -o lstart= -p "$stored_pid")"
-    if [[ -n "$current" ]]; then
+    current_start="$(ps -o lstart= -p "$stored_pid")"
+    if [[ -n "$current_start" ]]; then
         if [ "$current_start" = "$stored_start" ]; then
             if ! kill -- -$stored_pid; then
                 echo "failed to close old pid $stored_pid $stored_start"

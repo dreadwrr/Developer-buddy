@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #     recentchanges general functions    validprogram       gettime                                                                03/25/2026
 #This function returns the root directory or null if it is in  /  of system
 validprogram() {
@@ -15,7 +15,7 @@ FCOUNT=$( grep -c "${BASEDIR}" $LOGFILE)
 p=0
 z=$( insetdirectory)
 if [ "$z" != "" ]; then
-	if (( z == DEPTH )); then
+	if (( z == DEPTH)); then
     	strt=$z
     else
     	strt=$(( z + 1))
@@ -40,7 +40,6 @@ echo "${BASEDIR}"
 #iis system directory and return the root directory
 insetdirectory() {
 local result
-local newdir
 local d
 local template=()
 template+=("/home/$USR/Downloads/")
@@ -107,7 +106,7 @@ ST=$( head -n1 $1 | awk '{print $2}') ; sSRC=$( date -d "$ST" "+%s")
 eSRC=$(( f - sSRC ))
 srcE=$(date -d "@$eSRC" -u +'%H:%M:%S')
 if [ "$DIFFTIME" == "0" ]; then ENDTM=$ENDTM" file(s) created at: "$SRTTIME ; fi
-{ echo ; echo ; } >> $2
+{ echo ; echo ; }>> $2
 if [ "$THETIME" == "noarguser" ]; then echo "Specified: "$argone "minutes" >> $2 ; else echo "Specified: "$argone "seconds" >> $2 ; fi
 { echo ; echo "Batch analysis and stats:"; } >> $2
 echo -e $ST" Start" >> $2

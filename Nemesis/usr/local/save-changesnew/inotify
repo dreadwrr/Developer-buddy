@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#inotify db6.5                     07/20/2026
+#inotify db6.5                     07/25/2026
 # inotify to watching either / or /mnt/live/memory/changes. filters out some files and also browser suppressions in sbwr array. this is part of general excludes see rntchangesfunctions.
 # Also filters out app inclusions in inotifyexl array in general excludes section
 # result of wanting to prepare hashed files that are downloads from a package manager or are copied files that have preserved
@@ -11,10 +11,8 @@
 #
 # result created cache of created files over 1MB and also output to a created files log
 
-#SCRIPT_PATH="$( dirname "$0")"
-#. "$SCRIPT_PATH"/rntchangesfunctions
-CONFIG_FILE="/opt/recentchanges/recentchanges"
-SCRIPT_PATH="/usr/local/save-changesnew"
+SCRIPT_PATH="$( dirname "$0")"
+# SCRIPT_PATH="/usr/local/save-changesnew"
 . "$SCRIPT_PATH"/rntchangesfunctions
 
 MOUNT_FOLDERS=("mnt" "media")
@@ -29,21 +27,19 @@ inclusion=(
     '.*/\.wh\.([^/]*)$'
     ".*/Downloads/${LCLMODULENAME}x"
     "/tmp/${LCLMODULENAME}x"
-    "/tmp/rc/${LCLMODULENAME}_MDY"
-    "/usr/local/save-changesnew/flth.csv"
-    "/usr/local/save-changesnew/logs.gpg"
-    "/usr/local/save-changesnew/recent.gpg"
-    "/usr/local/save-changesnew/stats.gpg"
-    "/usr/local/save-changesnew/ctimecache.gpg"
+    "$HOME_DIR/flth.csv"
+    "$HOME_DIR/recent.gpg"
+    "$HOME_DIR/ctimecache.gpg"
+    "$HOME_DIR/file_output"
     "\.local/share/recently-used.xbel"
     "$output_file"
-    "$cache_file"
     "$CACHE_F"
 )
 }
+
 # end general excludes regex
 
-
+#VARS
 MAX_JOBS=8
 IDLE=$(( MAX_JOBS / 2 ))
 BRAND=`date +"MDY_%m-%d-%y-TIME_%R"|tr ':' '_'`
@@ -52,17 +48,20 @@ ch="/mnt/live/memory/changes"
 
 output_file=$1  # main output
 LCLMODULENAME="$2"
-cache_file="$3"  # main script cache on decrypt for exclude
-CACHE_F="$4"  # secondary output cache
-inotify_pid_file="$5"
-debug_file="$6"  # debug output of this script
-cdir="$7"
-datadict="$8"
+CACHE_F="$3"  # secondary output cache
+inotify_pid_file="$4"
+debug_file="$5"  # debug output of this script
+cdir="$6"
+datadict="$7"
+HOME_DIR="$8"
 LOCKFILE="$9"
 CSZE="${10}"
 checkMETHOD="${11}"
 time="${12}"
 min_span="${13}"  # set greater than time to increase capacity. 0 prevents log from being cleared. otherwise increase _time in /opt/porteus-scripts/recentchanges
+shift 13
+webb=("${@:1:$#-1}")  # sbwr. Filter terminal or supress browser. common items to exclude from prompt      .  regex  notes: ([^/]*)$
+# last_arg="${!#}"
 
 match_found=0
 
@@ -97,10 +96,7 @@ ch="${ch%/}"
 [[ -d $ch ]] && { cd $ch && abpath="$ch/" || exit ; } || { [[ ! -d $ch ]] && cd "/" && abpath="/" || exit ; }
 cd "$pst" || exit
 
-sbwr
 inotifyexl
-get_inclusion $CONFIG_FILE
-inclusion+=("$log" "$stat" "$db" "$cache")
 
 # exec 200>"$LOCKFILE"
 mkdir -p $datadict || exit ; chmod 700 $datadict

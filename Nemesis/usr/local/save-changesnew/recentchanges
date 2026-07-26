@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+#	rntfiles.xzm or -SRC application.xzm to /tmp																						05/22/2026
+SCRIPT_PATH="$( dirname "$0")"
+. "$SCRIPT_PATH"/rntchangesfunctions
+. "$SCRIPT_PATH"/validprogram.sh
+. /usr/share/porteus/porteus-functions
+
+get_colors
+tmp=/tmp/tmp$$  															;	work=work$$
+workdir=/myfiles															;	chxzm=/rntfiles.xzm   
+TMPCOMPLETE=$tmp/tmp_complete.txt							;   TMPOPT=$tmp/tmp_holding
+RECENTAPP=$tmp/list_recentapp_filtered.txt					;	atmp=/tmp/atmp$$
+RSYNCEXCL=$tmp/list_filesexclude.txt							;	UPDATE=$tmp/save.transferlog.tmp
+SORTCOMPLETE=$tmp/list_complete_sorted.txt				;   SVFOLDERS=$tmp/save.rncfoldersmanifest.tmp
+xdata=/logs_stats.log													;   SVFILES=$tmp/save.rncfilesmanifest.tmp	
+xdata2=/logs.log.log														;	RECENT=$tmp/list_recentchanges_filtered
+BRAND=$(date +"MDY_%m-%d-%y-TIME_%R" | tr ':' '_')	;	tout=$atmp/toutput.tmp
+FLBRAND=$(date +"MDY_%m-%d-%y-TIME_%R_%S" | tr ':' '_')
+arrfiles=()
+validrlt="false"																;   validpdt="false"  # valid product
+# indicates a previous search
+smsg="false"                                                                ;   autooutput="false"
+
+
+tfile=$atmp$xdata
+tfile2=$atmp$xdata2
+
+argone="$1"
+THETIME="$2"
+[[ "$3" = "SRC" ]] && SRCDIR="$3"
+USR="$4"
+xzmname="$5"
+ptmp="$6"
+
+
+# applicable files
+tmpopt_out="$7"  # filtered file list
+[[ -s /tmp/"$7" ]] || { echo "recentchanges main list not found" && exit 3 ; }
+sortcomplete_out="$8"  # SORTCOMPLETE for file times.
+[[ -s /tmp/"$8" ]] || { echo "recentchanges null list not found" && exit 3 ; }
+
+archivesrh=$9
+cmode=${10}  
+autooutput=${11}
+
+chown root:root -R $ptmp
+chmod 755 $ptmp
+mkdir $tmp
+mkdir $tmp$workdir
+mkdir $atmp
+
+
+# move each file away to new staging
+mv "/tmp/$tmpopt_out" $tmp/
+mv "/tmp/$sortcomplete_out" $tmp/
+# mv "/tmp/$tout_out" $atmp/
+#test -f "/tmp/$tout_out/" && rm "/tmp/$tout_out"
+
+if ! grep -Eiq "nemesis|porteus" /etc/os-release; then [[ ! -f /etc/porteus-version ]] && exit 1 ; fi
+if ! grep -Eiq "artix" /etc/os-release; then [[ -d  /mnt/live/tmp ]] && exit 1 ; fi
+
+cut -d " " -f3- $TMPOPT > $RECENT  # filepaths from sorted list.
+
+:>$tfile
+
+# Copy files
+
+while IFS= read -r x; do 
+    y="$( unescf "$x")"
+    if ! cp -a --parents "$y" "$tmp$workdir" > /dev/null 2>> $tfile; then
+        echo "Failed to copy: $y" >&2
+    fi
+done < $RECENT
+unset IFS
+
+if [ -s $tfile ]; then echo >> $UPDATE ; fi
+test -e $tfile && rm $tfile
+echo $BRAND >> $UPDATE
+
+find $tmp$workdir -not -type d -print0 > $SVFILES
+
+:> $tout
+while IFS= read -r -d '' x; do x="$( escf "$x")"; echo "$x" ; done < $SVFILES >> $tout
+mv $tout $SVFILES
+
+sed -i -e "s|$tmp$workdir||g" $SVFILES
+cat $SVFILES | sed -e 's![^/]*$!!g' > $SVFOLDERS
+
+# make .xzm from root folder
+if [ "$SRCDIR" == "SRC" ]; then
+
+  findrootfolder
+
+fi
+
+k=$( head -n1 $SVFILES | grep "MDY")
+
+#Are there files?
+if [ -z "$k" ]; then
+    validrlt="true"
+fi
+
+#Cleanup
+test -d "$tmp" && rm -rf "$tmp" 
+test -d "$atmp" && rm -rf "$atmp"
+
+if [ "$validrlt" == "true" ]; then
+
+    cyan "Your module has been created. in /tmp" ; echo
+    cyan "$filename".xzm ; echo
+
+else
+    cyan "There were no files to grab." ; echo
+fi
+

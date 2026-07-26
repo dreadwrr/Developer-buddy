@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 import os
 import shutil
 import sqlite3
@@ -6,29 +7,30 @@ import subprocess
 import sys
 import tempfile
 import traceback
-from collections import defaultdict
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime
 from math import sin, cos, atan2, pi
 from pathlib import Path
-from pstsrg import decr
-from pstsrg import encr
-from pstsrg import delete_gpg_keys
-from pstsrg import hash_system_profile
-from pstsrg import insert
-from pstsrg import insert_mimes
-from pstsrg import table_has_data
-from pyfunctions import convert_mime_to_int
-from pyfunctions import CYAN, RED, RESET
-from pyfunctions import getcount
-from pyfunctions import get_delete_patterns
-from pyfunctions import get_mime_map
-from pyfunctions import getnm
-from pyfunctions import intst
+from configfunctions import find_install
+from configfunctions import get_config
+from configfunctions import load_toml
+from configfunctions import update_toml_setting
+from gpgcrypto import decr
+from gpgcrypto import encr
+from gpgcrypto import gpg_can_decrypt
+from gpgkeymanagement import delete_gpg_keys
+from logs import setup_logger
+from pyfunctions import cache_clear_patterns
 from pyfunctions import is_integer
 from pyfunctions import parse_datetime
-from pyfunctions import to_bool
-from pyfunctions import update_config
+from pyfunctions import reset_csvliteral
+from pysql import blank_count
+from pysql import insert
+from pysql import insert_mimes
+from pysql import table_has_data
+from rntchangesfunctions import cnc
+from rntchangesfunctions import cprint
+from rntchangesfunctions import name_of
 try:
     import tkinter as tk
     TK_AVAILABLE = True
@@ -48,7 +50,7 @@ try:
 except ImportError:
     from tkinter import ttk
     USE_BOOTSTRAP = False
-# 07/21/2026
+# 07/25/2026
 
 # see pyfunctions.py cache clear patterns for db
 
@@ -201,7 +203,7 @@ def load_table(table, cur, sql, table_name, batch_size=500):
         TABLE_ROW_COUNTS[table_name] = len(rows)
 
 
-def hardlinks(database, target, conn, cur, email, compLVL):
+def hardlinks(database, target, conn, cur, user, email, compLVL):
     try:
         is_error = False
 
@@ -215,13 +217,11 @@ def hardlinks(database, target, conn, cur, email, compLVL):
             user_input = input("Previous 'hardlinks' data has to be cleared. Continue? (y/n): ").strip().lower()
             if user_input == 'y':
                 cur.execute("UPDATE logs SET hardlinks = NULL WHERE hardlinks IS NOT NULL AND hardlinks != ''")
-                conn.commit()
             else:
                 return 0
 
-        # substitutes
-        # "/bin", "/etc", "/home", "/lib", "/lib64", "/opt", "/root", "/sbin", "/usr", "/var",
         cmd = [
+            "sudo",
             "find",
             "/",
             "-xdev",
@@ -286,8 +286,8 @@ def hardlinks(database, target, conn, cur, email, compLVL):
                 matches
             )
             conn.commit()
-            nc = intst(target, compLVL)
-            rlt = encr(database, target, email, no_compression=nc, dcr=True)
+            nc = cnc(target, compLVL)
+            rlt = encr(database, target, email, user=user, no_compression=nc, dcr=True)
             if rlt:
                 print("Hard links updated.")
             else:
@@ -301,44 +301,40 @@ def hardlinks(database, target, conn, cur, email, compLVL):
         print(f"Error setting hardlinks: {e} {type(e).__name__} \n{traceback.format_exc()}")
 
 
-def clear_cache(database, target, conn, cur, email, usr, compLVL):
-    files_d = get_delete_patterns(usr)
+def clear_cache(database, target, flth, conn, cur, email, user, compLVL, cachermPATTERNS):
+    files_d = cachermPATTERNS
     filename_pattern = None
     try:
         for filename_pattern in files_d:
             cur.execute("DELETE FROM logs WHERE filename LIKE ?", (filename_pattern,))
-            conn.commit()
             cur.execute("DELETE FROM stats WHERE filename LIKE ?", (filename_pattern,))
+        if filename_pattern is not None:
             conn.commit()
 
-        nc = intst(target, compLVL)
-        rlt = encr(database, target, email, no_compression=nc, dcr=True)
+        nc = cnc(target, compLVL)
+        rlt = encr(database, target, email, user=user, no_compression=nc, dcr=True)
         if rlt:
-            print("Cache files cleared.")
+            print("Cache cleared")
             try:
-                result = subprocess.run(
-                    ["/usr/local/save-changesnew/clearcache", usr, "yes"],
-                    check=True,
-                    capture_output=True,
-                    text=True
-                )
-                print(result)
-            except subprocess.CalledProcessError as e:
+                is_diff = reset_csvliteral(flth)
+                if is_diff:
+                    print("Filter hits cleared.")
+                x = blank_count(cur)
+                if x % 5 == 0:
 
-                print("Bash failed to clear flth.csv:", e.returncode)
-                if e.stdout:
-                    print("\n", e.stdout)
-                    print(e.stdout)
-                print("Error:", e.stderr)
+                    print("for resetting filter hits see filter.py")
+
+            except Exception as e:
+                print(f'Failed to clear csv: {flth} {e} {type(e).__name__} \n{traceback.format_exc()}')
 
         else:
             print("Reencryption failed cache not cleared.:")
     except sqlite3.Error as e:
         conn.rollback()
-        print(f"Cache clear failed to write to db. on {filename_pattern} {e} {type(e).__name__}")
+        print(f"Cache clear failed to write to db. on {filename_pattern if filename_pattern else ''} {e} {type(e).__name__}")
 
 
-def clear_sys(database, target, conn, cur, config_file, email, compLVL, dcr=True):
+def clear_sys(database, target, conn, cur, config_file, email, user, compLVL, dcr=True):
     try:
         if table_has_data(conn, "sys"):
             cur.execute("DELETE FROM sys")
@@ -348,11 +344,11 @@ def clear_sys(database, target, conn, cur, config_file, email, compLVL, dcr=True
                 pass
             conn.commit()
 
-            nc = intst(database, compLVL)
-            rlt = encr(database, target, email, no_compression=nc, dcr=True)
+            nc = cnc(database, compLVL)
+            rlt = encr(database, target, email, user=user, no_compression=nc, dcr=True)
             if rlt:
 
-                update_config(config_file, "proteusSHIELD", "true")
+                update_toml_setting('shield', 'proteusSHIELD', False, config_file)
 
                 print("Sys table cleared.")
                 return True
@@ -361,17 +357,18 @@ def clear_sys(database, target, conn, cur, config_file, email, compLVL, dcr=True
     except sqlite3.Error as e:
         conn.rollback()
         print(f"Sys clear failed to write to db clear fail {type(e).__name__}: {e}")
+        logging.error(f"Error clearing sys {e} {type(e).__name__} \n", exc_info=True)
     return False
 
 
-def activateps(parsedsys, new_mime_rows, database, target, conn, cur, email, compLVL):
+def activateps(parsedsys, new_mime_rows, database, target, conn, cur, email, user, compLVL):
     try:
         insert(parsedsys, conn, cur, "sys", ['count', 'mtime_us'])
 
         insert_mimes(cur, new_mime_rows)
         conn.commit()
-        nc = intst(database, compLVL)
-        rlt = encr(database, target, email, no_compression=nc, dcr=True)
+        nc = cnc(database, compLVL)
+        rlt = encr(database, target, email, user=user, no_compression=nc, dcr=True)
         if rlt:
             print("Proteus shield activated.")
         else:
@@ -383,43 +380,83 @@ def activateps(parsedsys, new_mime_rows, database, target, conn, cur, email, com
     return True
 
 
-def ps(database, target, conn, cur, config_file, email, turbo, compLVL, checkMETHOD):
-    parsed_sys = []
+def run_sys_profile(appdata_local, tempdir, database, target, config_file, log_file, user, email, ll_level, turbo, compLVL, checkMETHOD):
+
+    script_file = "hash_profile.py"
+    script_path = appdata_local / script_file
+
+    try:
+        cmd = [
+            "sudo",
+            sys.executable,
+            "-u",
+            str(script_path),
+            str(appdata_local),
+            str(tempdir),
+            database,
+            target,
+            config_file,
+            str(log_file),
+            email,
+            user,
+            ll_level,
+            turbo,
+            str(compLVL),
+            checkMETHOD
+        ]
+        script_dir = str(script_path.parent)
+        result = subprocess.Popen(cmd, cwd=script_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, universal_newlines=True)
+        stdout = result.stdout
+        if stdout is None:
+            print("stdout is None")
+            return False
+            # raise RuntimeError("stdout is None")
+        for line in stdout:
+            print(line, end="")
+
+        return_code = result.wait()
+
+        if return_code == 0:
+            return True
+
+        if result.returncode == 1:
+            print("Profile failed in", script_path)
+        else:
+            print("see logfile ", log_file)
+        return False
+
+    except Exception as e:
+        msg = f"Error calling {script_path} error: {e} {type(e).__name__}"
+        print(msg)
+        logging.error(msg, exc_info=True)
+    return False
+
+
+def ps(database, target, conn, cur, config_file, user, email, turbo, compLVL, checkMETHOD, logging_values):
+
+    log_file = logging_values[0]
+    ll_level = logging_values[1]
+    appdata_local = logging_values[2]
+    tempdir = logging_values[3]
 
     if not table_has_data(conn, "sys"):
 
-        parsed_sys = hash_system_profile(checkMETHOD, turbo)
+        result = run_sys_profile(appdata_local, tempdir, database, target, config_file, log_file, user, email, ll_level, turbo, compLVL, checkMETHOD)
 
     else:
+
         user_input = input("Previous sys data has to be cleared. continue? (y/n): ").strip().lower()
         if user_input != 'y':
             return False
         print("Clearing sys table")
 
-        if not clear_sys(database, target, conn, cur, config_file, email, compLVL, dcr=True):
+        if not clear_sys(database, target, conn, cur, config_file, email, user, compLVL, True):
             print("initial Sys clear failed. exiting...")
             return False
 
-        parsed_sys = hash_system_profile(checkMETHOD, turbo)
+        result = run_sys_profile(appdata_local, tempdir, database, target, config_file, log_file, user, email, ll_level, turbo, compLVL, checkMETHOD)
 
-    # process results
-    if parsed_sys:
-
-        # 07/20/2026
-        mime_hashmap, id_to_mime = get_mime_map(cur)
-        # map mime str to an int for database
-        parsed_sys, new_mime_rows, _ = convert_mime_to_int(parsed_sys, mime_hashmap, id_to_mime)
-
-        if activateps(parsed_sys, new_mime_rows, database, target, conn, cur, email, compLVL):
-
-            update_config(config_file, "proteusSHIELD", "false")
-
-            return True
-        else:
-            print("Failed to insert profile into db")
-    else:
-        print("System profile failed in /usr/local/save-changesnew/sysprofile")
-    return False
+    return result
 
 
 def make_button(parent, text, command, bootstyle="secondary", **kwargs):
@@ -434,54 +471,55 @@ def make_combobox(parent, textvariable, values, bootstyle="primary", **kwargs):
     return ttk.Combobox(parent, textvariable=textvariable, values=values, **kwargs)
 
 
-def results(database, target, conn, cur, email, user, config_path, turbo, compLVL, checkMETHOD, bootstrapTHEME, defaultTHEME):
+def results(database, target, conn, cur, email, user, flth, config_path, turbo, compLVL, checkMETHOD, bootstrapTHEME, defaultTHEME, logging_values, cachermPATTERNS):
 
     # for testing theme precedence
-    global USE_BOOTSTRAP
-    USE_BOOTSTRAP = False
+    # global USE_BOOTSTRAP
+    # USE_BOOTSTRAP = False
 
-    icon_path = "/usr/local/save-changesnew/Documents/crests/port.png"
+    img_path = os.path.join(logging_values[2], "Documents", "crests", "port.png")
+    icon_path = img_path
 
     if USE_BOOTSTRAP:
         root = ttk.App(title="Database Viewer", iconphoto=icon_path)  # , theme=bootstrapTHEME
         img = tk.PhotoImage(file=icon_path)
     else:
-        azure_path = "/usr/local/save-changesnew/azure.tcl"
-        forest_dark = "/usr/local/save-changesnew/forest-dark.tcl"
-        forest_light = "/usr/local/save-changesnew/forest-light.tcl"
+        azure_path = os.path.join(logging_values[2], "azure.tcl")
+        forest_dark = os.path.join(logging_values[2], "forest-dark.tcl")
+        forest_light = os.path.join(logging_values[2], "forest-light.tcl")
 
         if defaultTHEME not in ("dark", "light"):
             defaultTHEME = "dark"
 
-        root = tk.Tk()
-        root.title("Database Viewer")
-        img = tk.PhotoImage(file=icon_path)
-        root.iconphoto(True, img)
-        if SV_TTK:
-            sv_ttk.set_theme(defaultTHEME)
-        elif os.path.isfile(azure_path):
-            root.tk.call("source", azure_path)
-            root.tk.call("set_theme", defaultTHEME)
-        elif os.path.isfile(forest_dark) and defaultTHEME == "dark":
-            root.tk.call("source", forest_dark)
-            ttk.Style().theme_use("forest-dark")
-        elif os.path.isfile(forest_light) and defaultTHEME == "light":
-            root.tk.call("source", forest_light)
-            ttk.Style().theme_use("forest-light")
+    root = tk.Tk()
+    root.title("Database Viewer")
+    img = tk.PhotoImage(file=icon_path)
+    root.iconphoto(True, img)
+    if SV_TTK:
+        sv_ttk.set_theme(defaultTHEME)
+    elif os.path.isfile(azure_path):
+        root.tk.call("source", azure_path)
+        root.tk.call("set_theme", defaultTHEME)
+    elif os.path.isfile(forest_dark) and defaultTHEME == "dark":
+        root.tk.call("source", forest_dark)
+        ttk.Style().theme_use("forest-dark")
+    elif os.path.isfile(forest_light) and defaultTHEME == "light":
+        root.tk.call("source", forest_light)
+        ttk.Style().theme_use("forest-light")
 
     toolbar = ttk.Frame(root)
     toolbar.pack(side=tk.TOP, fill=tk.X)
     cur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-    tables = [t[0] for t in cur.fetchall()] or ["(no tables)"]
+    tables = [t[0] for t in cur.fetchall() if "analytics" not in t[0]] or ["(no tables)"]
     selected_table = tk.StringVar(value=tables[0])
 
     def clear_sys_and_redraw():
-        if clear_sys(database, target, conn, cur, config_path, email, compLVL, dcr=True):
+        if clear_sys(database, target, conn, cur, config_path, email, user, compLVL, dcr=True):
             selected_table.set("logs")
             table_menu.event_generate("<<ComboboxSelected>>")
 
     def index_system():
-        if ps(database, target, conn, cur, config_path, email, turbo, compLVL, checkMETHOD):
+        if ps(database, target, conn, cur, config_path, user, email, turbo, compLVL, checkMETHOD, logging_values):
             selected_table.set("sys")
             table_menu.event_generate("<<ComboboxSelected>>")
 
@@ -524,7 +562,7 @@ def results(database, target, conn, cur, email, user, config_path, turbo, compLV
 
     hardlink_button = make_button(toolbar, "Set Hardlinks", lambda: hardlinks(database, target, conn, cur, email, compLVL), bootstyle="primary")
     hardlink_button.pack(side=tk.RIGHT, padx=10)
-    clear_cache_button = make_button(toolbar, "Clear Cache", lambda: clear_cache(database, target, conn, cur, email, user, compLVL), bootstyle="primary")
+    clear_cache_button = make_button(toolbar, "Clear Cache", lambda: clear_cache(database, target, flth, conn, cur, email, user, compLVL, cachermPATTERNS), bootstyle="primary")
     clear_cache_button.pack(side=tk.RIGHT, padx=10)
     new_button = make_button(lower_frame, "Clear sys", lambda: clear_sys_and_redraw(), bootstyle="primary")
     new_button.pack(side=tk.RIGHT, padx=10)
@@ -581,7 +619,7 @@ def average_time(conn, cur):
             total_minutes += current_time.hour * 60 + current_time.minute
             valid_timestamps += 1
     if valid_timestamps > 0:
-        avg_minutes = total_minutes / valid_timestamps  # len(timestamps)
+        avg_minutes = total_minutes / valid_timestamps
         avg_hours = int(avg_minutes // 60)
         avg_minutes = int(avg_minutes % 60)
         avg_time = f"{avg_hours:02d}:{avg_minutes:02d}"
@@ -598,7 +636,7 @@ def clock_average(rows):
         if not r or not r[0]:
             continue
 
-        # seconds = int(r[0]) % 86400  # utc
+        # seconds = int(r[0]) % 86400  # time of day only
         dt = datetime.fromtimestamp(int(r[0]))  # local time
 
         seconds = (
@@ -673,32 +711,62 @@ def showdb(question):
             print("Invalid input, please enter 'Y' or 'N'.")
 
 
-def main():
+def main(usr, reset=None):
 
-    config_path = sys.argv[1]
-    dbtarget = sys.argv[2]
-    usr = sys.argv[3]
-    email = sys.argv[4]
-    turbo = sys.argv[5]
-    compLVL = int(sys.argv[6])
-    # checkSUM = to_bool(sys.argv[7])
-    checkMETHOD = sys.argv[8]
-    bootstrapTHEME = sys.argv[9] if len(sys.argv) > 9 else None
-    defaultTHEME = sys.argv[10] if len(sys.argv) > 10 else None
-    reset = to_bool(sys.argv[11]) if len(sys.argv) > 11 else False
-    logpst = sys.argv[12] if len(sys.argv) > 12 else None
-    statpst = sys.argv[13] if len(sys.argv) > 13 else None
+    appdata_local = find_install()
+    toml_file, home_dir, _, _, uid, gid = get_config(appdata_local, usr)
 
-    output = getnm(dbtarget, '.db')
+    config = load_toml(toml_file)
+    cachermPATTERNS = config['backend']['cachermPATTERNS']
+    cachermPATTERNS = cache_clear_patterns(usr, cachermPATTERNS)
+    email = config['backend']['email']
+    bootstrapTHEME = config['display']['bootstrapTHEME']
+    defaultTHEME = config['display']['defaultTHEME']
+    compLVL = config['logs']['compLVL']
+    ll_level = config['logs']['logLEVEL']
+    root_log_file = config['logs']['rootLOG']
+    log_file = config['logs']['userLOG'] if usr != "root" else root_log_file
+    turbo = config['search']['mMODE']
+    # checksum = config['diagnostics']['checkSUM']
+    checkMETHOD = config['diagnostics']['checkMETHOD']
+    pst_data = Path(home_dir) / ".local" / "share" / "save-changesnew"
+    flth = pst_data / "flth.csv"
+    dbtarget = pst_data / "recent.gpg"
+    ctimecache = pst_data / "ctimecache.gpg"
+    log_file = appdata_local / "logs" / log_file
 
-    if reset and logpst and statpst:
+    output = name_of(dbtarget, '.db')
 
-        return delete_gpg_keys(usr, email, dbtarget, logpst, statpst)
+    flth = str(flth)
+    dbtarget = str(dbtarget)
+    toml_file = str(toml_file)
+
+    # agnostic_check = False
+    # no_key = False
+
+    if reset:
+
+        return delete_gpg_keys(usr, email, dbtarget, ctimecache, flth)
 
     try:
+        # with tempfile.TemporaryDirectory() as tempdir:
         with tempfile.TemporaryDirectory(dir='/tmp') as tempdir:
+
+            logging_values = (log_file, ll_level, appdata_local, tempdir)
+            setup_logger(log_file, ll_level, "QUERY")
+
             dbopt = os.path.join(tempdir, output)
-            if decr(dbtarget, dbopt):
+            # dbopt = os.path.join(dst, output)
+            if not gpg_can_decrypt(usr, dbtarget):
+                return 0
+
+            # can easily break if trying to automate fixing keys. let the user do it if wanted.
+
+            result, error_msg = decr(dbtarget, dbopt, usr)
+            if result:
+
+                # change_perm(dbopt, uid, gid)
+                # subprocess.run(["sudo", "chown", "guest:guest", dbopt], check=True)
                 if os.path.isfile(dbopt):
                     with sqlite3.connect(dbopt) as conn:
                         cur = conn.cursor()
@@ -706,15 +774,7 @@ def main():
                         # cur.execute("DELETE FROM logs WHERE filename = ?", ('/home/guest/Downloads/Untitled' ,))
                         # conn.commit()
 
-                        print(f"{CYAN}Search breakdown{RESET}")
-                        # cur.execute("""
-                        #     SELECT
-                        #     datetime(AVG(strftime('%s', accesstime)), 'unixepoch') AS average_accesstime
-                        #     FROM logs
-                        #     WHERE accesstime IS NOT NULL;
-                        # """)
-                        # result = cur.fetchone()
-                        # average_accesstime = result[0] if result and result[0] is not None else None
+                        cprint.cyan("Search breakdown")
 
                         # average file access time
                         cur.execute("""
@@ -737,7 +797,7 @@ def main():
                         # avg_mtime = clock_average(rows)
                         # log_fn(f'Average time of file activity: {avg_mtime}')
                         # end Search time area
-                        cnt = getcount(cur)
+                        cnt = blank_count(cur)
                         cur.execute('''
                         SELECT filesize
                         FROM logs
@@ -764,7 +824,7 @@ def main():
                         WHERE TRIM(filename) != ''
                         ''')  # Ext
                         filenames = cur.fetchall()
-                        filenames = [row[0] for row in filenames]
+                        filenames = [row[0] for row in filenames]  # replaces ln 646
                         extensions = []
                         directories = []
                         for filename in filenames:
@@ -781,28 +841,28 @@ def main():
                         if extensions:
                             counter = Counter(extensions)
                             top_3 = counter.most_common(3)
-                            print(f"{CYAN}Most common extensions{RESET}")
+                            cprint.cyan("Most common extensions")
                             for ext, count in top_3:
                                 print(f"{ext}")
                         print()
-                        directory_counts = Counter(directories)  # top directories ln181
+                        directory_counts = Counter(directories)
                         top_3_directories = directory_counts.most_common(3)
-                        print(f'{CYAN}Top 3 directories {RESET}')
+                        cprint.cyan("Top 3 directories")
                         for directory, count in top_3_directories:
                             print(f'{count}: {directory}')
                         print()
-                        # cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''")  # common file 5
-                        # filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines
+                        # cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''")  # common file 5 # original
+                        # filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines # original
                         filename_counts = Counter(filenames)
                         top_5_filenames = filename_counts.most_common(5)
-                        print(f'{CYAN}Top 5 created {RESET}')
+                        cprint.cyan("Top 5 created")
                         for file, count in top_5_filenames:
                             print(f'{count} {file}')
                         top_5_modified = dexec(cur, 'Modified', 5)
                         filenames = [row[3] for row in top_5_modified]
                         filename_counts = Counter(filenames)
                         top_5_filenames = filename_counts.most_common(5)
-                        print(f'{CYAN}Most modified {RESET}')
+                        cprint.cyan("Most modified")
                         for filename, count in top_5_filenames:
                             filename = filename.strip()
                             print(f'{count} {filename}')
@@ -810,7 +870,7 @@ def main():
                         filenames = [row[3] for row in top_7_deleted]
                         filename_counts = Counter(filenames)
                         top_7_filenames = filename_counts.most_common(7)
-                        print(f'{CYAN}Top 5 deleted {RESET}')
+                        cprint.cyan("Top 5 deleted")
                         for filename, count in top_7_filenames:
                             filename = filename.strip()
                             print(f'{count} {filename}')
@@ -818,7 +878,7 @@ def main():
                         filenames = [row[3] for row in top_7_writen]
                         filename_counts = Counter(filenames)
                         top_7_filenames = filename_counts.most_common(7)
-                        print(f'{CYAN}Top 3 overwritten {RESET}')
+                        cprint.cyan("Top 3 overwritten")
                         for filename, count in top_7_filenames:
                             filename = filename.strip()
                             print(f'{count} {filename}')
@@ -827,39 +887,45 @@ def main():
                         filename_counts = Counter(filenames)
                         if filename_counts:
                             top_5_filenames = filename_counts.most_common(5)
-                            print(f'{CYAN}Top 5 Thats not actually a file{RESET}')
+                            cprint.cyan("Top 5 Thats not actually a file")
                             for filename, count in top_5_filenames:
                                 print(f'{count} {filename}')
                         print()
-                        print(f"{RED}Filter{RESET}")
-                        flth = '/usr/local/save-changesnew/flth.csv'
+                        cprint.green("Filter hits")
                         if os.path.isfile(flth):
                             with open(flth, 'r') as file:
                                 for line in file:
                                     print(line, end='')
+
                         res = showdb("display database?")
                         if res:
                             if TK_AVAILABLE:
+                                _display = os.environ.get('DISPLAY')
+                                wish_path = shutil.which("wish")
+                                if _display and wish_path:
+                                    print(f'database in: {tempdir}')
 
-                                if os.environ.get("XDG_SESSION_TYPE") == "wayland":
-                                    print('Wayland session switch to root and call query for display.')
-                                else:
-                                    _display = os.environ.get('DISPLAY')
-                                    wish_path = shutil.which("wish")
-                                    if _display and wish_path:
-                                        print(f'database in: {tempdir}')
-                                        results(dbopt, dbtarget, conn, cur, email, usr, config_path, turbo, compLVL, checkMETHOD, bootstrapTHEME, defaultTHEME)
-                                        return 0
-                                    elif not wish_path:
-                                        print("Install tk to display db.")
-                                    elif not _display:
-                                        print("No X11 display.")
+                                    results(dbopt, dbtarget, conn, cur, email, usr, flth, toml_file, turbo, compLVL, checkMETHOD, bootstrapTHEME, defaultTHEME, logging_values, cachermPATTERNS)
+                                    return 0
+                                elif not wish_path:
+                                    print("Install tk to display db.")
+                                elif not _display:
+                                    print("No X11 display.")
                             else:
                                 print("tk not available, skipping database display.")
                         else:
                             return 0
                 else:
+                    # no recent.db file permission error abort so sql doesnt make an empty database
                     print("Unable to locate database: ", dbopt)
+
+            else:
+                print(error_msg)
+                if os.path.isfile(dbtarget):
+                    ctime_path = ctimecache.name
+                    print(f"There may be no key for {dbtarget} or {ctime_path} delete it to make a new one. or try recentchanges reset")
+
+                return 1
 
     except Exception as e:
         print(f"Exception while running query {type(e).__name__}: {e}  \n {traceback.format_exc()}")
@@ -867,7 +933,8 @@ def main():
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 9:
-        print("Error insufficient number of arguments supplied to query.py")
-        sys.exit(1)
-    sys.exit(main())
+    if len(sys.argv) < 2:
+        print("Usage: query.py <user>")
+        sys.exit(0)
+
+    sys.exit(main(*sys.argv[1:3]))

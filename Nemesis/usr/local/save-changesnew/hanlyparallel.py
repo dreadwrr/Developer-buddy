@@ -1,39 +1,56 @@
+import gc
+import logging
+import traceback
+import multiprocessing as mp
 import os
 import sqlite3
 import time
-import traceback
+import threading
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures.process import BrokenProcessPool
 from hanlymc import hanly
-from pyfunctions import ap_encode
-from pyfunctions import detect_copy
-from pyfunctions import GREEN, RESET
+from logs import emit_log
+from logs import init_process_worker
+from logs import logs_to_queue
+from logs import logging_worker
+from pyfunctions import cprint
 from pyfunctions import escf_py
-from pyfunctions import increment_f
-# 06/10/2026
+from pysql import detect_copy
+from pysql import increment_f
+# 07/25/2026
 
 
-def logger_process(results, sys_records, rout, scr, cerr, created, dbopt="/usr/local/save-changesnew/recent.db", ps=False):
-
+# tfile
+def logger_process(results, sys_records, rout, scr, cerr, created, dbopt, ps, logger=None):
+    # append rout messages to the rout list from hanly
+    # if there are sys_records add them to the database sys changes sys_b
+    #
+    # distribute the appropriate messages to cerr and scr.
+    fmt = "%Y-%m-%d %H:%M:%S"
+    log = logger if logger else logging
     key_to_files = {
         "flag": [rout],
         "cerr": [cerr],
         "scr": [scr],
     }
-
-    # fmt = "%Y-%m-%d %H:%M:%S"
-
     with sqlite3.connect(dbopt) as conn:
         c = conn.cursor()
 
         file_messages = {}
+
         for entry in results:
+
             for key, files in key_to_files.items():
                 if key in entry:
+
                     messages = entry[key]
                     if not isinstance(messages, list):
                         messages = [messages]
                     for fpath in files:
-                        file_messages.setdefault(fpath, []).extend(messages)
+                        if isinstance(fpath, list):  # rout is a list
+                            fpath.extend(messages)
+                        else:
+                            file_messages.setdefault(fpath, []).extend(messages)  # write these to cerr scr
 
             if "dcp" in entry:
                 dcp_messages = entry["dcp"]
@@ -41,117 +58,170 @@ def logger_process(results, sys_records, rout, scr, cerr, created, dbopt="/usr/l
                     dcp_messages = [dcp_messages]
 
                 if dcp_messages:
+
                     try:
-                        with open(rout, 'a') as file:
-                            for msg in dcp_messages:
-                                if msg is not None and len(msg) > 6:
-                                    filesize = msg[6]
-                                    if filesize:
-                                        timestamp = msg[0]
-                                        filepath = msg[1]
-                                        changetime = msg[2]
-                                        inode = msg[3]
-                                        checksum = msg[5]
+                        for msg in dcp_messages:
 
-                                        y = ap_encode(filepath)
-                                        label = escf_py(filepath)
-                                        result = detect_copy(filepath, inode, checksum, c, ps)
-                                        if result:
-                                            print(f'Copy {timestamp} {changetime} {label}', file=file)
+                            if msg is not None and len(msg) > 6:
+                                filesize = msg[6]
+                                if filesize:
+                                    timestamp = msg[0]
+                                    filepath = msg[1]
+                                    changetime = msg[2]
+                                    inode = msg[3]
+                                    checksum = msg[5]
 
-                                        # windows if creation time is greater than modified time it could be a copy, a download or a created file
-                                        # this differs from linux that has no creation time but casmod or change as mod can be put instead
-                                        # change as modified means it is significant in that it could be a downloaded file with preserved metadata
-                                        elif y in created:
-                                            if inode == created[y]:
-                                                print(f'Created {timestamp} {changetime} {label}', file=file)
-                                        else:
-                                            # mod_time = timestamp.strftime(fmt)  # if datetime
-                                            mod_time = timestamp
-                                            # lexographic compare
-                                            if changetime and changetime > mod_time:
-                                                print(f'Casmod {timestamp} {changetime} {label}', file=file)
+                                    # label = escf_py(filepath)
+                                    label = escf_py(filepath)
+                                    result = detect_copy(filepath, inode, checksum, c, ps)
+                                    if result:
+                                        rout.append(f'Copy {timestamp} {changetime} {label}')
+
+                                    # windows if creation time is greater than modified time it could be a copy, a download or a created file
+                                    # this differs from linux that has no creation time but casmod or change as mod can be put instead
+                                    # change as modified means it is significant in that it could be a downloaded file with preserved metadata
+                                    if label in created:
+                                        rout.append(f'Created {timestamp} {changetime} {label}')
+                                    else:
+                                        # mod_time = timestamp  # if not datetime
+                                        mod_time = timestamp.strftime(fmt)
+                                        # lexographic compare
+                                        if changetime and changetime > mod_time:
+                                            rout.append(f'Casmod {timestamp} {changetime} {label}')
+                            else:
+                                log.debug("Skipping dcp message due to insufficient length: %s", msg)
 
                     except Exception as e:
-                        print(f"Error updating DB for sys entry '{msg}': {e} {type(e).__name__}")
+                        em = "Error checking for copies"
+                        print(f"{em} {e} {type(e).__name__}")
+                        log.error(em, exc_info=True)
 
-        # Update the counts once in sys table
+        # update sys changes in one batch
         if sys_records:
             try:
-                increment_f(conn, c, sys_records)
+                increment_f(conn, c, sys_records, log)  # add changes to sys_b
             except Exception as e:
-                print(f"Failed to update sys table in hanlyparallel increment_f : {e}  \n {traceback.format_exc()}")
+                em = "Failed to update sys table in hanlyparallel increment_f"  # {traceback.format_exc()}"
+                print(f"{em} : {e} {type(e).__name__}")
+                log.error(em, exc_info=True)
 
-    for fpath, messages in file_messages.items():
-        if messages:
-            try:
+        for fpath, messages in file_messages.items():
+            if messages:
+                try:
+                    with open(fpath, "a", encoding="utf-8") as f:
+                        f.write('\n'.join(str(msg) for msg in messages) + '\n')
 
-                with open(fpath, "a", encoding="utf-8") as f:
-                    f.write('\n'.join(str(msg) for msg in messages) + '\n')
+                except IOError as e:
+                    em = f"Error logging to {fpath}"
+                    print(f"{em}: {e}")
+                    log.error(em, exc_info=True)
+                except Exception as e:
+                    em = f"Unexpected error to {fpath} logger_process"
+                    print(f"{em}: {e} : {type(e).__name__}")
+                    log.error(em, exc_info=True)
 
-            except IOError as e:
-                print(f"logger_process Error logger to {fpath}: as {e}")
-            except Exception as e:
-                print(f"Unexpected error to {fpath} logger_process: {e} : {type(e).__name__}")
 
+def hanly_parallel(rout, created, scr, cerr, mMODE, parsed, id_to_mime, cachermPATTERNS, checksum, cdiag, dbopt, ps, user, logging_values):
 
-def hanly_parallel(rout, scr, cerr, parsed, created, id_to_mime, checksum, dbopt, ps, turbo, user):
-
-    all_results, batch_incr = [], []
+    all_results = []
+    batch_incr = []
     if not parsed:
-        return
+        return False
     len_parsed = len(parsed)
     if len_parsed == 0:
-        return
+        return False
 
     is_error = False
     csum = False
 
     ha_total_time = 0
 
+    logger = logging.getLogger("HANLY")
+
     start = time.perf_counter()
-    if len(parsed) < 80 or turbo != 'mc':
-        all_results, batch_incr, csum = hanly(parsed, checksum, dbopt, ps, user, id_to_mime)
+    if len_parsed < 80 or mMODE == "default":
+
+        # also move off thread for single core and directly log
+        # log_q = queue.SimpleQueue()
+        # init_process_worker(log_q)
+
+        # try:
+        #     tlog = threading.Thread(target=logging_worker, args=(log_q, logger), daemon=True)
+        #     tlog.start()
+        init_process_worker(None)
+        all_results, batch_incr, log_entries, csum = hanly(parsed, checksum, cdiag, dbopt, ps, user, logging_values, id_to_mime, cachermPATTERNS, logger)
+        #     if log_entries:
+        #         logs_to_queue(log_entries, log_q)
+
+        # finally:
+        #     log_q.put(None)
+        #     tlog.join()
+
     else:
+
         max_workers = min(8, os.cpu_count() or 1, len_parsed)
         chunk_size = max(1, (len_parsed + max_workers - 1) // max_workers)
         chunks = [parsed[i:i + chunk_size] for i in range(0, len_parsed, chunk_size)]
 
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            futures = [
-                executor.submit(
-                    hanly, chunk, checksum, dbopt, ps, user, id_to_mime
-                )
-                for chunk in chunks
-            ]
-            for future in as_completed(futures):
-                try:
-                    results, sys_records, is_csum = future.result()
-                    if results:
-                        all_results.extend(results)
-                    if sys_records:
-                        batch_incr.extend(sys_records)
-                    if is_csum:
-                        csum = True
-                except Exception as e:
-                    is_error = True
-                    print(f"Worker error from hanly multiprocessing: {type(e).__name__} {e} \n {traceback.format_exc()}")
-                    break
-            # for future in futures:       original
-            # 	try:
-            # 		all_results.extend(future.result())
-            # 	except Exception as e:
-            # 		print(f"Worker error from hanly multiprocessing: {type(e).__name__} {e} \n {traceback.format_exc()}")
+        ctx = mp.get_context()
+        log_q = ctx.Queue(maxsize=4096)
+        log_t = threading.Thread(target=logging_worker, args=(log_q, logger), daemon=True)
+        log_t.start()
+        try:
+            with ProcessPoolExecutor(
+                max_workers=max_workers,
+                mp_context=ctx,
+                initializer=init_process_worker,
+                initargs=(log_q,)
+            ) as executor:
+                futures = [
+                    executor.submit(
+                        hanly, chunk, checksum, cdiag, dbopt, ps, user, logging_values, id_to_mime, cachermPATTERNS
+                    )
+                    for chunk in chunks
+                ]
+
+                for future in as_completed(futures):
+                    try:
+                        results, sys_records, log_entries, is_csum = future.result()
+                        if results:
+                            all_results.extend(results)
+                        if sys_records:
+                            batch_incr.extend(sys_records)
+                        if log_entries:
+                            logs_to_queue(log_entries, log_q)
+                        if is_csum:
+                            csum = True
+
+                    except BrokenProcessPool as e:
+                        is_error = True
+                        print("hanly encountered an error")
+                        emit_log("ERROR", f"unable to run hanly an error occured {e} \n{traceback.format_exc()}", log_q)
+                        break
+                    except Exception as e:
+                        is_error = True
+                        em = f"Worker error from hanly multiprocessing: {type(e).__name__} {e} \n {traceback.format_exc()}"
+                        print(em)
+                        emit_log("ERROR", f"{em} \n {traceback.format_exc()}", log_q)
+                        break
+        finally:
+            log_q.put(None)
+            log_t.join()
+            log_q.close()
+            log_q.join_thread()
+
     end = time.perf_counter()
 
     if not is_error and len(all_results) > 0:
         ha_total_time = end - start
-        print(f'{GREEN}Hybrid analysis on{RESET}')
+        cprint.green('Hybrid analysis on')
 
     print("processing results")
-    logger_process(all_results, batch_incr, rout, scr, cerr, created, dbopt, ps)
+    logger = logging.getLogger("HANLYLOGGER")
+    logger_process(all_results, batch_incr, rout, scr, cerr, created, dbopt, ps, logger)
 
     lend = time.perf_counter()
     logger_total_time = lend - end
 
+    gc.collect()
     return csum, ha_total_time, logger_total_time

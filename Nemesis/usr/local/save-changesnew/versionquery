@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 get_vrn(){
 if [ "$1" = "-v" ]; then
    echo "version 6.5"
@@ -37,27 +37,35 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    echo "SRC"
    echo
    printf "recentchanges SRC \tTarget a root directory. Useful if you compiled an application.\n\n"
-   echo     " examples:"
-   echo     " recentchanges SRC, recentchanges 60 SRC or recentchanges SRC 180"
-   echo   
    echo
-   echo " This feature will package a recently compiled application with a customized name into an .xzm"
-   echo " It allows to focus on one directory and exclude even files that made it past the filter."
-   echo " This was the main intent of the concept of recentchanges and everything is fully automatic"
+   echo     "recentchanges SRC, recentchanges 60 SRC or recentchanges SRC 180"
    echo
-   echo " The fact that a large amount of files went"
-   echo " to one directory allows this to be possible."
+   echo
+   echo "This feature will package a recently compiled application with a customized name into an .xzm"
+   echo "It allows to focus on one directory and exclude even files that made it past the filter."
+   echo "This was the main intent of the concept of recentchanges and everything is fully automatic"
+   echo
+   echo "The fact that a large amount of files went"
+   echo "to one directory allows this to be possible."
    echo
    echo "Query"
    echo
-   echo "Find out information about files from searches. backend set to default will use query script. database uses query.py"
-   echo "ANALYTICS uses logs from /tmp and with a seperate set of heuristics. STATPST is from logs and stats in .gpgs"
+   echo "Find out information about files from searches."
    echo
    echo "Inverse the search"
    echo
    printf "rnt \t\t\tsearch for filtered rather than unfiltered files\t\t\t output /tmp\n"
    printf "rnt search \t\tsearch for filtered rather than unfiltered files\t\t\t output /Downloads\n"
    printf "rnt search myfile.txt\tsearch for unfiltered rather than filtered files\t\t\t . \n"
+   echo
+   echo
+   echo "If having problem with gpg key"
+   echo "delete the keys for user"
+   echo "gpg --list-keys . grab the key fingerprint for the email in config.toml."
+   echo "as user gpg --delete-sercet-keys <fingerprint>"
+   echo "gpg --delete-keys <fingerprint>"
+   echo
+   echo "failing that use recentchanges reset to delete the key"
    exit
 fi
 exit 1
