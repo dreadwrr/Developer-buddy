@@ -1,4 +1,7 @@
 see [trials](https://github.com/dreadwrr/Developer-buddy/tree/b17e58401d68fda72f42b8cb7ea270f44961c90c/trials) to build b2ent md5ent <br>
+requires: python-magic
+requires user gpg agent user <br>
+see [gpg setup](https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0#bookmark=id.kotw1gextu63) for troubleshooting <br><br>
 #                               07/26/2026
 ## Python edition v6.5.0 <br>
 
