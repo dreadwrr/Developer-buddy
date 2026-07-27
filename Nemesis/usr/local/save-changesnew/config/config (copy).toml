@@ -93,7 +93,9 @@ dspEDITOR = "xed"
                                         # "/usr/bin/somebinary"
 dspPATH = ""
 
-bootstrapTHEME="darkly"  # default theme to use for ttkbootstrap
+# default theme to use for ttkbootstrap
+bootstrapTHEME="darkly"   #darkly
+                                          #solarized-light, ect
 
 defaultTHEME="dark"  # dark - default for sv azure ect
                                   # light
