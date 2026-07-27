@@ -2,8 +2,6 @@ python special edition [Repo](https://github.com/dreadwrr/Developer-buddy/tree/p
 
 v6.5 released themes can be added there are [instructions](https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0#bookmark=id.7oojvtbxclmu)  to add dark mode ect <br>
 
-requires root gpg agent setup. see [gpg setup page](https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0#bookmark=id.kotw1gextu63) for troubleshooting
-
 
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
 
@@ -19,7 +17,7 @@ Linux https://github.com/dreadwrr/Recentchanges-Linux<br><br>
 
 Going forward I will be looking for new ideas to expand and improve recentchanges eventually splitting save-changesnew and recentchanges into different modules.
 
-Requirements: gpg agent pinentry setup for root <br>
+Requirements: gpg agent pinentry setup for root see [gpg setup page](https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0#bookmark=id.kotw1gextu63) for troubleshooting <br>
 
 Commands:<br>
 save-changesnew<br>
