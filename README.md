@@ -1,14 +1,9 @@
-python special edition 6.5.0 in nemesis repo currently testing before release <br>
 
 see ![trials](https://github.com/dreadwrr/Developer-buddy/tree/b17e58401d68fda72f42b8cb7ea270f44961c90c/trials) to build b2ent md5ent <br><br>
-v6.5.0 will need the following requirements: <br>
-python-magic
 
 
-Python special edition or pyver is currently being updated to the new version 6.5.0 <br><br>
-
-#                               07/10/2026
-## Python edition v6.0.0 <br>
+#                               07/26/2026
+## Python edition v6.5.0 <br>
 
 
 Full logging system, xRC inotify, isdiff, logic, display, filterhits, process hybrid analysis, filter output pretty much all the logic rewritten in python
