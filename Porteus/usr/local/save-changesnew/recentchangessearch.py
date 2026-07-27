@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# entry point for recentchanges.                     v5.0                                                       06/22/2026
+# entry point for recentchanges.                     v6.5                                                       07/25/2026
 #
 #   recentchanges. aka Developer buddy      recentchanges / recentchanges search
 #   Provide ease of pattern finding ie what files to block we can do this a number of ways
@@ -40,7 +40,6 @@ from pathlib import Path
 from configfunctions import find_install
 from configfunctions import get_config
 from configfunctions import load_toml
-from configfunctions import update_toml_setting
 from dirwalkerfunctions import get_base_folders
 from dirwalkerfunctions import get_relavant_mounts
 from dirwalkerfunctions import MOUNT_FOLDERS
@@ -53,6 +52,7 @@ from logs import setup_logger
 from processha import isdiff
 from pyfunctions import cache_clear_patterns
 from pyfunctions import cprint
+from pyfunctions import user_path
 from recentchangessearchparser import build_parser
 from rntchangesfunctions import clear_logs
 from rntchangesfunctions import change_perm
@@ -80,7 +80,7 @@ is_mcore = False
 
 def sighandle(signum, frame):
     global stopf
-    global is_mcore
+    # global is_mcore
     if signum == 2:
         stopf = True
         print("Sending stop request")
@@ -130,6 +130,7 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
     email = config['backend']['email']  # email_name = config['backend']['name']
     cachermPATTERNS = config['backend']['cachermPATTERNS']
     checksum = config['diagnostics']['checkSUM']
+    checkMETHOD = config['diagnostics']['checkMETHOD']
     cdiag = config['diagnostics']['cdiag']
     suppress_browser = config['diagnostics']['supbrw']
     supbrwLIST = config['diagnostics']['supbrwLIST']
@@ -145,7 +146,7 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
     cmode = config['src']['cmode']
     cachermPATTERNS = config['backend']['cachermPATTERNS']  # cache clear patterns
     cachermPATTERNS = cache_clear_patterns(usr, cachermPATTERNS)
-    exclDIRS = config['search']['exclDIRS']
+    exclDIRS = user_path(config['search']['exclDIRS'], usr)
     ll_level = config['logs']['logLEVEL']
     root_log_file = config['logs']['rootLOG']
     log_file = config['logs']['userLOG'] if usr != "root" else root_log_file
@@ -171,6 +172,7 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
         'feedback': feedback,
         'analytics': analytics,
         'checksum': checksum,
+        'checkMETHOD': checkMETHOD,
         'ps': ps,
         'uid': uid,
         'gid': gid,
@@ -187,9 +189,11 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
     # tout = []  # ctime results # formerly seperate ctime search
     sortcomplete = []  # combined
     tmpopt = []   # combined filtered
+
     # NSF
     complete_1 = []
     complete = []   # combined
+
     # Diff file
     diff_file = []
     absent = []  # actions
@@ -307,7 +311,7 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
 
         # load ctime or files created or copied with preserved metadata
         # if xRC
-        init_recentchanges(appdata_local, home_dir, cfr, xRC, _time, min_span, checksum, moduleNAME, log_file, supbrwLIST)
+        created = init_recentchanges(appdata_local, home_dir, cfr, xRC, _time, min_span, checksum, moduleNAME, log_file, supbrwLIST, algo=checkMETHOD)
 
         if argone != "search":
             thetime = argone
@@ -497,7 +501,7 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
         for entry in sortcomplete:
             if len(entry) >= 17:
                 ts_str = entry[0]
-                filepath = entry[16]
+                filepath = entry[18]
                 filtered_lines.append((ts_str, filepath))
 
         tmpopt = filtered_lines
@@ -613,7 +617,7 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
             total_time = el + el2
             total_files = len(sortcomplete)
             # Backend
-            dbopt, data = pstsrg.main(dbtarget, sortcomplete, complete, rout, cachermPATTERNS, user_setting, logging_values, total_time, total_files, dcr)
+            dbopt, data = pstsrg.main(dbtarget, sortcomplete, complete, rout, created, cachermPATTERNS, user_setting, logging_values, total_time, total_files, dcr)
             # alternatively return dbopt filename if doing something after with .db then remove in cleanup
 
             # if dbopt == 0 or dbopt in ("new_profile", "new_database"):
@@ -629,6 +633,7 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
             if not dbopt:
                 print("There is a problem in pst_srg no return value. likely database wasnt created, path to database did not exist or permission issue")
                 return 1
+
             csum, unique_files, lifetime_throughput, ha_total_time, logger_total_time = data
 
             # for benchmarking pstsrg returned the time for multiprocessing ect. This can help verify if any changes or new designs improve performance and also
@@ -645,29 +650,54 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
             # Filter hits
             update_filter_csv(recent, flth, escaped_user)
             change_perm(flth, uid, gid)
-            # file doctrine
+
+            # File doctrine
             if postop:
 
                 try:
-
                     outpath = os.path.join(usrDIR, tsv_doc)
-                    if not os.path.isfile(outpath):
-
-                        run_doctrine(appdata_local, usrDIR, sortcomplete, tmpopt, logf, rout, toml_file, escaped_user, method, fmt)
-                        # cprint.green(f"File doctrine.tsv created {usrDIR}\\{tsv_doc}")
-                        change_perm(outpath, uid, gid)
-
-                    else:
-                        update_toml_setting('diagnostics', "postop", False, toml_file)
-                        # update_config(toml_file, "postop", "true", quiet=True)  # avoid spawning process
+                    # if not os.path.isfile(outpath):
+                    run_doctrine(appdata_local, usrDIR, sortcomplete, tmpopt, logf, rout, created, toml_file, escaped_user, method, fmt)
+                    # cprint.green(f"File doctrine.tsv created {usrDIR}\\{tsv_doc}")
+                    change_perm(outpath, uid, gid)
+                    # else:
+                    #     update_toml_setting('diagnostics', "postop", False, toml_file)
+                    #     # update_config(toml_file, "postop", "true", quiet=True)  # avoid spawning process
 
                 except Exception as e:
                     logging.error(f"Error in postop. err: {e} {type(e).__name__}", exc_info=True)
 
             # Terminal output process scr/cer
+
+            # csum could be and was returned from filter_output in processha but instead is returned from hanly incase scr or cerr
+            # files are stale by somehow being reused
+
+            # terminal output is filtered for browser suppressions or entirely suppressed except for critical events
+            # critical events are Suspect and COLLISION
+
+            # scr feedback
+            #
+            # this is the second filter_output call after cerr in processha
+            #
+            # if there was a critical event nothing gets output to terminal
+            #
+            # primary: Checksum color: blue
+            # other: any color: yellow
+            # scr is added to the end
+
             if not csum and not suppress:
                 if os.path.exists(scr):
                     filter_output(scr, escaped_user, 'Checksum', 'no', 'blue', 'yellow', 'scr', supbrwLIST, suppress_browser)
+
+            # cerr priority
+            #
+            # can start with Warning file, Warning symlink, Warning high, Suspect and COLLISION
+            #
+            # filter_output output earlier with call in processha
+            #
+            # primary: Warning color: yellow
+            # cricital: Suspect color: red
+            # elevated is added to the end
 
             if csum:
                 if os.path.isfile(cerr):
@@ -678,15 +708,26 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
                                 continue
                             dst.write(line)
                     removefile(cerr)
+
+            # summary
+            #
+            # Instead of having more than two colors. Colors are split between scr and cerr. The variety is from the different conditions of the file output
+            # from hanly. Adding too many specific conditions is unnecessary.
+            #
+            # the only sorting is cerr comes before scr. normal output will be blue or yellow from scr. If there is a critical event
+            # output will be yellow or red.
+
             # end Terminal output
 
             # write search file location to open as non root
             if os.path.isfile(result_output) and os.path.getsize(result_output) != 0:
                 syschg = True
                 change_perm(result_output, uid, gid)  # 0o600
+
                 with open(file_out, 'w') as f1:
                     f1.write(result_output)
                 change_perm(file_out, uid, gid)
+
             # Cleanup
             if os.path.isfile(scr):
                 removefile(scr)
@@ -701,8 +742,10 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
                 change_perm(flth, uid, gid)
 
             try:
+
                 logic(syschg, nodiff, diffrlt, validrlt, thetime, argone, argf, result_output, filename, flsrh, method)  # feedback
                 # display(dspEDITOR, result_output, syschg, dspPATH)  # open text editor? handled in wrapper
+
             except Exception as e:
                 print(f"Error in logic or display {type(e).__name__} : {e}")
 

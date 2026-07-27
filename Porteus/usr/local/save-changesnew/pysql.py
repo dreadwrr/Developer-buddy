@@ -9,6 +9,8 @@ COLUMNS = [
     'inode INTEGER',
     'accesstime TEXT',
     "checksum TEXT",
+    'entropy REAL',
+    'mime_id INTEGER',
     'filesize INTEGER',
     'symlink TEXT',
     'owner TEXT',
@@ -64,24 +66,36 @@ def create_db(database, action=None):
 
     create_table(c, 'sys', ('timestamp', 'filename', 'changetime', 'checksum'), ['count INTEGER', 'mtime_us INTEGER'])
 
-    c.execute('''
-    CREATE TABLE IF NOT EXISTS stats (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        action TEXT,
-        timestamp TEXT,
-        filename TEXT,
-        changetime TEXT,
-        UNIQUE(timestamp, filename, changetime)
+    tables = [
+        '''
+        CREATE TABLE mime_types (
+            id INTEGER PRIMARY KEY,
+            mime TEXT UNIQUE NOT NULL,
+            mime_primary TEXT,
+            mime_subtype TEXT
         )
-    ''')
-    c.execute('''
+        ''',
+        '''
+        CREATE TABLE IF NOT EXISTS stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            action TEXT,
+            timestamp TEXT,
+            filename TEXT,
+            changetime TEXT,
+            UNIQUE(timestamp, filename, changetime)
+            )
+        ''',
+        '''
         CREATE TABLE IF NOT EXISTS analytics (
             id INTEGER PRIMARY KEY CHECK (id = 1),
             total_files INTEGER NOT NULL DEFAULT 0,
             total_time INTEGER NOT NULL DEFAULT 0,
             last_start INTEGER
         )
-    ''')
+        '''
+    ]
+    for sql in tables:
+        c.execute(sql)
     conn.commit()
     if action:
         return conn
@@ -93,8 +107,8 @@ def insert(log, conn, c, table, add_column=None):  # Log, sys
 
     columns = [
         'timestamp', 'filename', 'changetime', 'inode', 'accesstime',
-        'checksum', 'filesize', 'symlink', 'owner', '`group`',
-        'permissions', 'casmod', 'target', 'lastmodified'
+        'checksum', 'entropy', 'mime_id', 'filesize', 'symlink', 'owner',
+        '`group`', 'permissions', 'casmod', 'target', 'lastmodified'
     ]
     if add_column:
         if isinstance(add_column, (tuple, list)):
@@ -127,9 +141,9 @@ def insert_if_not_exists(action, timestamp, filename, changetime, conn, c):  # S
 def get_recent_changes(filename, cursor, table, e_cols=None):
     columns = [
         "timestamp", "filename", "changetime", "inode",
-        "accesstime", "checksum", "filesize", "symlink",
-        "owner", "`group`", "permissions", "casmod",
-        "target"
+        "accesstime", "checksum", "entropy", "mime_id",
+        "filesize", "symlink", "owner", "`group`",
+        "permissions", "casmod", "target"
     ]
     if e_cols:
         if isinstance(e_cols, str):
@@ -191,7 +205,7 @@ def collision_check(xdata, cerr, c, ps):
             continue
         filename = record[1]
         file_hash = record[5]
-        file_size = record[6]
+        file_size = record[8]
         if not (filename and file_hash and file_size):
             continue
 
@@ -301,6 +315,38 @@ def collision(cursor, is_sys):
         return []
 
 
+# def collisions(xdata, cerr, c, ps):
+#     """ return collisions from the database. not used currently """
+#     reported = set()
+#     csum = False
+#     colcheck = collision(c, ps)
+
+#     if colcheck:
+
+#         collision_map = defaultdict(set)
+#         for a_filename, b_filename, file_hash, size_a, size_b in colcheck:
+#             collision_map[a_filename, file_hash].add((b_filename, file_hash, size_a, size_b))
+#             collision_map[b_filename, file_hash].add((a_filename, file_hash, size_b, size_a))
+#         try:
+#             with open(cerr, "a", encoding="utf-8") as f:
+#                 for record in xdata:
+#                     filename = record[1]
+#                     checks = record[5]
+#                     size_non_zero = record[6]
+#                     if size_non_zero:
+#                         key = (filename, checks)
+#                         if key in collision_map:
+#                             for other_file, file_hash, size1, size2 in collision_map[key]:
+#                                 pair = tuple(sorted([filename, other_file]))
+#                                 if pair not in reported:
+#                                     csum = True
+#                                     print(f"COLLISION: {filename} {size1} vs {other_file} {size2} | Hash: {file_hash}", file=f)
+#                                     reported.add(pair)
+#         except IOError as e:
+#             print(f"Failed to write collisions: {e} {type(e).__name__}  \n{traceback.format_exc()}")
+#     return collision_map, csum
+
+
 # 12/15/2025
 def detect_copy(filename, inode, checksum, cursor, ps):
     if ps:
@@ -343,9 +389,9 @@ def increment_f(conn, c, records, logger=None):
             c.execute("""
                 INSERT OR IGNORE INTO sys (
                     timestamp, filename, changetime, inode, accesstime, checksum,
-                    filesize, symlink, owner, `group`, permissions, casmod, target,
-                    lastmodified, count, mtime_us
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    entropy, mime_id, filesize, symlink, owner, `group`, permissions,
+                    casmod, target, lastmodified, count, mtime_us
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, record)
 
             if c.rowcount > 0:
@@ -363,6 +409,35 @@ def increment_f(conn, c, records, logger=None):
         if logger:
             logger.error(err, exc_info=True)
     return False
+
+
+def get_mime_map(cur):
+
+    mime_to_info = {}
+    id_to_info = {}
+    cur.execute("SELECT id, mime, mime_primary, mime_subtype FROM mime_types")
+
+    for row in cur:
+        info = {
+            "id": row[0],
+            "mime": row[1],
+            "primary": row[2],
+            "subtype": row[3],
+        }
+
+        mime_to_info[row[1]] = info
+        id_to_info[row[0]] = info
+
+    return mime_to_info, id_to_info
+
+
+def insert_mimes(cur, new_mime_rows):
+    if not new_mime_rows:
+        return
+    cur.executemany(
+        "INSERT INTO mime_types (id, mime, mime_primary, mime_subtype) VALUES (?, ?, ?, ?)",
+        new_mime_rows
+    )
 
 
 def get_unique_files(c):
@@ -398,3 +473,14 @@ def get_lifetime_throughput(c):
         throughput = total_files / total_time_float
 
     return throughput
+
+
+def clear_conn(conn, cur):
+    if cur and conn is None:
+        print("Warning: cursor exists with no connection")
+    for obj, name in ((cur, "cursor"), (conn, "connection")):
+        try:
+            if obj:
+                obj.close()
+        except Exception as e:
+            print(f"Warning: failed to close {name}: {e}")

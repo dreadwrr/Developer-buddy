@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import tomllib
+import os
 import shlex
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ def get_exports():
         print("Usage: get_exports.py <username>", file=sys.stderr)
         sys.exit(1)
     user = sys.argv[1]
+    is_reset = sys.argv[2] if len(sys.argv) > 2 else None
 
     appdata_local = find_install()  # software install aka workdir
     log_dir = appdata_local / "logs"
@@ -71,36 +73,41 @@ def get_exports():
     for name, value in export_a.items():
         if value:
             print(f"export {name}={shlex.quote(str(value))}")
-
-    # Warm the user gpg agent for root
-    email = config['backend']['email']
-    is_key = iskey(email)
-    if is_key:
+    if is_reset != "reset":
 
         pst_data = Path(home_dir) / ".local" / "share" / "save-changesnew"
-        cache_f_frm = pst_data / "ctimecache.gpg"
-        dbtarget = pst_data / "recent.gpg"
+        os.makedirs(pst_data, mode=0o755, exist_ok=True)
+        # with open('/tmp/debug-output', 'w') as k:
+        #     k.write(str(pst_data) + '\n')
 
-        cache_f = None
-        if cache_f_frm.is_file():
-            cache_f = str(cache_f_frm)
-        elif dbtarget.is_file():
-            cache_f = str(dbtarget)
-        if cache_f:
+        # Warm the user gpg agent for root
+        email = config['backend']['email']
+        is_key = iskey(email)
+        if is_key:
 
-            res = start_user_agent(user, email, cache_f, str(toml_file))  # pass the config as a temp file as input
-            if res != GPGStatus.ERR_OK:
-                if res == GPGStatus.DECRYPT_FAIL:
-                    sys.exit(2)
-                elif res == GPGStatus.NO_KEY:
-                    sys.exit(3)
-                elif res == GPGStatus.NO_PINENTRY:
-                    # or inappropriate ioctl for device
-                    sys.exit(4)
-                elif res == GPGStatus.BAD_PASSPHRASE:
-                    sys.exit(7)
-                else:
-                    sys.exit(res)
+            cache_f_frm = pst_data / "ctimecache.gpg"
+            dbtarget = pst_data / "recent.gpg"
+
+            cache_f = None
+            if cache_f_frm.is_file():
+                cache_f = str(cache_f_frm)
+            elif dbtarget.is_file():
+                cache_f = str(dbtarget)
+            if cache_f:
+
+                res = start_user_agent(user, email, cache_f, str(toml_file))  # pass the config as a temp file as input
+                if res != GPGStatus.ERR_OK:
+                    if res == GPGStatus.DECRYPT_FAIL:
+                        sys.exit(2)
+                    elif res == GPGStatus.NO_KEY:
+                        sys.exit(3)
+                    elif res == GPGStatus.NO_PINENTRY:
+                        # or inappropriate ioctl for device
+                        sys.exit(4)
+                    elif res == GPGStatus.BAD_PASSPHRASE:
+                        sys.exit(7)
+                    else:
+                        sys.exit(res)
 
 
 if __name__ == "__main__":

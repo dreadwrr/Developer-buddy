@@ -14,7 +14,7 @@ from logs import logging_worker
 # import queue
 
 
-def process_line_worker(search_fn, chunk, checksum, search_start_dt, cache_f, logger=None):
+def process_line_worker(search_fn, chunk, checksum, search_start_dt, cache_f, algo='md5', logger=None):
 
     results = []
     log_entries = []
@@ -22,7 +22,7 @@ def process_line_worker(search_fn, chunk, checksum, search_start_dt, cache_f, lo
     for i, line in enumerate(chunk):
         try:
 
-            result, log_ = search_fn(line, checksum, search_start_dt, cache_f, logger)
+            result, log_ = search_fn(line, checksum, search_start_dt, cache_f, algo, logger)
 
             if result is not None:
                 results.append(result)
@@ -42,6 +42,7 @@ def process_lines(search_fn, lines, search_start_dt, process_label, user_setting
 
     mMODE = user_setting['mMODE']
     checksum = user_setting['checksum']
+    algo = user_setting['checkMETHOD']
 
     ck_results = []
 
@@ -61,7 +62,7 @@ def process_lines(search_fn, lines, search_start_dt, process_label, user_setting
             # tlog.start()
 
             # ck_results, log_
-            ck_results, _, _ = process_line_worker(search_fn, lines, checksum, search_start_dt, cache_f, logger)
+            ck_results, _, _ = process_line_worker(search_fn, lines, checksum, search_start_dt, cache_f, algo, logger)
             # if log_:
             #     logs_to_queue(log_, log_q)
         except Exception as e:
@@ -96,7 +97,7 @@ def process_lines(search_fn, lines, search_start_dt, process_label, user_setting
             ) as executor:
                 futures = [
                     executor.submit(
-                        process_line_worker, search_fn, chunk, checksum, search_start_dt, cache_f
+                        process_line_worker, search_fn, chunk, checksum, search_start_dt, cache_f, algo
 
                     )
                     for idx, chunk in enumerate(chunks)
@@ -153,16 +154,17 @@ def process_results(results, cache_f):
         if cwrite:
 
             for res in cwrite:
-
                 time_stamp = res[0].strftime("%Y-%m-%d %H:%M:%S")
                 # file_path = res[1]
                 checks = res[5]
-                file_size = res[6]
-                # user = res[8]
-                # group = res[9]
-                mtime_epoch = res[15]
-                epath = res[16]
-                upt_cache(cache_f, checks, file_size, time_stamp, mtime_epoch, epath)
+                entropy = res[6]
+                mime = res[7]
+                file_size = res[8]
+                # user = res[10]
+                # group = res[11]
+                mtime_epoch = res[17]
+                epath = res[18]
+                upt_cache(cache_f, checks, entropy, mime, file_size, time_stamp, mtime_epoch, epath)
 
     except Exception as e:
         msg = f'Error updating cache: {type(e).__name__}: {e}'

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# v5.0                                                       06/21/2026
+# v6.5                                                       07/25/2026
 # This script is the entry point for recentchanges. The inv flag is passed in from from /usr/local/recentchanges/filteredsearch script from /usr/local/bin/rnt symlink
 #
 # There are 2 positional arguments. a third is the inv flag

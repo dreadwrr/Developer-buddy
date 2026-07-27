@@ -1,4 +1,4 @@
-# Get metadata hash of files and return array                       03/25/2026
+# Get metadata hash of files and return array                       07/25/2026
 import logs
 import os
 from datetime import datetime
@@ -14,11 +14,11 @@ from pyfunctions import escf_py
 # Find Parallel SORTCOMPLETE search and  ctime hashing
 
 
-def process_sys_line(line, checksum, search_start_dt, cache_f, logger=None):
+def process_sys_line(line, checksum, search_start_dt, cache_f, algo='md5', logger=None):
 
     label = "Sortcomplete"
     fmt = "%Y-%m-%d %H:%M:%S"
-    checks = cam = target = lastmodified = None
+    checks = entropy = mime = cam = target = lastmodified = None
     count = 0
 
     log_entries = []
@@ -69,7 +69,7 @@ def process_sys_line(line, checksum, search_start_dt, cache_f, logger=None):
 
     mtime_us = normalize_timestamp(mod_time)
     if sym != "y" and checksum:
-        checks, file_dt, file_us, file_st, status = calculate_checksum(file_path, mtime, mtime_us, inode, size, retry=2, cacheable=True, log_q=logs.WORKER_LOG_Q, logger=logger)
+        checks, entropy, mime, file_dt, file_us, file_st, status = calculate_checksum(file_path, mtime, mtime_us, inode, size, algo=algo, retry=2, cacheable=True, log_q=logs.WORKER_LOG_Q, logger=logger)
         if checks is not None:
             if status == "Retried":
                 checks, mtime, st, mtime_us, ctime, inode, size = set_stat(line, checks, file_dt, file_st, file_us, inode, logs.WORKER_LOG_Q, logger=logger)
@@ -96,6 +96,8 @@ def process_sys_line(line, checksum, search_start_dt, cache_f, logger=None):
         inode,
         atime.strftime(fmt) if atime is not None else None,
         checks,
+        entropy,
+        mime,
         size,
         sym,
         user,

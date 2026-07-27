@@ -9,7 +9,7 @@ from fsearchsys import process_sys_line
 from pyfunctions import cprint
 
 
-# 05/22/2026 proteus shield sys profile
+# 07/25/2026 proteus shield sys profile
 
 
 def collect_layer_files(layer, subdirs, is_sym, match_args=None):
@@ -144,7 +144,7 @@ def collect_all_files_to_array(all_layers, is_sym, logger):
     return all_files
 
 
-def main(turbo, logging_values):
+def main(checkMETHOD, turbo, logging_values):
 
     systemf = []  # all files
     xdata = []   # files to hash
@@ -220,14 +220,15 @@ def main(turbo, logging_values):
 
         user_setting = {
             'mMODE': turbo,
-            'checksum': True
+            'checksum': True,
+            'checkMETHOD': checkMETHOD
         }
         search_start_dt = None
 
-        xdata, complete_2 = process_lines(process_sys_line, xdata_raw, "main", search_start_dt, "PROCESS_SYS", user_setting, logging_values, cache_f)
+        xdata, complete_2 = process_lines(process_sys_line, xdata_raw, search_start_dt, "PROCESS_SYS", user_setting, logging_values, cache_f)
 
         user_setting['checksum'] = False
-        systemf, complete_1 = process_lines(process_sys_line, diff, "main", search_start_dt, "PROCESS_SYS", user_setting, logging_values, cache_f)
+        systemf, complete_1 = process_lines(process_sys_line, diff,  search_start_dt, "PROCESS_SYS", user_setting, logging_values, cache_f)
 
         sortcomplete = xdata + systemf
 

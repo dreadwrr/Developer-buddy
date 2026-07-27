@@ -14,14 +14,13 @@ from logs import init_process_worker
 from logs import logs_to_queue
 from logs import logging_worker
 from pyfunctions import cprint
-from pyfunctions import escf_py
 from pysql import detect_copy
 from pysql import increment_f
-# 06/21/2026
+# 07/25/2026
 
 
 # tfile
-def logger_process(results, sys_records, rout, scr, cerr, dbopt, ps, logger=None):
+def logger_process(results, sys_records, rout, scr, cerr, created, dbopt, ps, logger=None):
     # append rout messages to the rout list from hanly
     # if there are sys_records add them to the database sys changes sys_b
     #
@@ -62,7 +61,7 @@ def logger_process(results, sys_records, rout, scr, cerr, dbopt, ps, logger=None
                     try:
                         for msg in dcp_messages:
 
-                            if msg is not None and len(msg) > 6:
+                            if msg is not None and len(msg) > 18:
                                 filesize = msg[6]
                                 if filesize:
                                     timestamp = msg[0]
@@ -71,15 +70,16 @@ def logger_process(results, sys_records, rout, scr, cerr, dbopt, ps, logger=None
                                     inode = msg[3]
                                     checksum = msg[5]
 
-                                    label = escf_py(filepath)
+                                    label = msg[18]
                                     result = detect_copy(filepath, inode, checksum, c, ps)
                                     if result:
-
                                         rout.append(f'Copy {timestamp} {changetime} {label}')
 
                                     # windows if creation time is greater than modified time it could be a copy, a download or a created file
                                     # this differs from linux that has no creation time but casmod or change as mod can be put instead
                                     # change as modified means it is significant in that it could be a downloaded file with preserved metadata
+                                    if label in created:
+                                        rout.append(f'Created {timestamp} {changetime} {label}')
                                     else:
                                         # mod_time = timestamp  # if not datetime
                                         mod_time = timestamp.strftime(fmt)
@@ -119,7 +119,7 @@ def logger_process(results, sys_records, rout, scr, cerr, dbopt, ps, logger=None
                     log.error(em, exc_info=True)
 
 
-def hanly_parallel(rout, scr, cerr, mMODE, parsed, cachermPATTERNS, checksum, cdiag, dbopt, ps, user, logging_values):
+def hanly_parallel(rout, created, scr, cerr, mMODE, parsed, id_to_mime, cachermPATTERNS, checksum, cdiag, dbopt, ps, user, logging_values):
 
     all_results = []
     batch_incr = []
@@ -129,9 +129,10 @@ def hanly_parallel(rout, scr, cerr, mMODE, parsed, cachermPATTERNS, checksum, cd
     if len_parsed == 0:
         return False
 
+    is_error = False
     csum = False
 
-    cprint.green('Hybrid analysis on')
+    ha_total_time = 0
 
     logger = logging.getLogger("HANLY")
 
@@ -146,7 +147,7 @@ def hanly_parallel(rout, scr, cerr, mMODE, parsed, cachermPATTERNS, checksum, cd
         #     tlog = threading.Thread(target=logging_worker, args=(log_q, logger), daemon=True)
         #     tlog.start()
         init_process_worker(None)
-        all_results, batch_incr, log_entries, csum = hanly(parsed, checksum, cdiag, dbopt, ps, user, logging_values, cachermPATTERNS, logger)
+        all_results, batch_incr, log_entries, csum = hanly(parsed, checksum, cdiag, dbopt, ps, user, logging_values, id_to_mime, cachermPATTERNS, logger)
         #     if log_entries:
         #         logs_to_queue(log_entries, log_q)
 
@@ -173,7 +174,7 @@ def hanly_parallel(rout, scr, cerr, mMODE, parsed, cachermPATTERNS, checksum, cd
             ) as executor:
                 futures = [
                     executor.submit(
-                        hanly, chunk, checksum, cdiag, dbopt, ps, user, logging_values, cachermPATTERNS
+                        hanly, chunk, checksum, cdiag, dbopt, ps, user, logging_values, id_to_mime, cachermPATTERNS
                     )
                     for chunk in chunks
                 ]
@@ -191,10 +192,12 @@ def hanly_parallel(rout, scr, cerr, mMODE, parsed, cachermPATTERNS, checksum, cd
                             csum = True
 
                     except BrokenProcessPool as e:
+                        is_error = True
                         print("hanly encountered an error")
                         emit_log("ERROR", f"unable to run hanly an error occured {e} \n{traceback.format_exc()}", log_q)
                         break
                     except Exception as e:
+                        is_error = True
                         em = f"Worker error from hanly multiprocessing: {type(e).__name__} {e} \n {traceback.format_exc()}"
                         print(em)
                         emit_log("ERROR", f"{em} \n {traceback.format_exc()}", log_q)
@@ -204,14 +207,19 @@ def hanly_parallel(rout, scr, cerr, mMODE, parsed, cachermPATTERNS, checksum, cd
             log_t.join()
             log_q.close()
             log_q.join_thread()
+
     end = time.perf_counter()
-    ha_total_time = end - start
+
+    if not is_error and len(all_results) > 0:
+        ha_total_time = end - start
+        cprint.green('Hybrid analysis on')
 
     print("processing results")
     logger = logging.getLogger("HANLYLOGGER")
-    logger_process(all_results, batch_incr, rout, scr, cerr, dbopt, ps, logger)
+    logger_process(all_results, batch_incr, rout, scr, cerr, created, dbopt, ps, logger)
 
     lend = time.perf_counter()
     logger_total_time = lend - end
+
     gc.collect()
     return csum, ha_total_time, logger_total_time
