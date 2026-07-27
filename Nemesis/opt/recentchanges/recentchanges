@@ -17,7 +17,7 @@ if [ $USR != "root" ]; then
     output_results
 fi
 if [[ -z "$LAUNCHED_NON_ROOT" ]]; then
-    echo query and text editor cant be run as root. comment out this line if always run as root && exit 0
+    echo query and text editor cant be run as root. comment out this line if always run as root from "$0" && exit 0
     setup_exports $1
     python3 "$app_install"/rntchanges.py $USR "$PWD" "$@"
     res=$?
