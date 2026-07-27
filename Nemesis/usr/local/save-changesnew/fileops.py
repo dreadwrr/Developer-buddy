@@ -96,7 +96,7 @@ def magic_entropy(file_path: str, header: bytearray, counts: Counter, total_size
 
 
 def get_hash_func(algo="md5"):
-    if algo == "blake2":
+    if algo == "b2sum" or algo == "b2ent":
         return hashlib.blake2b(digest_size=32)
     return hashlib.md5()
 

@@ -14,7 +14,6 @@ from logs import init_process_worker
 from logs import logs_to_queue
 from logs import logging_worker
 from pyfunctions import cprint
-from pyfunctions import escf_py
 from pysql import detect_copy
 from pysql import increment_f
 # 07/25/2026
@@ -62,7 +61,7 @@ def logger_process(results, sys_records, rout, scr, cerr, created, dbopt, ps, lo
                     try:
                         for msg in dcp_messages:
 
-                            if msg is not None and len(msg) > 6:
+                            if msg is not None and len(msg) > 18:
                                 filesize = msg[6]
                                 if filesize:
                                     timestamp = msg[0]
@@ -71,8 +70,7 @@ def logger_process(results, sys_records, rout, scr, cerr, created, dbopt, ps, lo
                                     inode = msg[3]
                                     checksum = msg[5]
 
-                                    # label = escf_py(filepath)
-                                    label = escf_py(filepath)
+                                    label = msg[18]
                                     result = detect_copy(filepath, inode, checksum, c, ps)
                                     if result:
                                         rout.append(f'Copy {timestamp} {changetime} {label}')

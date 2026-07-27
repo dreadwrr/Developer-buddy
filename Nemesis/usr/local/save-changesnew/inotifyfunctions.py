@@ -379,6 +379,10 @@ def rotate_cache(cfr, cache_f, logger):
                 time_stamp_frm = epoch_to_date(mtime_epoch / 1_000_000)
                 if time_stamp_frm:
                     time_stamp = time_stamp_frm.replace(microsecond=0)
+
+                    filepath = ap_decode(filepath)
+                    filepath = escf_py(filepath)
+
                     logger.debug("Inserting %s %s %s %s %s %s %s", checksum, entropy, mime, size, time_stamp, mtime_epoch, filepath)
                     upt_cache(cfr, checksum, entropy, mime, size, time_stamp, mtime_epoch, filepath)
 

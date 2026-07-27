@@ -117,7 +117,7 @@ EOF
 
 setup_exports() {
     [[ "$1" = "query" ]] && { python3 "$app_install"/query.py $USR ; exit ; }
-    output=$( python3 "$app_install"/get_exports.py $USR) ; res=$?
+    output=$( python3 "$app_install"/get_exports.py $USR $1) ; res=$?
     # 
     if [[ $res -ne 0 ]]; then
         
@@ -136,6 +136,7 @@ setup_exports() {
 
     eval "$output"
     [[ "$1" = "reset" ]] && { python3 "$app_install"/rntchanges.py reset "$USR" "$email" "$app_install" "$home_dir" "$tomlf"; exit ; }
+
     if ! gpg --list-keys | grep -q $email; then generatekey ; fi  # setup key for user
 }
 

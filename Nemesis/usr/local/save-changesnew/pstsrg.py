@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database.     06/21/2026
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database.     07/25/2026
 import os
 import sqlite3
 import sys
@@ -86,6 +86,7 @@ def main(dbtarget, xdata, complete, rout, created, cachermPATTERNS, user_setting
             return None, None
     else:
         try:
+            print("dbopt", dbopt)
             conn = create_db(dbopt, True)
             cprint.green('Persistent database created')
             goahead = False
@@ -169,7 +170,10 @@ def main(dbtarget, xdata, complete, rout, created, cachermPATTERNS, user_setting
                     print(f'{count} searches in gpg database')
 
                 # Check for hash collisions
-                if checkMETHOD != "blake2" and checksum and cdiag:
+                if (
+                    checkMETHOD != "b2sum" and checkMETHOD != "b2ent" and
+                    checksum and cdiag
+                ):
                     if collision_check(xdata, cerr, c, ps):
                         csum = True
 

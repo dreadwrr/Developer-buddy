@@ -491,21 +491,21 @@ def results(database, target, conn, cur, email, user, flth, config_path, turbo, 
         if defaultTHEME not in ("dark", "light"):
             defaultTHEME = "dark"
 
-    root = tk.Tk()
-    root.title("Database Viewer")
-    img = tk.PhotoImage(file=icon_path)
-    root.iconphoto(True, img)
-    if SV_TTK:
-        sv_ttk.set_theme(defaultTHEME)
-    elif os.path.isfile(azure_path):
-        root.tk.call("source", azure_path)
-        root.tk.call("set_theme", defaultTHEME)
-    elif os.path.isfile(forest_dark) and defaultTHEME == "dark":
-        root.tk.call("source", forest_dark)
-        ttk.Style().theme_use("forest-dark")
-    elif os.path.isfile(forest_light) and defaultTHEME == "light":
-        root.tk.call("source", forest_light)
-        ttk.Style().theme_use("forest-light")
+        root = tk.Tk()
+        root.title("Database Viewer")
+        img = tk.PhotoImage(file=icon_path)
+        root.iconphoto(True, img)
+        if SV_TTK:
+            sv_ttk.set_theme(defaultTHEME)
+        elif os.path.isfile(azure_path):
+            root.tk.call("source", azure_path)
+            root.tk.call("set_theme", defaultTHEME)
+        elif os.path.isfile(forest_dark) and defaultTHEME == "dark":
+            root.tk.call("source", forest_dark)
+            ttk.Style().theme_use("forest-dark")
+        elif os.path.isfile(forest_light) and defaultTHEME == "light":
+            root.tk.call("source", forest_light)
+            ttk.Style().theme_use("forest-light")
 
     toolbar = ttk.Frame(root)
     toolbar.pack(side=tk.TOP, fill=tk.X)
