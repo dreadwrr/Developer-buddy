@@ -1,6 +1,6 @@
 python special edition [Repo](https://github.com/dreadwrr/Developer-buddy/tree/pyver)<br>
 
-v6.5 released themes can be added there are [instructions](https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0#bookmark=id.7oojvtbxclmu)  to add dark mode ect <br>
+v6.5 added themes for query there are [instructions](https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0#bookmark=id.7oojvtbxclmu)  to add dark mode ect <br>
 
 
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
