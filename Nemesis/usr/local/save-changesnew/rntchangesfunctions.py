@@ -1,5 +1,6 @@
-# developer buddy v5.0 core                     07/25/2026
+# developer buddy v5.0 core                     08/16/2026
 import glob
+import magic
 import logging
 import os
 import re
@@ -648,86 +649,131 @@ def copy_files(recent, recentnul, tmpopt, argone, thetime, argtwo, usr, tempdir,
             logging.error(msg, exc_info=True)
 
 
-def postop(all_data, usrDIR, toml, lclhome=None):
-
-    log = '/tmp/log.log'
-
-    with open(log, 'w', encoding="utf-8") as file2:
-        for entry in all_data:
-            fixed_fields = " ".join(str(field) for field in entry[:-1])
-            line = f"{fixed_fields} {entry[-1]}"
-            file2.write(line + "\n")
-
-    script_file = "postop.sh"
-    script_path = "/usr/local/save-changesnew/" + script_file
-    if lclhome:
-        script_path = os.path.join(lclhome, script_file)
-    cmd = [
-        script_path,
-        log,
-        usrDIR,
-        str(toml)
-    ]
-    script_dir = os.path.dirname(script_path)
-    result = subprocess.run(cmd, cwd=script_dir, capture_output=True, text=True)
-    print(result.stdout)
-
-    if result.returncode == 1:
-        print("Post op failed")
-        return 1
+# size and owner. smallest size first and alphabetically by owner
+def tsv_sort_by(row, is_link=False):
+    parts = row.split("\t")
+    if not is_link:
+        owner = parts[8].lower() if len(parts) > 8 else ""
+    else:
+        owner = parts[9].lower() if len(parts) > 9 else ""
+    try:
+        size = float(parts[2])
+    except (ValueError, TypeError):
+        size = float("inf")
+    return (owner, size)
 
 
-def run_doctrine(appdata_local, usrDIR, sortcomplete, tmpopt, logf, rout, created, toml_file, escaped_user, method, fmt):
+# An overview of the files for a specified search. stat the file to give feedback if its accessable and
+# not deleted. Magic gives accurate file description by reading file content (alternative to mimetypes which
+# is by extension) cam field indicates changed time as modified time (dt). last modified time is the modified
+# time from the download or copy which could be from 2021 for example. Also by checking the database a copy
+# can also be detected by having the same checksum and a diffrent filename or inode. Sorted by above.
+#
+def build_tsv(sortcomplete, tmpopt, logf, rout, created, escaped_user, outpath, method, fmt):
 
     if method != "rnt":
         if logf is tmpopt:
             sortcomplete = filter_lines_from_list(sortcomplete, escaped_user)
 
-    # Check if it was a copy
-    copy_paths = set()
-    created_paths = set()
-    if rout:
-        for line in rout:
-            parts = line.strip().split(maxsplit=5)
-            if len(parts) < 6:
+    tsv_files = []
+
+    try:
+        copy_paths = set()
+        created_paths = set()
+
+        if rout:
+            for line in rout:
+                parts = line.strip().split(maxsplit=5)
+                if len(parts) < 6:
+                    continue
+                action = parts[0]
+                if action in ("Deleted", "Nosuchfile"):
+                    continue
+                # full_path = ' '.join(parts[5:])
+                # full_path = unescf_py(parts[5])
+                if action == "Copy":
+                    full_path = parts[5]
+                    copy_paths.add(full_path)
+                elif action == "Created":
+                    full_path = parts[5]
+                    created_paths.add(full_path)
+
+        is_link = any(len(row) > 9 and row[9] == 'y' for row in sortcomplete)
+        header = "Datetime\tFile\tSize(kb)\tType\tSymlink" + ("\tTarget" if is_link else "") + "\tChanged\tcam\tAccessed\tOwner\tStatable\tCopy\tCreated"
+
+        for entry in sortcomplete:
+            if len(entry) < 19:
                 continue
-            action = parts[0]
-            if action in ("Deleted", "Nosuchfile"):
+
+            is_statable = st = None
+            mtyp = is_copy = is_created = ""
+
+            dt = entry[0]
+            fpath = entry[1]
+            label = entry[18]
+
+            if not fpath:
                 continue
-            # full_path = ' '.join(parts[5:])
-            # full_path = unescf_py(parts[5])
-            if action == "Copy":
-                full_path = parts[5]
-                copy_paths.add(full_path)
-            elif action == "Created":
-                full_path = parts[5]
-                created_paths.add(full_path)
+            is_statable = False
+            try:
+                st = Path(fpath).stat()
+                mtyp = magic.from_file(fpath, mime=True)  # mimetypes.guess_type(fpath)[0] or "" less detailed
+                is_statable = True
+            except Exception:
+                pass
 
-    all_data = []
-    for record in sortcomplete:
+            sym_frm = entry[9]
+            sym = sym_frm if sym_frm is not None else ""
+            stat_bool = "y" if is_statable else ""  # originally was "" as statable but could be confusing
 
-        if len(record) < 19:
-            logging.debug("An entry for postop was short less than 16. record: %s", record)
-            continue
+            onr = entry[10]
+            if is_statable:
+                sz = round(st.st_size / 1024, 2)
+                # md = epoch_to_date(st.st_mtime)  # epoch_to_str(st.st_mtime)
+            else:
+                sz = entry[8]
+                # md = dt
 
-        mtime = record[0].strftime(fmt)  # 1 2
-        changetime = record[2] if record[2] else "None None"  # 3 4
-        atime = record[4] if record[4] else "None None"  # 5 6
-        mtyp = record[7]  # 7
-        filesize = record[8]  # 8
-        sym = record[9]  # 9
-        user = record[10]  # 10
-        group = record[11]  # 11
-        cam = record[12]  # 12
-        lastmodified = record[13] if record[13] else "None None"    # 13 14
-        is_copy = "y" if record[18] in copy_paths else "None"       # 15
-        is_created = "y" if record[18] in created_paths else "None"    # 16
-        file_path = record[18]                                      # 17
-        # inode = record[3]
-        # checksum = record[5]
-        # mode = record[12]
-        # hardlink = record[16]
-        # usec_zero = record[17]
-        all_data.append((mtime, changetime, atime, mtyp, filesize, sym, user, group, cam, lastmodified, is_copy, is_created, file_path))
+            ae = entry[4]
+            creation_time = entry[2]
+            cam = entry[13]
+            target = entry[14] if entry[14] else ""
 
-    postop(all_data, usrDIR, toml_file, appdata_local)
+            if label in copy_paths:
+                is_copy = "y"
+
+            if label in created_paths:
+                is_created = "y"
+
+            row = (
+                f"{dt.strftime(fmt) if dt else ''}\t"
+                f"{fpath}\t"
+                f"{sz}\t"
+                f"{mtyp}\t"
+                f"{sym}\t"
+            )
+            if is_link:
+                row += f"{target}\t"
+            row += (
+                f"{creation_time or ''}\t"
+                f"{cam or ''}\t"
+                f"{ae or ''}\t"
+                f"{onr}\t"
+                f"{stat_bool}\t"
+                f"{is_copy}\t"
+                f"{is_created}\t"
+            )
+
+            tsv_files.append(row)
+
+        tsv_files.sort(key=lambda row: tsv_sort_by(row, is_link=is_link))
+        # tsv_files.sort(key=tsv_sort_by)
+
+        with open(outpath, "w", encoding="utf-8", newline='') as f:
+            f.write(header + "\n")
+            for row in tsv_files:
+                f.write(row + "\n")
+    except Exception as e:
+        print(f"Error building TSV data in build_tsv func rntchangesfunctions: {type(e).__name__} {e}")
+        return False
+    return True

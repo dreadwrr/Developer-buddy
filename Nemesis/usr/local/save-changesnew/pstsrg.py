@@ -86,7 +86,6 @@ def main(dbtarget, xdata, complete, rout, created, cachermPATTERNS, user_setting
             return None, None
     else:
         try:
-            print("dbopt", dbopt)
             conn = create_db(dbopt, True)
             cprint.green('Persistent database created')
             goahead = False

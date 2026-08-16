@@ -80,7 +80,7 @@ def file_shannon(counts: Counter, total_size: int) -> float:
     return round(entropy, 2)
 
 
-def magic_entropy(file_path: str, header: bytearray, counts: Counter, total_size: int, log_q: multiprocessing.Queue, logger: logging.Logger) -> tuple[str, float]:
+def magic_entropy(file_path: str, header: bytearray, counts: Counter, total_size: int, algo: str, log_q: multiprocessing.Queue, logger: logging.Logger) -> tuple[str, float]:
     """ use current bytes from the file to get the mime type and file shannon """
     entropy = mime = None
 
@@ -91,12 +91,13 @@ def magic_entropy(file_path: str, header: bytearray, counts: Counter, total_size
             emit_log("ERROR", f"calculate_checksum was unable to resolve mime type for file: {file_path} err: {e}", log_q, logger=logger)
             pass
 
-        entropy = file_shannon(counts, total_size)
+        if "ent" in algo:
+            entropy = file_shannon(counts, total_size)
     return mime, entropy
 
 
 def get_hash_func(algo="md5"):
-    if algo == "b2sum" or algo == "b2ent":
+    if "b2" in algo or "blake" in algo:
         return hashlib.blake2b(digest_size=32)
     return hashlib.md5()
 
@@ -125,7 +126,7 @@ def calculate_checksum(file_path, mtime, mod_time, inode, size_int, prev_hash=No
 
         if prev_hash is not None:
             if checks == prev_hash:
-                mime, entropy = magic_entropy(file_path, header, counts, total_size, log_q, logger)
+                mime, entropy = magic_entropy(file_path, header, counts, total_size, algo, log_q, logger)
                 return checks, entropy, mime, mtime, mod_time, st, "Retried"
 
         if retry > 0:
@@ -146,7 +147,7 @@ def calculate_checksum(file_path, mtime, mod_time, inode, size_int, prev_hash=No
 
                 if total_size == size_int and mod_time == a_mod and inode and int(inode) == a_ino:
                     status = "Returned"
-                    mime, entropy = magic_entropy(file_path, header, counts, total_size, log_q, logger)
+                    mime, entropy = magic_entropy(file_path, header, counts, total_size, algo, log_q, logger)
 
                     if prev_hash:
                         mtime = epoch_to_date(re_st.st_mtime)
