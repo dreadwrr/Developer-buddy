@@ -13,6 +13,7 @@ from logs import emit_log
 from logs import init_process_worker
 from logs import logs_to_queue
 from logs import logging_worker
+from pyfunctions import ap_encode
 from pyfunctions import cprint
 from pysql import detect_copy
 from pysql import increment_f
@@ -70,6 +71,7 @@ def logger_process(results, sys_records, rout, scr, cerr, created, dbopt, ps, lo
                                     inode = msg[3]
                                     checksum = msg[5]
 
+                                    y = ap_encode(filepath)
                                     label = msg[18]
                                     result = detect_copy(filepath, inode, checksum, c, ps)
                                     if result:
@@ -78,7 +80,7 @@ def logger_process(results, sys_records, rout, scr, cerr, created, dbopt, ps, lo
                                     # windows if creation time is greater than modified time it could be a copy, a download or a created file
                                     # this differs from linux that has no creation time but casmod or change as mod can be put instead
                                     # change as modified means it is significant in that it could be a downloaded file with preserved metadata
-                                    if label in created:
+                                    if y in created:
                                         rout.append(f'Created {timestamp} {changetime} {label}')
                                     else:
                                         # mod_time = timestamp  # if not datetime

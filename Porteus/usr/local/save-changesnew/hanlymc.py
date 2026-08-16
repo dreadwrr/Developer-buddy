@@ -12,7 +12,7 @@ from pyfunctions import parse_datetime
 from pyfunctions import sys_record_flds
 from pysql import clear_conn
 from pysql import get_recent_changes
-# hybrid analysis original 11/19/2025 updated 07/25/2026
+# hybrid analysis original 11/19/2025 updated 08/16/2026
 
 
 def target_change(label, entry, recent_sym, previous_sym, link_target, previous_target):
@@ -75,9 +75,9 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, logging_values, id_to_m
 
     fmt = "%Y-%m-%d %H:%M:%S"
     time_period = 5  # days for a file that isnt regularly updated. 5 default
+    time_delta = datetime.now() - timedelta(days=time_period)
 
     csum = False
-
     conn = sqlite3.connect(dbopt)
     cur = None
     try:
@@ -91,7 +91,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, logging_values, id_to_m
                 previous_sym = None
                 is_sys = False
 
-                if len(record) < 17:
+                if len(record) < 18:
                     emit_log("DEBUG", f"sortcomplete entry malformed.  less than required 17 : {record}", logs.WORKER_LOG_Q, logger=logger)
                     continue
 
@@ -292,7 +292,7 @@ def hanly(parsed_chunk, checksum, cdiag, dbopt, ps, usr, logging_values, id_to_m
                                     entry["flag"].append(f'Modified {record[0]} {record[2]} {label}')
 
                         if not cam_file:
-                            time_delta = datetime.now() - timedelta(days=time_period)
+
                             if previous_timestamp < time_delta:
                                 message = f'File that isnt regularly updated {label}.'
                                 if is_sys:

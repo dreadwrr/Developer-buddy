@@ -560,7 +560,7 @@ def results(database, target, conn, cur, email, user, flth, config_path, turbo, 
     label.image = img
     label.pack(side=tk.LEFT)
 
-    hardlink_button = make_button(toolbar, "Set Hardlinks", lambda: hardlinks(database, target, conn, cur, email, compLVL), bootstyle="primary")
+    hardlink_button = make_button(toolbar, "Set Hardlinks", lambda: hardlinks(database, target, conn, cur, user, email, compLVL), bootstyle="primary")
     hardlink_button.pack(side=tk.RIGHT, padx=10)
     clear_cache_button = make_button(toolbar, "Clear Cache", lambda: clear_cache(database, target, flth, conn, cur, email, user, compLVL, cachermPATTERNS), bootstyle="primary")
     clear_cache_button.pack(side=tk.RIGHT, padx=10)

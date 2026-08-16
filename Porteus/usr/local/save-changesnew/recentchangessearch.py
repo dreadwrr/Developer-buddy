@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# entry point for recentchanges.                     v6.5                                                       07/25/2026
+# entry point for recentchanges.                     v6.5                                                       08/16/2026
 #
 #   recentchanges. aka Developer buddy      recentchanges / recentchanges search
 #   Provide ease of pattern finding ie what files to block we can do this a number of ways
@@ -48,12 +48,14 @@ from fsearch import process_line
 from fsearchparallel import process_lines
 from gpgcrypto import decr_ctime
 from gpgcrypto import encr_cache
+from inotifyfunctions import init_recentchanges
 from logs import setup_logger
 from processha import isdiff
 from pyfunctions import cache_clear_patterns
 from pyfunctions import cprint
 from pyfunctions import user_path
 from recentchangessearchparser import build_parser
+from rntchangesfunctions import build_tsv
 from rntchangesfunctions import clear_logs
 from rntchangesfunctions import change_perm
 from rntchangesfunctions import check_stop
@@ -63,14 +65,10 @@ from rntchangesfunctions import filter_output
 from rntchangesfunctions import find_files
 from rntchangesfunctions import get_runtime_exclude_list
 from rntchangesfunctions import hsearch
-from inotifyfunctions import init_recentchanges
 from rntchangesfunctions import logic
 from rntchangesfunctions import porteus_linux_check
 from rntchangesfunctions import removefile
-from rntchangesfunctions import run_doctrine
 from rntchangesfunctions import time_convert
-# from gpgkeymanagement import genkey
-# from gpgkeymanagement import iskey
 
 
 # Globals
@@ -656,10 +654,12 @@ def main(argone, argtwo, usr, pwrd, argf="bnk", method=""):
 
                 try:
                     outpath = os.path.join(usrDIR, tsv_doc)
-                    # if not os.path.isfile(outpath):
-                    run_doctrine(appdata_local, usrDIR, sortcomplete, tmpopt, logf, rout, created, toml_file, escaped_user, method, fmt)
-                    # cprint.green(f"File doctrine.tsv created {usrDIR}\\{tsv_doc}")
-                    change_perm(outpath, uid, gid)
+
+                    if build_tsv(sortcomplete, tmpopt, logf, rout, created, escaped_user, outpath, method, fmt):
+                        # change_perm(outpath, uid, gid)
+                        cprint.green(f"File doctrine.tsv created {usrDIR}/{tsv_doc}")
+                    if os.path.isfile(outpath):
+                        change_perm(outpath, uid, gid)
                     # else:
                     #     update_toml_setting('diagnostics', "postop", False, toml_file)
                     #     # update_config(toml_file, "postop", "true", quiet=True)  # avoid spawning process
