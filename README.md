@@ -17,7 +17,8 @@ Linux https://github.com/dreadwrr/Recentchanges-Linux<br><br>
 
 Going forward I will be looking for new ideas to expand and improve recentchanges eventually splitting save-changesnew and recentchanges into different modules.
 
-Requirements: gpg agent pinentry setup for root see [gpg setup page](https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0#bookmark=id.kotw1gextu63) for troubleshooting <br>
+Requirements: <br>
+gpg agent pinentry setup for root see [gpg setup page](https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0#bookmark=id.kotw1gextu63) for troubleshooting <br>
 
 Commands:<br>
 save-changesnew<br>
