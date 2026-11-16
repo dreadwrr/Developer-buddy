@@ -19,10 +19,6 @@
             */
 int main(int argc, char **argv)
 {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <file>\n", argv[0]);
-        return 1;
-    }
 
     FILE *fp;
     magic_t magic;
@@ -33,11 +29,13 @@ int main(int argc, char **argv)
     unsigned char buf[BUF_SIZE];
     unsigned char magic_buf[BUF_SIZE];
     unsigned char digest[MD5_DIGEST_LENGTH];
-    uint64_t total = 0;
+    uint64_t total;
     uint64_t entropy_count[256] = {0};
-    size_t magic_len = 0;
+    
+    int rc = 0;
+    size_t magic_len ;
     size_t n;
-    double entropy = 0.0;
+    double entropy;
 
     magic = magic_open(MAGIC_MIME_TYPE);
     if (!magic) {
@@ -50,74 +48,82 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    fp = fopen(argv[1], "rb");
-    if (!fp) {
-        perror("fopen");  // fprintf(stderr, "fopen: %s\n", strerror(errno));
-        magic_close(magic);
-        return 1;
-    }
+    char *dash[] = { "-", NULL };
+    char **paths = argc > 1 ? argv + 1 : dash;
 
-    MD5_Init(&ctx);
+    for (int i = 0; paths[i]; i++) {
 
-    // read for md5 as well as prepare bytes for file entropy and mime type
-    while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
-        MD5_Update(&ctx, buf, n);
-        for (size_t i = 0; i < n; i++)
-            entropy_count[buf[i]]++;
+        const char *path = paths[i];
+        MD5_Init(&ctx);
+        memset(entropy_count, 0, sizeof(entropy_count));
+        total = 0;
+        magic_len = 0;
+        entropy = 0.0;
 
-        if (magic_len < sizeof(magic_buf)) {
-            size_t copy = n;
-            size_t held = sizeof(magic_buf) - magic_len;
+        fp = strcmp(path, "-") == 0 ? stdin : fopen(path, "rb");
+        if (!fp) { perror(path); rc = 1; continue; }
 
-            if (copy > held)
-                copy = held;
+        // read for md5 as well as prepare bytes for file entropy and mime type
+        while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
+            MD5_Update(&ctx, buf, n);
+            for (size_t j = 0; j < n; j++)
+                entropy_count[buf[j]]++;
 
-            memcpy(magic_buf + magic_len, buf, copy);
-            magic_len += copy;
+            if (magic_len < sizeof(magic_buf)) {
+                size_t copy = n;
+                size_t held = sizeof(magic_buf) - magic_len;
+
+                if (copy > held)
+                    copy = held;
+
+                memcpy(magic_buf + magic_len, buf, copy);
+                magic_len += copy;
+            }
+            total += n;
         }
-        total += n;
-    }
 
-    if (ferror(fp)) {
-        perror("fread");
-        fclose(fp);
-        magic_close(magic);
-        return 1;
-    }
+        if (ferror(fp)) {
+            perror("fread");
+            if (fp != stdin)
+                fclose(fp);
+            rc = 1;
+            continue;
+        }
 
-    fclose(fp);
+        if (fp != stdin)
+            fclose(fp);
 
-    // output area
+        // output area
 
-    MD5_Final(digest, &ctx);
+        MD5_Final(digest, &ctx);
 
-    if (total > 0) {
-        for (int i = 0; i < 256; i++) {
-            if (entropy_count[i]) {
-                double p = (double)entropy_count[i] / total;
-                entropy -= p * log2(p);
+        if (total > 0) {
+            for (int j = 0; j < 256; j++) {
+                if (entropy_count[j]) {
+                    double p = (double)entropy_count[j] / total;
+                    entropy -= p * log2(p);
+                }
             }
         }
+
+        mime = magic_buffer(magic, magic_buf, magic_len);
+        if (!mime) {
+            fprintf(stderr, "magic_buffer failed: %s\n", magic_error(magic));
+            // magic_close(magic);
+            // return 1;
+            mime = "None";
+        } 
+        // else if (strcmp(mime, "application/octet-stream") == 0) {
+            // mime = "Unknown";
+        // }
+
+        for (int j = 0; j < MD5_DIGEST_LENGTH; j++)
+            printf("%02x", digest[j]);
+
+        printf(" %.6f %s  %s\n", entropy, mime, path);
     }
-
-    mime = magic_buffer(magic, magic_buf, magic_len);
-    if (!mime) {
-        fprintf(stderr, "magic_buffer failed: %s\n", magic_error(magic));
-        // magic_close(magic);
-        // return 1;
-        mime = "None";
-    } 
-    // else if (strcmp(mime, "application/octet-stream") == 0) {
-        // mime = "Unknown";
-    // }
-
-    for (int i = 0; i < MD5_DIGEST_LENGTH; i++)
-        printf("%02x", digest[i]);
-
-    printf(" %.6f %s\n", entropy, mime);
     
     magic_close(magic);
 
-    return 0;
+    return rc;
 }
-
