@@ -3,18 +3,19 @@
 #include <string.h>
 #include <magic.h>
 #include <math.h>
+#include <unistd.h>
 #include "blake2.h"
 
 #define BUF_SIZE 65536
 
 /*  Use blake2b implementation and also output file shannon entropy  and mime type
     so only have to open the file once 
-
     if ! ldconfig -p | grep -q libmagic; then
         echo "libmagic missing, exiting"
         exit 1
     fi
-    
+    flags
+    -z end with NUL not newline
             */
 int main(int argc, char **argv)
 {
@@ -32,10 +33,19 @@ int main(int argc, char **argv)
     uint64_t entropy_count[256] = {0};
     
     int rc = 0;
+    int opt;
+    int zero = 0;
     size_t magic_len;
     size_t n;
     double entropy;
 
+    while ((opt = getopt(argc, argv, "z")) != -1) {
+        switch (opt) {
+            case 'z':
+                zero = 1;
+                break;
+        }
+    }
     magic = magic_open(MAGIC_MIME_TYPE);
     if (!magic) {
         fprintf(stderr, "magic_open failed\n");
@@ -48,7 +58,7 @@ int main(int argc, char **argv)
     }
 
     char *dash[] = { "-", NULL };
-    char **paths = argc > 1 ? argv + 1 : dash;
+    char **paths = argc > 1 ? argv + optind : dash;
 
     for (int i = 0; paths[i]; i++) {
 
@@ -119,7 +129,7 @@ int main(int argc, char **argv)
         for (int j = 0; j < 32; j++)
             printf("%02x", digest[j]);
 
-        printf(" %.6f %s  %s\n", entropy, mime, path);
+        printf(" %.6f %s  %s%c", entropy, mime, path, zero ? '\0' : '\n');
     }
 
     magic_close(magic);
