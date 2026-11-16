@@ -314,7 +314,7 @@ if [ "$STATPST" == "true" ]; then
                 sed -i '1,/^$/d' $source
             fi
             # logs upgrade to use array built in hanly
-            # incase it is not made make one
+            # incase it is not made
              if [[ "${#ref_map[@]}" -eq 0 ]]  && ! declare -p ref_map &>/dev/null; then
                 local -A ref_map=()
                 while IFS= read -r line; do
@@ -329,6 +329,9 @@ if [ "$STATPST" == "true" ]; then
                     fi
                 done < "$source"
             fi
+
+            # here you could save time with preload <--
+
             while IFS= read -r p || [[ -n "$p" ]]; do
                 read -r f1 f2 f3 f4 f5 _ _ _ cs _  <<< "$p"
                 cFILE="$f3"
@@ -617,10 +620,6 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 			# found_line=$( grep -F "$f3" "$ofile" | tail -n 1)  # has overhead
 			# this line "${p%%//|*}"
 			found_line="${p#*//|}"
-            #if (( h < 15 )); then
-            #    printf '%s\n' "$found_line" >&2
-            #    (( h++ ))
-            #fi
 		fi  # initial design # for line in "${ref_lines[@]}"; do if [[ "$line" == *"$y"* ]]; then found_line="$line" ; fi ; done regular array old multicore using grep*
 
 		if [ -n "$found_line" ]; then
@@ -1750,8 +1749,8 @@ if [ -e "$cFILE" ] && [ -f "$cFILE" ]; then
         i=$(stat -c '%i' "$cFILE")
         if [ -n "$i" ]; then
             if [[ "$sym" == l* ]]; then
-                link=$( readline "$cFILE")
-                link="$( escf "$link")"
+                link=$( readlink "$cFILE")
+                [[ -n "$link" ]] && link=$( escf "$link")
             fi
 
             if ! datablk "$1" $retry $delay; then return ; fi

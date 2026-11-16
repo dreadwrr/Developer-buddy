@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 from hanlyparallel import hanly_parallel
 from pyfunctions import ap_decode
-from pyfunctions import CYAN, GREEN, RESET
+from pyfunctions import GREEN, RESET  # CYAN,
 from pyfunctions import collision_check
 from pyfunctions import convert_mime_to_int
 from pyfunctions import getcount
@@ -294,7 +294,7 @@ def to_float_or_none(value, field, line):
         return None
 
 
-def decodelink(filename, sym, target):
+def decode_link(filename, sym, target):
     if sym == 'y' and target:
         try:
             target = base64.b64decode(target).decode("utf-8")
@@ -357,7 +357,7 @@ def parselog(file, table, checksum=None):
                     entropy = to_float_or_none(entropy, "entropy", line)
                     us = timestamp1
                     usec = to_int_or_none(us, "usec", line)
-                    target = decodelink(filename, sym, timestamp2)
+                    target = decode_link(filename, sym, timestamp2)
                     count = 0
                     results.append((timestamp, filename, changetime, inode, accesstime, checks, entropy, mime, filesize, sym, onr, gpp, pmr, cam, target, lastmodified, count, usec))
 
@@ -380,7 +380,7 @@ def parselog(file, table, checksum=None):
                         checks = entropy = mime = sze = sym = onr = gpp = None
                     hardlink_count = to_int_or_none(hardlink, "hardlink_count", line) if checksum else hardlink
                     target = hashed
-                    target = decodelink(sym, target)
+                    target = decode_link(filename, sym, target)
                     results.append((timestamp, filename, changetime, inode, accesstime, checks, entropy, mime, filesize, sym, onr, gpp, pmr, cam, target, lastmodified, hardlink_count, usec))
                 else:
                     raise ValueError("Supplied table not in accepted boundaries: sys or sortcomplete. value supplied", table)
@@ -412,10 +412,47 @@ def hash_system_profile(checkMETHOD, turbo):
 
     sys_results = []
 
-    print(f'{CYAN}Generating system profile from base .xzms.{RESET}')
-    print("Turbo is:", turbo)
-    result = subprocess.run(["/usr/local/recent-changes/sysprofile", checkMETHOD, turbo], capture_output=True, text=True)
-    r = result.returncode
+    # print(f'{CYAN}Generating system profile from base .xzms.{RESET}')
+    # print("Turbo is:", turbo)
+    # result = subprocess.run(["/usr/local/recent-changes/sysprofile", checkMETHOD, turbo], capture_output=True, text=True)
+    # r = result.returncode
+
+    # stdin=subprocess.PIPE,
+    # cwd=script_dir,
+    proc = subprocess.Popen(
+        ["/usr/local/recent-changes/sysprofile", checkMETHOD, turbo],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True
+    )
+    stdout = proc.stdout
+    if stdout is None:
+        raise RuntimeError("stdout is None")
+
+    all_output = []
+    last_line = ""
+
+    try:
+        for line in stdout:
+            # print(repr(line))
+            print(last_line)
+            last_line = line.strip()
+            # if "Filename or Selection" in line:
+            #     print("Filename or Selection")
+            #     uinpt = input().strip()
+            #     if uinpt:
+            #         if proc.stdin is not None:
+            #             proc.stdin.write(uinpt + '\n')
+            #             proc.stdin.flush()
+            # else:
+            #     all_output.append(line)
+            all_output.append(line)
+
+    except KeyboardInterrupt:
+        proc.terminate()
+
+    proc.wait()
+    r = proc.returncode
 
     if r != 0:
         if r == 6:
@@ -426,7 +463,7 @@ def hash_system_profile(checkMETHOD, turbo):
     else:
         try:
 
-            sortcomplete_path = result.stdout.strip()
+            sortcomplete_path = last_line  # result.stdout.strip()
 
             if os.path.isfile(sortcomplete_path):
 

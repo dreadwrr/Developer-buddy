@@ -467,7 +467,14 @@ def search_tree(tree, column, search_text, start_index=0, direction=1):
             item = children[i]
             values = tree.item(item, "values")
 
-            if search_text.lower() in str(values[col_index]).lower():
+            # column = columns[col_index]
+            if column in NUMERIC_COLUMNS:
+                match = search_text == str(values[col_index])
+            elif column in REAL_COLUMNS:
+                match = str(values[col_index]).startswith(search_text)
+            else:
+                match = search_text.lower() in str(values[col_index]).lower()
+            if match:
                 tree.selection_set(item)
                 tree.focus(item)
                 tree.see(item)

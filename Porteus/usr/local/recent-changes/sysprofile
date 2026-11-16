@@ -5,18 +5,23 @@
 # xzm true is the default xzm profile for porteus.
 #
 shopt -s nullglob
+. /usr/share/porteus/porteus-functions
+get_colors
 . /usr/local/recent-changes/rntchangesfunctions
 checkMETHOD="$1"
 md="$2"
 # CHANGEABLE
-xzm="true"   # true default use the premade template instead of EXTENSIONS and PATHS
+
+F=( / )
+
+xzm="false"   # true default use the premade template instead of EXTENSIONS and PATHS
 sym="true"   # true default. sym and exec affect profile when xzm is false
 exec="false" # false default. setting to true would return less results or narrower profile
 # END CHANGEABLE
 # files to include in the sys index or profile. "" would means to include files with no extensions
-EXTENSIONS=("" ".sh" ".bash" ".zsh" ".py" ".pl" ".rb" ".lua" ".php" ".js" ".db" ".so" ".sqlite" ".sqlite3" ".mdb" ".desktop" ".service" ".socket" ".timer" ".mount" ".target" ".path" ".slice" ".gpg")
+EXTENSIONS=()  # "" ".sh" ".bash" ".zsh" ".py" ".pl" ".rb" ".lua" ".php" ".js" ".db" ".so" ".sqlite" ".sqlite3" ".mdb" ".desktop" ".service" ".socket" ".timer" ".mount" ".target" ".path" ".slice" ".gpg"
 # hash all in the following
-PATHS=("/var/spool/cron")
+PATHS=("var/spool/cron" "usr/local/recent-changes")
 
 
 [[ "$3" != "" ]] && xzm="$3"
@@ -36,13 +41,38 @@ no_extension="false"
 mkdir $atmp
 
 y=50
+if [[ "${#F[@]}" -gt 1 ]]; then
+    echo "invalid search target F ${F[@]}"
+else
+    if [[ "${F[0]: -1}" != "/" ]]; then
+        F[0]+="/"
+    fi
+fi
+echo  # <--
+for ((i=0; i<${#PATHS[@]}; i++)); do
+    if [[ "${PATHS[i]}" == /* ]]; then
+        echo "path ${PATHS[i]} must be relative, quitting."
+        exit 1
+    else
+        dir="${F[@]}${PATHS[i]}"
+        if ! test -d "$dir"; then
+            unset 'PATHS[i]' ; echo "Warning: proteusPATH $dir does not exist, removed and continuing"
+        else
+            PATHS[i]="$dir"
+        fi
+    fi
+done
 
 [[ ! -d $ch ]] && xzm="false" || if ! grep -Eiq "Artix|Porteus" /etc/os-release; then [[ "$xzm" = "true" ]] && { xzm="false" ; echo "not porteus setting xzm to false" ; } ; fi
 
 : > $xdata3
 : > $systemf
+a="" ; b=""
+if [ "$xzm" == "true" ]; then a=" from base .xzms." ; else b="proteusEXTN " ; fi
+cyan "Generating ${b}system profile$a"
+echo "Turbo is: $md"
 
-if [[ $sym = "true" ]]; then
+if [[ $sym = "false" ]]; then
     T+=(-type f)
 else
     T+=(-not -type d)
@@ -50,16 +80,10 @@ fi
 
 # proteusEXTN
 if [[ "$xzm" = "false" ]]; then
-
-    F=( / )
-
+    F+=(-xdev)
     if [[ $exec == "true" ]]; then
         T+=(-executable)
     fi
-
-    for path in "${PATHS[@]}"; do
-        if [ "${path:0:1}" != "/" ]; then echo "path $path must be absolute quitting." ; exit 1; fi
-    done
 
     for ext in "${EXTENSIONS[@]}"; do
         if [[ -z $ext ]]; then
@@ -80,18 +104,18 @@ if [[ "$xzm" = "false" ]]; then
             MATCH+=( "${args[@]:1}" )
         fi
     fi
-
+    echo three
     # Search root
     if ((${#MATCH[@]})); then
-        find "${F[@]}" "${T[@]}" \( "${MATCH[@]}" \) -printf '%T@ %A@ %C@ %i %M %s %u %g %m /%p\0' >> "$systemf"  # "batch1"
+        find "${F[@]}" "${T[@]}" \( "${MATCH[@]}" \) -printf '%T@ %A@ %C@ %i %M %s %u %g %m /%P\0' >> "$systemf"  # "batch1"
     fi
     # Search additional directories
     if ((${#PATHS[@]})); then
-        find "${PATHS[@]}" "${T[@]}" -printf '%T@ %A@ %C@ %i %M %s %u %g %m %p\0' >> "$systemf"  # "batch1"  # >> "$xdata3"
+        find "${PATHS[@]}" -xdev "${T[@]}" -printf '%T@ %A@ %C@ %i %M %s %u %g %m %p\0' >> "$systemf"  # "batch1"  # >> "$xdata3"
     fi
     # cat "$xdata3" >> "$systemf"
     dedupe_first_path_z "$systemf" "$xdata"
-    mv "$xdata" "$systemf"
+    mv "$xdata" "$xdata3"  ; >$xdata  # "$systemf"
 
 # xzm
 else
@@ -148,7 +172,8 @@ else
 fi
 
 ## hash the selected files and convert
-x=$(tr -cd '\0' < $xdata3 | wc -c) 
+x=$(tr -cd '\0' < $xdata3 | wc -c)
+(( x == 0 )) && echo "there were no files found exitting" && exit 1
 # y=5000 ; max_jobs=1
 if [ "$md" == "mc" ]; then
     cores=$( nproc 2>/dev/null || echo 1)
