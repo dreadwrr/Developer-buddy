@@ -129,7 +129,7 @@ export POSTOP="false" # Diagnostics. Create file doctrine. Runs post search oper
                                     #
                                     # if it is run again and a file is still there it will not run the POSTOP and the script will set POSTOP to false to itself
 
-export proteusSHIELD="true"    # take initial hash of base modules 001-core.. ect database mode
+export proteusSHIELD="false"    # take initial hash of base modules 001-core.. ect database mode
 ## End Diagnostics
 
 #this script
