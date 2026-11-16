@@ -1,5 +1,8 @@
 # md5ent or b2ent
 
+updated:
+read from stdin (default) and accepts multiple filepaths
+
 Single-pass file analyzer that outputs:
 - blake2b 256 checksum
 - Shannon entropy
