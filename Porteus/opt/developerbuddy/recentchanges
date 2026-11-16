@@ -38,7 +38,7 @@ get_colors
 # If not wanting xed or featherpad to open set dspEDITOR to false
 # CHANGEABLE
 
-export backend="default" # default normal    bash 2 gpg and queries text based stable tested
+export backend="database" # default normal    bash 2 gpg and queries text based stable tested
                                             # database   binary database faster queries 1 gpg and python (easier ha)
 
 export email="john.doe@email.com" # default for asymmetrical gpg auth for STATPST
@@ -129,7 +129,7 @@ export POSTOP="false" # Diagnostics. Create file doctrine. Runs post search oper
                                     #
                                     # if it is run again and a file is still there it will not run the POSTOP and the script will set POSTOP to false to itself
 
-export proteusSHIELD="false"    # take initial hash of base modules 001-core.. ect database mode
+export proteusSHIELD="true"    # take initial hash of base modules 001-core.. ect database mode
 ## End Diagnostics
 
 #this script
