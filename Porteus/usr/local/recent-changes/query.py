@@ -615,7 +615,8 @@ def results(database, target, conn, cur, email, user, flth, config_path, turbo, 
 
         search_combo = make_combobox(search_frame, selected_column, tree["columns"], state="readonly", width=14)
         search_combo.pack(side=tk.LEFT)
-        search_combo.current(2)
+        if not selected_column.get():
+            search_combo.current(2)
 
         # Nav
         nav_frame = ttk.Frame(search_window)
@@ -628,6 +629,10 @@ def results(database, target, conn, cur, email, user, flth, config_path, turbo, 
         prev_button.pack(side=tk.LEFT, padx=5)
 
         return search_window
+
+    def reload_table():
+        close_search_window()
+        load_table(tree, cur, f'SELECT * FROM "{selected_table.get()}"', selected_table.get())
 
     def clear_sys_and_redraw():
         if clear_sys(database, target, conn, cur, config_path, email, compLVL, dcr=True):
@@ -663,7 +668,7 @@ def results(database, target, conn, cur, email, user, flth, config_path, turbo, 
 
     tree.bind("<Button-3>", lambda event: right_click(event, tree, root))
 
-    reload_button = make_button(lower_frame, "", lambda: load_table(tree, cur, f'SELECT * FROM "{selected_table.get()}"', selected_table.get()), bootstyle="secondary", width=6)
+    reload_button = make_button(lower_frame, "", lambda: reload_table(), bootstyle="secondary", width=6)
 
     reload_button.pack(side=tk.LEFT, padx=(2))
 
