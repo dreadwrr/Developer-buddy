@@ -16,7 +16,7 @@
         echo "libmagic missing, exiting"
         exit 1
     fi
-    
+    -z end with NUL not newline
             */
 int main(int argc, char **argv)
 {
