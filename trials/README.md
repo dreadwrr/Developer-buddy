@@ -2,6 +2,7 @@
 
 updated:
 read from stdin (default) and accepts multiple filepaths
+-z end with NUL not newline
 
 Single-pass file analyzer that outputs:
 - blake2b 256 checksum
