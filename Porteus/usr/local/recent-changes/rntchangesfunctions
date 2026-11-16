@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#   Developer buddy 6.6 core                                               11/11/2026
+#   Developer buddy 6.6 core                                               11/16/2026
 
 . /usr/local/recent-changes/inotifyfunctions
 
@@ -110,7 +110,7 @@ if [ "$POSTOP" == "true" ]; then
                 fi
             fi
             
-            if [ "${created["$f3"]}" == "$ino" ]; then
+            if [[ -v created["$f3"] ]]; then  # if [ "${created["$f3"]}" == "$ino" ]; then
                 is_created="y"
             fi
             if [ "$is_cam" == "y" ]; then cam="y" ; fi
@@ -240,6 +240,7 @@ if [ "$STATPST" == "true" ]; then
         else
             source=$xdata3
         fi
+
         if [ "$msg" == " stats" ]; then
             local -A ref_map=()
             while IFS= read -r line || [ -n "$line" ]; do
@@ -250,7 +251,7 @@ if [ "$STATPST" == "true" ]; then
                     ref_map["$key"]="$line"
                 fi
             done < $source
-
+            exec {outfd}>>"$source"
             # stats upgrade. rout array built in processha. as well as no subprocesses
             if (( ${#rout_lines[@]} > 0 )); then
                 for filepath in "${!rout_lines[@]}"; do
@@ -263,11 +264,11 @@ if [ "$STATPST" == "true" ]; then
                     #ct=$(echo "$value" | cut -d' ' -f4-5)
                     p="$ft,\"$dt\",\"$ct\",$filepath"  # format action,"date time","change time", file name
                     if [ "$ft" == "Nosuchfile" ]; then #  sed 's/^ *//;s/ *$//')  remove leading trailing space  # old_ct="${old_ct//\"/}" remove double quotes
-                        echo "$p" >> $source
+                        echo "$p" >&"$outfd"
                     else
                         key="$ft $filepath"
                         if [[ ! -v ref_map["$key"] ]]; then
-                            echo "$p" >> $source
+                            echo "$p" >&"$outfd"
                         else
                             found="${ref_map["$key"]}"
                             #old_dt=$(echo "$found" | cut -d',' -f2 | tr -d '"')
@@ -277,7 +278,7 @@ if [ "$STATPST" == "true" ]; then
                             bulk="${bulk#*,\"}"
                             old_ct="${bulk%%\"*}"
                             if [[ "$dt" > "$old_dt" ]] || [[ "$ct" > "$old_ct" ]]; then
-                                echo "$p" >> $source
+                                echo "$p" >&"$outfd"
                             fi
                         fi
                     fi
@@ -289,19 +290,19 @@ if [ "$STATPST" == "true" ]; then
                     ft=$(echo "$p" | cut -d',' -f1)
                     dt=$(echo "$p" | cut -d',' -f2 | tr -d '"')
                     if [ "$ft" == "Nosuchfile" ]; then #  sed 's/^ *//;s/ *$//')  remove leading trailing space
-                        echo "$p" >> $source
+                        echo "$p" >&"$outfd"
                     else
                         ct=$(echo "$p" | cut -d',' -f3 | tr -d '"')
                         filepath=${p#*,*,*,} # format action,"date time","change time", file name
                         key="$ft $filepath"
                         if [[ ! -v ref_map["$key"] ]]; then
-                            echo "$p" >> $source
+                            echo "$p" >&"$outfd"
                         else
                             found="${ref_map["$key"]}"
                             old_dt=$(echo "$found" | cut -d',' -f2 | tr -d '"')
                             old_ct=$(echo "$found" | cut -d',' -f3 | tr -d '"')
                             if [[ "$dt" > "$old_dt" ]] || [[ "$ct" > "$old_ct" ]]; then
-                                echo "$p" >> $source
+                                echo "$p" >&"$outfd"
                             fi
                         fi
                     fi
@@ -313,6 +314,7 @@ if [ "$STATPST" == "true" ]; then
             if  (( c == logCT )); then
                 sed -i '1,/^$/d' $source
             fi
+            exec {outfd}>>"$source"
             # logs upgrade to use array built in hanly
             # incase it is not made
              if [[ "${#ref_map[@]}" -eq 0 ]]  && ! declare -p ref_map &>/dev/null; then
@@ -330,8 +332,6 @@ if [ "$STATPST" == "true" ]; then
                 done < "$source"
             fi
 
-            # here you could save time with preload <--
-
             while IFS= read -r p || [[ -n "$p" ]]; do
                 read -r f1 f2 f3 f4 f5 _ _ _ cs _  <<< "$p"
                 cFILE="$f3"
@@ -345,14 +345,14 @@ if [ "$STATPST" == "true" ]; then
                     oct="$of4 $of5"
 
                     if [[ "$dt" > "$odt" || "$ct" > "$oct" ]]; then
-                        echo "$p" >> "$source"
+                        echo "$p" >&"$outfd"
                         ref_map["$cFILE"]="$p"
                     elif [[ "$dt" == "$odt" && "$ct" == "$oct" && "$ocs" == "None" && "$cs" != "None" ]]; then
-                        echo "$p" >> "$source"
+                        echo "$p" >&"$outfd"
                         ref_map["$cFILE"]="$p"
                     fi
                 else
-                    echo "$p" >> "$source"
+                    echo "$p" >&"$outfd"
                     ref_map["$cFILE"]="$p"  # =1
                 fi
                 # r=$( grep -F "$dt \"$y\" $ct" $source)  # moved to use assoc array same as stat
@@ -361,8 +361,9 @@ if [ "$STATPST" == "true" ]; then
 
             unset IFS
             
-            echo >> $source # end of log
+            echo >&"$outfd" # end of log
         fi
+        exec {outfd}>&-
         t=(--encrypt -r $email -o $2 $source)
         if which gpg2 > /dev/null 2>&1; then 
             cmmd=(gpg2 --yes) # 5.01 with 2.0
@@ -569,7 +570,7 @@ if [ "$current_size" -ge 0 ] 2>/dev/null && [ "$original_size" -ge 0 ] 2>/dev/nu
     delta=$(( current_size - original_size ))
     abs_delta=${delta#-}
     if [ "$original_size" == "$current_size" ]; then
-        echo "Warning file ${label} same filesize different checksum. Contents changed." >> $cerr
+        echo "Warning file $label same filesize different checksum. Contents changed." >> $cerr
     elif [ "$abs_delta" -le 12  ] && [ "$abs_delta" -ne 0 ]; then
         echo "Checksum indicates a change in ${label}. Size changed slightly — possible stealth edit. ($original_size → $current_size)." >> $slog
     fi
@@ -597,10 +598,11 @@ local original_ln
 local cam_file tmp label
 local dt omt ct
 local ocam cam usec ousec
-local n y valid_checksums mtime omtime
+local n y valid_checksums mtime omtime routfd
 csm="false"
 :> $TMPCOMPLETE
 h=0
+exec {routfd}>>"$rout"
 while IFS= read -r p || [[ -n "$p" ]]; do
 	cam_file="false"
 	valid_checksums="false"
@@ -634,7 +636,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 			dt="$f1 $f2" ; omt="$of1 $of2" ; ct="$f4 $f5"
 			if [ "$checkSUM" == "true" ]; then
 				if [ ! -f "$cFILE" ]; then
-					echo "Deleted $dt $dt $label" >> $rout
+					echo "Deleted $dt $dt $label" >&"$routfd"
 					continue
 				fi
 				ocs="$of9" ; cs="$f9" ; oent="$of10" ; ent="$f10" ; omtyp="$of11" ; mtyp="$f11" ; os="$of12" ; csze="$f12" ; sym="$f13" ; osym="$of13" ; ocam="$of17" ; cam="$f17"
@@ -664,13 +666,13 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 					if [ "$checkSUM" == "true" ]; then
 						if (( mtime > 0 && mtime == omtime )); then
 							if [ "$valid_checksums" == "true" ] && [ "$cs" != "$ocs" ]; then
-								echo "Suspect $dt $ct $label" >> $rout
+								echo "Suspect $dt $ct $label" >&"$routfd"
 								echo "Suspect file: $label previous checksum $ocs currently ${cs}.changed without a new modified time." >> $cerr
 							fi
 						fi
 						if (( oin == in )); then
 							if newmeta $f14 $f15 $f16 $of14 $of15 $of16; then
-								echo "Metadata $dt $ct $label" >> $rout
+								echo "Metadata $dt $ct $label" >&"$routfd"
 								echo "Permissions of file: $label changed $of14 $of15 $of16 → $f14 $f15 $f16" >> $slog
 							fi
 						fi
@@ -681,30 +683,30 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 						if [ "$valid_checksums" == "true" ]; then
 							if (( oin != in )); then
 								if [ "$ocs" == "$cs" ]; then
-									echo "Overwrite $dt $ct $label" >> $rout
+									echo "Overwrite $dt $ct $label" >&"$routfd"
 								else
-									echo "Replaced $dt $ct $label" >> $rout
+									echo "Replaced $dt $ct $label" >&"$routfd"
 									stealth "$y" "$label" $cs $csze $os $ent $oent $mtyp $omtyp
 								fi
 							else
 								if [ "$ocs" != "$cs" ]; then
-									echo "Modified $dt $ct $label" >> $rout
+									echo "Modified $dt $ct $label" >&"$routfd"
 									stealth "$y" "$label" $cs $csze $os $ent $oent $mtyp $omtyp
 								else
 									if newmeta $f14 $f15 $f16 $of14 $of15 $of16; then
-										echo "Metadata $dt $ct $label" >> $rout
+										echo "Metadata $dt $ct $label" >&"$routfd"
 										echo "Permissions of file: $label changed $of14 $of15 $of16 → $f14 $f15 $f16" >> $slog
 									elif (( mtime > 0 && mtime > omtime )); then
-										echo "Touched $dt $ct $label" >> $rout
+										echo "Touched $dt $ct $label" >&"$routfd"
 									fi
 								fi
 							fi
 						fi
 					else
 						if (( oin != in )); then
-							echo "Replaced $dt $ct $label" >> $rout
+							echo "Replaced $dt $ct $label" >&"$routfd"
 						elif (( mtime > 0 && mtime > omtime)); then
-								echo "Modified $dt $ct $label" >> $rout
+								echo "Modified $dt $ct $label" >&"$routfd"
 						fi
 					fi
 				fi
@@ -716,6 +718,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 		fi
 	fi
 done < $SORTCOMPLETE
+exec {routfd}>&-
 }
 hanly(){
 local y=8
@@ -745,6 +748,8 @@ if [ "$mMODE" == "mc" ] && (( total_files > 100 )); then
     paste -d ' ' $SORTCOMPLETE $tout > $TMPCOMPLETE ; mv $TMPCOMPLETE $tout
 
     y=$(( (total_files + max_jobs - 1) / max_jobs ))  # x
+    # alternate hablk remove loop and shift 8 then loop over args in haloop
+    # xargs -d '\n' -n "$y" -P "$max_jobs" /usr/local/recent-changes/haloop "$atmp$workfld" "$2" "$checkSUM" "$is_sum" "$rout" "$slog" "$cerr" "$TMPCOMPLETE" < "$tout"
     split -l $y --numeric-suffixes=1 --suffix-length=4 "$tout" "$atmp/sortchunk_" ; rm $tout
     find "$atmp" -type f -name 'sortchunk_*' -print0 | xargs -0 -P"$max_jobs" -I{} /usr/local/recent-changes/haloop $atmp$workfld "{}" $2 $checkSUM $is_sum $rout $slog $cerr $TMPCOMPLETE  # sort -z
     # if interleaving
@@ -1411,6 +1416,7 @@ local filepath cFILE dt r y ino checksum fs
 :> $TMPOUTPUT   ;   :> $tfile
 while IFS= read -r y; do
     read -r f1 f2 f3 _ _ ino _ _ checksum _ _ fs _  <<< "$y"
+    [[ -n "$fs" ]] || continue
     dt="$f1 $f2" ; cFILE="$f3"
     r="${cFILE#\"}"
     cFILE="${r%\"}"
@@ -1419,8 +1425,8 @@ while IFS= read -r y; do
         printf '%s %s\n' "$dt" "$filepath" >> $TMPOUTPUT
         continue
     fi
-    printf '%s %s\n' "$dt" "$filepath"  # TMPOPT
-    printf '%s\n' "$y" >> $tfile
+    printf '%s %s\n' "$dt" "$filepath"  # TMPOPT less tmp files
+    printf '%s\n' "$y" >> $tfile  # SORTCOMPLETE .
     recent_order+=("$f3")
     recent["$f3"]="$checksum $fs"
 done < $1 > $2
