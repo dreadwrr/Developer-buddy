@@ -52,8 +52,9 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    echo "Find out information about files from searches. backend set to default will use query script. database uses query.py"
    echo "ANALYTICS uses logs from /tmp and with a seperate set of heuristics. STATPST is from logs and stats in .gpgs"
    echo
-   echo
-   echo
+   echo "A system profile can either be proteusEXTN based on extensions and paths or xzm template based for porteus"
+   echo "this can be set in sysprofile script"
+   echo 
    echo "Inverse the search"
    echo
    printf "rnt \t\t\tsearch for filtered rather than unfiltered files\t\t\t output /tmp\n"
