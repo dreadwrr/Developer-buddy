@@ -55,7 +55,7 @@ if [ "$POSTOP" == "true" ]; then
                 bulk="${bulk#*,\"}"
                 ct="${bulk%%\"*}"
                 filepath="${bulk#*,}"   # key="${line#*,*,*,}"
-                [[ -n "$filepath" ]] && rout_lines["$filepath"]="$ft $dt $ct $filepath"
+                [[ -n "$filepath" ]] && rout_lines["$filepath"]+="${rout_lines["$filepath"]:+$'\n'}$ft $dt $ct $filepath"  # rout_lines["$filepath"]="$ft $dt $ct $filepath"
             done < $rout
             rm $rout
         else
@@ -64,7 +64,7 @@ if [ "$POSTOP" == "true" ]; then
     fi
 
     # adtcmd="$check_sum $ent $mtyp $fs $sl $wnr $grp $pmn"
-    # output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $nlinks $mtime_us$hashed"
+    # output="$mt \"$y\" $ct $i $ats $adtcmd $cam $lmt $nlinks $mtime_us $hashed"
 
     #pull from sortcomplete for prestated data
     printf 'Datetime\tFile\tSize(kb)\tType\tSymlink\tTarget\tChange_time\tcam\tAccessed\tOwner\tStatable\tCopy\tCreated\n' > $atmp/doctrine
@@ -104,12 +104,19 @@ if [ "$POSTOP" == "true" ]; then
             y="$( escf "$filepath")"
             found_rout="${rout_lines["$y"]}"
             if [ -n "$found_rout" ]; then
-                IFS=' ' read -r action _ <<< "$found_rout"
-                if [ -n "$action" ] && [ "$action" == "Copy" ]; then
-                    is_copy="y"
-                fi
+
+                # can on rare occassions have more than one action per file from hanly
+                # if [[ "$found_rout" == *$'\n'* ]]; then
+                mapfile -t entry <<< "$found_rout"
+                for ((i=0; i<${#entry[@]}; i++)); do
+                    IFS=' ' read -r action _ <<< "${entry[$i]}"
+                    if [[ "$action" == "Copy" ]]; then
+                        is_copy="y"
+                        break
+                    fi
+                done
             fi
-            
+         
             if [[ -v created["$f3"] ]]; then  # if [ "${created["$f3"]}" == "$ino" ]; then
                 is_created="y"
             fi
@@ -132,7 +139,7 @@ if (( tmpSRHS > 0 )); then #store it in tmp
     r=$(find /tmp/rc -maxdepth 1 -type f -name '*rntfiles_MDY*' 2>/dev/null | wc -l)
     if [ "$r" -eq "$tmpSRHS" ]; then #Clear last file
         test -f /tmp/rc/full || { touch /tmp/rc/full ; cyan "searches builtup in /tmp/rc"; }
-        for file in "/tmp/rc"$MODULENAME"_MDY"*
+        for file in "/tmp/rc${MODULENAME}_MDY"*
         do
             rm -f $file
             break
@@ -211,7 +218,7 @@ EOF
 storeenc() {
 shopt -s expand_aliases
 local c t ft ct odt oct cFILE filepath
-local line found key
+local line found key outfd value entry
 
 if [ "$STATPST" == "true" ]; then
     if which gpg2 > /dev/null 2>&1; then
@@ -243,49 +250,57 @@ if [ "$STATPST" == "true" ]; then
 
         if [ "$msg" == " stats" ]; then
             local -A ref_map=()
+            local array_name="rout_lines"
+            if ! declare -p rout_lines &>/dev/null; then array_name="recent" ; fi
+            local -n arr="$array_name"
             while IFS= read -r line || [ -n "$line" ]; do
                 filepath=${line#*,*,*,}
-                if [[ -n "$filepath" && -v rout_lines["$filepath"] ]]; then
+                if [[ -n "$filepath" && -v arr["$filepath"] ]]; then
                     ft="${line%%,*}"
                     key="$ft $filepath"
                     ref_map["$key"]="$line"
                 fi
             done < $source
             exec {outfd}>>"$source"
-            # stats upgrade. rout array built in processha. as well as no subprocesses
-            if (( ${#rout_lines[@]} > 0 )); then
+            # stats upgrade. rout_lines array built in processha. as well as no subprocesses
+            if [ "$array_name" == "rout_lines" ]; then
+            #if (( ${#rout_lines[@]} > 0 )); then
                 for filepath in "${!rout_lines[@]}"; do
                     value="${rout_lines[$filepath]}"
-                    read -r ft dt1 dt2 ct1 ct2 _ <<< "$value"
-                    dt="$dt1 $dt2"
-                    ct="$ct1 $ct2"
-                    #ft=$(echo "$value" | cut -d' ' -f1)
-                    #dt=$(echo "$value" | cut -d' ' -f2-3)
-                    #ct=$(echo "$value" | cut -d' ' -f4-5)
-                    p="$ft,\"$dt\",\"$ct\",$filepath"  # format action,"date time","change time", file name
-                    if [ "$ft" == "Nosuchfile" ]; then #  sed 's/^ *//;s/ *$//')  remove leading trailing space  # old_ct="${old_ct//\"/}" remove double quotes
-                        echo "$p" >&"$outfd"
-                    else
-                        key="$ft $filepath"
-                        if [[ ! -v ref_map["$key"] ]]; then
-                            echo "$p" >&"$outfd"
-                        else
-                            found="${ref_map["$key"]}"
-                            #old_dt=$(echo "$found" | cut -d',' -f2 | tr -d '"')
-                            #old_ct=$(echo "$found" | cut -d',' -f3 | tr -d '"')
-                            bulk="${found#*,\"}"
-                            old_dt="${bulk%%\"*}"
-                            bulk="${bulk#*,\"}"
-                            old_ct="${bulk%%\"*}"
-                            if [[ "$dt" > "$old_dt" ]] || [[ "$ct" > "$old_ct" ]]; then
+                    if [ -n "$value" ]; then
+                        mapfile -t entry <<< "$value"
+                        for ((i=0; i<${#entry[@]}; i++)); do
+                            IFS=' ' read -r ft dt1 dt2 ct1 ct2 _ <<< "${entry[$i]}"
+                            dt="$dt1 $dt2"
+                            ct="$ct1 $ct2"
+                            #ft=$(echo "$value" | cut -d' ' -f1)
+                            #dt=$(echo "$value" | cut -d' ' -f2-3)
+                            #ct=$(echo "$value" | cut -d' ' -f4-5)
+                            p="$ft,\"$dt\",\"$ct\",$filepath"  # format action,"date time","change time", file name
+                            if [ "$ft" == "Nosuchfile" ]; then #  sed 's/^ *//;s/ *$//')  remove leading trailing space  # old_ct="${old_ct//\"/}" remove double quotes
                                 echo "$p" >&"$outfd"
+                            else
+                                key="$ft $filepath"
+                                if [[ ! -v ref_map["$key"] ]]; then
+                                    echo "$p" >&"$outfd"
+                                else
+                                    found="${ref_map["$key"]}"
+                                    #old_dt=$(echo "$found" | cut -d',' -f2 | tr -d '"')
+                                    #old_ct=$(echo "$found" | cut -d',' -f3 | tr -d '"')
+                                    bulk="${found#*,\"}"
+                                    old_dt="${bulk%%\"*}"
+                                    bulk="${bulk#*,\"}"
+                                    old_ct="${bulk%%\"*}"
+                                    if [[ "$dt" > "$old_dt" ]] || [[ "$ct" > "$old_ct" ]]; then
+                                        echo "$p" >&"$outfd"
+                                    fi
+                                fi
                             fi
-                        fi
+                        done
                     fi
                 done
-
             # use original method if rout_lines not set
-            elif ! declare -p rout_lines &>/dev/null; then
+            else
                 while IFS="" read -r p || [ -n "$p" ]; do
                     ft=$(echo "$p" | cut -d',' -f1)
                     dt=$(echo "$p" | cut -d',' -f2 | tr -d '"')
@@ -338,12 +353,10 @@ if [ "$STATPST" == "true" ]; then
                 if [[ -v ref_map["$cFILE"] ]]; then
                     dt="$f1 $f2"
                     ct="$f4 $f5"
-
                     line="${ref_map["$cFILE"]}"
-                    read -r of1 of2 of3 of4 of5 _ _ _ ocs _ <<< "$line"
+                    read -r of1 of2 _ of4 of5 _ _ _ ocs _ <<< "$line"
                     odt="$of1 $of2"
                     oct="$of4 $of5"
-
                     if [[ "$dt" > "$odt" || "$ct" > "$oct" ]]; then
                         echo "$p" >&"$outfd"
                         ref_map["$cFILE"]="$p"
@@ -424,10 +437,10 @@ fi
 iscopy() {
 local TMPCOMPLETE="$2"  # the files that havent been seen yet
 local filepath  ; local label
-local chksum ; local filesize
-local recordfile recordc recordsize
-local r y i dt_ct found
-local -A hash_groups
+local r y i found
+# local chksum filesize
+# local recordfile recordc recordsize
+# local -A hash_groups
 local -a collisions
 
 # first check storage for created copy or casmod. if found mark it in create_cp_cam array if not found put some data into input_data array
@@ -437,10 +450,11 @@ if [ -s "$TMPCOMPLETE" ]; then
         read -r f1 f2 f3 f4 f5 f6 f7 f8 f9 _ <<< "$p"
         [[ -z "$f9" ]] && continue
         dt="$f1 $f2" ; cFILE="$f3" ; ct="$f4 $f5"
-        in="$f6" ; at="$f7 $f8" ; chksum="$f9"
+        in="$f6" ; at="$f7 $f8"
+        # chksum="$f9"
         # inotify?
-        found="${created["$cFILE"]}"  #for path in "${!created[@]}"; do ino="${created[$path]}" ; done  # can check if inode matches inode when file was created
-        [[ -n "$found" ]] && found="true"
+        rlt="${created["$cFILE"]}"  #for path in "${!created[@]}"; do ino="${created[$path]}" ; done  # can check if inode matches inode when file was created
+        [[ -n "$rlt" ]] && found="true"
         if [ "$found" == "true" ]; then
             r="${cFILE#\"}"
             r="${r%\"}"
@@ -609,13 +623,12 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 	mtime=0
 	omtime=0
 	found_line=""
-	tmp="${f3#*\"}"
-	y="${tmp%\"*}"  # used to be the key now using $f3 which had outer quotes
 
 	read -r f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 f14 f15 f16 f17 _ _ _ f21 f22 _ <<< "$p"  # skip entropy lmt and finally hardlinks if enabled
 	in="$f6"
 	if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then
-
+	    tmp="${f3#*\"}"
+	    y="${tmp%\"*}"  # used to be the key now using $f3 which had outer quotes
 		if [ "$1" == "A" ]; then
 			found_line="${ref_map["$f3"]}"
 		else
@@ -679,7 +692,7 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 					fi
 				else
 					if [ "$checkSUM" == "true" ]; then
-						target_change $label $sym $osym $lt $olt
+						target_change "$label" $sym $osym $lt $olt
 						if [ "$valid_checksums" == "true" ]; then
 							if (( oin != in )); then
 								if [ "$ocs" == "$cs" ]; then
@@ -834,18 +847,12 @@ if [ -s $rout ]; then
             ts1="${bulk%% *}"
             bulk="${bulk#* }"
             ts2="${bulk%% *}"
-            filepath="${bulk#* * }"
+            filepath="${bulk#* * * }"
             # filepath="${y#* * * }"
             key=$filepath ; [[ -n "$key" ]] || { echo "key missing processha" ; continue ; }
-            rout_lines["$key"]="$y"
-            # if needing to have more than one action per file from hanly
-            #if (( ${#entry[@]} > 1 )); then
-            #if [[ "${rout_lines["$key"]}" == *$'\n'* ]]; then
-            #    mapfile -t entry <<< "${rout_lines["$key"]}"
-            #    for ((i=1; i<${#entry[@]}; i++)); do
-            #        recordfile="${entry[$i]}"
-            #    done
-            #fi
+            # rout_lines["$key"]="$y"
+            rout_lines["$key"]+="${rout_lines["$key"]:+$'\n'}$y"
+
             [[ "$action" == *"Deleted"* || "$action" == *"Nosuchfile"* ]] && continue
             echo "$action $ts1 $ts2 $filepath" >> $TMPCOMPLETE
         done < $rout
@@ -858,7 +865,7 @@ if [ -s $rout ]; then
             ts1="${bulk%% *}"
             bulk="${bulk#* }"
             ts2="${bulk%% *}"
-            filepath="${bulk#* * }"
+            filepath="${bulk#* * * }"
             # filepath="${y#* * * }"
             [[ "$action" == *"Deleted"* || "$action" == *"Nosuchfile"* ]] && continue
             echo "$action $ts1 $ts2 $filepath" >> $TMPCOMPLETE
@@ -1140,7 +1147,7 @@ if [ "$STATPST" == "true" ]; then
                         hanly $SORTCOMPLETE $ofile $1
                         ret=$?
                         if [ "$ret" -ne 0 ]; then
-                            echo "failure in STATPST hanyl subprocess"
+                            echo "failure in STATPST hanly subprocess"
                         fi
                     fi
                     pstc="true"
@@ -1190,7 +1197,7 @@ if [ "$STATPST" == "true" ]; then
                 if [ "$ret" -eq 2 ] || [ "$ret" -eq 3 ]; then
                     echo "Problem with GPG refer to instructions on setting up pinentry ect. Database preserved."
                 elif [ "$ret" -eq 4 ]; then
-                    echo "Problem with database in psysrg.py"
+                    echo "Problem with database in pstsrg.py"
                 else
                     echo "Pstsrg.py failed. exitcode $ret"
                 fi
@@ -1212,8 +1219,9 @@ fi
 
 total_time=$(awk "BEGIN {print $el + $el2}")
 if ! float_gt $total_time 0; then
-    total_time=""
+    
    echo "total time was $total_time and incorrect a variable is mixed up skipping analytics"
+   total_time=""
 else
     if [[ -f $CACHE_F ]]; then
         if [ "$valid_data" == "true" ]; then
@@ -1260,7 +1268,7 @@ if [[ "$csum" != "true" && -s $slog && "$suppress" == "false" ]]; then
 fi
 
 if [[ "$csum" == "true" ]]; then
-    { echo; echo "cdiag alert"; echo ; grep -vE "^(Warning File|RESULT)" $cerr ; } >> "$difffile"
+    { echo; echo "cdiag alert"; echo ; grep -vE "^(Warning file|RESULT)" $cerr ; } >> "$difffile"
 fi
 
 #test -e $TMPDIR && rm -rf "$TMPDIR"
@@ -1314,7 +1322,7 @@ if [ "$checkSUM" == "true" ] && [ "$xRC" == "true" ]; then
     fi
     # check if there is any cache from inotify script
     if [[ -s "$INOTIFY_CACHE" ]]; then
-        # read it into an array of created files. for postop and hanly parallel # format is printf '%s|%s|%s\t%s\t%s\n' "$inode" "$size" "$mtime" "$checksum" "$path" >> "$cache_file"
+        # read it into an array of created files. for postop and hanly parallel # format is printf '%s|%s|%s\t%s\t%s\t%s\t%s\n' "$inode" "$size" "$mtime" "$checksum" "$entropy" "$mime" "$path" >> "$cache_file"
         while IFS= read -r y || [[ -n "$y" ]]; do
             IFS=$'\t' read -r meta checksum _ _ path <<< "$y"
             ino="${meta%%|*}"
@@ -1341,7 +1349,7 @@ if [ "$checkSUM" == "true" ] && [ "$xRC" == "true" ]; then
         else
 
             echo "couldnt close inotify script checking for pid file" >> $INOTIFY_DEBUG_FILE
-            if ! oldpid $inotify_pid_file; then
+            if ! oldpid $INOTIFY_PID_FILE; then
                 echo "failed to close a previously running process" >> $INOTIFY_DEBUG_FILE
                 #   flock -u 200
             else
@@ -2101,8 +2109,8 @@ local checkSUM=$4
 local checkMETHOD=$5
 local CSZE=$6
 local STRTTIME=$7
-local xmode=$8
-local prefix=$9
+# local xmode=$8
+# local prefix=$9
 
 local x y
 
