@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#   Developer buddy 6.7 core                                               11/18/2026
+#   Developer buddy 6.7 core                                               11/16/2026
 
 . /usr/local/recent-changes/inotifyfunctions
 
@@ -1320,13 +1320,15 @@ fi
 if [ "$POSTOP" == "false" ]; then test -f $rout && rm $rout ; fi
 test -f $slog && rm $slog ; test -f $cerr && rm $cerr
 }
-convertn() {
-# awk -v a="$1" -v b="$2" 'BEGIN { printf "%.2f\n", a/b }'
-local x
-x=$( echo "scale=2; $1 / $2" | bc)
-echo "$x"
-}
-timedelta() { echo "scale=$3; $1 - $2" | bc ; }  # awk -v a="$1" -v b="$2" s="$3" 'BEGIN {printf "%.*f\n", s,  a - b}'
+#convertn() {
+#local x
+#x=$( echo "scale=2; $1 / $2" | bc)
+#echo "$x"
+#}
+convertn() { awk -v a="$1" -v b="$2" 'BEGIN { printf "%.2f\n", a/b }' ; }
+# timedelta() { echo "scale=$3; $1 - $2" | bc ; }
+timedelta() { awk -v a="$1" -v b="$2" -v s="$3" 'BEGIN {printf "%.*f\n", s,  a - b}'  ; }   # awk -v a="$1" -v b="$2" 'BEGIN{printf "%.6f\n", a - b}'
+
 float_gt() {
 # (( $(echo "$1 >= $2" | bc) ))
     if awk -v t="$1" -v r="$2" 'BEGIN { exit !(t >= r) }'; then
@@ -2202,10 +2204,10 @@ if (( ${#secondary[@]} )); then
     t=$( convertn $find_offset $p)
 
     if [ "$flsrh" == "true" ]; then
-        ag=$( echo "$ag + $t" | bc)  # ag=$(awk "BEGIN{print $ag + $t}")
+        ag=$(awk "BEGIN{print $ag + $t}")  # ag=$( echo "$ag + $t" | bc)
         CMIN=(-cmin "-$ag")
     else
-        tmn=$( echo "$tmn + $t" | bc)  # tmn=$(awk "BEGIN{print $tmn + $t}")
+        tmn=$(awk "BEGIN{print $tmn + $t}")  # tmn=$( echo "$tmn + $t" | bc)
         MMIN=(-mmin "-$tmn")
         CMIN=(-cmin "-$tmn")
     fi
