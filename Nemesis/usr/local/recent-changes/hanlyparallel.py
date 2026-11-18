@@ -43,34 +43,65 @@ def logger_process(results, sys_records, rout, scr, cerr, created, dbopt="/usr/l
                 if dcp_messages:
                     try:
                         with open(rout, 'a') as file:
+
+                            # build map to check if file is a copy of one of the new files first
+                            new_files = {}
+                            for msg in dcp_messages:
+                                if msg is None or len(msg) <= 6:
+                                    continue
+                                filesize = msg[6]
+                                checks = msg[5]
+                                filepath = msg[1]
+                                if filesize and checks:
+                                    fingerprint = (filesize, checks)
+                                    new_files.setdefault(fingerprint, []).append(filepath)
+
                             for msg in dcp_messages:
                                 if msg is not None and len(msg) > 6:
                                     filesize = msg[6]
                                     if filesize:
+
                                         timestamp = msg[0]
                                         filepath = msg[1]
                                         changetime = msg[2]
-                                        inode = msg[3]
-                                        checksum = msg[5]
 
                                         y = ap_encode(filepath)
                                         label = escf_py(filepath)
-                                        result = detect_copy(filepath, inode, checksum, c, ps)
-                                        if result:
-                                            print(f'Copy {timestamp} {changetime} {label}', file=file)
 
                                         # windows if creation time is greater than modified time it could be a copy, a download or a created file
                                         # this differs from linux that has no creation time but casmod or change as mod can be put instead
                                         # change as modified means it is significant in that it could be a downloaded file with preserved metadata
-                                        elif y in created:
-                                            if inode == created[y]:
-                                                print(f'Created {timestamp} {changetime} {label}', file=file)
+                                        if f'"{y}"' in created:
+                                            # if inode == created[y]:
+                                            print(f'Created {timestamp} {changetime} {label}', file=file)
+
                                         else:
-                                            # mod_time = timestamp.strftime(fmt)  # if datetime
-                                            mod_time = timestamp
-                                            # lexographic compare
-                                            if changetime and changetime > mod_time:
-                                                print(f'Casmod {timestamp} {changetime} {label}', file=file)
+
+                                            result = None
+                                            inode = msg[3]
+                                            checks = msg[5]
+
+                                            if checks:
+                                                fingerprint = (filesize, checks)
+
+                                                matches = new_files.get(fingerprint, [])
+                                                matches = [p for p in matches if p != filepath]
+
+                                                if matches:
+                                                    result = matches[0]
+                                                # check db
+                                                if not result:
+                                                    result = detect_copy(filepath, inode, checks, c, ps)
+
+                                            if result:
+                                                print(f'Copy {timestamp} {changetime} {label}', file=file)
+
+                                            else:
+                                                # mod_time = timestamp.strftime(fmt)  # if datetime
+                                                mod_time = timestamp
+                                                # lexographic compare
+                                                if changetime and changetime > mod_time:
+                                                    print(f'Casmod {timestamp} {changetime} {label}', file=file)
 
                     except Exception as e:
                         print(f"Error updating DB for sys entry '{msg}': {e} {type(e).__name__}")

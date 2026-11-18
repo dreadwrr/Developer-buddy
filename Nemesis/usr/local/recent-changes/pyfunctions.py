@@ -1,25 +1,39 @@
+import csv
 import fnmatch
 import hashlib
 import os
+import sqlite3
 import subprocess
 import traceback
-from collections import defaultdict
 from datetime import datetime
 
-# Cache clear patterns to delete from db - see /usr/local/recent-changes/clearcache to reset filter hits ln33
 
+# Cache clear patterns to delete from db
 cache_clear = [
     "%caches%",
     "%cache2%",
     "%Cache2%",
     "%.cache%",
     "%share/Trash%",
-    f"%home/{{user}}/.local/state/wireplumber%",
+    f"%home/{{user}}/.local/state/wireplumber%",  # noqa: F541
     "%usr/share/mime/application%",
     "%usr/share/mime/text%",
     "%usr/share/mime/image%",
     "%release/cache%"
 ]
+
+
+# filter hits to reset on db cache clear. copy literal items from /usr/local/recent-changes/filter.py to reset to 0
+flth_literal_patterns = [
+    r"""\/home\/'"${2}"'\/Downloads\/rntfiles""",
+    r"\.cache",
+    r"""\/home\/'"${2}"'\/\.config""",
+    r"\.local\/share",
+    r"\/var\/cache"
+]
+
+
+# r"/\/home\/'""${2}""'\/Downloads\/rntfiles"  # this also works but gets ide warnings
 
 CYAN = "\033[36m"
 RED = "\033[31m"
@@ -33,42 +47,188 @@ def get_delete_patterns(usr):  # db cache clr
     return patterns
 
 
-def collision(cursor, is_sys):
+def reset_csvliteral(csv_file):
+
+    patterns_to_reset = flth_literal_patterns
     try:
-        if is_sys:
-            tables = ['logs', 'sys']
-            union_sql = " UNION ALL ".join([
+        with open(csv_file, newline='') as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+        for row in rows[1:]:
+            if any(pattern in row for pattern in patterns_to_reset):
+                row[1] = '0'
+        with open(csv_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerows(rows)
+    except (FileNotFoundError, PermissionError):
+        print(f"nfs permission error on {csv_file} reset_csvliteral.")
+        pass
+
+
+def collision_check(xdata, modified, cerr, sys_tables, c, ps):
+    reported = set()
+    csum = False
+    if not xdata:
+        return False
+
+    current_rows = set()
+    for record in xdata:
+        if not record or len(record) < 9:
+            continue
+        filename = record[1]
+        file_hash = record[5]
+        file_size = record[8]
+
+        if not filename or not file_hash or not file_size:
+            continue
+
+        action = modified.get(filename)
+
+        if action in ("Replaced", "Modified"):
+            current_rows.add((filename, file_hash, file_size))
+
+    if not current_rows:
+        return False
+
+    try:
+        c.execute(
+            """
+            CREATE TEMP TABLE IF NOT EXISTS current_search_collisions (
+                filename TEXT NOT NULL,
+                checksum TEXT NOT NULL,
+                filesize INTEGER NOT NULL
+            )
+            """
+        )
+        c.execute("DELETE FROM current_search_collisions")
+        c.executemany(
+            "INSERT INTO current_search_collisions (filename, checksum, filesize) VALUES (?, ?, ?)",
+            list(current_rows),
+        )
+
+        if ps:
+            tables = ['logs'] + list(sys_tables or [])
+
+            db_rows_sql = " UNION ALL ".join([
                 f"SELECT filename, checksum, filesize FROM {t} WHERE checksum IS NOT NULL" for t in tables
             ])
-            query = f"""
-                WITH combined AS (
-                    {union_sql}
-                )
-                SELECT a.filename, b.filename, a.checksum, a.filesize, b.filesize
-                FROM combined a
-                JOIN combined b
-                ON a.checksum = b.checksum
-                AND a.filename < b.filename
-                AND a.filesize != b.filesize
-                ORDER BY a.checksum, a.filename
-            """
-        else:
-            query = """
-                SELECT a.filename, b.filename, a.checksum, a.filesize, b.filesize
-                FROM logs a
-                JOIN logs b
-                ON a.checksum = b.checksum
-                AND a.filename < b.filename
-                AND a.filesize != b.filesize
-                WHERE a.checksum IS NOT NULL
-                ORDER BY a.checksum, a.filename
-            """
 
-        cursor.execute(query)
-        return cursor.fetchall()
-    except Exception as e:
+        else:
+            db_rows_sql = "SELECT filename, checksum, filesize FROM logs WHERE checksum IS NOT NULL"
+
+        c.execute(
+            f"""
+            WITH db_rows AS (
+                {db_rows_sql}
+            )
+            SELECT DISTINCT
+                cur.filename,
+                db.filename,
+                cur.checksum,
+                cur.filesize,
+                db.filesize
+            FROM current_search_collisions cur
+            JOIN db_rows db
+                ON db.checksum = cur.checksum
+            WHERE db.filename != cur.filename
+              AND db.filesize != cur.filesize
+            """
+        )
+        colcheck = c.fetchall()
+
+    except sqlite3.Database as e:
         print(f"Database error in collision detection: {type(e).__name__} : {e}")
-        return []
+        return csum
+
+    if colcheck:
+        try:
+            with open(cerr, "a", encoding="utf-8") as f:
+                for filename, other_file, file_hash, size1, size2 in colcheck:
+                    pair = tuple(sorted([filename, other_file]))
+                    if pair not in reported:
+                        csum = True
+                        print(f"COLLISION: {filename} {size1} vs {other_file} {size2} | Hash: {file_hash}", file=f)
+                        reported.add(pair)
+        except IOError as e:
+            print(f"Failed to write collisions: {e} {type(e).__name__}  \n{traceback.format_exc()}")
+    return csum
+
+
+# def collision(cursor, is_sys):
+#     """ used for collisions function below """
+#     try:
+#         if is_sys:
+#             tables = ['logs', 'sys']
+
+#             union_sql = " UNION ALL ".join([
+#                 f"SELECT filename, checksum, filesize FROM {t} WHERE checksum IS NOT NULL" for t in tables
+#             ])
+
+#             query = f"""
+#                 WITH combined AS (
+#                     {union_sql}
+#                 )
+#                 SELECT a.filename, b.filename, a.checksum, a.filesize, b.filesize
+#                 FROM combined a
+#                 JOIN combined b
+#                 ON a.checksum = b.checksum
+#                 AND a.filename < b.filename
+#                 AND a.filesize != b.filesize
+#                 ORDER BY a.checksum, a.filename
+#             """
+
+#         else:
+#             query = """
+#                 SELECT a.filename, b.filename, a.checksum, a.filesize, b.filesize
+#                 FROM logs a
+#                 JOIN logs b
+#                 ON a.checksum = b.checksum
+#                 AND a.filename < b.filename
+#                 AND a.filesize != b.filesize
+#                 WHERE a.checksum IS NOT NULL
+#                 ORDER BY a.checksum, a.filename
+#             """
+
+#         cursor.execute(query)
+#         return cursor.fetchall()
+#     except Exception as e:
+#         print(f"Database error in collision detection: {type(e).__name__} : {e}")
+#         return []
+
+
+# from collections import defaultdict
+# def collisions(xdata, modified, cerr, c, ps):
+#     reported = set()
+#     csum = False
+#     colcheck = collision(c, ps)
+
+#     if colcheck:
+
+#         collision_map = defaultdict(set)
+#         for a_filename, b_filename, file_hash, size_a, size_b in colcheck:
+#             collision_map[a_filename, file_hash].add((b_filename, file_hash, size_a, size_b))
+#             collision_map[b_filename, file_hash].add((a_filename, file_hash, size_b, size_a))
+#         try:
+#             with open(cerr, "a", encoding="utf-8") as f:
+#                 for record in xdata:
+#                     filename = record[1]
+#                     checks = record[5]
+#                     if checks:
+#                         action = modified.get(filename)
+#                         if action == "Replaced" or action == "Modified":
+#                             size_non_zero = record[8]
+#                             if size_non_zero:
+#                                 key = (filename, checks)
+#                                 if key in collision_map:
+#                                     for other_file, file_hash, size1, size2 in collision_map[key]:
+#                                         pair = tuple(sorted([filename, other_file]))
+#                                         if pair not in reported:
+#                                             csum = True
+#                                             print(f"COLLISION: {filename} {size1} vs {other_file} {size2} | Hash: {file_hash}", file=f)
+#                                             reported.add(pair)
+#         except IOError as e:
+#             print(f"Failed to write collisions: {e} {type(e).__name__}  \n{traceback.format_exc()}")
+#     return csum
 
 
 # 11/28/2025
@@ -217,37 +377,6 @@ def insert_mimes(cur, new_mime_rows):
     )
 
 
-def collision_check(xdata, cerr, c, ps):
-    reported = set()
-    csum = False
-    colcheck = collision(c, ps)
-
-    if colcheck:
-
-        collision_map = defaultdict(set)
-        for a_filename, b_filename, file_hash, size_a, size_b in colcheck:
-            collision_map[a_filename, file_hash].add((b_filename, file_hash, size_a, size_b))
-            collision_map[b_filename, file_hash].add((a_filename, file_hash, size_b, size_a))
-        try:
-            with open(cerr, "a", encoding="utf-8") as f:
-                for record in xdata:
-                    filename = record[1]
-                    checks = record[5]
-                    size_non_zero = record[8]
-                    if size_non_zero:
-                        key = (filename, checks)
-                        if key in collision_map:
-                            for other_file, file_hash, size1, size2 in collision_map[key]:
-                                pair = tuple(sorted([filename, other_file]))
-                                if pair not in reported:
-                                    csum = True
-                                    print(f"COLLISION: {filename} {size1} vs {other_file} {size2} | Hash: {file_hash}", file=f)
-                                    reported.add(pair)
-        except IOError as e:
-            print(f"Failed to write collisions: {e} {type(e).__name__}  \n{traceback.format_exc()}")
-    return csum
-
-
 def matches_any_pattern(s, patterns):
     # Convert SQL-like % wildcard to fnmatch *
     for pat in patterns:
@@ -274,31 +403,44 @@ def parse_datetime(value, fmt="%Y-%m-%d %H:%M:%S"):
         return None
 
 # encoding
-# 01/09/2025
+# 01/09/2025 11/11/2026
 
 
 # used for txt output so doesnt break on newlines
 def escf_py(filename):
-    filename = filename.replace('\n', '\\\\n')
+    filename = filename.replace('\\', '\\ap5c')
+    filename = filename.replace('\n', '\\ap0A')
+    filename = filename.replace('\r', '\\ap0D')
+    # # filename = filename.replace('\t', '\\ap09')
+    # # filename = filename.replace('$', '\\ap24')
+    # # filename = filename.replace('"', '\\ap22')
     return filename
-# def escf_py(filename):
-    # filename = filename.replace('\\', '\\ap5c')
-    # filename = filename.replace('\\', '\\\\')
-    # filename = filename.replace('\n', '\\ap0A')
-    # filename = filename.replace('"', '\\ap22')
-    # filename = filename.replace('$', '\\$')
-    # filename = filename.replace('\t', '\\t')
-    # return filename
 
 
 # not used here
 def unescf_py(s):
     s = s.replace('\\ap0A', '\n')
-    s = s.replace('\\ap22', '"')
+    s = s.replace('\\ap0D', '\r')
+    # s = s.replace('\\ap09', '\t')
+    # s = s.replace('\\ap24', '$')
+    # s = s.replace('\\ap22', '"')
     s = s.replace('\\ap5c', '\\')
-    # s = s.replace('\\\\', '\\')
-    # s = s.replace('\\$', '$')
-    # s = s.replace('\\t', '\t')
+    return s
+
+
+def escf_to_ap(filename):
+    filename = filename.replace('\t', '\\ap09')
+    filename = filename.replace('"', '\\ap22')
+    # filename = filename.replace('$', '\\ap24')
+    filename = filename.replace(' ', '\\ap20')
+    return filename
+
+
+def ap_to_escf(s):
+    s = s.replace('\\ap09', '\t')
+    s = s.replace('\\ap22', '"')
+    # s = s.replace('\\ap24', '$')
+    s = s.replace('\\ap20', ' ')
     return s
 
 
@@ -306,8 +448,9 @@ def unescf_py(s):
 def ap_encode(filename):
     filename = filename.replace('\\', '\\ap5c')
     filename = filename.replace('\n', '\\ap0A')
-    filename = filename.replace('"', '\\ap22')
+    filename = filename.replace('\r', '\\ap0D')
     filename = filename.replace('\t', '\\ap09')
+    filename = filename.replace('"', '\\ap22')
     # filename = filename.replace('$', '\\ap24')
     filename = filename.replace(' ', '\\ap20')
     return filename
@@ -316,6 +459,7 @@ def ap_encode(filename):
 # 12/22/2025 used to decode bash input. default used during parsing
 def ap_decode(s):
     s = s.replace('\\ap0A', '\n')
+    s = s.replace('\\ap0D', '\r')
     s = s.replace('\\ap09', '\t')
     s = s.replace('\\ap22', '"')
     # s = s.replace('\\ap24', '$')
@@ -324,15 +468,16 @@ def ap_decode(s):
     return s
 
 
-# not used in python backend. decode from the bash but leave newline escaped
-def ap_dbdecode(s):
-    s = s.replace('\\ap0A', '\\n')
+# not used. final file output same as above but leaves newlines and carriage returns escaped for text file output
+def ap_filedecode(s):
     s = s.replace('\\ap09', '\t')
     s = s.replace('\\ap22', '"')
-    # s = s.replace('\\ap24', '$')
     s = s.replace('\\ap20', ' ')
-    s = s.replace('\\ap5c', '\\')
+    # s = s.replace('\\ap0A', '\\n')
+    # s = s.replace('\\ap0D', '\\r')
+    # s = s.replace('\\ap5c', '\\')
     return s
+
 
 # end encoding
 

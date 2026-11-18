@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       07/24/2026
+# pstsrg.py - Process and store logs in a SQLite database, encrypting the database       11/11/2026
+import base64
 import getpass
 import os
 import re
@@ -12,7 +13,7 @@ from pathlib import Path
 from typing import Any
 from hanlyparallel import hanly_parallel
 from pyfunctions import ap_decode
-from pyfunctions import CYAN, GREEN, RESET
+from pyfunctions import GREEN, RESET  # CYAN,
 from pyfunctions import collision_check
 from pyfunctions import convert_mime_to_int
 from pyfunctions import getcount
@@ -21,6 +22,7 @@ from pyfunctions import get_mime_map
 from pyfunctions import intst
 from pyfunctions import removefile
 from pyfunctions import to_bool
+from pyfunctions import unescf_py
 
 
 # Globals
@@ -142,11 +144,13 @@ def create_table(c, table, unique_columns, e_cols=None):
     if table == 'logs':
         c.execute(f'{sql} idx_logs_checksum ON logs (checksum)')
         c.execute(f'{sql} idx_logs_filename ON logs (filename)')
-        c.execute(f'{sql} idx_logs_checksum_filename ON logs (checksum, filename)')  # Composite
+        # c.execute(f'{sql} idx_logs_checksum_filename ON logs (checksum, filename)')  # Composite
+        c.execute(f'{sql} idx_logs_collision ON logs (checksum, filesize, filename)')
     else:
         c.execute(f'{sql} idx_sys_checksum ON sys (checksum)')
         c.execute(f'{sql} idx_sys_filename ON sys (filename)')
-        c.execute(f'{sql} idx_sys_checksum_filename ON sys (checksum, filename)')
+        # c.execute(f'{sql} idx_sys_checksum_filename ON sys (checksum, filename)')
+        c.execute(f'{sql} idx_logs_collision ON logs (checksum, filesize, filename)')
 
 
 def create_db(database, action=False):
@@ -244,7 +248,7 @@ def parse_line(line):
         return None
     raw_filepath = quoted_match.group(1)
 
-    filepath = ap_decode(raw_filepath)
+    filepath = raw_filepath  # escaped but decoded in parselog
 
     # Remove quoted path
     line_without_file = line.replace(quoted_match.group(0), '').strip()
@@ -290,6 +294,18 @@ def to_float_or_none(value, field, line):
         return None
 
 
+def decode_link(filename, sym, target):
+    if sym == 'y' and target:
+        try:
+            target = base64.b64decode(target).decode("utf-8")
+            return unescf_py(target)
+        except ValueError:
+            print("couldnt decode. invalid base64 symlink target:", target, "for symlink", filename)
+        except OSError:
+            print("skipped error resolving symlink target, file:", filename)
+    return None
+
+
 def parselog(file, table, checksum=None):
 
     results = []
@@ -314,7 +330,9 @@ def parselog(file, table, checksum=None):
                             continue
 
                 timestamp = inputln[0]
-                filename = inputln[1]
+
+                filename = ap_decode(inputln[1])
+
                 changetime = inputln[2]
                 ino = None if inputln[3] in ("", "None") else inputln[3]
                 accesstime = inputln[4]
@@ -339,15 +357,8 @@ def parselog(file, table, checksum=None):
                     entropy = to_float_or_none(entropy, "entropy", line)
                     us = timestamp1
                     usec = to_int_or_none(us, "usec", line)
+                    target = decode_link(filename, sym, timestamp2)
                     count = 0
-
-                    target = None
-                    if sym == 'y':
-                        try:
-                            target = os.readlink(filename)
-                        except OSError:
-                            print("skipped error resolving symlink target, file:", filename)
-
                     results.append((timestamp, filename, changetime, inode, accesstime, checks, entropy, mime, filesize, sym, onr, gpp, pmr, cam, target, lastmodified, count, usec))
 
                 elif table == 'sortcomplete':
@@ -369,12 +380,7 @@ def parselog(file, table, checksum=None):
                         checks = entropy = mime = sze = sym = onr = gpp = None
                     hardlink_count = to_int_or_none(hardlink, "hardlink_count", line) if checksum else hardlink
                     target = hashed
-                    if sym == 'y':
-                        try:
-                            target = os.readlink(filename)
-                        except OSError:
-                            print("skipped error resolving symlink target, file:", filename)
-
+                    target = decode_link(filename, sym, target)
                     results.append((timestamp, filename, changetime, inode, accesstime, checks, entropy, mime, filesize, sym, onr, gpp, pmr, cam, target, lastmodified, hardlink_count, usec))
                 else:
                     raise ValueError("Supplied table not in accepted boundaries: sys or sortcomplete. value supplied", table)
@@ -385,7 +391,7 @@ def parselog(file, table, checksum=None):
 
 
 def statparse(line, outputlist):
-    parts = line.strip().split(maxsplit=5)
+    parts = line.strip('\n').split(maxsplit=5)
     if len(parts) < 6:
         return
     action = parts[0]
@@ -393,8 +399,7 @@ def statparse(line, outputlist):
     time = None if parts[2] == "None" else parts[2]
     cdate = None if parts[3] == "None" else parts[3]
     ctime = None if parts[4] == "None" else parts[4]
-    fp = parts[5]
-    filename = fp.strip()
+    filename = parts[5]
 
     timestamp = None if date is None or time is None else f"{date} {time}"
     changetime = None if cdate is None or ctime is None else f"{cdate} {ctime}"
@@ -407,10 +412,47 @@ def hash_system_profile(checkMETHOD, turbo):
 
     sys_results = []
 
-    print(f'{CYAN}Generating system profile from base .xzms.{RESET}')
-    print("Turbo is:", turbo)
-    result = subprocess.run(["/usr/local/recent-changes/sysprofile", checkMETHOD, turbo], capture_output=True, text=True)
-    r = result.returncode
+    # print(f'{CYAN}Generating system profile from base .xzms.{RESET}')
+    # print("Turbo is:", turbo)
+    # result = subprocess.run(["/usr/local/recent-changes/sysprofile", checkMETHOD, turbo], capture_output=True, text=True)
+    # r = result.returncode
+
+    # stdin=subprocess.PIPE,
+    # cwd=script_dir,
+    proc = subprocess.Popen(
+        ["/usr/local/recent-changes/sysprofile", checkMETHOD, turbo],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True
+    )
+    stdout = proc.stdout
+    if stdout is None:
+        raise RuntimeError("stdout is None")
+
+    all_output = []
+    last_line = ""
+
+    try:
+        for line in stdout:
+            # print(repr(line))
+            print(last_line)
+            last_line = line.strip()
+            # if "Filename or Selection" in line:
+            #     print("Filename or Selection")
+            #     uinpt = input().strip()
+            #     if uinpt:
+            #         if proc.stdin is not None:
+            #             proc.stdin.write(uinpt + '\n')
+            #             proc.stdin.flush()
+            # else:
+            #     all_output.append(line)
+            all_output.append(line)
+
+    except KeyboardInterrupt:
+        proc.terminate()
+
+    proc.wait()
+    r = proc.returncode
 
     if r != 0:
         if r == 6:
@@ -421,7 +463,7 @@ def hash_system_profile(checkMETHOD, turbo):
     else:
         try:
 
-            sortcomplete_path = result.stdout.strip()
+            sortcomplete_path = last_line  # result.stdout.strip()
 
             if os.path.isfile(sortcomplete_path):
 
@@ -553,7 +595,7 @@ def main():
     created = {}
     # for arg in sys.argv[14:]:
     for create in created_files:
-        path, inode = create.rsplit("|", 1)  # arg.rsplit
+        path, inode = create.rsplit("//|", 1)  # arg.rsplit
         created[path] = inode
     # end read in the array
 
@@ -705,19 +747,10 @@ def main():
                 print(f'log db failed insert err: {e} {type(e).__name__}  \n{traceback.format_exc()}')
                 db_error = True
 
-            # Check for hash collisions
-            if checksum and cdiag:
-                if collision_check(parsed, cerr, c, ps):
-                    csum = True
-
-            if turbo == 'mc':
-                x = os.cpu_count()
-                if x:
-                    if not csum:
-                        print(f'Detected {x} CPU cores.')
-
         # Stats
         if os.path.isfile(rout):
+
+            modified = {}
 
             try:
 
@@ -740,9 +773,28 @@ def main():
 
                         insert_if_not_exists(action, timestamp, fp, changetime, conn, c)
 
+                        modified[fp] = action
+
             except Exception as e:
                 print(f'stats db failed to insert err: {e}  \n{traceback.format_exc()}')
                 db_error = True
+
+            if parsed:
+                # Check for hash collisions
+                # checkMETHOD != "b2sum" and checkMETHOD != "b2ent"
+                if (
+                    (checksum and cdiag)
+                    and "b2" not in checkMETHOD
+                ):
+
+                    if collision_check(parsed, modified, cerr, ('sys',), c, ps):
+                        csum = True
+
+                if turbo == 'mc':
+                    x = os.cpu_count()
+                    if x:
+                        if not csum:
+                            print(f'Detected {x} CPU cores.')
 
     if not db_error:  # Encrypt if o.k.
         try:

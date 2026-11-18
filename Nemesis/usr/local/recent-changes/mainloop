@@ -1,5 +1,6 @@
 #!/bin/bash
 . /usr/local/recent-changes/rntchangesfunctions
+
 fmt="%Y-%m-%d %H:%M:%S"
 prefix=mainloop1
 prefixt=mainloop2

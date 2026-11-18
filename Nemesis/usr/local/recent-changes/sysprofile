@@ -1,93 +1,183 @@
-#!/bin/bash
-shopt -s nullglob										# 07/24/2026
+#!/usr/bin/env bash
+# take initial hash of key system files to put in database for system protection. 11/12/2026
+# takes two arguments the hash method and mode. there are also 3 optional arguments xzm, sym and exec.
+# xzm false would use EXTENSIONS and PATH to make the profile off / system root.
+# xzm true is the default xzm profile for porteus.
+#
+shopt -s nullglob
+. /usr/share/porteus/porteus-functions
+get_colors
 . /usr/local/recent-changes/rntchangesfunctions
+checkMETHOD="$1"
+md="$2"
+# CHANGEABLE
+
+F=( / )
+
+xzm="true"   # true default use the premade template instead of EXTENSIONS and PATHS
+sym="true"   # true default. sym and exec affect profile when xzm is false
+exec="false" # false default. setting to true would return less results or narrower profile
+# END CHANGEABLE
+# files to include in the sys index or profile. "" would means to include files with no extensions
+EXTENSIONS=("" ".sh" ".bash" ".zsh" ".py" ".pl" ".rb" ".lua" ".php" ".js" ".db" ".so" ".sqlite" ".sqlite3" ".mdb" ".desktop" ".service" ".socket" ".timer" ".mount" ".target" ".path" ".slice" ".gpg")  # 
+# hash all in the following
+PATHS=("var/spool/cron")  # "usr/local/recent-changes" "etc" ...
+
+
+[[ "$3" != "" ]] && xzm="$3"
+[[ "$4" != "" ]] && sym="$4"
+[[ "$5" != "" ]] && exec="$5"
+
 atmp=/tmp/ztmp$$ 					;	ch=/mnt/live/memory/images/
 fmt="%Y-%m-%d %H:%M:%S"	;	xdata3=$atmp/db_log.log
 xdata=$atmp/log.log					;	SORTCOMPLETE=$atmp/list_complete_sorted.txt
-checkMETHOD="$1"					;	md="$2"
 systemf=$atmp/filelist				;	debug_file=/tmp/sp.log
-debug_log="false"
-is_sum="false"  # ensure the right hash program is used and is set in get_hashmethod
+T=()											;   args=()
+MATCH=()
+debug_log="false"						;   is_sum="false"  # ensure the right hash program is used and is set in get_hashmethod
+no_extension="false"
 
 # TMPF=$atmp/structure
 mkdir $atmp
 
 y=50
+if [[ "${#F[@]}" -gt 1 ]]; then
+    echo "invalid search target F ${F[@]}"
+else
+    if [[ "${F[0]: -1}" != "/" ]]; then
+        F[0]+="/"
+    fi
+fi
+echo  # <--
+for ((i=0; i<${#PATHS[@]}; i++)); do
+    if [[ "${PATHS[i]}" == /* ]]; then
+        echo "path ${PATHS[i]} must be relative, quitting."
+        exit 1
+    else
+        dir="${F[@]}${PATHS[i]}"
+        if ! test -d "$dir"; then
+            unset 'PATHS[i]' ; echo "Warning: proteusPATH $dir does not exist, removed and continuing"
+        else
+            PATHS[i]="$dir"
+        fi
+    fi
+done
 
-dedupe_first_path_z() {
-	local in_file=$1
-	local out_file=$2
-	local rec key
-	local i
-	local meta_fields=9
-	declare -A seen=()
-
-	: > $out_file
-	while IFS= read -r -d '' rec; do
-		key="$rec"
-		for ((i=0; i<meta_fields; i++)); do
-			[[ "$key" == *" "* ]] || break
-			key="${key#* }"
-		done
-		[[ ${seen["$key"]+_} ]] && continue
-		seen["$key"]=1
-		printf '%s\0' "$rec" >> "$out_file"
-	done < "$in_file"
-}
+[[ ! -d $ch ]] && xzm="false" || if ! grep -Eiq "Artix|Porteus" /etc/os-release; then [[ "$xzm" = "true" ]] && { xzm="false" ; echo "not porteus setting xzm to false" ; } ; fi
 
 : > $xdata3
 : > $systemf
+a="" ; b=""
+if [ "$xzm" == "true" ]; then a=" from base .xzms." ; else b="proteusEXTN " ; fi
+cyan "Generating ${b}system profile$a"
+echo "Turbo is: $md"
 
-for folder in "$ch"{003..000} "$ch"{003..000}-*; do
+if [[ $sym = "false" ]]; then
+    T+=(-type f)
+else
+    T+=(-not -type d)
+fi
 
-	[ ! -d "$folder" ] && continue
-	find "$folder" -not -type d -printf '%T@ %A@ %C@ %i %M %s %u %g %m /%P\0' >> $systemf
-	if [[ "$folder" == "$ch"000 ]]; then continue ; fi # dont hash kernel firmware
+# proteusEXTN
+if [[ "$xzm" = "false" ]]; then
+    F+=(-xdev)
+    if [[ $exec == "true" ]]; then
+        T+=(-executable)
+    fi
 
-	#binaries                  # ! -path '*/usr/share/*' 
-		for subdir in bin usr/bin usr/sbin etc sbin opt/porteus-scripts; do
-			dir="$folder/$subdir"
-			if [ -d "$dir" ]; then
-				# find "$dir" -type f -executable -not -type d '%T@ %A@ %C@ %i %s %u %g %m %p\0' > $xdata   # have to remove $folder
-				find "$folder"  -path "$dir/*" -not -type d -executable -printf '%T@ %A@ %C@ %i %M %s %u %g %m /%P\0' > $xdata
-				cat "$xdata" >> "$xdata3"
-			fi
-		done
+    for ext in "${EXTENSIONS[@]}"; do
+        if [[ -z $ext ]]; then
+            no_extension="true"
+        else
+            args+=( -o -name "*$ext" )
+        fi
+    done
 
-	# configs
-		for subdir in $folder/etc $folder/home $folder/root; do
-			if [ -d "$subdir" ]; then
-				find "$folder" -not -type d -path "$subdir/*" -printf '%T@ %A@ %C@ %i %M %s %u %g %m /%P\0' > $xdata
-				cat "$xdata" >> "$xdata3"
-			fi
-		done
+    if [[ $no_extension = "true" ]]; then
+        MATCH+=( ! -name "*.*" )
+    fi
 
-	# *.so*
-		for subdir in $folder/lib $folder/lib64 $folder/usr/lib $folder/usr/lib64 $folder/var/lib; do
-			if [ -d "$subdir" ]; then
-				find "$folder" -not -type d -name '*.so*' -path "$subdir/*" -printf '%T@ %A@ %C@ %i %M %s %u %g %m /%P\0' > $xdata
-				cat "$xdata" >> "$xdata3"
-			fi
-		done
-done
+    if ((${#args[@]})); then
+        if [[ $no_extension = "true" ]]; then
+            MATCH+=( -o \( "${args[@]:1}" \) )
+        else
+            MATCH+=( "${args[@]:1}" )
+        fi
+    fi
 
-dedupe_first_path_z "$systemf" "$xdata"
-mv "$xdata" "$systemf"
+    # Search root
+    if ((${#MATCH[@]})); then
+        find "${F[@]}" "${T[@]}" \( "${MATCH[@]}" \) -printf '%T@ %A@ %C@ %i %M %s %u %g %m /%P\0' >> "$systemf"  # "batch1"
+    fi
+    # Search additional directories
+    if ((${#PATHS[@]})); then
+        find "${PATHS[@]}" -xdev "${T[@]}" -printf '%T@ %A@ %C@ %i %M %s %u %g %m %p\0' >> "$systemf"  # "batch1"  # >> "$xdata3"
+    fi
+    # cat "$xdata3" >> "$systemf"
+    dedupe_first_path_z "$systemf" "$xdata"
+    mv "$xdata" "$xdata3"  ; >$xdata  # "$systemf"
 
-dedupe_first_path_z "$xdata3" "$xdata"
-mv "$xdata" "$xdata3"
+# xzm
+else
 
-# Escape filenames
-# while IFS= read -r -d '' x; do x="$( escf "$x")" ;  printf "%s\0" "$x" ; done < $systemf > $TMPF ; mv $TMPF $systemf 
-sort -z -o $systemf $systemf 
-sort -z -o $xdata3 $xdata3 #files to hash Already escaped
-comm -z -23 $systemf $xdata3 > $xdata # all other files not hashed
+    config_cmd=( "${T[@]}" )
+    if [[ "$exec" = "true" ]]; then
+        config_cmd+=(-executable)
+    fi
+
+    for folder in "$ch"{003..000} "$ch"{003..000}-*; do
+
+        [ ! -d "$folder" ] && continue
+        find "$folder" -not -type d -printf '%T@ %A@ %C@ %i %M %s %u %g %m /%P\0' >> $systemf
+        if [[ "$folder" == "$ch"000 ]]; then continue ; fi # dont hash kernel firmware
+
+        #binaries                  # ! -path '*/usr/share/*'  # etc  
+            for subdir in bin sbin opt/porteus-scripts usr/bin usr/sbin usr/local/bin usr/local/sbin ; do
+                dir="$folder/$subdir"
+                if [ -d "$dir" ]; then
+                    # find "$dir" -type f -executable -not -type d '%T@ %A@ %C@ %i %s %u %g %m %p\0' > $xdata   # have to remove $folder
+                    find "$folder" -path "$dir/*" -not -type d -executable -printf '%T@ %A@ %C@ %i %M %s %u %g %m /%P\0' > $xdata
+                    cat "$xdata" >> "$xdata3"
+                fi
+            done
+
+        # configs
+            for subdir in $folder/etc $folder/home $folder/root; do
+                if [ -d "$subdir" ]; then
+                    find "$folder" "${config_cmd[@]}" -path "$subdir/*" -printf '%T@ %A@ %C@ %i %M %s %u %g %m /%P\0' > $xdata
+                    cat "$xdata" >> "$xdata3"
+                fi
+            done
+
+        # *.so*
+            for subdir in $folder/lib $folder/lib64 $folder/usr/lib $folder/usr/lib64 $folder/var/lib; do
+                if [ -d "$subdir" ]; then
+                    find "$folder" "${T[@]}" -name '*.so*' -path "$subdir/*" -printf '%T@ %A@ %C@ %i %M %s %u %g %m /%P\0' > $xdata
+                    cat "$xdata" >> "$xdata3"
+                fi
+            done
+    done
+
+    dedupe_first_path_z "$systemf" "$xdata"
+    mv "$xdata" "$systemf"
+
+    dedupe_first_path_z "$xdata3" "$xdata"
+    mv "$xdata" "$xdata3"
+
+    # Escape filenames
+    # while IFS= read -r -d '' x; do x="$( escf "$x")" ;  printf "%s\0" "$x" ; done < $systemf > $TMPF ; mv $TMPF $systemf 
+    sort -z -o $systemf $systemf
+    sort -z -o $xdata3 $xdata3 #files to hash Already escaped
+    comm -z -23 $systemf $xdata3 > $xdata # all other files not hashed
+fi
+
 ## hash the selected files and convert
-x=$(tr -cd '\0' < $xdata3 | wc -c) 
+x=$(tr -cd '\0' < $xdata3 | wc -c)
+(( x == 0 )) && echo "there were no files found exitting" && exit 1
 # y=5000 ; max_jobs=1
 if [ "$md" == "mc" ]; then
-	cores=$( nproc 2>/dev/null || echo 1)
-	max_jobs=$(( cores > 16 ? 16 : cores ))
+    cores=$( nproc 2>/dev/null || echo 1)
+    max_jobs=$(( cores > 16 ? 16 : cores ))
     y=$(( (x + max_jobs - 1) / max_jobs ))
     xargs -0 -n "$y" -P "$max_jobs" /usr/local/recent-changes/profileloop $atmp $SORTCOMPLETE "null" "true" $checkMETHOD $debug_log $debug_file < $xdata3  # "batch1"
     # isoutput "mainloop1*" $SORTCOMPLETE  # if interleaving
@@ -98,24 +188,40 @@ else
     done < $xdata3
 fi
 #remaining dont hash but convert
-x=$(tr -cd '\0' < $xdata | wc -c) 
-if [ "$md" == "mc" ]; then
-    y=$(( (x + max_jobs - 1) / max_jobs ))
-    xargs -0 -n "$y" -P "$max_jobs" /usr/local/recent-changes/profileloop $atmp $SORTCOMPLETE "null" "false" $checkMETHOD $debug_log $debug_file < $xdata  # "batch2"
-    # isoutput "mainloop3*" $SORTCOMPLETE  # if interleaving
-else
-    while IFS= read -r -d '' p ; do
-        rblk "$p" $SORTCOMPLETE "/dev/null" "false" $debug_log $debug_file
-    done < $xdata
+x=$(tr -cd '\0' < $xdata | wc -c)
+# if it is xzm only
+if (( x > 0 )); then
+    if [ "$md" == "mc" ]; then
+        y=$(( (x + max_jobs - 1) / max_jobs ))
+        xargs -0 -n "$y" -P "$max_jobs" /usr/local/recent-changes/profileloop $atmp $SORTCOMPLETE "null" "false" $checkMETHOD $debug_log $debug_file < $xdata  # "batch2"
+        # isoutput "mainloop3*" $SORTCOMPLETE  # if interleaving
+    else
+        while IFS= read -r -d '' p ; do
+            rblk "$p" $SORTCOMPLETE "/dev/null" "false" $debug_log $debug_file
+        done < $xdata
+    fi
 fi
 if [[ -s $SORTCOMPLETE ]]; then
-	sort -o $SORTCOMPLETE $SORTCOMPLETE
-	echo "$SORTCOMPLETE"
+    sort -o $SORTCOMPLETE $SORTCOMPLETE
+    echo "$SORTCOMPLETE"
 else
-	exit 6
+    exit 6
 fi
+
+#Notes
 # Just get the filename
 #while IFS= read -r -d '' y; do  x=$(escf "$(cut -d' ' -f9- <<< "$y")") ; printf '%s\0' "$x"; done < $xdata3 > $TMPF
 #sort -z -o $TMPF $TMPF
 #comm -z -23 $systemf $TMPF > $xdata # all other files not hashed
+#
+# sysprofileloop incase of interleaving
+# atmp="$1"
+# IN="$2"
+# # folder="$3"
+# pf="$4" #Prefix
+# tout="${atmp}/${pf}1_${RANDOM}$(rand_alphauid)$$_tmp.log"
+# cp $IN $tout
+#while read -r -d '' x; do y="${x#"$folder"}" ; printf "%s\0" "$y" >> "$tout" ; done < $IN
+# y="$( escf "$y")"
+# make relative escape chars and convert to \0
 

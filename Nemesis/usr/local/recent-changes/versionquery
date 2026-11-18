@@ -1,13 +1,13 @@
 #!/bin/bash
 get_vrn(){
 if [ "$1" = "-v" ]; then
-   echo "version 6.5"
+   echo "version 6.7"
    echo
    echo "recentchanges aka Developer buddy"
    echo
    exit
 elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
-   echo "version 6.5"
+   echo "version 6.7"
    echo
    echo "recentchanges aka Developer buddy"
    echo
@@ -39,20 +39,22 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ] ; then
    printf "recentchanges SRC \tTarget a root directory. Useful if you compiled an application.\n\n"
    echo     " examples:"
    echo     " recentchanges SRC, recentchanges 60 SRC or recentchanges SRC 180"
-   echo   
+   echo
    echo
    echo " This feature will package a recently compiled application with a customized name into an .xzm"
    echo " It allows to focus on one directory and exclude even files that made it past the filter."
    echo " This was the main intent of the concept of recentchanges and everything is fully automatic"
    echo
-   echo " The fact that a large amount of files went"
-   echo " to one directory allows this to be possible."
+   echo " The fact that a large amount of files went to one directory allows this to be possible."
    echo
    echo "Query"
    echo
    echo "Find out information about files from searches. backend set to default will use query script. database uses query.py"
    echo "ANALYTICS uses logs from /tmp and with a seperate set of heuristics. STATPST is from logs and stats in .gpgs"
    echo
+   echo "A system profile can either be proteusEXTN based on extensions and paths or xzm template based for porteus"
+   echo "this can be set in sysprofile script"
+   echo 
    echo "Inverse the search"
    echo
    printf "rnt \t\t\tsearch for filtered rather than unfiltered files\t\t\t output /tmp\n"

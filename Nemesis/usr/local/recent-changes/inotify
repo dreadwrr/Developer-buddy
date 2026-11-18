@@ -62,7 +62,7 @@ LOCKFILE="$9"
 CSZE="${10}"
 checkMETHOD="${11}"
 time="${12}"
-min_span="${13}"  # set greater than time to increase capacity. 0 prevents log from being cleared. otherwise increase _time in /opt/porteus-scripts/recentchanges
+min_span="${13}"  # set greater than time to increase capacity. 0 prevents log from being cleared. otherwise increase _time in /opt/developerbuddy/recentchanges
 
 match_found=0
 

@@ -27,12 +27,13 @@ from pyfunctions import getnm
 from pyfunctions import intst
 from pyfunctions import is_integer
 from pyfunctions import parse_datetime
+from pyfunctions import reset_csvliteral
 from pyfunctions import to_bool
 from pyfunctions import update_config
 try:
     import tkinter as tk
+    from tkinter import ttk
     TK_AVAILABLE = True
-
 except ImportError:
     TK_AVAILABLE = False
 try:
@@ -41,14 +42,14 @@ try:
 
 except ImportError:
     SV_TTK = False
-try:
-    import ttkbootstrap as ttk
-    USE_BOOTSTRAP = True
-
-except ImportError:
-    from tkinter import ttk
-    USE_BOOTSTRAP = False
-# 07/21/2026
+USE_BOOTSTRAP = False
+if TK_AVAILABLE:
+    try:
+        import ttkbootstrap as ttk
+        USE_BOOTSTRAP = True
+    except ImportError:
+        USE_BOOTSTRAP = False
+# 11/17/2026
 
 # see pyfunctions.py cache clear patterns for db
 
@@ -83,6 +84,7 @@ COLUMN_WIDTHS = {
 }
 NUMERIC_COLUMNS = {"inode", "filesize", "mime_id", "permissions", "hardlinks", "count"}
 REAL_COLUMNS = {"entropy"}
+search_index = -1
 
 
 def sort_column(tree, cur, selected_table, _col, column_names):
@@ -209,15 +211,10 @@ def hardlinks(database, target, conn, cur, email, compLVL):
         file_rows = cur.fetchall()
 
         # Prompt to delete previous hardlink data
-        cur.execute("SELECT COUNT(*) FROM logs WHERE hardlinks IS NOT NULL AND hardlinks != ''")
-        count = cur.fetchone()[0]
-        if count > 0:
+        if file_rows:
             user_input = input("Previous 'hardlinks' data has to be cleared. Continue? (y/n): ").strip().lower()
-            if user_input == 'y':
-                cur.execute("UPDATE logs SET hardlinks = NULL WHERE hardlinks IS NOT NULL AND hardlinks != ''")
-                conn.commit()
-            else:
-                return 0
+            if user_input != 'y':
+                return False
 
         # substitutes
         # "/bin", "/etc", "/home", "/lib", "/lib64", "/opt", "/root", "/sbin", "/usr", "/var",
@@ -231,7 +228,7 @@ def hardlinks(database, target, conn, cur, email, compLVL):
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         ret_code = result.returncode
-        is_error = False
+
         if ret_code != 0:
             if ret_code not in (0, 1):
                 is_error = True
@@ -239,7 +236,7 @@ def hardlinks(database, target, conn, cur, email, compLVL):
                 print(line)
             if is_error:
                 print(f"find exited with {ret_code}. An error occurred while retrieving hardlinks:")
-                return 1
+                return False
                 # if "Transport" not in line:
                 #     if not is_error:
                 #         is_error = True
@@ -259,7 +256,7 @@ def hardlinks(database, target, conn, cur, email, compLVL):
 
         if not fs_inode_map or not file_rows:
             print("No results nothing to set")
-            return True
+            return False
 
         db_inode_map = defaultdict(set)
         for filename, inode in file_rows:
@@ -290,8 +287,11 @@ def hardlinks(database, target, conn, cur, email, compLVL):
             rlt = encr(database, target, email, no_compression=nc, dcr=True)
             if rlt:
                 print("Hard links updated.")
+                return True
             else:
                 print("Reencryption failed, hardlinks not set.")
+
+        return False
 
     except sqlite3.Error as e:
         print(f"hardlinks Error executing database query/update. err: {type(e).__name__}: {e}")
@@ -300,42 +300,58 @@ def hardlinks(database, target, conn, cur, email, compLVL):
         import traceback
         print(f"Error setting hardlinks: {e} {type(e).__name__} \n{traceback.format_exc()}")
 
+    return None
 
-def clear_cache(database, target, conn, cur, email, usr, compLVL):
+
+def clear_cache(database, target, flth, conn, cur, email, usr, compLVL):
     files_d = get_delete_patterns(usr)
     filename_pattern = None
+    count = 0
     try:
         for filename_pattern in files_d:
             cur.execute("DELETE FROM logs WHERE filename LIKE ?", (filename_pattern,))
-            conn.commit()
+            if cur.rowcount > 0:
+                count = 1
             cur.execute("DELETE FROM stats WHERE filename LIKE ?", (filename_pattern,))
-            conn.commit()
-
+        if count > 1:
+        x = getcount(cur)
+            if x % 5 == 0:
+                self.log.emit("see pyfunctions.py and clearcache scripts for delete patterns and resetting filter hits")
+        conn.commit()
         nc = intst(target, compLVL)
         rlt = encr(database, target, email, no_compression=nc, dcr=True)
-        if rlt:
-            print("Cache files cleared.")
-            try:
-                result = subprocess.run(
-                    ["/usr/local/recent-changes/clearcache", usr, "yes"],
-                    check=True,
-                    capture_output=True,
-                    text=True
-                )
-                print(result)
-            except subprocess.CalledProcessError as e:
 
-                print("Bash failed to clear flth.csv:", e.returncode)
-                if e.stdout:
-                    print("\n", e.stdout)
-                    print(e.stdout)
-                print("Error:", e.stderr)
+        if not rlt:
+            print("Reencryption failed, cache not cleared.")
+            return None
 
-        else:
-            print("Reencryption failed cache not cleared.:")
+        print("Cache files cleared.")
+
+        reset_csvliteral
+
+        try:
+
+            result = subprocess.run(
+                ["/usr/local/recent-changes/clearcache", usr, "yes"],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            print(result)
+        except subprocess.CalledProcessError as e:
+
+            print("Bash failed to clear flth.csv:", e.returncode)
+            if e.stdout:
+                print("\n", e.stdout)
+                print(e.stdout)
+            print("Error:", e.stderr)
+
+        return count
+
     except sqlite3.Error as e:
         conn.rollback()
-        print(f"Cache clear failed to write to db. on {filename_pattern} {e} {type(e).__name__}")
+        print(f"Cache clear failed to write to db. on pattern: {filename_pattern} {e} {type(e).__name__}")
+        return None
 
 
 def clear_sys(database, target, conn, cur, config_file, email, compLVL, dcr=True):
@@ -434,7 +450,72 @@ def make_combobox(parent, textvariable, values, bootstyle="primary", **kwargs):
     return ttk.Combobox(parent, textvariable=textvariable, values=values, **kwargs)
 
 
-def results(database, target, conn, cur, email, user, config_path, turbo, compLVL, checkMETHOD, bootstrapTHEME, defaultTHEME):
+def search_tree(tree, column, search_text, start_index=0, direction=1):
+    if not search_text:
+        return None
+
+    columns = tree["columns"]
+
+    if column not in columns:
+        return None
+
+    col_index = columns.index(column)
+    children = tree.get_children()
+
+    if not children:
+        return None
+
+    def find_match(indices):
+        for i in indices:
+            item = children[i]
+            values = tree.item(item, "values")
+
+            # column = columns[col_index]
+            if column in NUMERIC_COLUMNS:
+                match = search_text == str(values[col_index])
+            elif column in REAL_COLUMNS:
+                match = str(values[col_index]).startswith(search_text)
+            else:
+                match = search_text.lower() in str(values[col_index]).lower()
+            if match:
+                tree.selection_set(item)
+                tree.focus(item)
+                tree.see(item)
+                return i
+        return None
+
+    if direction == 1:
+        result = find_match(range(start_index, len(children)))
+
+        if result is None:
+            result = find_match(range(0, start_index))
+
+    else:
+        result = find_match(range(start_index, -1, -1))
+
+        if result is None:
+            result = find_match(range(len(children) - 1, start_index, -1))
+
+    return result
+
+
+def next_search(tree, column, search_text):
+    global search_index
+
+    result = search_tree(tree, column, search_text, search_index + 1, direction=1)
+
+    search_index = result if result is not None else -1
+
+
+def prev_search(tree, column, search_text):
+    global search_index
+
+    result = search_tree(tree, column, search_text, search_index - 1, direction=-1)
+
+    search_index = result if result is not None else -1
+
+
+def results(database, target, conn, cur, email, user, flth, config_path, turbo, compLVL, checkMETHOD, bootstrapTHEME, defaultTHEME):
 
     # for testing theme precedence
     global USE_BOOTSTRAP
@@ -474,6 +555,87 @@ def results(database, target, conn, cur, email, user, config_path, turbo, compLV
     cur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
     tables = [t[0] for t in cur.fetchall()] or ["(no tables)"]
     selected_table = tk.StringVar(value=tables[0])
+    selected_column = tk.StringVar()
+
+    def copy_to_clipboard(root, value):
+        root.clipboard_clear()
+        root.clipboard_append(str(value))
+        root.update()
+
+    def right_click(event, tree, root):
+        row = tree.identify_row(event.y)
+        column = tree.identify_column(event.x)
+
+        if not row or not column:
+            return
+
+        col_index = int(column.replace("#", "")) - 1
+        # column_name = tree["columns"][col_index]
+
+        value = tree.item(row, "values")[col_index]
+
+        menu = tk.Menu(root, tearoff=0)
+        menu.add_command(label="Copy", command=lambda: copy_to_clipboard(root, value))  # labe=f"Copy {column_name}"
+        # menu.add_command(
+        #    label="Copy row",
+        #    command=lambda: copy_to_clipboard("\t".join(map(str, tree.item(row, "values"))))
+        # )
+
+        menu.tk_popup(event.x_root, event.y_root)
+
+    def close_search_window():
+
+        for window in root.winfo_children():
+            if isinstance(window, tk.Toplevel) and window.title() == "Search":
+                window.destroy()
+                break
+
+    def open_search():
+        if selected_table.get() not in ('logs', 'sys'):
+            return None
+        for window in root.winfo_children():
+            if isinstance(window, tk.Toplevel) and window.title() == "Search":
+                window.lift()
+                window.focus_force()
+                return window
+
+        global search_index
+        search_index = -1
+
+        search_window = tk.Toplevel(root)
+        search_window.title("Search")
+        search_window.geometry("600x200")
+        search_window.resizable(True, True)
+
+        # search_window.transient(root)  # keeps window on top of the main application
+
+        # Search controls
+        search_frame = ttk.Frame(search_window)
+        search_frame.pack(fill=tk.X, padx=15, pady=15)
+
+        search_entry = ttk.Entry(search_frame, width=50)
+        search_entry.pack(side=tk.LEFT, padx=(0, 10))
+
+        search_combo = make_combobox(search_frame, selected_column, tree["columns"], state="readonly", width=14)
+        search_combo.pack(side=tk.LEFT)
+        if not selected_column.get():
+            search_combo.current(2)
+
+        # Nav
+        nav_frame = ttk.Frame(search_window)
+        nav_frame.pack(fill=tk.X, padx=15)  # , pady=10
+
+        next_button = make_button(nav_frame, "Next", lambda: next_search(tree, selected_column.get(), search_entry.get()), bootstyle="primary")
+        next_button.pack(side=tk.LEFT, padx=5)
+
+        prev_button = make_button(nav_frame, "Prev", lambda: prev_search(tree, selected_column.get(), search_entry.get()), bootstyle="primary")
+        prev_button.pack(side=tk.LEFT, padx=5)
+
+        return search_window
+
+    def reload_table():
+        close_search_window()
+        load_table(tree, cur, f'SELECT * FROM "{selected_table.get()}"', selected_table.get())
 
     def clear_sys_and_redraw():
         if clear_sys(database, target, conn, cur, config_path, email, compLVL, dcr=True):
@@ -483,6 +645,17 @@ def results(database, target, conn, cur, email, user, config_path, turbo, compLV
     def index_system():
         if ps(database, target, conn, cur, config_path, email, turbo, compLVL, checkMETHOD):
             selected_table.set("sys")
+            table_menu.event_generate("<<ComboboxSelected>>")
+
+    def clr_cache():
+        count = clear_cache(database, target, flth, conn, cur, email, user, compLVL)
+        if count:
+            selected_table.set("logs")
+            table_menu.event_generate("<<ComboboxSelected>>")
+
+    def hlinks():
+        if hardlinks(database, target, conn, cur, email, compLVL):
+            selected_table.set("logs")
             table_menu.event_generate("<<ComboboxSelected>>")
 
     lower_frame = ttk.Frame(root)
@@ -496,7 +669,9 @@ def results(database, target, conn, cur, email, user, config_path, turbo, compLV
 
     tree = ttk.Treeview(table_frame, show='headings')
 
-    reload_button = make_button(lower_frame, "", lambda: load_table(tree, cur, f'SELECT * FROM "{selected_table.get()}"', selected_table.get()), bootstyle="secondary", width=6)
+    tree.bind("<Button-3>", lambda event: right_click(event, tree, root))
+
+    reload_button = make_button(lower_frame, "", lambda: reload_table(), bootstyle="secondary", width=6)
 
     reload_button.pack(side=tk.LEFT, padx=(2))
 
@@ -522,10 +697,16 @@ def results(database, target, conn, cur, email, user, config_path, turbo, compLV
     label.image = img
     label.pack(side=tk.LEFT)
 
-    hardlink_button = make_button(toolbar, "Set Hardlinks", lambda: hardlinks(database, target, conn, cur, email, compLVL), bootstyle="primary")
+    hardlink_button = make_button(toolbar, "Set Hardlinks", lambda: hlinks(), bootstyle="primary")
     hardlink_button.pack(side=tk.RIGHT, padx=10)
-    clear_cache_button = make_button(toolbar, "Clear Cache", lambda: clear_cache(database, target, conn, cur, email, user, compLVL), bootstyle="primary")
+
+    # close search window <---
+    clear_cache_button = make_button(toolbar, "Clear Cache", lambda: clr_cache(), bootstyle="primary")
     clear_cache_button.pack(side=tk.RIGHT, padx=10)
+
+    search_button = make_button(toolbar, "Search", lambda: open_search(), bootstyle="primary")
+    search_button.pack(side=tk.RIGHT, padx=(10, 100))
+
     new_button = make_button(lower_frame, "Clear sys", lambda: clear_sys_and_redraw(), bootstyle="primary")
     new_button.pack(side=tk.RIGHT, padx=10)
     ps_button = make_button(lower_frame, "Proteus Shield", lambda: index_system(), bootstyle="primary")
@@ -541,6 +722,8 @@ def results(database, target, conn, cur, email, user, config_path, turbo, compLV
     table_frame.columnconfigure(0, weight=1)
 
     def on_select(_event):
+
+        close_search_window()
         load_table(tree, cur, f'SELECT * FROM "{selected_table.get()}"', selected_table.get())
     table_menu.bind("<<ComboboxSelected>>", on_select)
     load_table(tree, cur, f'SELECT * FROM "{tables[0]}"', tables[0])
@@ -548,6 +731,7 @@ def results(database, target, conn, cur, email, user, config_path, turbo, compLV
     tree.yview_moveto(0)
     tree.xview_moveto(0)
     table_frame.update_idletasks()
+
     root.mainloop()
 
 
@@ -598,7 +782,7 @@ def clock_average(rows):
         if not r or not r[0]:
             continue
 
-        # seconds = int(r[0]) % 86400  # utc
+        # seconds = int(r[0]) % 86400  # time of day only
         dt = datetime.fromtimestamp(int(r[0]))  # local time
 
         seconds = (
@@ -612,8 +796,8 @@ def clock_average(rows):
         sum_cos += cos(angle)
         n += 1
 
-    if n == 0:
-        return "N/A"
+    if n == 0 or (sum_sin**2 + sum_cos**2)**0.5 / n < 1e-10:
+        return "N/A", "N/A"
 
     angle = atan2(sum_sin, sum_cos)
     if angle < 0:
@@ -623,8 +807,9 @@ def clock_average(rows):
 
     hours = int(avg_seconds // 3600)
     minutes = int((avg_seconds % 3600) // 60)
+    half = "top of the hour" if minutes < 30 else "bottom of the hour"
 
-    return f"{hours:02d}:{minutes:02d}"
+    return f"{hours:02d}:{minutes:02d}", half
 
 
 def search_times(cur):
@@ -723,18 +908,18 @@ def main():
                             WHERE accesstime IS NOT NULL;
                         """)
                         rows = cur.fetchall()
-                        avg_atime = clock_average(rows)
+                        avg_atime, _ = clock_average(rows)
                         print(f'Average access time: {avg_atime}')
 
                         # average time of user searches
                         rows = search_times(cur)
-                        avg_search = clock_average(rows)
-                        print(f'Avg hour of activity: {avg_search}')  # atime = average_time(conn, cur) old way which would be incorrect
+                        avg_search, half = clock_average(rows)
+                        print(f'Average time of file searches: {avg_search} {half}')  # atime = average_time(conn, cur) old way which would be incorrect
 
                         # average file modified time - which is not a valid heuristic
                         # cur.execute("SELECT strftime('%s', timestamp) FROM logs")
                         # rows = cur.fetchall()
-                        # avg_mtime = clock_average(rows)
+                        # avg_mtime, _ = clock_average(rows)
                         # log_fn(f'Average time of file activity: {avg_mtime}')
                         # end Search time area
                         cnt = getcount(cur)
@@ -759,17 +944,19 @@ def main():
                         print(f'Searches {cnt}')  # count
                         print()
                         cur.execute('''
-                        SELECT filename
+                        SELECT filename, mime_id
                         FROM logs
                         WHERE TRIM(filename) != ''
                         ''')  # Ext
                         filenames = cur.fetchall()
-                        filenames = [row[0] for row in filenames]
+                        # filenames = [row[0] for row in filenames]
                         extensions = []
                         directories = []
-                        for filename in filenames:
+                        mime_ids = []
+                        for filename, mime_id in filenames:
                             if not filename:
                                 continue
+                            mime_ids.append(mime_id)
                             directories.append(os.path.dirname(filename))  # get the top directories as well
                             filepath = Path(filename)
                             filename = filepath.name
@@ -784,20 +971,42 @@ def main():
                             print(f"{CYAN}Most common extensions{RESET}")
                             for ext, count in top_3:
                                 print(f"{ext}")
+
+                        _, id_to_mime = get_mime_map(cur)  # mime_hashmap
+                        # cur.execute('''
+                        # SELECT DISTINCT filename, mime_id
+                        # FROM logs
+                        # ''')
+                        # rows = cur.fetchall()
+                        # mime_ids = [row[1] for row in rows]
+                        # cur.execute('''
+                        # SELECT id, mime, mime_primary, mime_subtype
+                        # FROM mime_types
+                        # ''')
+
+                        if mime_ids:
+                            print()
+                            print(f'{CYAN}By mime type {RESET}')
+                            mime_counts = Counter(mime_ids)
+                            top_5_mimes = mime_counts.most_common(7)
+                            for id, count in top_5_mimes:
+                                mime_ = id_to_mime.get(id, {})
+                                if not mime_:
+                                    # mime_type = "changed couldnt read"
+                                    continue
+                                else:
+                                    mime_type = mime_.get("mime")  # mime_id = mime_hashmap.get(mime, {}).get("id")
+                                    print(f"{count} {mime_type}")
+
                         print()
+
                         directory_counts = Counter(directories)  # top directories ln181
                         top_3_directories = directory_counts.most_common(3)
                         print(f'{CYAN}Top 3 directories {RESET}')
                         for directory, count in top_3_directories:
                             print(f'{count}: {directory}')
-                        print()
                         # cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''")  # common file 5
                         # filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines
-                        filename_counts = Counter(filenames)
-                        top_5_filenames = filename_counts.most_common(5)
-                        print(f'{CYAN}Top 5 created {RESET}')
-                        for file, count in top_5_filenames:
-                            print(f'{count} {file}')
                         top_5_modified = dexec(cur, 'Modified', 5)
                         filenames = [row[3] for row in top_5_modified]
                         filename_counts = Counter(filenames)
@@ -841,14 +1050,14 @@ def main():
                         if res:
                             if TK_AVAILABLE:
 
-                                if os.environ.get("XDG_SESSION_TYPE") == "wayland":
+                                if os.environ.get("XDG_SESSION_TYPE") == "way":  # land
                                     print('Wayland session switch to root and call query for display.')
                                 else:
                                     _display = os.environ.get('DISPLAY')
                                     wish_path = shutil.which("wish")
                                     if _display and wish_path:
                                         print(f'database in: {tempdir}')
-                                        results(dbopt, dbtarget, conn, cur, email, usr, config_path, turbo, compLVL, checkMETHOD, bootstrapTHEME, defaultTHEME)
+                                        results(dbopt, dbtarget, conn, cur, email, usr, flth, config_path, turbo, compLVL, checkMETHOD, bootstrapTHEME, defaultTHEME)
                                         return 0
                                     elif not wish_path:
                                         print("Install tk to display db.")
