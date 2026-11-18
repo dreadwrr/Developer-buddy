@@ -1072,6 +1072,11 @@ if [[ -n "$locale" && "$dspEDITOR" != "false" ]]; then
             [xed]=1
             [featherpad]=1
             [gedit]=1
+            [geany]=1
+            [zed]=1
+            [subl]=1
+            [kate]=1
+            [gnome-text-editor]=1
             [xdg-open]=1
         )
         default="${editors["$dspEDITOR"]}"
