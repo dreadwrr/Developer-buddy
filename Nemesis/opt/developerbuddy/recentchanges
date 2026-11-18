@@ -100,7 +100,7 @@ export ANALYTICSECT="true" # provides more feedback
 export FEEDBACK="true"  # include find output in terminal as well ie scrolling terminal look
 
 #Display
-export dspEDITOR="xed" # false.  default dont display text editor. launch text editor? look in path then /usr/bin or check if gnome
+export dspEDITOR="gedit" # false.  default dont display text editor. launch text editor? look in path then /usr/bin or check if gnome
                                         # featherpad
                                         # xed
                                         # gedit
@@ -166,9 +166,10 @@ if [ "$1" = "-v" ]; then get_vrn $1 ; elif [ "$1" = "--help" ] || [ "$1" = "-h" 
 # xhost -SI:localuser:root
 if (( EUID != 0 )); then
     echo "Please enter your root password below"
-    sudo -k
-    # --preserve-env=XDG_SESSION_TYPE,XDG_RUNTIME_DIR,WAYLAND_DISPLAY,DISPLAY
-    exec sudo /opt/developerbuddy/recentchanges "$1" "$2" "$3" "$(id -un)" "$PWD"  # exec
+    # sudo -k
+    # 
+    sudo --preserve-env=XDG_SESSION_TYPE,XDG_RUNTIME_DIR,WAYLAND_DISPLAY,DISPLAY LAUNCHED_NON_ROOT="$USR" /opt/developerbuddy/recentchanges "$1" "$2" "$3" "$(id -un)" "$PWD"  # exec
+    # su - -c "export DISPLAY='$DISPLAY' ; '$0'  $1 '$2' '$3' "$(id -un)" '$PWD'"  # export LAUNCHED_NON_ROOT='$LAUNCHED_NON_ROOT' ;
     # rc=$? ; (( rc == 0 )) && output_results "$XDG_RUNTIME_DIR"/file_output  # open editor non-root
     exit
 fi
@@ -192,13 +193,16 @@ passdir="$5"
 if [ "$4" == "" ] || [ "$5" == "" ]; then is_sudo="true" ; USR=$DEFAULT_USER ; passdir=$PWD ; fi  #Default user porteus guest 
 if  ! id $USR >/dev/null 2>&1 || [[ -z "$USR" ]]; then [[ -z "$USR" ]] && getusr || { echo "user: $USR not found"; exit 1 ; } ; fi
 
+# export DISPLAY=:0  # for tkl and root xed featherpad
+# export XAUTHORITY=/home/$USR/.Xauthority
+
 if [ "$3" == "SRC" ]; then echo "Incorrect usage please use recentchanges SRC s , s SRC or SRC" && exit 1; fi
 if [ -z "$argf" ]; then argf="bnk"; fi #Default
 #echo xdg_session_type $XDG_SESSION_TYPE ; exit 0
 #echo wayland $WAYLAND_DISPLAY
 #echo display $DISPLAY
 # export DISPLAY=:0  # orig for tkl and root xed featherpad
-# export XAUTHORITY=/home/$USR/.Xauthority  # if xhost +... doesnt work
+# if [ "$isporteus" == "true" ]; then test -e /home/$USR/.Xauthority && export XAUTHORITY=/home/$USR/.Xauthority ; fi  # if xhost +... doesnt work
 
 if [ "$1" == "reset" ]; then
     if [ "$STATPST" == "true" ]; then
