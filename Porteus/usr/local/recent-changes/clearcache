@@ -10,11 +10,10 @@ get_colors
 . "$SCRIPT_PATH"/save-changesnewfnts
 . "$SCRIPT_PATH"/rntchangesfunctions
 if [[ $(whoami) != "root" ]]; then su - -c "/usr/local/recent-changes/clearcache `whoami`" ; exit ; fi 
-USR="$1"
-# [[ -z "$USR" ]] && USR="guest" # for porteus
+USR="$1" ;  # [[ -z "$USR" ]] && USR="guest" # for porteus # get the default user from the config # sed -n 's/.*DEFAULT_USR="\([^"]*\)".*/\1/p' $CONFIG_FILE  # get whats in the quotes
 if [[ -z "$USR" ]]; then
     is_sudo="true"
-    d=$( grep -Fm 1 "DEFAULT_USER=" "$CONFIG_FILE" | awk -F'"' '{print $2}' )  # get the default user from the config # sed -n 's/.*DEFAULT_USR="\([^"]*\)".*/\1/p' $CONFIG_FILE  # get whats in the quotes
+    d=$( grep -Fm 1 "DEFAULT_USER=" "$CONFIG_FILE" | awk -F'"' '{print $2}' )  
     [[ -n "$d" ]] && USR=$d || getusr
 fi
 

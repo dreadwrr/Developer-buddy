@@ -1045,7 +1045,7 @@ else
     # sed -i "0,/USR=\"\"/s//USR=\"$USR\"/" /opt/developerbuddy/recentchanges  # first empty occurence
 fi
 }
-# orig for bash before dspPATH added
+# original for bash before dspPATH added
 #display() {
 #local locale=$1
 #if [ "$dspEDITOR" != "false" ]; then
@@ -1061,7 +1061,7 @@ cmd=()
 if [[ -n "$is_sudo" && "$isporteus" = "false" ]]; then cmd=(sudo -u "$USR" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $USR)/bus") ; fi
 if [[ -n "$locale" && "$dspEDITOR" != "false" ]]; then
     if [[ -n "$dspPATH" ]]; then [[ ! -e "$dspPATH" ]] && { echo "dspPATH setting invalid - $dspPATH not found" >&2 ; return 1 ; } ; "${cmd[@]}" "$dspPATH" "$locale" && return ; echo "Error: Failed to open $locale with $dspPATH" >&2 ; return 1 ; fi
-    [[ -z "$dspEDITOR" ]] && return 1  # [[ -n "$dspEDITOR" && "$dspEDITOR" != "xed" && "$dspEDITOR" != "featherpad" ]] && echo "$dspEDITOR chosen if using other editor please specify dspPATH" && return 1 || { [[ -z "$dspEDITOR" ]] && return 1 ; } # orig
+    [[ -z "$dspEDITOR" ]] && return 1  # [[ -n "$dspEDITOR" && "$dspEDITOR" != "xed" && "$dspEDITOR" != "featherpad" ]] && echo "$dspEDITOR chosen if using other editor please specify dspPATH" && return 1 || { [[ -z "$dspEDITOR" ]] && return 1 ; } # original
     editor_path=$( which "$dspEDITOR" 2> /dev/null)
     if [[ -n "$editor_path" ]]; then
         test -e "$editor_path" && "${cmd[@]}" "$editor_path" $locale && return || { ! test -e "$editor_path" && echo couldnt launch $dspEDITOR at "$editor_path" ; }
