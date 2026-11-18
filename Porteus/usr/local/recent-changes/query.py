@@ -314,7 +314,7 @@ def clear_cache(database, target, flth, conn, cur, email, usr, compLVL):
                 count = 1
             cur.execute("DELETE FROM stats WHERE filename LIKE ?", (filename_pattern,))
         if count > 1:
-        x = getcount(cur)
+            x = getcount(cur)
             if x % 5 == 0:
                 self.log.emit("see pyfunctions.py and clearcache scripts for delete patterns and resetting filter hits")
         conn.commit()
