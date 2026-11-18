@@ -190,7 +190,7 @@ fi
 DEFAULT_USER=""
 USR="$4"
 passdir="$5"
-if [ "$4" == "" ] || [ "$5" == "" ]; then is_sudo="true" ; USR=$DEFAULT_USER ; passdir=$PWD ; fi  #Default user porteus guest 
+if [ "$4" == "" ] || [ "$5" == "" ]; then USR=$DEFAULT_USER ; passdir=$PWD ; fi  #Default user porteus guest 
 if  ! id $USR >/dev/null 2>&1 || [[ -z "$USR" ]]; then [[ -z "$USR" ]] && getusr || { echo "user: $USR not found"; exit 1 ; } ; fi
 
 # export DISPLAY=:0  # for tkl and root xed featherpad
