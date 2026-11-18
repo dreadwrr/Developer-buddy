@@ -49,7 +49,7 @@ if TK_AVAILABLE:
         USE_BOOTSTRAP = True
     except ImportError:
         USE_BOOTSTRAP = False
-# 11/08/2026
+# 11/17/2026
 
 # see pyfunctions.py cache clear patterns for db
 
@@ -794,7 +794,7 @@ def clock_average(rows):
         n += 1
 
     if n == 0 or (sum_sin**2 + sum_cos**2)**0.5 / n < 1e-10:
-        return "N/A"
+        return "N/A", "N/A"
 
     angle = atan2(sum_sin, sum_cos)
     if angle < 0:
@@ -806,7 +806,7 @@ def clock_average(rows):
     minutes = int((avg_seconds % 3600) // 60)
     half = "top of the hour" if minutes < 30 else "bottom of the hour"
 
-    return f"{hours:02d}:{minutes:02d} {half}"
+    return f"{hours:02d}:{minutes:02d}", half
 
 
 def search_times(cur):
@@ -905,18 +905,18 @@ def main():
                             WHERE accesstime IS NOT NULL;
                         """)
                         rows = cur.fetchall()
-                        avg_atime = clock_average(rows)
+                        avg_atime, _ = clock_average(rows)
                         print(f'Average access time: {avg_atime}')
 
                         # average time of user searches
                         rows = search_times(cur)
-                        avg_search = clock_average(rows)
-                        print(f'Avg hour of activity: {avg_search}')  # atime = average_time(conn, cur) old way which would be incorrect
+                        avg_search, half = clock_average(rows)
+                        print(f'Average time of file searches: {avg_search} {half}')  # atime = average_time(conn, cur) old way which would be incorrect
 
                         # average file modified time - which is not a valid heuristic
                         # cur.execute("SELECT strftime('%s', timestamp) FROM logs")
                         # rows = cur.fetchall()
-                        # avg_mtime = clock_average(rows)
+                        # avg_mtime, _ = clock_average(rows)
                         # log_fn(f'Average time of file activity: {avg_mtime}')
                         # end Search time area
                         cnt = getcount(cur)
@@ -941,17 +941,19 @@ def main():
                         print(f'Searches {cnt}')  # count
                         print()
                         cur.execute('''
-                        SELECT filename
+                        SELECT filename, mime_id
                         FROM logs
                         WHERE TRIM(filename) != ''
                         ''')  # Ext
                         filenames = cur.fetchall()
-                        filenames = [row[0] for row in filenames]
+                        # filenames = [row[0] for row in filenames]
                         extensions = []
                         directories = []
-                        for filename in filenames:
+                        mime_ids = []
+                        for filename, mime_id in filenames:
                             if not filename:
                                 continue
+                            mime_ids.append(mime_id)
                             directories.append(os.path.dirname(filename))  # get the top directories as well
                             filepath = Path(filename)
                             filename = filepath.name
@@ -966,20 +968,42 @@ def main():
                             print(f"{CYAN}Most common extensions{RESET}")
                             for ext, count in top_3:
                                 print(f"{ext}")
+
+                        _, id_to_mime = get_mime_map(cur)  # mime_hashmap
+                        # cur.execute('''
+                        # SELECT DISTINCT filename, mime_id
+                        # FROM logs
+                        # ''')
+                        # rows = cur.fetchall()
+                        # mime_ids = [row[1] for row in rows]
+                        # cur.execute('''
+                        # SELECT id, mime, mime_primary, mime_subtype
+                        # FROM mime_types
+                        # ''')
+
+                        if mime_ids:
+                            print()
+                            print(f'{CYAN}By mime type {RESET}')
+                            mime_counts = Counter(mime_ids)
+                            top_5_mimes = mime_counts.most_common(7)
+                            for id, count in top_5_mimes:
+                                mime_ = id_to_mime.get(id, {})
+                                if not mime_:
+                                    # mime_type = "changed couldnt read"
+                                    continue
+                                else:
+                                    mime_type = mime_.get("mime")  # mime_id = mime_hashmap.get(mime, {}).get("id")
+                                    print(f"{count} {mime_type}")
+
                         print()
+
                         directory_counts = Counter(directories)  # top directories ln181
                         top_3_directories = directory_counts.most_common(3)
                         print(f'{CYAN}Top 3 directories {RESET}')
                         for directory, count in top_3_directories:
                             print(f'{count}: {directory}')
-                        print()
                         # cur.execute("SELECT filename FROM logs WHERE TRIM(filename) != ''")  # common file 5
                         # filenames = [row[0] for row in cur.fetchall()]  # end='' prevents extra newlines
-                        filename_counts = Counter(filenames)
-                        top_5_filenames = filename_counts.most_common(5)
-                        print(f'{CYAN}Top 5 created {RESET}')
-                        for file, count in top_5_filenames:
-                            print(f'{count} {file}')
                         top_5_modified = dexec(cur, 'Modified', 5)
                         filenames = [row[3] for row in top_5_modified]
                         filename_counts = Counter(filenames)

@@ -1058,7 +1058,7 @@ fi
 display() {
 local locale=$1
 cmd=()
-# if [[ -n "$is_sudo" ]]; then cmd=(sudo -u "$USR" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $USR)/bus") ; fi
+if [[ -n "$is_sudo" && "$isporteus" = "false" ]]; then cmd=(sudo -u "$USR" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $USR)/bus") ; fi
 if [[ -n "$locale" && "$dspEDITOR" != "false" ]]; then
     if [[ -n "$dspPATH" ]]; then [[ ! -e "$dspPATH" ]] && { echo "dspPATH setting invalid - $dspPATH not found" >&2 ; return 1 ; } ; "${cmd[@]}" "$dspPATH" "$locale" && return ; echo "Error: Failed to open $locale with $dspPATH" >&2 ; return 1 ; fi
     [[ -z "$dspEDITOR" ]] && return 1  # [[ -n "$dspEDITOR" && "$dspEDITOR" != "xed" && "$dspEDITOR" != "featherpad" ]] && echo "$dspEDITOR chosen if using other editor please specify dspPATH" && return 1 || { [[ -z "$dspEDITOR" ]] && return 1 ; } # orig
@@ -1070,7 +1070,7 @@ if [[ -n "$locale" && "$dspEDITOR" != "false" ]]; then
                 "${cmd[@]}" /usr/bin/$dspEDITOR $locale && return ; echo "Error: Detected and failed to open /usr/bin/$dspEDITOR"
             # gnome?
             else
-                if command -v xdg-open >/dev/null 2>&1; then xdg-open $locale && return ; fi
+                if [[ -z "$is_sudo" ]] && command -v xdg-open >/dev/null 2>&1; then xdg-open $locale && return ; fi
                 echo couldnt find $dspEDITOR in path or in default /usr/bin please specify dspEDITOR or dspPATH: "/opt/developerbuddy/recentchanges"
             fi
     fi

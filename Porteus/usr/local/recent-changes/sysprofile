@@ -14,14 +14,14 @@ md="$2"
 
 F=( / )
 
-xzm="false"   # true default use the premade template instead of EXTENSIONS and PATHS
+xzm="true"   # true default use the premade template instead of EXTENSIONS and PATHS
 sym="true"   # true default. sym and exec affect profile when xzm is false
 exec="false" # false default. setting to true would return less results or narrower profile
 # END CHANGEABLE
 # files to include in the sys index or profile. "" would means to include files with no extensions
-EXTENSIONS=()  # "" ".sh" ".bash" ".zsh" ".py" ".pl" ".rb" ".lua" ".php" ".js" ".db" ".so" ".sqlite" ".sqlite3" ".mdb" ".desktop" ".service" ".socket" ".timer" ".mount" ".target" ".path" ".slice" ".gpg"
+EXTENSIONS=("" ".sh" ".bash" ".zsh" ".py" ".pl" ".rb" ".lua" ".php" ".js" ".db" ".so" ".sqlite" ".sqlite3" ".mdb" ".desktop" ".service" ".socket" ".timer" ".mount" ".target" ".path" ".slice" ".gpg")  # 
 # hash all in the following
-PATHS=("var/spool/cron" "usr/local/recent-changes")
+PATHS=("var/spool/cron")  # "usr/local/recent-changes" "etc" ...
 
 
 [[ "$3" != "" ]] && xzm="$3"
@@ -104,7 +104,7 @@ if [[ "$xzm" = "false" ]]; then
             MATCH+=( "${args[@]:1}" )
         fi
     fi
-    echo three
+
     # Search root
     if ((${#MATCH[@]})); then
         find "${F[@]}" "${T[@]}" \( "${MATCH[@]}" \) -printf '%T@ %A@ %C@ %i %M %s %u %g %m /%P\0' >> "$systemf"  # "batch1"
@@ -131,12 +131,12 @@ else
         find "$folder" -not -type d -printf '%T@ %A@ %C@ %i %M %s %u %g %m /%P\0' >> $systemf
         if [[ "$folder" == "$ch"000 ]]; then continue ; fi # dont hash kernel firmware
 
-        #binaries                  # ! -path '*/usr/share/*' 
-            for subdir in bin usr/bin usr/sbin etc sbin opt/porteus-scripts; do
+        #binaries                  # ! -path '*/usr/share/*'  # etc  
+            for subdir in bin sbin opt/porteus-scripts usr/bin usr/sbin usr/local/bin usr/local/sbin ; do
                 dir="$folder/$subdir"
                 if [ -d "$dir" ]; then
                     # find "$dir" -type f -executable -not -type d '%T@ %A@ %C@ %i %s %u %g %m %p\0' > $xdata   # have to remove $folder
-                    find "$folder"  -path "$dir/*" -not -type d -executable -printf '%T@ %A@ %C@ %i %M %s %u %g %m /%P\0' > $xdata
+                    find "$folder" -path "$dir/*" -not -type d -executable -printf '%T@ %A@ %C@ %i %M %s %u %g %m /%P\0' > $xdata
                     cat "$xdata" >> "$xdata3"
                 fi
             done

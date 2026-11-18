@@ -1,5 +1,5 @@
 #!/bin/bash
-# Clear cache from gpgs                 11/08/2026
+# Clear cache from gpgs                 11/18/2026
 # usage. None required. $1 username if one isnt provided default is used `guest`. $2 means from database reset literal exit early
 # This clears cache from logs and stat gpgs and also clears filter hits. clear_flth is called from tkinter to reset filter hits for database.
 
@@ -11,7 +11,12 @@ get_colors
 . "$SCRIPT_PATH"/rntchangesfunctions
 if [[ $(whoami) != "root" ]]; then su - -c "/usr/local/recent-changes/clearcache `whoami`" ; exit ; fi 
 USR="$1"
-[[ -z "$USR" ]] && USR="guest"
+# [[ -z "$USR" ]] && USR="guest" # for porteus
+if [[ -z "$USR" ]]; then
+    is_sudo="true"
+    d=$( grep -Fm 1 "DEFAULT_USER=" "$CONFIG_FILE" | awk -F'"' '{print $2}' )  # get the default user from the config # sed -n 's/.*DEFAULT_USR="\([^"]*\)".*/\1/p' $CONFIG_FILE  # get whats in the quotes
+    [[ -n "$d" ]] && USR=$d || getusr
+fi
 
 
 # patterns to delete from from logs on cache clear. regex
@@ -62,7 +67,7 @@ done
 # declare -p patterns . prints the array  # echo "sed -i \"\|$pat|d\" \"$1\"  debug output
 clear_c() { for pat in "${patterns[@]}"; do sed -i "\|$pat|d" $1 ; done ; }
 ctmp() { if [ -d /tmp/rc ]; then for file in /tmp/rc/*; do [[ -s $file ]] && clear_c $file ; done ; fi ; }
-decrypt(){	if ! gpg --yes -d -o $1 $2; then red "Failed to decrypt  ${2}" && rm $atmp && exit 1; fi; }
+decrypt(){	if ! gpg --yes -d -o $1 $2; then red "Failed to decrypt  $2" && rm $atmp && exit 1; fi; }
 encr() { if ! gpg --yes -e -r $mail -o $2 $1; then red "Rencryption failed. Everything preserved" && rm $atmp && exit 1; fi; }
 atmp=/tmp/atmp$$    ;   flth="$SCRIPT_PATH"/flth.csv
 xdata=$atmp/logs_stats.log
