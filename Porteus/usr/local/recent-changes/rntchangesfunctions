@@ -1066,13 +1066,27 @@ if [[ -n "$locale" && "$dspEDITOR" != "false" ]]; then
     if [[ -n "$editor_path" ]]; then
         test -e "$editor_path" && "${cmd[@]}" "$editor_path" $locale && return || { ! test -e "$editor_path" && echo couldnt launch $dspEDITOR at "$editor_path" ; }
     else
-        if [[ -e /usr/bin/$dspEDITOR ]]; then
-                "${cmd[@]}" /usr/bin/$dspEDITOR $locale && return ; echo "Error: Detected and failed to open /usr/bin/$dspEDITOR"
-            # gnome?
-            else
-                if [[ -z "$is_sudo" ]] && command -v xdg-open >/dev/null 2>&1; then xdg-open $locale && return ; fi
-                echo couldnt find $dspEDITOR in path or in default /usr/bin please specify dspEDITOR or dspPATH: "/opt/developerbuddy/recentchanges"
+        # ubuntu gedit. gnome can be xdg-open
+        declare -A editors=(
+            [mousepad]=1
+            [xed]=1
+            [featherpad]=1
+            [gedit]=1
+            [xdg-open]=1
+        )
+        default="${editors["$dspEDITOR"]}"
+        [[ -n "$default" ]] && unset "editors[$dspEDITOR]"
+        for editor in "${!editors[@]}"; do
+            # avoid delay with debus if root as it uses sudo -u
+            if [ "$editor" == "xdg-open" ] && [ -n "$is_sudo" ]; then continue ; fi
+            if [[ $(which $editor | wc -l) -ne 0 ]]; then
+                "${cmd[@]}" $editor $locale && return ; echo "Attempted to open $editor and returned non zero. set dspEDITOR in /opt/developerbuddy/recentchanges"
             fi
+        done
+        if [[ -e /usr/bin/$dspEDITOR ]]; then
+            "${cmd[@]}" /usr/bin/$dspEDITOR $locale && return ; echo "Error: Detected and failed to open /usr/bin/$dspEDITOR"
+        fi
+         echo couldnt find $dspEDITOR in path or in default /usr/bin please specify dspEDITOR or dspPATH: /opt/developerbuddy/recentchanges
     fi
     return 1
 fi
