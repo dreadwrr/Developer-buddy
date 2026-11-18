@@ -32,8 +32,8 @@ from pyfunctions import to_bool
 from pyfunctions import update_config
 try:
     import tkinter as tk
+    from tkinter import ttk
     TK_AVAILABLE = True
-
 except ImportError:
     TK_AVAILABLE = False
 try:
@@ -42,13 +42,13 @@ try:
 
 except ImportError:
     SV_TTK = False
-try:
-    import ttkbootstrap as ttk
-    USE_BOOTSTRAP = True
-
-except ImportError:
-    from tkinter import ttk
-    USE_BOOTSTRAP = False
+USE_BOOTSTRAP = False
+if TK_AVAILABLE:
+    try:
+        import ttkbootstrap as ttk
+        USE_BOOTSTRAP = True
+    except ImportError:
+        USE_BOOTSTRAP = False
 # 11/08/2026
 
 # see pyfunctions.py cache clear patterns for db
@@ -1023,7 +1023,7 @@ def main():
                         if res:
                             if TK_AVAILABLE:
 
-                                if os.environ.get("XDG_SESSION_TYPE") == "wayland":
+                                if os.environ.get("XDG_SESSION_TYPE") == "way":  # land
                                     print('Wayland session switch to root and call query for display.')
                                 else:
                                     _display = os.environ.get('DISPLAY')

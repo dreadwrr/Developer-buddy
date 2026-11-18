@@ -623,12 +623,15 @@ while IFS= read -r p || [[ -n "$p" ]]; do
 	mtime=0
 	omtime=0
 	found_line=""
-
+    # tmp="${f3#*\"}"
+    # y="${tmp%\"*}"  # used to be the key now using $f3 which had outer quotes
 	read -r f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 f14 f15 f16 f17 _ _ _ f21 f22 _ <<< "$p"  # skip entropy lmt and finally hardlinks if enabled
 	in="$f6"
 	if [ -n "$in" ] && [ "$in" -ge 0 ] 2>/dev/null; then
-	    tmp="${f3#*\"}"
-	    y="${tmp%\"*}"  # used to be the key now using $f3 which had outer quotes
+
+        tmp="${f3#\"}"  # remove leading quote
+        y="${tmp%\"}"  # remove trailing
+        filepath="$(ap_dec "$f3")"
 		if [ "$1" == "A" ]; then
 			found_line="${ref_map["$f3"]}"
 		else
@@ -991,7 +994,8 @@ if [ "$syschg" == "true" ]; then
     cyan "$MODULENAME$flnm"
     if [ "$diffrlt" == "false" ] && [ "$nodiff" == "true" ]; then green " Nothing in the sys diff file. That is the results themselves are true" ; fi
     analytics
-    display $dirSRC "$MODULENAME$flnm"
+    # display $dirSRC "$MODULENAME$flnm"
+    output_results "$1"
 else
     cyan "No sys files to report."
 fi
@@ -1029,14 +1033,43 @@ if  [[ "$ANALYTICSECT" = "true" ]]; then
     fi
 fi
 }
+# orig for bash before dspPATH added
+#display() {
+#local locale=$1
+#if [ "$dspEDITOR" != "false" ]; then
+#    [[ "$dspEDITOR" = "xed" ]] && test -e /usr/bin/xed && xed $locale"$2" 
+#    [[ "$dspEDITOR" = "xed" ]] && ! test -e /usr/bin/xed && echo $dspEDITOR not installed 
+#    [[ "$dspEDITOR" = "featherpad" ]] && test -e /usr/bin/featherpad && featherpad $locale"$2" 
+#    [[ "$dspEDITOR" = "featherpad" ]] && ! test -e /usr/bin/featherpad && echo $dspEDITOR not installed
+#fi
+#}
 display() {
-local locale=$1
-if [ "$dspEDITOR" != "false" ]; then
-    [[ "$dspEDITOR" = "xed" ]] && test -e /usr/bin/xed && xed $locale"$2" 
-    [[ "$dspEDITOR" = "xed" ]] && ! test -e /usr/bin/xed && echo $dspEDITOR not installed 
-    [[ "$dspEDITOR" = "featherpad" ]] && test -e /usr/bin/featherpad && featherpad $locale"$2" 
-    [[ "$dspEDITOR" = "featherpad" ]] && ! test -e /usr/bin/featherpad && echo $dspEDITOR not installed
+local locale=$1 ; res=0
+if [[ -n "$locale" && "$dspEDITOR" != "false" ]]; then
+    if [[ -n "$dspPATH" ]]; then [[ ! -e "$dspPATH" ]] && { echo "dspPATH setting invalid - $dspPATH not found" >&2 ; return 1 ; } ; "$dspPATH" "$locale" && return ; echo "Error: Failed to open $locale with $dspPATH" >&2 ; return 1 ; fi
+    # [[ -n "$dspEDITOR" && "$dspEDITOR" != "xed" && "$dspEDITOR" != "featherpad" ]] && echo "$dspEDITOR chosen if using other editor please specify dspPATH" && return 1 || { [[ -z "$dspEDITOR" ]] && return 1 ; }
+    [[ -z "$dspEDITOR" ]] && return 1
+    editor_path=$( which "$dspEDITOR" 2> /dev/null)
+    if [[ -n "$editor_path" ]]; then
+        test -e "$editor_path" && "$editor_path" $locale && return || { ! test -e "$editor_path" && echo couldnt launch $dspEDITOR at "$editor_path" ; res=1 ; }
+    else
+        if [[ -e /usr/bin/$dspEDITOR ]]; then
+        		/usr/bin/$dspEDITOR $locale && return ; echo "Error: Detected and failed to open /usr/bin/$dspEDITOR" ; res=1
+        	# gnome?
+        	else
+        		if command -v xdg-open >/dev/null 2>&1; then xdg-open $locale ; res=$? ; fi
+        		echo couldnt find $dspEDITOR in path or in default /usr/bin please specify dspEDITOR or dspPATH: "/opt/developerbuddy/recentchanges"
+        	fi
+    fi
+    return $res
 fi
+}
+# load text editor if user want to display as non root
+output_results() {
+    local file_out="$1"  # 0"$XDG_RUNTIME_DIR"/file_output
+    # if [[ $res -eq 0 ]]; then
+    test -f $file_out && var=$( cat $file_out) && display "$var"  # test -f $file_out && rm $file_out
+    # exit $res
 }
 isdiff() {
 if [ -s "$1" ]; then
@@ -1190,7 +1223,7 @@ if [ "$STATPST" == "true" ]; then
             for path in "${!created[@]}"; do
                 created_files+=("${path}//|${created[$path]}")
             done
-
+			cp $SORTCOMPLETE /tmp
             printf "%s\0" "${created_files[@]}" | python3 /usr/local/recent-changes/pstsrg.py $SORTCOMPLETE $COMPLETE $pydbpst $rout $checkSUM $checkMETHOD $cdiag $USR $email $mMODE $ANALYTICSECT $proteusSHIELD $compLVL $total_files
             ret=$?
             if [ "$ret" -ne 0 ]; then
@@ -1517,7 +1550,7 @@ if [ "$ino" -ge 0 ] 2>/dev/null && [ "$sze" -ge 0 ] 2>/dev/null; then
 
         h=$( "${hcomm[@]}" $file_path 2>/dev/null)
         if [[ -n "$h" ]]; then
-            read -r checks e m <<< "$h"
+            read -r checks e m _ <<< "$h"
 
             # md5sum or b2sum m would be null but set is_sum instead in get_hashmethod to be sure
             if [ "$is_sum" == "true" ]; then
