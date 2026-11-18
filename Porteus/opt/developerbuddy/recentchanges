@@ -223,27 +223,27 @@ fi
 # $atmp  secondary tmp files from upgrade
 # $atmpwork   multiprocessing tmp files so not messy
 # $atmp$workdir   restricted decrypted pst file for ha. & ha multiprocessing related files
-workdir=/hablk											;	workfld=/fsearch$$
-tmp=/tmp/work$$											;	chxzm=/$MODULENAME.xzm
-ABSENT=$tmp/tmp_absent.txt								;	atmp=/tmp/atmp$$ 
+workdir=/hablk															;	workfld=/fsearch$$
+tmp=/tmp/work$$														;	chxzm=/$MODULENAME.xzm
+ABSENT=$tmp/tmp_absent.txt									;	atmp=/tmp/atmp$$ 
 UPDATE=$tmp/save.transferlog.tmp							;	rout=$atmp/routput.tmp
 RECENT=$tmp/list_recentchanges_filtered.txt				;	xdata=/logs_stats.log # dcryp log file
 RECENTAPP=$tmp/list_recentapp_filtered.txt				;	xdata2=/logs.log.log
-COMPLETE=$tmp/list_complete.txt							;	xdata3=$atmp$workdir/temp_log.log
+COMPLETE=$tmp/list_complete.txt								;	xdata3=$atmp$workdir/temp_log.log
 TMPOUTPUT=$tmp/list_tmp_sorted.txt 						;	tfile=$atmp$xdata
 TMPCOMPLETE=$tmp/tmp_complete.txt						;	tfile2=$atmp$xdata2
 RSYNCEXCL=$tmp/list_filesexclude.txt						;	tout=$atmp/toutput.tmp
-TMPOPT=$tmp/tmp_holding									;	toutnul=$atmp/toutputnul.tmp
-REJECTLOG=$tmp/list_rejectsrc.txt						;	xopt=/mnt/live/tmp # spare tmp dir
-FOLDERLOG=$tmp/save.totalfolders.tmp						;	log_file=/tmp/file_creation_log.txt
-SORTCOMPLETE=$tmp/list_complete_sorted.txt				;	LCLMODULENAME=${chxzm:1:8}
-RECENTNUL=$tmp/list_recentchanges_filterednul.txt		;	USRDIR=/home/$USR/Downloads
-SVFOLDERS=$tmp/save.rncfoldersmanifest.tmp				;	SVFILES=$tmp/save.rncfilesmanifest.tmp
+TMPOPT=$tmp/tmp_holding										;	toutnul=$atmp/toutputnul.tmp
+REJECTLOG=$tmp/list_rejectsrc.txt								;	xopt=/mnt/live/tmp # spare tmp dir
+FOLDERLOG=$tmp/save.totalfolders.tmp					;	log_file=/tmp/file_creation_log.txt
+SORTCOMPLETE=$tmp/list_complete_sorted.txt			;	LCLMODULENAME=${chxzm:1:8}
+RECENTNUL=$tmp/list_recentchanges_filterednul.txt	;	USRDIR=/home/$USR/Downloads
+SVFOLDERS=$tmp/save.rncfoldersmanifest.tmp			;	SVFILES=$tmp/save.rncfilesmanifest.tmp
 
-cdir=/tmp/dbctimecache/									;	cerr=/tmp/cerr  # priority
-datadict="${cdir}datadict"								;	slog=/tmp/scr  # feedback
-secondary=()												;	arrreject=()
-arrfiles=()												;	TAIL=()
+cdir=/tmp/dbctimecache/											;	cerr=/tmp/cerr  # priority
+datadict="${cdir}datadict"										;	slog=/tmp/scr  # feedback
+secondary=()															;	arrreject=()
+arrfiles=()																	;	TAIL=()
 	
 declare -A recent  # this search SORTCOMPLETE
 declare -A ref_map  # bash default mode. logs stored or original SORTCOMPLETE. past searches
@@ -265,21 +265,21 @@ file_path=""  # for flsrh inclusion to not list the file itself
 SRCDIR=""															;	csm=""
 dirSRC=""															;	OLDSORTED=""
 
-ha_total_time=""														;	logger_total_time=""
-lifetime_total=""													;	lifetime_time=""
+ha_total_time=""												;	logger_total_time=""
+lifetime_total=""												;	lifetime_time=""
 total_files=0														;   total_time=0	
-cores=0																;	max_jobs=0
+cores=0															;	max_jobs=0
 
 astring=""															;	search_string=""
-deltadiff=""															;	search_time=0
+deltadiff=""														;	search_time=0
 
 CSZE=$(( 1024 * 1024 ))  # cache anything over 1 MB
 
-diffrlt="false"														;	pstc="false"
-nodiff="false"														;	samerlt="false"
-syschg="false"														;	validrlt="false"
-approval="true"														;	nc="false"
-csum="false"															;	valid_data="true"
+diffrlt="false"													;	pstc="false"
+nodiff="false"													;	samerlt="false"
+syschg="false"													;	validrlt="false"
+approval="true"												;	nc="false"
+csum="false"													;	valid_data="true"
 isporteus="false"
 
 search="false"
@@ -398,9 +398,6 @@ if [ -s $SORTCOMPLETE ]; then
     sort -o $TMPOPT $TMPOPT
 
     cp $TMPOPT $RECENT
-
-    # cut -d' ' -f3- $RECENT > $tout ; mv $tout $RECENT
-
     /usr/local/recent-changes/filter $RECENT $USR
 
     logf=$TMPOPT
