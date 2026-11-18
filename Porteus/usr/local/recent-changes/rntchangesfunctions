@@ -971,35 +971,6 @@ cd $dirSRC || exit
 for suffix in "${suffixes[@]}"; do rm -f "${MODULENAME#/}$suffix"* 2>/dev/null ; done
 
 }
-logic() {
-if [ "$search" == "false" ]; then
-    if [ "$validrlt" == "true" ]; then
-        if [ "$SRCDIR" == "SRC" ]; then
-            cyan "Your module has been created. in /tmp" ; echo
-            cyan "$filename".xzm ; echo
-        fi
-    elif [ "$SRCDIR" == "SRC" ]; then
-        cyan "There were no files to grab." ; echo
-    fi
-fi
-if [ "$syschg" == "true" ]; then
-    if [ "$flsrh" = "true" ]; then
-        cyan "All files newer than $filename in $dirSRC"
-    elif [ "$5" = "filtered" ]; then
-        cyan "All new filtered files are listed in $dirSRC"
-    else
-        cyan "All new system files are listed in $dirSRC"
-    fi
-    echo
-    cyan "$MODULENAME$flnm"
-    if [ "$diffrlt" == "false" ] && [ "$nodiff" == "true" ]; then green " Nothing in the sys diff file. That is the results themselves are true" ; fi
-    analytics
-    # display $dirSRC "$MODULENAME$flnm"
-    output_results "$1"
-else
-    cyan "No sys files to report."
-fi
-}
 analytics() {
     # new analytics with lifetime_total and lifetime_time stored in CACHE_F and ctimecache.gpg
     # if its the first run dont display lifetime throughput.
@@ -1033,6 +1004,47 @@ if  [[ "$ANALYTICSECT" = "true" ]]; then
     fi
 fi
 }
+logic() {
+if [ "$search" == "false" ]; then
+    if [ "$validrlt" == "true" ]; then
+        if [ "$SRCDIR" == "SRC" ]; then
+            cyan "Your module has been created. in /tmp" ; echo
+            cyan "$filename".xzm ; echo
+        fi
+    elif [ "$SRCDIR" == "SRC" ]; then
+        cyan "There were no files to grab." ; echo
+    fi
+fi
+if [ "$syschg" == "true" ]; then
+    if [ "$flsrh" = "true" ]; then
+        cyan "All files newer than $filename in $dirSRC"
+    elif [ "$5" = "filtered" ]; then
+        cyan "All new filtered files are listed in $dirSRC"
+    else
+        cyan "All new system files are listed in $dirSRC"
+    fi
+    echo
+    cyan "$MODULENAME$flnm"
+    if [ "$diffrlt" == "false" ] && [ "$nodiff" == "true" ]; then green " Nothing in the sys diff file. That is the results themselves are true" ; fi
+    analytics
+    # display $dirSRC "$MODULENAME$flnm"
+    return 0
+else
+    cyan "No sys files to report."
+fi
+return 1
+}
+getusr() {
+DEFAULT_USER="$SUDO_USER" ; [[ -z "$DEFAULT_USER" ]] && DEFAULT_USER=$( awk -F: '$3 == 1000 {print $1}' /etc/passwd)  # 1000 # above would be blank in ran as root
+read -rp "Enter default username [$DEFAULT_USER]: " USR ; USR="${USR:-$DEFAULT_USER}"
+if  ! id $USR >/dev/null 2>&1; then
+    echo "user: $USR not found"; echo "set default user ln 187" ; exit 1
+else
+    echo "setting default user to $USR"
+    sed -i "s/^DEFAULT_USER=\"\"/DEFAULT_USER=\"$USR\"/" /opt/developerbuddy/recentchanges  # known value to new
+    # sed -i "0,/USR=\"\"/s//USR=\"$USR\"/" /opt/developerbuddy/recentchanges  # first empty occurence
+fi
+}
 # orig for bash before dspPATH added
 #display() {
 #local locale=$1
@@ -1044,32 +1056,32 @@ fi
 #fi
 #}
 display() {
-local locale=$1 ; res=0
+local locale=$1
+cmd=()
+# if [[ -n "$is_sudo" ]]; then cmd=(sudo -u "$USR" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $USR)/bus") ; fi
 if [[ -n "$locale" && "$dspEDITOR" != "false" ]]; then
-    if [[ -n "$dspPATH" ]]; then [[ ! -e "$dspPATH" ]] && { echo "dspPATH setting invalid - $dspPATH not found" >&2 ; return 1 ; } ; "$dspPATH" "$locale" && return ; echo "Error: Failed to open $locale with $dspPATH" >&2 ; return 1 ; fi
-    # [[ -n "$dspEDITOR" && "$dspEDITOR" != "xed" && "$dspEDITOR" != "featherpad" ]] && echo "$dspEDITOR chosen if using other editor please specify dspPATH" && return 1 || { [[ -z "$dspEDITOR" ]] && return 1 ; }
-    [[ -z "$dspEDITOR" ]] && return 1
+    if [[ -n "$dspPATH" ]]; then [[ ! -e "$dspPATH" ]] && { echo "dspPATH setting invalid - $dspPATH not found" >&2 ; return 1 ; } ; "${cmd[@]}" "$dspPATH" "$locale" && return ; echo "Error: Failed to open $locale with $dspPATH" >&2 ; return 1 ; fi
+    [[ -z "$dspEDITOR" ]] && return 1  # [[ -n "$dspEDITOR" && "$dspEDITOR" != "xed" && "$dspEDITOR" != "featherpad" ]] && echo "$dspEDITOR chosen if using other editor please specify dspPATH" && return 1 || { [[ -z "$dspEDITOR" ]] && return 1 ; } # orig
     editor_path=$( which "$dspEDITOR" 2> /dev/null)
     if [[ -n "$editor_path" ]]; then
-        test -e "$editor_path" && "$editor_path" $locale && return || { ! test -e "$editor_path" && echo couldnt launch $dspEDITOR at "$editor_path" ; res=1 ; }
+        test -e "$editor_path" && "${cmd[@]}" "$editor_path" $locale && return || { ! test -e "$editor_path" && echo couldnt launch $dspEDITOR at "$editor_path" ; }
     else
         if [[ -e /usr/bin/$dspEDITOR ]]; then
-        		/usr/bin/$dspEDITOR $locale && return ; echo "Error: Detected and failed to open /usr/bin/$dspEDITOR" ; res=1
-        	# gnome?
-        	else
-        		if command -v xdg-open >/dev/null 2>&1; then xdg-open $locale ; res=$? ; fi
-        		echo couldnt find $dspEDITOR in path or in default /usr/bin please specify dspEDITOR or dspPATH: "/opt/developerbuddy/recentchanges"
-        	fi
+                "${cmd[@]}" /usr/bin/$dspEDITOR $locale && return ; echo "Error: Detected and failed to open /usr/bin/$dspEDITOR"
+            # gnome?
+            else
+                if command -v xdg-open >/dev/null 2>&1; then xdg-open $locale && return ; fi
+                echo couldnt find $dspEDITOR in path or in default /usr/bin please specify dspEDITOR or dspPATH: "/opt/developerbuddy/recentchanges"
+            fi
     fi
-    return $res
+    return 1
 fi
 }
 # load text editor if user want to display as non root
 output_results() {
-    local file_out="$1"  # 0"$XDG_RUNTIME_DIR"/file_output
-    # if [[ $res -eq 0 ]]; then
-    test -f $file_out && var=$( cat $file_out) && display "$var"  # test -f $file_out && rm $file_out
-    # exit $res
+    local file_out="$1"  # "$XDG_RUNTIME_DIR"/file_output
+    if [[ $res -eq 0 ]]; then test -f $file_out && var=$( cat $file_out) && display "$var" ; fi  # test -f $file_out && rm $file_out
+    exit $res
 }
 isdiff() {
 if [ -s "$1" ]; then
@@ -2205,7 +2217,7 @@ end=$(date +%s.%N)
 
 el=$(awk "BEGIN {print $end - $start}")  # main search time
 #scrolling look
-if [ "$FEEDBACK" == "true" ]; then tr '\0' '\n' < "$RECENTNUL" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); sub(/\/\/\|$/, "") ;print }' ; fi 
+if [ "$FEEDBACK" == "true" ]; then tr '\0' '\n' < "$RECENTNUL" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); sub(/\/\/\|.*$/, "") ;print }' ; fi 
 #tr '\0' '\n' < "$toutnul" | awk '{ $1=$2=$3=$4=$5=$6=$7=$8=$9=$10=""; sub(/^ +/, ""); print }'
 #while IFS= read -r -d '' y; do y="$( ap_enc "$y")" ; printf '%s\n' "$y"; done < $RECENTNUL > $xdata
 
