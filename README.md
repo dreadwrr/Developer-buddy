@@ -1,3 +1,5 @@
+11/18/2026 v6.7 is ready and currently testing before release. The new version will have one recentchanges version that works with wayland and x11. Then save-changesnew and save-changesnewNMS modules. <br><br>
+
 python special edition [Repo](https://github.com/dreadwrr/Developer-buddy/tree/pyver)<br>
 
 v6.5 added themes for query there are [instructions](https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0#bookmark=id.7oojvtbxclmu)  to add dark mode ect <br>
