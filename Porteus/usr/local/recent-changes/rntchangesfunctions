@@ -1085,7 +1085,7 @@ if [[ -n "$locale" && "$dspEDITOR" != "false" ]]; then
         for editor in "${!editors[@]}"; do
             # avoid delay with debus if root as it uses sudo -u
             if [ "$editor" == "xdg-open" ] && [ -z "$LAUNCHED_NON_ROOT" ]; then continue ; fi
-            if [[ $(which $editor | wc -l) -ne 0 ]]; then
+            if [[ $(which $editor 2>/dev/null | wc -l) -ne 0 ]]; then
                 "${cmd[@]}" $editor $locale && return ; echo "Attempted to open $editor and returned non zero. set dspEDITOR in /opt/developerbuddy/recentchanges"
             fi
         done
