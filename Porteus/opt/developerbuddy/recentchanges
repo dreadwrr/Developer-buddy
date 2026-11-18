@@ -100,12 +100,12 @@ export ANALYTICSECT="true" # provides more feedback
 export FEEDBACK="true"  # include find output in terminal as well ie scrolling terminal look
 
 #Display
-export dspEDITOR="gedit" # false.  default dont display text editor. launch text editor? look in path then /usr/bin or check if gnome
+export dspEDITOR="xed" # false.  default dont display text editor. launch text editor? look in path then /usr/bin or check if gnome
                                         # featherpad
                                         # xed
                                         # gedit
-export dspPATH="" # specify absolute directory as a fallback
-                   # "/usr/bin/somebinary"
+export dspPATH=""       # specify absolute directory as a fallback
+                                   # "/usr/bin/somebinary"
 # optional theme packages are supported for query. precedence is ttkbootstrap, sv-ttk then ttkazure or forest
 
 export BOOTSTRAPTHEME="darkly"  # default theme to use for ttkbootstrap
@@ -166,7 +166,9 @@ if [ "$1" = "-v" ]; then get_vrn $1 ; elif [ "$1" = "--help" ] || [ "$1" = "-h" 
 # xhost -SI:localuser:root
 if (( EUID != 0 )); then
     echo "Please enter your root password below"
-    sudo --preserve-env=XDG_SESSION_TYPE,XDG_RUNTIME_DIR,WAYLAND_DISPLAY,DISPLAY /opt/developerbuddy/recentchanges "$1" "$2" "$3" "$(id -un)" "$PWD"  # exec
+    sudo -k
+    # --preserve-env=XDG_SESSION_TYPE,XDG_RUNTIME_DIR,WAYLAND_DISPLAY,DISPLAY
+    exec sudo /opt/developerbuddy/recentchanges "$1" "$2" "$3" "$(id -un)" "$PWD"  # exec
     # rc=$? ; (( rc == 0 )) && output_results "$XDG_RUNTIME_DIR"/file_output  # open editor non-root
     exit
 fi
@@ -244,7 +246,7 @@ cdir=/tmp/dbctimecache/											;	cerr=/tmp/cerr  # priority
 datadict="${cdir}datadict"										;	slog=/tmp/scr  # feedback
 secondary=()															;	arrreject=()
 arrfiles=()																	;	TAIL=()
-	
+
 declare -A recent  # this search SORTCOMPLETE
 declare -A ref_map  # bash default mode. logs stored or original SORTCOMPLETE. past searches
 declare -A created  # xrc inotify $log_file
