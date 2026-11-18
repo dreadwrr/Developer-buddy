@@ -1327,7 +1327,7 @@ test -f $slog && rm $slog ; test -f $cerr && rm $cerr
 #}
 convertn() { awk -v a="$1" -v b="$2" 'BEGIN { printf "%.2f\n", a/b }' ; }
 # timedelta() { echo "scale=$3; $1 - $2" | bc ; }
-timedelta() { awk -v a="$1" -v b="$2" s="$3" 'BEGIN {printf "%.*f\n", s,  a - b}'  ; }   # awk -v a="$1" -v b="$2" 'BEGIN{printf "%.6f\n", a - b}'
+timedelta() { awk -v a="$1" -v b="$2" -v s="$3" 'BEGIN {printf "%.*f\n", s,  a - b}'  ; }   # awk -v a="$1" -v b="$2" 'BEGIN{printf "%.6f\n", a - b}'
 
 float_gt() {
 # (( $(echo "$1 >= $2" | bc) ))
