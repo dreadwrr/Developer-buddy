@@ -1,3 +1,0 @@
-#!/bin/bash
-#      recentchanges search        filtered     recentchanges v3.0    03/25/2026
-/opt/recentchanges/recentchanges "$@" "inv"
