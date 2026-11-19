@@ -1,4 +1,5 @@
-11/18/2026 v6.7 is out with support for other linux distributions<br><br>
+11/18/2026 <br>
+v6.7 is out with support for other linux distributions<br><br>
 
 python special edition [Repo](https://github.com/dreadwrr/Developer-buddy/tree/pyver)<br>
 
