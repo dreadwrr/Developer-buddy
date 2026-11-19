@@ -18,10 +18,19 @@ webb=(
 
 
 get_colors(){
+txtbld=$(tput bold)
+txtred=${txtbld}$(tput setaf 1)
+txtgreen=${txtbld}$(tput setaf 2)
 txtyellow=${txtbld}$(tput setaf 3)
 txtblue=${txtbld}$(tput setaf 4)
-function yellow() { echo -e $txtyellow "$1" $rst; }
+txtcyan=${txtbld}$(tput setaf 6)
+rst=$(tput sgr0)
+function bold(){ echo -e $txtbld "$1" $rst; }
+function red(){ echo -e $txtred "$1" $rst; }
+function green() { echo -e $txtgreen "$1" $rst; }
 function blue(){ echo $txtblue "$1" $rst; }
+function cyan(){ echo -e $txtcyan "$1" $rst; }
+function yellow() { echo -e $txtyellow "$1" $rst; }
 }
 # take the search data then filter it if its a filtered search. stat the file report if its active. no need to grab other stats as have all necessary data. if for some reason the file disappears still have original data
 postop() {
@@ -1034,6 +1043,19 @@ else
 fi
 return 1
 }
+checkxdg() {
+local id dir dir_st
+if [ -z "$1" ]; then
+    id=$(id -u $2)
+    dir="/run/user/$id"
+    dir_st=$(stat -c '%u' "$dir" 2>/dev/null)
+    if [[ -z "$dir_st" ]] ||  [[ "$id" -eq 0 && "$dir_st" != 0 ]]; then
+        dir="/tmp/recentchanges-$id"
+        mkdir --parents $dir
+    fi
+    export XDG_RUNTIME_DIR=$dir
+fi
+}
 getusr() {
 DEFAULT_USER="$SUDO_USER" ; [[ -z "$DEFAULT_USER" ]] && DEFAULT_USER=$( awk -F: '$3 == 1000 {print $1}' /etc/passwd)  # 1000 # above would be blank in ran as root
 read -rp "Enter default username [$DEFAULT_USER]: " USR ; USR="${USR:-$DEFAULT_USER}"
@@ -1253,7 +1275,7 @@ if [ "$STATPST" == "true" ]; then
             for path in "${!created[@]}"; do
                 created_files+=("${path}//|${created[$path]}")
             done
-			cp $SORTCOMPLETE /tmp
+
             printf "%s\0" "${created_files[@]}" | python3 /usr/local/recent-changes/pstsrg.py $SORTCOMPLETE $COMPLETE $pydbpst $rout $checkSUM $checkMETHOD $cdiag $USR $email $mMODE $ANALYTICSECT $proteusSHIELD $compLVL $total_files
             ret=$?
             if [ "$ret" -ne 0 ]; then

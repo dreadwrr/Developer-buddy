@@ -5,9 +5,10 @@
 # xzm true is the default xzm profile for porteus.
 #
 shopt -s nullglob
-. /usr/share/porteus/porteus-functions
-get_colors
+#. /usr/share/porteus/porteus-functions
+#get_colors
 . /usr/local/recent-changes/rntchangesfunctions
+get_colors
 checkMETHOD="$1"
 md="$2"
 # CHANGEABLE

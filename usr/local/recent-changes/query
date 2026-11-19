@@ -1,7 +1,9 @@
 #!/bin/bash
-#   recentchanges query                recentchanges v3.0                                                                              07/24/2026
+#   recentchanges query                recentchanges v6.7                                                                              07/24/2026
 #   retrieval of data  from  /tmp  or  logpst and statpst
-. /usr/share/porteus/porteus-functions
+#. /usr/share/porteus/porteus-functions
+#get_colors
+. /usr/local/recent-changes/rntchangesfunctions
 get_colors
 . /usr/local/recent-changes/heuristics
 # CHANGABLE
