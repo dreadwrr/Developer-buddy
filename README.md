@@ -1,5 +1,5 @@
 11/18/2026 <br>
-v6.7 is out with support for other linux distributions<br><br>
+v6.7 is out with support for other linux distributions. This brings it up to the qt versions correctness changes. <br><br>
 
 python special edition [Repo](https://github.com/dreadwrr/Developer-buddy/tree/pyver)<br>
 
