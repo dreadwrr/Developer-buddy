@@ -1059,7 +1059,7 @@ fi
 getusr() {
 DEFAULT_USER="$SUDO_USER" ; [[ -z "$DEFAULT_USER" ]] && DEFAULT_USER=$( awk -F: '$3 == 1000 {print $1}' /etc/passwd)  # 1000 # above would be blank in ran as root
 read -rp "Enter default username [$DEFAULT_USER]: " USR ; USR="${USR:-$DEFAULT_USER}"
-if  ! id $USR >/dev/null 2>&1; then
+if  ! id $USR >/dev/null 2>&1 || [ -z "$USR" ]; then
     echo "user: $USR not found"; echo "set default user ln 202" ; exit 1
 else
     echo "setting default user to $USR"
