@@ -1,4 +1,4 @@
-11/18/2026 v6.7 is ready and currently testing before release. The new version will have one recentchanges version that works with wayland and x11. Then save-changesnew and save-changesnewNMS modules one for porteus and nemesis. <br><br>
+11/18/2026 v6.7 is out with support for other linux distributions<br><br>
 
 python special edition [Repo](https://github.com/dreadwrr/Developer-buddy/tree/pyver)<br>
 
