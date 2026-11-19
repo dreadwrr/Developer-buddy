@@ -7,4 +7,3 @@ PrefersNonDefaultGPU=false
 Icon=/home/guest/.config/save-changesnew/icons/flatpak.svg
 Type=Application
 Name[en_US]=save/backup changes
-Categories=Network
