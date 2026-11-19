@@ -1,9 +1,9 @@
 11/18/2026 <br>
-v6.7 is out with support for other linux distributions. This brings it up to the qt versions correctness changes. <br><br>
-
+v6.7 is out with support for other linux distributions. This brings it up to the qt versions correctness changes. <br>
+for theming there are [instructions](https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0#bookmark=id.7oojvtbxclmu)  to add dark mode ect <br><br>
 python special edition [Repo](https://github.com/dreadwrr/Developer-buddy/tree/pyver)<br>
 
-v6.5 added themes for query there are [instructions](https://docs.google.com/document/d/1EJAKd1v41LTLN74eXHf5N_BdvGYlfU5Ai8oWBDSGeho/edit?tab=t.0#bookmark=id.7oojvtbxclmu)  to add dark mode ect <br>
+v6.5 added themes for query 
 
 
 ![Alt text](https://i.imgur.com/S8015dn.png) <br><br>
