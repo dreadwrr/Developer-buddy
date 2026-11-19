@@ -30,11 +30,12 @@
 # working off of base save-changes script by
 # Author: Brokenman <brokenman@porteus.org>
 # Author: fanthom <fanthom@porteus.org>
-. /usr/share/porteus/porteus-functions
-get_colors
+#. /usr/share/porteus/porteus-functions
+#get_colors
 . /usr/local/recent-changes/versionquery
 . /usr/local/recent-changes/validprogram.sh
 . /usr/local/recent-changes/rntchangesfunctions
+get_colors
 # If not wanting xed or featherpad to open set dspEDITOR to false
 # CHANGEABLE
 
@@ -166,6 +167,7 @@ if [ "$1" = "-v" ]; then get_vrn $1 ; elif [ "$1" = "--help" ] || [ "$1" = "-h" 
 
 if (( EUID != 0 )); then
     USR="$(id -un)"
+    echo one
     echo "Please enter your root password below"
     # sudo -k  # clears credentials for regular sudo commands
     # sudo env -i DISPLAY="$DISPLAY" bash -c '"$0" "$@"' "$0" "$1" "$2" "$3" "$USR" "$PWD"  # too little env
@@ -204,7 +206,7 @@ USR="$4"
 passdir="$5"
 if [ "$4" == "" ] || [ "$5" == "" ]; then USR=$DEFAULT_USER ; passdir=$PWD ; fi  #Default user porteus guest 
 if  ! id $USR >/dev/null 2>&1 || [[ -z "$USR" ]]; then [[ -z "$USR" ]] && getusr || { echo "user: $USR not found"; exit 1 ; } ; fi
-
+checkxdg "$XDG_RUNTIME_DIR" $USR
 # export DISPLAY=:0  # for tkl and root xed featherpad
 # export XAUTHORITY=/home/$USR/.Xauthority
 
@@ -428,7 +430,7 @@ if [ -s $SORTCOMPLETE ]; then
     moduledir=$MODULENAME"_"$FLBRAND
     chxzmnm=$MODULENAME"manifest.txt"
     FLTOUT="/tmp"$MODULENAME"ItemsFilteredout"
-	fileout="$XDG_RUNTIME_DIR"/file_output
+    fileout="$XDG_RUNTIME_DIR"/file_output
     if [ "$flsrh" == "true" ]; then
         flnm="xNewerThan_$parseflnm"
         flnmdff="xDiffFromLast_$parseflnm"
@@ -512,7 +514,7 @@ fi
 test -d "$tmp" && rm -rf "$tmp"
 test -d "$atmp" && rm -rf "$atmp"
 
-logic "$fileout"
+logic
 res=$?
 output_results "$fileout"
 
