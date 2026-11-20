@@ -88,7 +88,7 @@ for porteus a new entry Graphics changes in the syslinux bootloader  so one can 
 
   ## Recentchanges
 
-   recentchanges. Developer buddy      make xzm     
+   recentchanges. Developer buddy
    Provide ease of pattern finding ie what files to block we can do this a number of ways
    1) if a file was there (many as in more than a few) and another search lists them as deleted its either a sys file or not but unwanted nontheless
    2) Is a system file inherent to the specifc platform
