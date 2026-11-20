@@ -10,7 +10,7 @@ v6.5 added themes for query
 
 for Porteus 5.01, 5.1 and Nemesis 
 
-script includes recentchanges as well as save-changesnew. This is the bash version that has a python backend and is the main release. <br>
+repo includes recentchanges as well as save-changesnew. This is the bash version that has a python backend (default) and is the main release. <br>
 A python version or pyver which is recentchanges implemented in python <br>
 
 I first started a Qt gui for Windows 10/11 based on recent changes. Then converted it for linux.
