@@ -64,25 +64,25 @@ in file searches and those are targeted and merged into the search.
 
 include all system new files in a seperate results .txt. 
 
-This program has a filter that you can edit in /usr/local/save-changesnew/filter that can filter files from the search so there are only files you want to see
+This program has a filter that you can edit in /usr/local/recent-changes/filter that can filter files from the search so there are only files you want to see
 
-Uses two .gpgs for STATPST or persistent storage. logs.gpg and stats.gpg. stats.gpg contains actions Overwrite, Modified, Deleted, Replaced, Touched, Checksum, Metadata and Copy.
+Uses two .gpgs for STATPST or persistent storage. logs.gpg and stats.gpg. stats.gpg contains actions Overwrite, Modified, Deleted, Replaced, Touched, Metadata, Created, Copy and Casmod (change as modified).
 
 if using python backend uses one .gpg. recent.gpg. The stats is in a seperate table in the db.
 
-All searches are stored in logs.gpg and is the underlying principle of hybrid analysis. All searches with STATPST will include ha. So you can see what happened to them.
+All searches are stored in logs.gpg and is the underlying principle of hybrid analysis. All searches with STATPST will include hybrid analysis or ha. So you can see what happened to them.
 
 ANALYTICS is the same but its stored in /tmp/rc as a text file. Less secure but its owned by root and in TMPFS.
 
 Rsync backup your changes folder in changes=EXIT:/ on porteus
 
-Contantly up to date as I use this daily when developing.
+Constantly up to date as I use this daily when developing.
 
 2 modes. default  and mc.  Written strictly in bash and captures filenames with spaces commas quotes and new lines. <br><br>
 
 <p> The script also updates the syslinux bootloader automatically to point to $BASEDIR/extramod. If you use a grub bootloader there  is a setting to point to the grub line number. Just make a new entry for graphics mode ie non changes. If your bootloader in on a different drive there is a setting to point to that.
 
-for porteus a new entry Graphics changes in the syslinux bootloader  so one can be for loading extramod= ect. This mimics nemesis bootloader.
+for porteus a new entry Graphics changes in the syslinux bootloader so one can be for loading extramod= ect. This mimics nemesis bootloader.
 </p>
 <br><br>
 
